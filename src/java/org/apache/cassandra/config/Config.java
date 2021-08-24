@@ -34,8 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -193,6 +193,8 @@ public class Config
     public volatile boolean native_transport_allow_older_protocols = true;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    public volatile boolean native_transport_rate_limiting_enabled = false;
+    public volatile int native_transport_max_requests_per_second = 1000000;
     public int native_transport_receive_queue_capacity_in_bytes = 1 << 20; // 1MiB
 
     @Deprecated
@@ -219,6 +221,7 @@ public class Config
     public volatile int compaction_throughput_mb_per_sec = 16;
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
     public int min_free_space_per_drive_in_mb = 50;
+    public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
@@ -288,6 +291,7 @@ public class Config
     public int hints_flush_period_in_ms = 10000;
     public int max_hints_file_size_in_mb = 128;
     public ParameterizedClass hints_compression;
+    public volatile boolean auto_hints_cleanup_enabled = false;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
@@ -397,6 +401,8 @@ public class Config
     public boolean enable_transient_replication = false;
 
     public boolean enable_sasi_indexes = false;
+
+    public volatile boolean enable_drop_compact_storage = false;
 
     /**
      * Optionally disable asynchronous UDF execution.
@@ -563,6 +569,9 @@ public class Config
     public volatile int keyspace_count_warn_threshold = 40;
 
     public volatile int consecutive_message_errors_threshold = 1;
+
+    public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
+    public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {

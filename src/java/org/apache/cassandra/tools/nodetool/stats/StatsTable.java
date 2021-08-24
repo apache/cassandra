@@ -69,5 +69,6 @@ public class StatsTable
     public long maximumTombstonesPerSliceLastFiveMinutes;
     public String droppedMutations;
     public List<String> sstablesInEachLevel = new ArrayList<>();
+    public List<String> sstableBytesInEachLevel = new ArrayList<>();
     public Boolean isInCorrectLocation = null; // null: option not active
 }

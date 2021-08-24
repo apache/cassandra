@@ -395,6 +395,11 @@ public class LeveledManifest
         return generations.getAllLevelSize();
     }
 
+    public synchronized long[] getAllLevelSizeBytes()
+    {
+        return generations.getAllLevelSizeBytes();
+    }
+
     @VisibleForTesting
     public synchronized int remove(SSTableReader reader)
     {

@@ -443,7 +443,8 @@ public abstract class AbstractCommitLogSegmentManager
     /**
      * To be used by tests only. Not safe if mutation slots are being allocated concurrently.
      */
-    void awaitManagementTasksCompletion()
+    @VisibleForTesting
+    public void awaitManagementTasksCompletion()
     {
         if (availableSegment == null && !atSegmentBufferLimit())
         {

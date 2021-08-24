@@ -96,18 +96,8 @@ public class VirtualTablePartitionRangeReadQuery extends VirtualTableReadQuery i
     @Override
     protected void appendCQLWhereClause(StringBuilder sb)
     {
-        if (dataRange.isUnrestricted() && rowFilter().isEmpty())
-            return;
-
-        sb.append(" WHERE ");
-        // We put the row filter first because the data range can end by "ORDER BY"
-        if (!rowFilter().isEmpty())
-        {
-            sb.append(rowFilter());
-            if (!dataRange.isUnrestricted())
-                sb.append(" AND ");
-        }
-        if (!dataRange.isUnrestricted())
-            sb.append(dataRange.toCQLString(metadata()));
+        String filterString = dataRange.toCQLString(metadata(), rowFilter());
+        if (!filterString.isEmpty())
+            sb.append(" WHERE ").append(filterString);
     }
 }

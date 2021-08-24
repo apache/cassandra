@@ -487,7 +487,7 @@
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependencyManagement>
           <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.2.6"/>
-          <dependency groupId="org.lz4" artifactId="lz4-java" version="1.7.1"/>
+          <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4" scope="provided"/>
           <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.3.8-5"/>
           <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre">
@@ -504,7 +504,7 @@
           <dependency groupId="commons-io" artifactId="commons-io" version="2.6" scope="test"/>
           <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
           <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
-          <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2">
+          <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2" scope="provided">
             <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
           </dependency>
           <dependency groupId="org.antlr" artifactId="ST4" version="4.0.8"/>
@@ -528,9 +528,11 @@
           </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26" scope="test"/>
-          <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7" scope="test"/>
-          <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
+          <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
+            <exclusion groupId="com.google.guava" artifactId="guava"/>
+          </dependency>
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.8" scope="test"/>
+          <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
             <exclusion groupId="commons-logging" artifactId="commons-logging"/>
@@ -548,16 +550,18 @@
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}" scope="test"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" scope="test"/>
 
-          <dependency groupId="org.jboss.byteman" artifactId="byteman-install" version="${byteman.version}"/>
-          <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}"/>
-          <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}"/>
-          <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}"/>
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-install" version="${byteman.version}" scope="provided"/>
+          <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}" scope="provided"/>
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}" scope="provided"/>
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}" scope="provided"/>
 
           <dependency groupId="net.bytebuddy" artifactId="byte-buddy" version="${bytebuddy.version}" />
           <dependency groupId="net.bytebuddy" artifactId="byte-buddy-agent" version="${bytebuddy.version}" />
 
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21" scope="test"/>
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21" scope="test"/>
+
+          <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" scope="test"/>
 
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
@@ -646,11 +650,12 @@
              this that the new assertj's `assertj-parent-pom` depends on. -->
           <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom" scope="test"/>
           <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
-          <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="test"/>
+          <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="provided"/>
           <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3"  scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest"/>
           </dependency>
           <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
+          <dependency groupId="com.github.seancfoley" artifactId="ipaddress" version="5.3.3" />
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -707,30 +712,24 @@
                 artifactId="cassandra-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
-        <dependency groupId="junit" artifactId="junit" scope="test"/>
-        <dependency groupId="commons-io" artifactId="commons-io" scope="test"/>
-        <dependency groupId="org.mockito" artifactId="mockito-core" scope="test"/>
-        <dependency groupId="org.quicktheories" artifactId="quicktheories" scope="test"/>
-        <dependency groupId="org.reflections" artifactId="reflections" scope="test"/>
-        <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test"/>
-        <dependency groupId="org.apache.cassandra" artifactId="dtest-api" scope="test"/>
-        <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" scope="test"/>
-        <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" scope="test"/>
-        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
-        <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" scope="test"/>
+        <dependency groupId="junit" artifactId="junit"/>
+        <dependency groupId="commons-io" artifactId="commons-io"/>
+        <dependency groupId="org.mockito" artifactId="mockito-core"/>
+        <dependency groupId="org.quicktheories" artifactId="quicktheories"/>
+        <dependency groupId="org.reflections" artifactId="reflections"/>
+        <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}"/>
+        <dependency groupId="org.apache.cassandra" artifactId="dtest-api"/>
+        <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
+        <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
+        <dependency groupId="org.apache.ant" artifactId="ant-junit"/>
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
-        <dependency groupId="org.junit" artifactId="junit-bom" type="pom" scope="test"/>
-        <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
-        <dependency groupId="org.awaitility" artifactId="awaitility" scope="test"/>
-        <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
+        <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
+        <dependency groupId="org.awaitility" artifactId="awaitility"/>
+        <dependency groupId="org.hamcrest" artifactId="hamcrest"/>
         <!-- coverage debs -->
-        <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" scope="test"/>
-        <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" scope="test"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-install" scope="test"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman" scope="test"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" scope="test"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" scope="test"/>
+        <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
+        <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -775,8 +774,8 @@
         <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>
 
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
-        <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true" scope="provided"/>
-        <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true" scope="provided"/>
+        <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
+        <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
 
         <!-- don't need the Java Driver to run, but if you use the hadoop stuff or UDFs -->
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded" optional="true"/>
@@ -821,13 +820,14 @@
         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" />
 
         <!-- compile tools -->
-        <dependency groupId="com.google.code.findbugs" artifactId="jsr305" scope="provided"/>
-        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="provided"/>
-        <dependency groupId="org.assertj" artifactId="assertj-core" scope="provided"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-install" scope="provided"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman" scope="provided"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" scope="provided"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" scope="provided"/>
+        <dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
+        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
+        <dependency groupId="org.assertj" artifactId="assertj-core"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-install"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-submit"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit"/>
+        <dependency groupId="com.github.seancfoley" artifactId="ipaddress" />
       </artifact:pom>
     </target>
 
@@ -1610,7 +1610,7 @@
   <target name="test-memory" depends="build-test" description="Execute functional tests">
       <testmacro inputdir="${test.memory.src}"
                  timeout="${test.memory.timeout}">
-          <jvmarg value="-javaagent:${build.dir}/lib/jars/java-allocation-instrumenter-${allocation-instrumenter.version}.jar"/>
+          <jvmarg value="-javaagent:${build.dir}/test/lib/jars/java-allocation-instrumenter-${allocation-instrumenter.version}.jar"/>
       </testmacro>
   </target>
 
@@ -1944,7 +1944,7 @@
   </target>
 
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="build-test" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,maven-ant-tasks-init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea" overwrite="true">

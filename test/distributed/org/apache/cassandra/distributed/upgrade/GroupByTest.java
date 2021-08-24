@@ -37,7 +37,7 @@ public class GroupByTest extends UpgradeTestBase
         // CASSANDRA-16582: group-by across mixed version cluster would fail with ArrayIndexOutOfBoundException
         new UpgradeTestBase.TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v3X, Versions.Major.v4)
+        .upgradesFrom(v3X)
         .nodesToUpgrade(1)
         .withConfig(config -> config.with(GOSSIP, NETWORK))
         .setup(cluster -> {

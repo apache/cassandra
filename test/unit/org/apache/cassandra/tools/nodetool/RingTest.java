@@ -85,7 +85,7 @@ public class RingTest extends CQLTester
         assertThat(hostRing).contains(SimpleSnitch.RACK_NAME);
         assertThat(hostRing).contains("Up");
         assertThat(hostRing).contains("Normal");
-        assertThat(hostRing).containsPattern("\\d+\\.\\d+ KiB");
+        assertThat(hostRing).containsPattern("\\d+\\.?\\d+ KiB");
         assertThat(hostRing).containsPattern("\\d+\\.\\d+%");
         assertThat(hostRing).endsWith(token);
         assertThat(hostRing).doesNotContain("?");

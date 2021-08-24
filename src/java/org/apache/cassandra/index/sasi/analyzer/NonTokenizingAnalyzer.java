@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.analyzer.filter.BasicResultFilters;
 import org.apache.cassandra.index.sasi.analyzer.filter.FilterPipelineBuilder;
 import org.apache.cassandra.index.sasi.analyzer.filter.FilterPipelineExecutor;
@@ -29,6 +30,7 @@ import org.apache.cassandra.index.sasi.analyzer.filter.FilterPipelineTask;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -49,19 +51,30 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
             add(AsciiType.instance);
     }};
 
-    private AbstractType validator;
+    private AbstractType<?> validator;
     private NonTokenizingOptions options;
     private FilterPipelineTask filterPipeline;
 
     private ByteBuffer input;
     private boolean hasNext = false;
 
-    public void init(Map<String, String> options, AbstractType validator)
+    @Override
+    public void validate(Map<String, String> options, ColumnMetadata cm) throws ConfigurationException
+    {
+        super.validate(options, cm);
+        if (options.containsKey(NonTokenizingOptions.CASE_SENSITIVE) &&
+            (options.containsKey(NonTokenizingOptions.NORMALIZE_LOWERCASE)
+             || options.containsKey(NonTokenizingOptions.NORMALIZE_UPPERCASE)))
+            throw new ConfigurationException("case_sensitive option cannot be specified together " +
+                                               "with either normalize_lowercase or normalize_uppercase");
+    }
+
+    public void init(Map<String, String> options, AbstractType<?> validator)
     {
         init(NonTokenizingOptions.buildFromMap(options), validator);
     }
 
-    public void init(NonTokenizingOptions tokenizerOptions, AbstractType validator)
+    public void init(NonTokenizingOptions tokenizerOptions, AbstractType<?> validator)
     {
         this.validator = validator;
         this.options = tokenizerOptions;

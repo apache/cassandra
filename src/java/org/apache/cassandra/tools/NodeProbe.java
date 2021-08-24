@@ -55,9 +55,12 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.AuditLogManagerMBean;
+import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -134,6 +137,7 @@ public class NodeProbe implements AutoCloseable
     protected HintsServiceMBean hsProxy;
     protected BatchlogManagerMBean bmProxy;
     protected ActiveRepairServiceMBean arsProxy;
+    protected AuditLogManagerMBean almProxy;
     protected Output output;
     private boolean failed;
 
@@ -240,6 +244,8 @@ public class NodeProbe implements AutoCloseable
             bmProxy = JMX.newMBeanProxy(mbeanServerConn, name, BatchlogManagerMBean.class);
             name = new ObjectName(ActiveRepairServiceMBean.MBEAN_NAME);
             arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
+            name = new ObjectName(AuditLogManager.MBEAN_NAME);
+            almProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuditLogManagerMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -311,10 +317,9 @@ public class NodeProbe implements AutoCloseable
 
     private void checkJobs(PrintStream out, int jobs)
     {
-        // TODO this should get the configured number of concurrent_compactors via JMX and not using DatabaseDescriptor
-        DatabaseDescriptor.toolInitialization(false); // if running in dtest, this would fail if true (default)
-        if (jobs > DatabaseDescriptor.getConcurrentCompactors())
-            out.println(String.format("jobs (%d) is bigger than configured concurrent_compactors (%d) on this host, using at most %d threads", jobs, DatabaseDescriptor.getConcurrentCompactors(), DatabaseDescriptor.getConcurrentCompactors()));
+        int compactors = ssProxy.getConcurrentCompactors();
+        if (jobs > compactors)
+            out.println(String.format("jobs (%d) is bigger than configured concurrent_compactors (%d) on the host, using at most %d threads", jobs, compactors, compactors));
     }
 
     public void forceKeyspaceCleanup(PrintStream out, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
@@ -1808,14 +1813,24 @@ public class NodeProbe implements AutoCloseable
         ssProxy.disableAuditLog();
     }
 
-    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces,
+                               String includedCategories, String excludedCategories, String includedUsers, String excludedUsers)
     {
         ssProxy.enableAuditLog(loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
 
-    public void enableAuditLog(String loggerName, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories,
+                               String excludedCategories, String includedUsers, String excludedUsers)
     {
         this.enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+    }
+
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand)
+    {
+        ssProxy.enableAuditLog(loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                               maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
 
     public void enableOldProtocolVersions()
@@ -1851,6 +1866,11 @@ public class NodeProbe implements AutoCloseable
     public FullQueryLoggerOptions getFullQueryLoggerOptions()
     {
         return FullQueryLoggerOptionsCompositeData.fromCompositeData(ssProxy.getFullQueryLoggerOptions());
+    }
+
+    public AuditLogOptions getAuditLogOptions()
+    {
+        return AuditLogOptionsCompositeData.fromCompositeData(almProxy.getAuditLogOptionsData());
     }
 }
 

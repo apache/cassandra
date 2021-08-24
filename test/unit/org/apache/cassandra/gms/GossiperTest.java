@@ -37,6 +37,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -148,7 +149,7 @@ public class GossiperTest
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
 
-        assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
+        assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersionSupplier.get().value());
     }
 
     @Test

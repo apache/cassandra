@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test;
 import org.apache.cassandra.distributed.action.GossipHelper;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -46,7 +48,10 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
 {
     /**
      * Replaces Python dtest {@code hintedhandoff_test.py:TestHintedHandoff.test_hintedhandoff_decom()}.
+     * Ignored for now as there is some in-jvm bug which needs to be fixed, otherwise the test is flaky
+     * For more information see CASSANDRA-16679
      */
+    @Ignore
     @Test
     public void shouldStreamHintsDuringDecommission() throws Exception
     {
@@ -85,6 +90,7 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
         }
     }
 
+    @Ignore
     @Test
     public void shouldBootstrapWithHintsOutstanding() throws Exception
     {

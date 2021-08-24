@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -51,6 +52,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -73,7 +75,10 @@ import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
 import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class RepairJobTest
 {
@@ -288,6 +293,34 @@ public class RepairJobTest
             .hasSize(2)
             .extracting(Message::verb)
             .containsOnly(Verb.SYNC_REQ);
+    }
+
+    @Test
+    public void testValidationFailure() throws InterruptedException, TimeoutException
+    {
+        Map<InetAddressAndPort, MerkleTrees> mockTrees = new HashMap<>();
+        mockTrees.put(addr1, createInitialTree(false));
+        mockTrees.put(addr2, createInitialTree(false));
+        mockTrees.put(addr3, null);
+
+        interceptRepairMessages(mockTrees, new ArrayList<>());
+
+        try 
+        {
+            job.run();
+            job.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
+            fail("The repair job should have failed on a simulated validation error.");
+        }
+        catch (ExecutionException e)
+        {
+            Assertions.assertThat(e.getCause()).isInstanceOf(RepairException.class);
+        }
+
+        // When the job fails, all three outstanding validation tasks should be aborted.
+        List<ValidationTask> tasks = job.validationTasks;
+        assertEquals(3, tasks.size());
+        assertFalse(tasks.stream().anyMatch(ValidationTask::isActive));
+        assertFalse(tasks.stream().allMatch(ValidationTask::isDone));
     }
 
     @Test
@@ -786,19 +819,19 @@ public class RepairJobTest
 
     private MerkleTrees createInitialTree(boolean invalidate)
     {
-        MerkleTrees tree = new MerkleTrees(MURMUR3_PARTITIONER);
-        tree.addMerkleTrees((int) Math.pow(2, 15), FULL_RANGE);
-        tree.init();
+        MerkleTrees trees = new MerkleTrees(MURMUR3_PARTITIONER);
+        trees.addMerkleTrees((int) Math.pow(2, 15), FULL_RANGE);
+        trees.init();
 
         if (invalidate)
         {
             // change a range in one of the trees
             Token token = MURMUR3_PARTITIONER.midpoint(FULL_RANGE.get(0).left, FULL_RANGE.get(0).right);
-            tree.invalidate(token);
-            tree.get(token).hash("non-empty hash!".getBytes());
+            trees.invalidate(token);
+            trees.get(token).hash("non-empty hash!".getBytes());
         }
 
-        return tree;
+        return trees;
     }
 
     private void interceptRepairMessages(Map<InetAddressAndPort, MerkleTrees> mockTrees,

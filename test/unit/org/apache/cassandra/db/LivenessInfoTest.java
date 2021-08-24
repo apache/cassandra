@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.hadoop.mapred.machines_jsp;
 import org.junit.Test;
 
 public class LivenessInfoTest

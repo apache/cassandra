@@ -540,6 +540,11 @@ public class DatabaseDescriptor
         {
             conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
         }
+        
+        if (conf.native_transport_rate_limiting_enabled)
+            logger.info("Native transport rate-limiting enabled at {} requests/second.", conf.native_transport_max_requests_per_second);
+        else
+            logger.info("Native transport rate-limiting disabled.");
 
         if (conf.commitlog_total_space_in_mb == null)
         {
@@ -1801,6 +1806,16 @@ public class DatabaseDescriptor
 
     public static long getCompactionLargePartitionWarningThreshold() { return ByteUnit.MEBI_BYTES.toBytes(conf.compaction_large_partition_warning_threshold_mb); }
 
+    public static int getCompactionTombstoneWarningThreshold()
+    {
+        return conf.compaction_tombstone_warning_threshold;
+    }
+
+    public static void setCompactionTombstoneWarningThreshold(int count)
+    {
+        conf.compaction_tombstone_warning_threshold = count;
+    }
+
     public static int getConcurrentValidations()
     {
         return conf.concurrent_validations;
@@ -2314,6 +2329,28 @@ public class DatabaseDescriptor
         conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
     }
 
+    public static int getNativeTransportMaxRequestsPerSecond()
+    {
+        return conf.native_transport_max_requests_per_second;
+    }
+
+    public static void setNativeTransportMaxRequestsPerSecond(int perSecond)
+    {
+        Preconditions.checkArgument(perSecond > 0, "native_transport_max_requests_per_second must be greater than zero");
+        conf.native_transport_max_requests_per_second = perSecond;
+    }
+
+    public static void setNativeTransportRateLimitingEnabled(boolean enabled)
+    {
+        logger.info("native_transport_rate_limiting_enabled set to {}", enabled);
+        conf.native_transport_rate_limiting_enabled = enabled;
+    }
+
+    public static boolean getNativeTransportRateLimitingEnabled()
+    {
+        return conf.native_transport_rate_limiting_enabled;
+    }
+
     public static int getCommitLogSyncPeriod()
     {
         return conf.commitlog_sync_period_in_ms;
@@ -2569,6 +2606,16 @@ public class DatabaseDescriptor
     public static void setHintsCompression(ParameterizedClass parameterizedClass)
     {
         conf.hints_compression = parameterizedClass;
+    }
+
+    public static boolean isAutoHintsCleanupEnabled()
+    {
+        return conf.auto_hints_cleanup_enabled;
+    }
+
+    public static void setAutoHintsCleanupEnabled(boolean value)
+    {
+        conf.auto_hints_cleanup_enabled = value;
     }
 
     public static boolean isIncrementalBackupsEnabled()
@@ -2950,6 +2997,17 @@ public class DatabaseDescriptor
         conf.enable_transient_replication = enabled;
     }
 
+    public static boolean enableDropCompactStorage()
+    {
+        return conf.enable_drop_compact_storage;
+    }
+
+    @VisibleForTesting
+    public static void setEnableDropCompactStorage(boolean enableDropCompactStorage)
+    {
+        conf.enable_drop_compact_storage = enableDropCompactStorage;
+    }
+
     public static long getUserDefinedFunctionFailTimeout()
     {
         return conf.user_defined_function_fail_timeout;
@@ -3118,7 +3176,7 @@ public class DatabaseDescriptor
 
     public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions)
     {
-        conf.audit_logging_options = auditLoggingOptions;
+        conf.audit_logging_options = new AuditLogOptions.Builder(auditLoggingOptions).build();
     }
 
     public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()
@@ -3374,5 +3432,15 @@ public class DatabaseDescriptor
     public static void setConsecutiveMessageErrorsThreshold(int value)
     {
         conf.consecutive_message_errors_threshold = value;
+    }
+
+    public static SubnetGroups getClientErrorReportingExclusions()
+    {
+        return conf.client_error_reporting_exclusions;
+    }
+
+    public static SubnetGroups getInternodeErrorReportingExclusions()
+    {
+        return conf.internode_error_reporting_exclusions;
     }
 }

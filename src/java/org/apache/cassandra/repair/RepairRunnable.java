@@ -55,6 +55,7 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
@@ -87,6 +88,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -175,7 +177,17 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         // exception should be ignored
         if (error instanceof SomeRepairFailedException)
             return;
-        logger.error("Repair {} failed:", parentSession, error);
+
+        if (Throwables.anyCauseMatches(error, RepairException::shouldWarn))
+        {
+            logger.warn("Repair {} aborted: {}", parentSession, error.getMessage());
+            if (logger.isDebugEnabled())
+                logger.debug("Repair {} aborted: ", parentSession, error);
+        }
+        else
+        {
+            logger.error("Repair {} failed:", parentSession, error);
+        }
 
         StorageMetrics.repairExceptions.inc();
         String errorMessage = String.format("Repair command #%d failed with error %s", cmd, error.getMessage());
@@ -297,7 +309,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         traceState.enableActivityNotification(tag);
         for (ProgressListener listener : listeners)
             traceState.addProgressListener(listener);
-        Thread queryThread = createQueryThread(cmd, sessionId);
+        Thread queryThread = createQueryThread(sessionId);
         queryThread.setName("RepairTracePolling");
         queryThread.start();
         return traceState;
@@ -312,7 +324,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
     }
 
-    private NeighborsAndRanges getNeighborsAndRanges()
+    private NeighborsAndRanges getNeighborsAndRanges() throws RepairException
     {
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
@@ -335,7 +347,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 }
                 else
                 {
-                    throw new RuntimeException(String.format("Nothing to repair for %s in %s - aborting", range, keyspace));
+                    throw RepairException.warn(String.format("Nothing to repair for %s in %s - aborting", range, keyspace));
                 }
             }
             addRangeToNeighbors(commonRanges, range, neighbors);
@@ -400,7 +412,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         if (options.isPreview())
         {
             previewRepair(parentSession,
-                          creationTimeMillis,
                           neighborsAndRanges.filterCommonRanges(keyspace, cfnames),
                           neighborsAndRanges.participants,
                           cfnames);
@@ -408,7 +419,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         else if (options.isIncremental())
         {
             incrementalRepair(parentSession,
-                              creationTimeMillis,
                               traceState,
                               neighborsAndRanges,
                               neighborsAndRanges.participants,
@@ -417,7 +427,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         else
         {
             normalRepair(parentSession,
-                         creationTimeMillis,
                          traceState,
                          neighborsAndRanges.filterCommonRanges(keyspace, cfnames),
                          neighborsAndRanges.participants,
@@ -425,8 +434,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private void normalRepair(UUID parentSession,
-                              long startTime,
                               TraceState traceState,
                               List<CommonRange> commonRanges,
                               Set<InetAddressAndPort> preparedEndpoints,
@@ -472,7 +481,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                             new RepairCompleteCallback(parentSession,
                                                        successfulRanges,
                                                        preparedEndpoints,
-                                                       startTime,
                                                        traceState,
                                                        hasFailure,
                                                        executor),
@@ -480,7 +488,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     }
 
     private void incrementalRepair(UUID parentSession,
-                                   long startTime,
                                    TraceState traceState,
                                    NeighborsAndRanges neighborsAndRanges,
                                    Set<InetAddressAndPort> preparedEndpoints,
@@ -494,7 +501,17 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
         List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, cfnames);
 
-        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
+        CoordinatorSession coordinatorSession;
+        try
+        {
+            coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
+        }
+        catch (NoSuchRepairSessionException e)
+        {
+            logger.warn("Aborting repair session: "+e.getMessage());
+            fail(e.getMessage());
+            return;
+        }
         ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
         ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, allRanges, cfnames),
@@ -505,12 +522,11 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             ranges.addAll(range);
         }
         Futures.addCallback(repairResult,
-                            new RepairCompleteCallback(parentSession, ranges, preparedEndpoints, startTime, traceState, hasFailure, executor),
+                            new RepairCompleteCallback(parentSession, ranges, preparedEndpoints, traceState, hasFailure, executor),
                             MoreExecutors.directExecutor());
     }
 
     private void previewRepair(UUID parentSession,
-                               long startTime,
                                List<CommonRange> commonRanges,
                                Set<InetAddressAndPort> preparedEndpoints,
                                String... cfnames)
@@ -546,7 +562,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     else
                     {
-                        message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
+                        message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
                         RepairMetrics.previewFailures.inc();
                         if (previewKind == PreviewKind.REPAIRED)
                             maybeSnapshotReplicas(parentSession, keyspace, results);
@@ -704,7 +720,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         final UUID parentSession;
         final Collection<Range<Token>> successfulRanges;
         final Set<InetAddressAndPort> preparedEndpoints;
-        final long startTime;
         final TraceState traceState;
         final AtomicBoolean hasFailure;
         final ExecutorService executor;
@@ -712,7 +727,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         public RepairCompleteCallback(UUID parentSession,
                                       Collection<Range<Token>> successfulRanges,
                                       Set<InetAddressAndPort> preparedEndpoints,
-                                      long startTime,
                                       TraceState traceState,
                                       AtomicBoolean hasFailure,
                                       ExecutorService executor)
@@ -720,7 +734,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             this.parentSession = parentSession;
             this.successfulRanges = successfulRanges;
             this.preparedEndpoints = preparedEndpoints;
-            this.startTime = startTime;
             this.traceState = traceState;
             this.hasFailure = hasFailure;
             this.executor = executor;
@@ -768,7 +781,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         neighborRangeList.add(new CommonRange(endpoints, transEndpoints, ranges));
     }
 
-    private Thread createQueryThread(final int cmd, final UUID sessionId)
+    private Thread createQueryThread(final UUID sessionId)
     {
         return NamedThreadFactory.createThread(new WrappedRunnable()
         {

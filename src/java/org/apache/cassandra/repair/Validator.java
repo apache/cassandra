@@ -17,19 +17,11 @@
  */
 package org.apache.cassandra.repair;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.hash.Funnel;
-import com.google.common.hash.HashCode;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,21 +100,21 @@ public class Validator implements Runnable
         this.evenTreeDistribution = evenTreeDistribution;
     }
 
-    public void prepare(ColumnFamilyStore cfs, MerkleTrees tree)
+    public void prepare(ColumnFamilyStore cfs, MerkleTrees trees)
     {
-        this.trees = tree;
+        this.trees = trees;
 
-        if (!tree.partitioner().preservesOrder() || evenTreeDistribution)
+        if (!trees.partitioner().preservesOrder() || evenTreeDistribution)
         {
-            // You can't beat an even tree distribution for md5
-            tree.init();
+            // You can't beat even trees distribution for md5
+            trees.init();
         }
         else
         {
             List<DecoratedKey> keys = new ArrayList<>();
             Random random = new Random();
 
-            for (Range<Token> range : tree.ranges())
+            for (Range<Token> range : trees.ranges())
             {
                 for (DecoratedKey sample : cfs.keySamples(range))
                 {
@@ -132,8 +124,8 @@ public class Validator implements Runnable
 
                 if (keys.isEmpty())
                 {
-                    // use an even tree distribution
-                    tree.init(range);
+                    // use even trees distribution
+                    trees.init(range);
                 }
                 else
                 {
@@ -142,15 +134,15 @@ public class Validator implements Runnable
                     while (true)
                     {
                         DecoratedKey dk = keys.get(random.nextInt(numKeys));
-                        if (!tree.split(dk.getToken()))
+                        if (!trees.split(dk.getToken()))
                             break;
                     }
                     keys.clear();
                 }
             }
         }
-        logger.debug("Prepared AEService trees of size {} for {}", trees.size(), desc);
-        ranges = tree.rangeIterator();
+        logger.debug("Prepared AEService trees of size {} for {}", this.trees.size(), desc);
+        ranges = trees.rangeIterator();
     }
 
     /**
@@ -234,7 +226,6 @@ public class Validator implements Runnable
      */
     public void fail()
     {
-        logger.error("Failed creating a merkle tree for {}, {} (see log for details)", desc, initiator);
         respond(new ValidationResponse(desc));
     }
 
@@ -273,7 +264,7 @@ public class Validator implements Runnable
         /*
          * For local initiators, DO NOT send the message to self over loopback. This is a wasted ser/de loop
          * and a ton of garbage. Instead, move the trees off heap and invoke message handler. We could do it
-         * directly, since this method will only be called from {@code Stage.ENTI_ENTROPY}, but we do instead
+         * directly, since this method will only be called from {@code Stage.ANTI_ENTROPY}, but we do instead
          * execute a {@code Runnable} on the stage - in case that assumption ever changes by accident.
          */
         Stage.ANTI_ENTROPY.execute(() ->

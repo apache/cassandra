@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -431,6 +431,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
+            if (!DatabaseDescriptor.enableDropCompactStorage())
+                throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
+
             if (!table.isCompactTable())
                 throw AlterTableStatement.ire("Cannot DROP COMPACT STORAGE on table without COMPACT STORAGE");
 

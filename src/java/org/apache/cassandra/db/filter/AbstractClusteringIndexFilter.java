@@ -54,11 +54,14 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
     {
         if (reversed)
         {
-            sb.append(" ORDER BY (");
+            sb.append(" ORDER BY ");
             int i = 0;
             for (ColumnMetadata column : metadata.clusteringColumns())
-                sb.append(i++ == 0 ? "" : ", ").append(column.name).append(column.type instanceof ReversedType ? " ASC" : " DESC");
-            sb.append(')');
+            {
+                sb.append(i++ == 0 ? "" : ", ")
+                  .append(column.name.toCQLString())
+                  .append(column.type instanceof ReversedType ? " ASC" : " DESC");
+            }
         }
     }
 

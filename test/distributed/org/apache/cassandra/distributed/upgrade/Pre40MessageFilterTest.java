@@ -23,7 +23,6 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.shared.Versions;
 
 import java.util.function.Consumer;
 
@@ -35,7 +34,9 @@ public class Pre40MessageFilterTest extends UpgradeTestBase
         .nodes(2)
         .withConfig(configConsumer)
         .nodesToUpgrade(1)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        // all upgrades from v30 up, excluding v30->v3X
+        .singleUpgrade(v30, v40)
+        .upgradesFrom(v3X)
         .setup((cluster) -> {
             cluster.filters().outbound().allVerbs().messagesMatching((f,t,m) -> false).drop();
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");

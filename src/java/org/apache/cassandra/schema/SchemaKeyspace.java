@@ -40,7 +40,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -54,7 +53,6 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
-import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
@@ -393,7 +391,7 @@ public final class SchemaKeyspace
         return PartitionRangeReadCommand.allDataRead(cfs.metadata(), FBUtilities.nowInSeconds());
     }
 
-    static Collection<Mutation> convertSchemaToMutations()
+    static synchronized Collection<Mutation> convertSchemaToMutations()
     {
         Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutationMap = new HashMap<>();
 
@@ -439,7 +437,7 @@ public final class SchemaKeyspace
 
         // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
         // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
-        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(partition.metadata());
+        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(partition.metadata(), false);
         for (ColumnMetadata column : filter.fetchedColumns())
         {
             if (!column.name.toString().equals("cdc"))

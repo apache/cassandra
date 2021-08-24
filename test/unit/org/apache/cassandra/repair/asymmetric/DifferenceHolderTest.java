@@ -54,13 +54,13 @@ public class DifferenceHolderTest
         InetAddressAndPort a1 = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort a2 = InetAddressAndPort.getByName("127.0.0.2");
 
-        MerkleTrees mt1 = new MerkleTrees(Murmur3Partitioner.instance);
-        MerkleTrees mt2 = new MerkleTrees(Murmur3Partitioner.instance);
-        mt1.init();
-        mt2.init();
+        MerkleTrees mts1 = new MerkleTrees(Murmur3Partitioner.instance);
+        MerkleTrees mts2 = new MerkleTrees(Murmur3Partitioner.instance);
+        mts1.init();
+        mts2.init();
 
-        TreeResponse tr1 = new TreeResponse(a1, mt1);
-        TreeResponse tr2 = new TreeResponse(a2, mt2);
+        TreeResponse tr1 = new TreeResponse(a1, mts1);
+        TreeResponse tr2 = new TreeResponse(a2, mts2);
 
         DifferenceHolder dh = new DifferenceHolder(Lists.newArrayList(tr1, tr2));
         assertTrue(dh.get(a1).get(a2).isEmpty());
@@ -75,35 +75,35 @@ public class DifferenceHolderTest
         InetAddressAndPort a1 = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort a2 = InetAddressAndPort.getByName("127.0.0.2");
         // merkle tree building stolen from MerkleTreesTest:
-        MerkleTrees mt1 = new MerkleTrees(partitioner);
-        MerkleTrees mt2 = new MerkleTrees(partitioner);
-        mt1.addMerkleTree(32, fullRange);
-        mt2.addMerkleTree(32, fullRange);
-        mt1.init();
-        mt2.init();
+        MerkleTrees mts1 = new MerkleTrees(partitioner);
+        MerkleTrees mts2 = new MerkleTrees(partitioner);
+        mts1.addMerkleTree(32, fullRange);
+        mts2.addMerkleTree(32, fullRange);
+        mts1.init();
+        mts2.init();
         // add dummy hashes to both trees
-        for (MerkleTree.TreeRange range : mt1.rangeIterator())
+        for (MerkleTree.TreeRange range : mts1.rangeIterator())
             range.addAll(new MerkleTreesTest.HIterator(range.right));
-        for (MerkleTree.TreeRange range : mt2.rangeIterator())
+        for (MerkleTree.TreeRange range : mts2.rangeIterator())
             range.addAll(new MerkleTreesTest.HIterator(range.right));
 
         MerkleTree.TreeRange leftmost = null;
         MerkleTree.TreeRange middle = null;
 
-        mt1.maxsize(fullRange, maxsize + 2); // give some room for splitting
+        mts1.maxsize(fullRange, maxsize + 2); // give some room for splitting
 
         // split the leftmost
-        Iterator<MerkleTree.TreeRange> ranges = mt1.rangeIterator();
+        Iterator<MerkleTree.TreeRange> ranges = mts1.rangeIterator();
         leftmost = ranges.next();
-        mt1.split(leftmost.right);
+        mts1.split(leftmost.right);
 
         // set the hashes for the leaf of the created split
-        middle = mt1.get(leftmost.right);
+        middle = mts1.get(leftmost.right);
         middle.hash(digest("arbitrary!"));
-        mt1.get(partitioner.midpoint(leftmost.left, leftmost.right)).hash(digest("even more arbitrary!"));
+        mts1.get(partitioner.midpoint(leftmost.left, leftmost.right)).hash(digest("even more arbitrary!"));
 
-        TreeResponse tr1 = new TreeResponse(a1, mt1);
-        TreeResponse tr2 = new TreeResponse(a2, mt2);
+        TreeResponse tr1 = new TreeResponse(a1, mts1);
+        TreeResponse tr2 = new TreeResponse(a2, mts2);
 
         DifferenceHolder dh = new DifferenceHolder(Lists.newArrayList(tr1, tr2));
         assertTrue(dh.get(a1).get(a2).size() == 1);

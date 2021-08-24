@@ -37,7 +37,7 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .upgradesFrom(v30)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
         })
@@ -68,7 +68,7 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .upgradesFrom(v30)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
             for (int i = 1; i < 10; i++)
@@ -94,7 +94,7 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .upgradesFrom(v30)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck1 int, ck2 int, v int, PRIMARY KEY (pk, ck1, ck2)) WITH COMPACT STORAGE");
         })
@@ -113,7 +113,7 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .upgradesFrom(v30)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
         })
@@ -145,8 +145,8 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(1, 2)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
-        .withConfig(config -> config.with(GOSSIP, NETWORK))
+        .upgradesFrom(v30)
+        .withConfig(config -> config.with(GOSSIP, NETWORK).set("enable_drop_compact_storage", true))
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck) VALUES (1,1)", ConsistencyLevel.ALL);

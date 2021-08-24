@@ -25,24 +25,36 @@ import org.apache.cassandra.streaming.PreviewKind;
  */
 public class RepairException extends Exception
 {
-    public final RepairJobDesc desc;
-    public final PreviewKind previewKind;
+    private final boolean shouldLogWarn;
 
-    public RepairException(RepairJobDesc desc, String message)
+    private RepairException(RepairJobDesc desc, PreviewKind previewKind, String message, boolean shouldLogWarn)
     {
-        this(desc, null, message);
+        this(desc.toString(previewKind != null ? previewKind : PreviewKind.NONE) + ' ' + message, shouldLogWarn);
     }
 
-    public RepairException(RepairJobDesc desc, PreviewKind previewKind, String message)
+    private RepairException(String msg, boolean shouldLogWarn)
     {
-        super(message);
-        this.desc = desc;
-        this.previewKind = previewKind != null ? previewKind : PreviewKind.NONE;
+        super(msg);
+        this.shouldLogWarn = shouldLogWarn;
     }
 
-    @Override
-    public String getMessage()
+    public static RepairException error(RepairJobDesc desc, PreviewKind previewKind, String message)
     {
-        return desc.toString(previewKind) + ' ' + super.getMessage();
+        return new RepairException(desc, previewKind, message, false);
+    }
+
+    public static RepairException warn(RepairJobDesc desc, PreviewKind previewKind, String message)
+    {
+        return new RepairException(desc, previewKind, message, true);
+    }
+
+    public static RepairException warn(String message)
+    {
+        return new RepairException(message, true);
+    }
+
+    public static boolean shouldWarn(Throwable throwable)
+    {
+        return throwable instanceof RepairException && ((RepairException)throwable).shouldLogWarn;
     }
 }

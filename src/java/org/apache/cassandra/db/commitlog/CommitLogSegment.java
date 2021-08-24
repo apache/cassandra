@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -262,6 +263,7 @@ public abstract class CommitLogSegment
                 assert buffer != null;
                 return prev;
             }
+            LockSupport.parkNanos(1); // ConstantBackoffCAS Algorithm from https://arxiv.org/pdf/1305.5800.pdf
         }
     }
 
@@ -366,7 +368,11 @@ public abstract class CommitLogSegment
 
         if (flush || close)
         {
-            flush(startMarker, sectionEnd);
+            try (Timer.Context ignored = CommitLog.instance.metrics.waitingOnFlush.time())
+            {
+                flush(startMarker, sectionEnd);
+            }
+            
             if (cdcState == CDCState.CONTAINS)
                 writeCDCIndexFile(descriptor, sectionEnd, close);
             lastSyncedOffset = lastMarkerOffset = nextMarker;
@@ -499,13 +505,12 @@ public abstract class CommitLogSegment
         }
     }
 
-    void waitForSync(int position, Timer waitingOnCommit)
+    void waitForSync(int position)
     {
         while (lastSyncedOffset < position)
         {
-            WaitQueue.Signal signal = waitingOnCommit != null ?
-                                      syncComplete.register(waitingOnCommit.time()) :
-                                      syncComplete.register();
+            WaitQueue.Signal signal = syncComplete.register();
+            
             if (lastSyncedOffset < position)
                 signal.awaitUninterruptibly();
             else
@@ -742,7 +747,10 @@ public abstract class CommitLogSegment
 
         void awaitDiskSync(Timer waitingOnCommit)
         {
-            segment.waitForSync(position, waitingOnCommit);
+            try (Timer.Context ignored = waitingOnCommit.time())
+            {
+                segment.waitForSync(position);
+            }
         }
 
         /**

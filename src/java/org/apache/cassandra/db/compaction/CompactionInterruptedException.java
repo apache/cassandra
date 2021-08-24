@@ -25,4 +25,9 @@ public class CompactionInterruptedException extends RuntimeException
     {
         super("Compaction interrupted: " + info);
     }
+
+    public CompactionInterruptedException(String info)
+    {
+        super("Compaction interrupted: " + info);
+    }
 }

@@ -29,6 +29,22 @@ import static org.apache.cassandra.audit.AuditLogFilter.isFiltered;
 public class AuditLogFilterTest
 {
     @Test
+    public void testInputWithSpaces()
+    {
+        AuditLogOptions auditLogOptions = new AuditLogOptions.Builder()
+                                          .withIncludedKeyspaces(" ks, ks1, ks3, ")
+                                          .withEnabled(true)
+                                          .build();
+
+        AuditLogFilter auditLogFilter = AuditLogFilter.create(auditLogOptions);
+
+        Assert.assertFalse(auditLogFilter.isFiltered(new AuditLogEntry.Builder(AuditLogEntryType.CREATE_TYPE).setKeyspace("ks").build()));
+        Assert.assertFalse(auditLogFilter.isFiltered(new AuditLogEntry.Builder(AuditLogEntryType.CREATE_TYPE).setKeyspace("ks1").build()));
+        Assert.assertFalse(auditLogFilter.isFiltered(new AuditLogEntry.Builder(AuditLogEntryType.CREATE_TYPE).setKeyspace("ks3").build()));
+        Assert.assertTrue(auditLogFilter.isFiltered(new AuditLogEntry.Builder(AuditLogEntryType.CREATE_TYPE).setKeyspace("ks5").build()));
+    }
+
+    @Test
     public void isFiltered_IncludeSetOnly()
     {
         Set<String> includeSet = new HashSet<>();

@@ -73,12 +73,12 @@ public class SSTableExport
     {
         DatabaseDescriptor.clientInitialization();
 
-        Option optKey = new Option(KEY_OPTION, true, "Partition key");
+        Option optKey = new Option(KEY_OPTION, true, "List of included partition keys");
         // Number of times -k <key> can be passed on the command line.
         optKey.setArgs(500);
         options.addOption(optKey);
 
-        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Excluded partition key");
+        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "List of excluded partition keys");
         // Number of times -x <key> can be passed on the command line.
         excludeKey.setArgs(500);
         options.addOption(excludeKey);
@@ -119,18 +119,22 @@ public class SSTableExport
             System.exit(1);
         }
 
-        if (cmd.getArgs().length != 1)
-        {
-            System.err.println("You must supply exactly one sstable");
-            printUsage();
-            System.exit(1);
-        }
-
         String[] keys = cmd.getOptionValues(KEY_OPTION);
         HashSet<String> excludes = new HashSet<>(Arrays.asList(
                 cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null
                         ? new String[0]
                         : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
+
+        if (cmd.getArgs().length != 1)
+        {
+            String msg = "You must supply exactly one sstable";
+            if (cmd.getArgs().length == 0 && (keys != null && keys.length > 0 || !excludes.isEmpty()))
+                msg += ", which should be before the -k/-x options so it's not interpreted as a partition key.";
+
+            System.err.println(msg);
+            printUsage();
+            System.exit(1);
+        }
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
 
         if (!new File(ssTableFileName).exists())

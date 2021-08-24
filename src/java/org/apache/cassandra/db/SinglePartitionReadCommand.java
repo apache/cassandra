@@ -578,14 +578,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
          *   2) If we have a name filter (so we query specific rows), we can make a bet: that all column for all queried row
          *      will have data in the most recent sstable(s), thus saving us from reading older ones. This does imply we
          *      have a way to guarantee we have all the data for what is queried, which is only possible for name queries
-         *      and if we have neither non-frozen collections/UDTs nor counters (indeed, for a non-frozen collection or UDT,
-         *      we can't guarantee an older sstable won't have some elements that weren't in the most recent sstables,
-         *      and counters are intrinsically a collection of shards and so have the same problem).
+         *      and if we have neither non-frozen collections/UDTs nor counters.
+         *      If a non-frozen collection or UDT is queried we can't guarantee that an older sstable won't have some
+         *      elements that weren't in the most recent sstables.
+         *      Counters are intrinsically a collection of shards and so have the same problem.
+         *      Counter tables are also special in the sense that their rows do not have primary key liveness
+         *      as INSERT statements are not supported on counter tables. Due to that even if only the primary key
+         *      columns where queried, querying SSTables in timestamp order will always be less efficient for counter tables.
          *      Also, if tracking repaired data then we skip this optimization so we can collate the repaired sstables
          *      and generate a digest over their merge, which procludes an early return.
          */
-        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && !queriesMulticellType() && !isTrackingRepairedStatus())
+        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter
+                && !metadata().isCounter()
+                && !queriesMulticellType()
+                && !isTrackingRepairedStatus())
+        {
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter());
+        }
 
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
@@ -771,9 +780,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     private boolean queriesMulticellType()
     {
-        for (ColumnMetadata column : columnFilter().fetchedColumns())
+        for (ColumnMetadata column : columnFilter().queriedColumns())
         {
-            if (column.type.isMultiCell() || column.type.isCounter())
+            if (column.type.isMultiCell())
                 return true;
         }
         return false;
@@ -930,12 +939,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (result == null)
             return filter;
 
-        RegularAndStaticColumns columns = columnFilter().fetchedColumns();
+        // According to the CQL semantics a row exists if at least one of its columns is not null (including the primary key columns).
+        // Having the queried columns not null is unfortunately not enough to prove that a row exists as some column deletion
+        // for the queried columns can exist on another node.
+        // For CQL tables it is enough to have the primary key liveness and the queried columns as the primary key liveness prove that
+        // the row exists even if all the other columns are deleted.
+        // COMPACT tables do not have primary key liveness and by consequence we are forced to get  all the fetched columns to ensure that
+        // we can return the correct result if the queried columns are deleted on another node but one of the non-queried columns is not.
+        RegularAndStaticColumns columns = metadata().isCompactTable() ? columnFilter().fetchedColumns() : columnFilter().queriedColumns();
+
         NavigableSet<Clustering<?>> clusterings = filter.requestedRows();
 
         // We want to remove rows for which we have values for all requested columns. We have to deal with both static and regular rows.
-        // TODO: we could also remove a selected column if we've found values for every requested row but we'll leave
-        // that for later.
 
         boolean removeStatic = false;
         if (!columns.statics.isEmpty())
@@ -995,11 +1010,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     private boolean isRowComplete(Row row, Columns requestedColumns, long sstableTimestamp)
     {
-        // Note that compact tables will always have an empty primary key liveness info.
-        if (!row.primaryKeyLivenessInfo().isEmpty() && row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp)
-            return false;
 
-        boolean hasLiveCell = false;
+        // Note that compact tables will always have an empty primary key liveness info.
+        if (!metadata().isCompactTable() && (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp))
+            return false;
 
         for (ColumnMetadata column : requestedColumns)
         {
@@ -1007,14 +1021,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             if (cell == null || cell.timestamp() <= sstableTimestamp)
                 return false;
-
-            if (!cell.isTombstone())
-                hasLiveCell = true;
         }
 
-        // If we've gotten here w/ a compact table or at least one non-tombstone cell, the row is considered
-        // complete and we can avoid any further searching of older SSTables.
-        return hasLiveCell || metadata().isCompactTable();
+        return true;
     }
 
     @Override
@@ -1045,20 +1054,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return Verb.READ_REQ;
     }
 
+    @Override
     protected void appendCQLWhereClause(StringBuilder sb)
     {
-        sb.append(" WHERE ");
+        sb.append(" WHERE ").append(partitionKey().toCQLString(metadata()));
 
-        sb.append(ColumnMetadata.toCQLString(metadata().partitionKeyColumns())).append(" = ");
-        DataRange.appendKeyString(sb, metadata().partitionKeyType, partitionKey().getKey());
-
-        // We put the row filter first because the clustering index filter can end by "ORDER BY"
-        if (!rowFilter().isEmpty())
-            sb.append(" AND ").append(rowFilter());
-
-        String filterString = clusteringIndexFilter().toCQLString(metadata());
+        String filterString = clusteringIndexFilter().toCQLString(metadata(), rowFilter());
         if (!filterString.isEmpty())
-            sb.append(" AND ").append(filterString);
+        {
+            if (!clusteringIndexFilter().selectsAllPartition() || !rowFilter().isEmpty())
+                sb.append(" AND ");
+            sb.append(filterString);
+        }
     }
 
     protected void serializeSelection(DataOutputPlus out, int version) throws IOException

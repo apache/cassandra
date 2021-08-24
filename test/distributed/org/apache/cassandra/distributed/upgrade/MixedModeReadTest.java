@@ -39,8 +39,9 @@ public class MixedModeReadTest extends UpgradeTestBase
         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
         .nodes(2)
         .nodesToUpgrade(1)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
-        .upgrade(Versions.Major.v3X, Versions.Major.v4)
+        // all upgrades from v30 up, excluding v30->v3X and from v40
+        .singleUpgrade(v30, v40)
+	      .singleUpgrade(v3X, v40)
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
             insertData(cluster.coordinator(1));
@@ -51,7 +52,7 @@ public class MixedModeReadTest extends UpgradeTestBase
             // we need to let gossip settle or the test will fail
             int attempts = 1;
             //noinspection Convert2MethodRef
-            while (!((IInvokableInstance) (cluster.get(1))).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0.familyLowerBound.get()) &&
+            while (!((IInvokableInstance) cluster.get(1)).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) &&
                                                                                  !Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion(("3.0")).familyLowerBound.get())))
             {
                 if (attempts++ > 90)

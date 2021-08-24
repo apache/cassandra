@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -147,7 +148,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup);
+                    final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup, Overload.NONE);
                     outbound = response.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound, promise);
                     logger.debug("Configured pipeline: {}", ctx.pipeline());

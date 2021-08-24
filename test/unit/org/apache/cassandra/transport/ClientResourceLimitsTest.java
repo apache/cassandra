@@ -19,7 +19,6 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -29,9 +28,9 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.service.StorageService;
 import org.junit.*;
 
-import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -40,12 +39,12 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.virtual.*;
 import org.apache.cassandra.exceptions.OverloadedException;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.awaitility.Awaitility;
 
-import static org.apache.cassandra.Util.spinAssertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -53,19 +52,18 @@ import static org.junit.Assert.fail;
 
 public class ClientResourceLimitsTest extends CQLTester
 {
-
     private static final long LOW_LIMIT = 600L;
     private static final long HIGH_LIMIT = 5000000000L;
 
-    private static final QueryOptions V5_DEFAULT_OPTIONS = QueryOptions.create(
-        QueryOptions.DEFAULT.getConsistency(),
-        QueryOptions.DEFAULT.getValues(),
-        QueryOptions.DEFAULT.skipMetadata(),
-        QueryOptions.DEFAULT.getPageSize(),
-        QueryOptions.DEFAULT.getPagingState(),
-        QueryOptions.DEFAULT.getSerialConsistency(),
-        ProtocolVersion.V5,
-        KEYSPACE);
+    private static final QueryOptions V5_DEFAULT_OPTIONS = 
+        QueryOptions.create(QueryOptions.DEFAULT.getConsistency(),
+                            QueryOptions.DEFAULT.getValues(),
+                            QueryOptions.DEFAULT.skipMetadata(),
+                            QueryOptions.DEFAULT.getPageSize(),
+                            QueryOptions.DEFAULT.getPagingState(),
+                            QueryOptions.DEFAULT.getSerialConsistency(),
+                            ProtocolVersion.V5,
+                            KEYSPACE);
 
     @BeforeClass
     public static void setUp()
@@ -73,7 +71,9 @@ public class ClientResourceLimitsTest extends CQLTester
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(LOW_LIMIT);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(LOW_LIMIT);
-        requireNetwork();
+        
+        // The driver control connections would send queries that might interfere with the tests.
+        requireNetworkWithoutDriver();
     }
 
     @AfterClass
@@ -120,7 +120,7 @@ public class ClientResourceLimitsTest extends CQLTester
         }
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings({"resource", "SameParameterValue"})
     private SimpleClient client(boolean throwOnOverload, int largeMessageThreshold)
     {
         try
@@ -139,18 +139,18 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testQueryExecutionWithThrowOnOverload() throws Throwable
+    public void testQueryExecutionWithThrowOnOverload()
     {
         testQueryExecution(true);
     }
 
     @Test
-    public void testQueryExecutionWithoutThrowOnOverload() throws Throwable
+    public void testQueryExecutionWithoutThrowOnOverload()
     {
         testQueryExecution(false);
     }
 
-    private void testQueryExecution(boolean throwOnOverload) throws Throwable
+    private void testQueryExecution(boolean throwOnOverload)
     {
         try (SimpleClient client = client(throwOnOverload))
         {
@@ -180,27 +180,34 @@ public class ClientResourceLimitsTest extends CQLTester
                          (provider) -> provider.endpointWaitQueue().signal());
     }
 
-    private void backPressureTest(Runnable limitLifter, Consumer<ClientResourceLimits.ResourceProvider> signaller)
-    throws Throwable
+    private void backPressureTest(Runnable limitLifter, Consumer<ClientResourceLimits.ResourceProvider> signaller) throws Throwable
     {
         final AtomicReference<Exception> error = new AtomicReference<>();
         final CountDownLatch started = new CountDownLatch(1);
         final CountDownLatch complete = new CountDownLatch(1);
-        try(SimpleClient client = client(false))
+        
+        try (SimpleClient client = client(false))
         {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
+            // The first query does not trigger backpressure/pause the connection:
+            QueryMessage queryMessage = 
+                    new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)", V5_DEFAULT_OPTIONS);
+            Message.Response belowThresholdResponse = client.execute(queryMessage);
+            assertEquals(0, getPausedConnectionsGauge().getValue().intValue());
+            assertNoWarningContains(belowThresholdResponse, "bytes in flight");
+            
+            // A second query triggers backpressure but is allowed to complete...
+            Message.Response aboveThresholdResponse = client.execute(queryMessage());
+            assertEquals(1, getPausedConnectionsGauge().getValue().intValue());
+            assertWarningsContain(aboveThresholdResponse, "bytes in flight");
 
-            // There should be no paused client connections yet
-            Gauge<Integer> pausedConnections = getPausedConnectionsGauge();
-            int before = pausedConnections.getValue();
-
+            // ...and a third request is paused.
+            final AtomicReference<Message.Response> response = new AtomicReference<>();
+            
             Thread t = new Thread(() -> {
                 try
                 {
                     started.countDown();
-                    client.execute(queryMessage());
+                    response.set(client.execute(queryMessage()));
                     complete.countDown();
                 }
                 catch (Exception e)
@@ -212,19 +219,13 @@ public class ClientResourceLimitsTest extends CQLTester
             });
             t.start();
 
-            // When the client attempts to execute the second query, the backpressure
-            // mechanism should report the client connection is paused
-            assertTrue(started.await(5, TimeUnit.SECONDS));
-            spinAssertEquals("Timed out after waiting 5 seconds for paused " +
-                             "connections metric to increment due to backpressure",
-                             before + 1, pausedConnections::getValue, 5, TimeUnit.SECONDS);
-
             // verify the request hasn't completed
             assertFalse(complete.await(1, TimeUnit.SECONDS));
 
             // backpressure has been applied, if we increase the limits of the exhausted reserve and signal
             // the appropriate WaitQueue, it should be released and the client request will complete
             limitLifter.run();
+            
             // We need a ResourceProvider to get access to the WaitQueue
             ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());
             ClientResourceLimits.ResourceProvider queueHandle = new ClientResourceLimits.ResourceProvider.Default(allocator);
@@ -233,13 +234,15 @@ public class ClientResourceLimitsTest extends CQLTester
             // SimpleClient has a 10 second timeout, so if we have to wait
             // longer than that assume that we're not going to receive a
             // reply. If all's well, the completion should happen immediately
-            assertTrue(complete.await(11, TimeUnit.SECONDS));
+            assertTrue(complete.await(SimpleClient.TIMEOUT_SECONDS + 1, TimeUnit.SECONDS));
             assertNull(error.get());
+            assertEquals(0, getPausedConnectionsGauge().getValue().intValue());
+            assertNoWarningContains(response.get(), "bytes in flight");
         }
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitExceeded() throws Throwable
+    public void testOverloadedExceptionWhenGlobalLimitExceeded()
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
@@ -247,7 +250,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitExceeded() throws Throwable
+    public void testOverloadedExceptionWhenEndpointLimitExceeded()
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
@@ -255,7 +258,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage() throws Throwable
+    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage()
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
@@ -263,7 +266,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage() throws Throwable
+    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage()
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
@@ -300,22 +303,17 @@ public class ClientResourceLimitsTest extends CQLTester
         return new QueryMessage(query.toString(), V5_DEFAULT_OPTIONS);
     }
 
-    @SuppressWarnings("unchecked")
-    private Gauge<Integer> getPausedConnectionsGauge()
-    {
-        String metricName = "org.apache.cassandra.metrics.Client.PausedConnections";
-        Map<String, Gauge> metrics = CassandraMetricsRegistry.Metrics.getGauges((name, metric) -> name.equals(metricName));
-        if (metrics.size() != 1)
-            fail(String.format("Expected a single registered metric for paused client connections, found %s",
-                               metrics.size()));
-        return metrics.get(metricName);
-    }
-
     @Test
     public void testQueryUpdatesConcurrentMetricsUpdate() throws Throwable
     {
         try (SimpleClient client = client(true))
         {
+            // wait for the completion of the intial messages created by the client connection
+            Awaitility.await()
+                      .pollDelay(1, TimeUnit.SECONDS)
+                      .atMost(30, TimeUnit.SECONDS)
+                      .untilAsserted(() -> assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage()));
+
             CyclicBarrier barrier = new CyclicBarrier(2);
             String table = createTableName();
 
@@ -345,8 +343,6 @@ public class ClientResourceLimitsTest extends CQLTester
 
             final QueryMessage queryMessage = new QueryMessage(String.format("SELECT * FROM %s.%s", table, table),
                                                                V5_DEFAULT_OPTIONS);
-
-            Assert.assertEquals(0L, ClientResourceLimits.getCurrentGlobalUsage());
             try
             {
                 Thread tester = new Thread(() -> client.execute(queryMessage));
@@ -355,7 +351,8 @@ public class ClientResourceLimitsTest extends CQLTester
                 // block until query in progress
                 barrier.await(30, TimeUnit.SECONDS);
                 assertTrue(ClientResourceLimits.getCurrentGlobalUsage() > 0);
-            } finally
+            }
+            finally
             {
                 // notify query thread that metric has been checked. This will also throw TimeoutException if both
                 // the query threads barriers are not reached
@@ -365,7 +362,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testChangingLimitsAtRuntime() throws Throwable
+    public void testChangingLimitsAtRuntime()
     {
         SimpleClient client = client(true);
         try
@@ -459,5 +456,24 @@ public class ClientResourceLimitsTest extends CQLTester
         {
             client.close();
         }
+    }
+
+    @Test
+    public void shouldChangeRequestsPerSecondAtRuntime()
+    {
+        StorageService.instance.setNativeTransportMaxRequestsPerSecond(100);
+        assertEquals(100, ClientResourceLimits.getNativeTransportMaxRequestsPerSecond(), 0);
+        assertEquals(100, ClientResourceLimits.GLOBAL_REQUEST_LIMITER.getRate(), 0);
+        assertEquals(100, StorageService.instance.getNativeTransportMaxRequestsPerSecond());
+
+        StorageService.instance.setNativeTransportMaxRequestsPerSecond(1000);
+        assertEquals(1000, ClientResourceLimits.getNativeTransportMaxRequestsPerSecond(), 0);
+        assertEquals(1000, ClientResourceLimits.GLOBAL_REQUEST_LIMITER.getRate(), 0);
+        assertEquals(1000, StorageService.instance.getNativeTransportMaxRequestsPerSecond());
+
+        StorageService.instance.setNativeTransportMaxRequestsPerSecond(500);
+        assertEquals(500, ClientResourceLimits.getNativeTransportMaxRequestsPerSecond(), 0);
+        assertEquals(500, ClientResourceLimits.GLOBAL_REQUEST_LIMITER.getRate(), 0);
+        assertEquals(500, StorageService.instance.getNativeTransportMaxRequestsPerSecond());
     }
 }

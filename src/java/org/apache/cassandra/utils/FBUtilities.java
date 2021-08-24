@@ -671,7 +671,7 @@ public class FBUtilities
         }
         return FBUtilities.construct(className, "network authorizer");
     }
-    
+
     public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
     {
         if (!className.contains("."))
@@ -679,7 +679,7 @@ public class FBUtilities
 
         try
         {
-            Class<?> auditLoggerClass = Class.forName(className);
+            Class<?> auditLoggerClass = FBUtilities.classForName(className, "Audit logger");
             return (IAuditLogger) auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
         }
         catch (Exception ex)

@@ -118,6 +118,7 @@ public class TableStatsHolder implements StatsHolder
     {
         Map<String, Object> mpTable = new HashMap<>();
         mpTable.put("sstables_in_each_level", table.sstablesInEachLevel);
+        mpTable.put("sstable_bytes_in_each_level", table.sstableBytesInEachLevel);
         mpTable.put("space_used_live", table.spaceUsedLive);
         mpTable.put("space_used_total", table.spaceUsedTotal);
         mpTable.put("space_used_by_snapshots_total", table.spaceUsedBySnapshotsTotal);
@@ -136,6 +137,9 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("local_write_latency_ms", String.format("%01.3f", table.localWriteLatencyMs));
         mpTable.put("pending_flushes", table.pendingFlushes);
         mpTable.put("percent_repaired", table.percentRepaired);
+        mpTable.put("bytes_repaired", table.bytesRepaired);
+        mpTable.put("bytes_unrepaired", table.bytesUnrepaired);
+        mpTable.put("bytes_pending_repair", table.bytesPendingRepair);
         mpTable.put("bloom_filter_false_positives", table.bloomFilterFalsePositives);
         mpTable.put("bloom_filter_false_ratio", String.format("%01.5f", table.bloomFilterFalseRatio));
         mpTable.put("bloom_filter_space_used", table.bloomFilterSpaceUsed);
@@ -232,6 +236,17 @@ public class TableStatsHolder implements StatsHolder
                     }
                 }
 
+                long[] leveledSSTablesBytes = table.getPerLevelSizeBytes();
+                if (leveledSSTablesBytes != null)
+                {
+                    statsTable.isLeveledSstable = true;
+                    for (int level = 0; level < leveledSSTablesBytes.length; level++)
+                    {
+                        long size = leveledSSTablesBytes[level];
+                        statsTable.sstableBytesInEachLevel.add(format(size, humanReadable));
+                    }
+                }
+
                 if (locationCheck)
                     statsTable.isInCorrectLocation = !table.hasMisplacedSSTables();
 
@@ -241,6 +256,9 @@ public class TableStatsHolder implements StatsHolder
                 Long compressionMetadataOffHeapSize = null;
                 Long offHeapSize = null;
                 Double percentRepaired = null;
+                Long bytesRepaired = null;
+                Long bytesUnrepaired = null;
+                Long bytesPendingRepair = null;
 
                 try
                 {
@@ -250,6 +268,9 @@ public class TableStatsHolder implements StatsHolder
                     compressionMetadataOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionMetadataOffHeapMemoryUsed");
                     offHeapSize = memtableOffHeapSize + bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
                     percentRepaired = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "PercentRepaired");
+                    bytesRepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesRepaired");
+                    bytesUnrepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesUnrepaired");
+                    bytesPendingRepair = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesPendingRepair");
                 }
                 catch (RuntimeException e)
                 {
@@ -271,6 +292,11 @@ public class TableStatsHolder implements StatsHolder
                 {
                     statsTable.percentRepaired = Math.round(100 * percentRepaired) / 100.0;
                 }
+
+                statsTable.bytesRepaired = bytesRepaired != null ? bytesRepaired : 0;
+                statsTable.bytesUnrepaired = bytesUnrepaired != null ? bytesUnrepaired : 0;
+                statsTable.bytesPendingRepair = bytesPendingRepair != null ? bytesPendingRepair : 0;
+
                 statsTable.sstableCompressionRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
                 Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
                 if (Long.valueOf(-1L).equals(estimatedPartitionCount))

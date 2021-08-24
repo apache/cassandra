@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.base.Throwables;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.Pair;
@@ -65,6 +66,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.auth.IRoleManager",
     "org.apache.cassandra.auth.INetworkAuthorizer",
     "org.apache.cassandra.config.DatabaseDescriptor",
+    "org.apache.cassandra.config.CassandraRelevantProperties",
+    "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",
     "org.apache.cassandra.config.ConfigurationLoader",
     "org.apache.cassandra.config.Config",
     "org.apache.cassandra.config.Config$1",
@@ -92,6 +95,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.TransparentDataEncryptionOptions",
+    "org.apache.cassandra.config.SubnetGroups",
     "org.apache.cassandra.db.ConsistencyLevel",
     "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerFactory",
     "org.apache.cassandra.db.commitlog.DefaultCommitLogSegmentMgrFactory",
@@ -294,15 +298,15 @@ public class DatabaseDescriptorRefTest
     {
         if (!violations.isEmpty())
         {
+            StringBuilder sb = new StringBuilder();
             for (Pair<String, Exception> violation : new ArrayList<>(violations))
-            {
-                err.println();
-                err.println();
-                err.println("VIOLATION: " + violation.left);
-                violation.right.printStackTrace(err);
-            }
+                sb.append("\n\n")
+                  .append("VIOLATION: ").append(violation.left).append("\n")
+                  .append(Throwables.getStackTraceAsString(violation.right));
+            String msg = sb.toString();
+            err.println(msg);
 
-            fail();
+            fail(msg);
         }
     }
 }

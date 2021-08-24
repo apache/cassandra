@@ -47,7 +47,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
-import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
@@ -518,7 +518,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!joinRing)
             throw new ConfigurationException("Cannot set both join_ring=false and attempt to replace a node");
 
-        if (!DatabaseDescriptor.isAutoBootstrap() && !Boolean.getBoolean("cassandra.allow_unsafe_replace"))
+        if (!shouldBootstrap() && !Boolean.getBoolean("cassandra.allow_unsafe_replace"))
             throw new RuntimeException("Replacing a node without bootstrapping risks invalidating consistency " +
                                        "guarantees as the expected data may not be present until repair is run. " +
                                        "To perform this operation, please restart with " +
@@ -841,12 +841,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.removeEndpoint(FBUtilities.getBroadcastAddressAndPort());
 
         Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
+        Map<UUID, InetAddressAndPort> hostIdToEndpointMap = new HashMap<>();
         for (InetAddressAndPort ep : loadedTokens.keySet())
         {
-            tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
-            if (loadedHostIds.containsKey(ep))
-                tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
+            UUID hostId = loadedHostIds.get(ep);
+            if (hostId != null)
+                hostIdToEndpointMap.put(hostId, ep);
         }
+        tokenMetadata.updateNormalTokens(loadedTokens);
+        tokenMetadata.updateHostIds(hostIdToEndpointMap);
     }
 
     private boolean isReplacing()
@@ -911,7 +914,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 localHostId = prepareForReplacement();
                 appStates.put(ApplicationState.TOKENS, valueFactory.tokens(bootstrapTokens));
 
-                if (!DatabaseDescriptor.isAutoBootstrap())
+                if (!shouldBootstrap())
                 {
                     // Will not do replace procedure, persist the tokens we're taking over locally
                     // so that they don't get clobbered with auto generated ones in joinTokenRing
@@ -2378,6 +2381,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         break;
                 }
             }
+            else
+            {
+                logger.debug("Ignoring application state {} from {} because it is not a member in token metadata",
+                             state, endpoint);
+            }
         }
     }
 
@@ -3253,10 +3261,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return changedRanges.build();
     }
 
+
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
     {
+        // Explicitly process STATUS or STATUS_WITH_PORT before the other
+        // application states to maintain pre-4.0 semantics with the order
+        // they are processed.  Otherwise the endpoint will not be added
+        // to TokenMetadata so non-STATUS* appstates will be ignored.
+        ApplicationState statusState = ApplicationState.STATUS_WITH_PORT;
+        VersionedValue statusValue;
+        statusValue = epState.getApplicationState(statusState);
+        if (statusValue == null)
+        {
+            statusState = ApplicationState.STATUS;
+            statusValue = epState.getApplicationState(statusState);
+        }
+        if (statusValue != null)
+            onChange(endpoint, statusState, statusValue);
+
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.states())
         {
+            if (entry.getKey() == ApplicationState.STATUS_WITH_PORT || entry.getKey() == ApplicationState.STATUS)
+                continue;
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
     }
@@ -5760,38 +5786,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Auditlog is disabled");
     }
 
+    @Deprecated
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
-        enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       Integer.MIN_VALUE, null, null, Long.MIN_VALUE, Integer.MIN_VALUE, null);
     }
 
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
+    {
+        enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
+    }
+
+    @Deprecated
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
-        loggerName = loggerName != null ? loggerName : DatabaseDescriptor.getAuditLoggingOptions().logger.class_name;
+        enableAuditLog(loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       Integer.MIN_VALUE, null, null, Long.MIN_VALUE, Integer.MIN_VALUE, null);
+    }
 
-        Preconditions.checkNotNull(loggerName, "cassandra.yaml did not have logger in audit_logging_option and not set as parameter");
-        Preconditions.checkState(FBUtilities.isAuditLoggerClassExists(loggerName), "Unable to find AuditLogger class: "+loggerName);
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
+    {
+        final AuditLogOptions options = new AuditLogOptions.Builder(DatabaseDescriptor.getAuditLoggingOptions())
+                                        .withEnabled(true)
+                                        .withLogger(loggerName, parameters)
+                                        .withIncludedKeyspaces(includedKeyspaces)
+                                        .withExcludedKeyspaces(excludedKeyspaces)
+                                        .withIncludedCategories(includedCategories)
+                                        .withExcludedCategories(excludedCategories)
+                                        .withIncludedUsers(includedUsers)
+                                        .withExcludedUsers(excludedUsers)
+                                        .withMaxArchiveRetries(maxArchiveRetries)
+                                        .withBlock(block)
+                                        .withRollCycle(rollCycle)
+                                        .withMaxLogSize(maxLogSize)
+                                        .withMaxQueueWeight(maxQueueWeight)
+                                        .withArchiveCommand(archiveCommand)
+                                        .build();
 
-        AuditLogOptions auditLogOptions = new AuditLogOptions();
-        auditLogOptions.enabled = true;
-        auditLogOptions.logger = new ParameterizedClass(loggerName, parameters);
-        auditLogOptions.included_keyspaces = includedKeyspaces != null ? includedKeyspaces : DatabaseDescriptor.getAuditLoggingOptions().included_keyspaces;
-        auditLogOptions.excluded_keyspaces = excludedKeyspaces != null ? excludedKeyspaces : DatabaseDescriptor.getAuditLoggingOptions().excluded_keyspaces;
-        auditLogOptions.included_categories = includedCategories != null ? includedCategories : DatabaseDescriptor.getAuditLoggingOptions().included_categories;
-        auditLogOptions.excluded_categories = excludedCategories != null ? excludedCategories : DatabaseDescriptor.getAuditLoggingOptions().excluded_categories;
-        auditLogOptions.included_users = includedUsers != null ? includedUsers : DatabaseDescriptor.getAuditLoggingOptions().included_users;
-        auditLogOptions.excluded_users = excludedUsers != null ? excludedUsers : DatabaseDescriptor.getAuditLoggingOptions().excluded_users;
-
-        AuditLogManager.instance.enable(auditLogOptions);
-
-        logger.info("AuditLog is enabled with logger: [{}], included_keyspaces: [{}], excluded_keyspaces: [{}], " +
-                    "included_categories: [{}], excluded_categories: [{}], included_users: [{}], "
-                    + "excluded_users: [{}], archive_command: [{}]", auditLogOptions.logger, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
-                    auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users,
-                    auditLogOptions.archive_command);
-
+        AuditLogManager.instance.enable(options);
+        logger.info("AuditLog is enabled with configuration: {}", options);
     }
 
     public boolean isAuditLogEnabled()
@@ -5832,6 +5873,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long newLimit)
     {
         ClientResourceLimits.setEndpointLimit(newLimit);
+    }
+
+    @Override
+    public int getNativeTransportMaxRequestsPerSecond()
+    {
+        return ClientResourceLimits.getNativeTransportMaxRequestsPerSecond();
+    }
+
+    @Override
+    public void setNativeTransportMaxRequestsPerSecond(int newPerSecond)
+    {
+        ClientResourceLimits.setNativeTransportMaxRequestsPerSecond(newPerSecond);
+    }
+
+    @Override
+    public void setNativeTransportRateLimitingEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setNativeTransportRateLimitingEnabled(enabled);
+    }
+
+    @Override
+    public boolean getNativeTransportRateLimitingEnabled()
+    {
+        return DatabaseDescriptor.getNativeTransportRateLimitingEnabled();
     }
 
     @VisibleForTesting
@@ -5953,5 +6018,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalStateException("Keyspace count warn threshold should be positive, not "+value);
         logger.info("Changing keyspace count warn threshold from {} to {}", getKeyspaceCountWarnThreshold(), value);
         DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
+    }
+
+    public void setCompactionTombstoneWarningThreshold(int count)
+    {
+        if (count < 0)
+            throw new IllegalStateException("compaction tombstone warning threshold needs to be >= 0, not "+count);
+        logger.info("Setting compaction_tombstone_warning_threshold to {}", count);
+        DatabaseDescriptor.setCompactionTombstoneWarningThreshold(count);
+    }
+
+    public int getCompactionTombstoneWarningThreshold()
+    {
+        return DatabaseDescriptor.getCompactionTombstoneWarningThreshold();
     }
 }

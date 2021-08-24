@@ -115,20 +115,20 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         IPartitioner p = RandomPartitioner.instance;
 
-        MerkleTrees mt = new MerkleTrees(p);
+        MerkleTrees mts = new MerkleTrees(p);
 
         // empty validation
-        mt.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
+        mts.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
         Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
-        ValidationResponse c0 = new ValidationResponse(DESC, mt);
+        ValidationResponse c0 = new ValidationResponse(DESC, mts);
 
         // validation with a tree
-        mt = new MerkleTrees(p);
-        mt.addMerkleTree(Integer.MAX_VALUE, FULL_RANGE);
+        mts = new MerkleTrees(p);
+        mts.addMerkleTree(Integer.MAX_VALUE, FULL_RANGE);
         for (int i = 0; i < 10; i++)
-            mt.split(p.getRandomToken());
+            mts.split(p.getRandomToken());
         Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
-        ValidationResponse c1 = new ValidationResponse(DESC, mt);
+        ValidationResponse c1 = new ValidationResponse(DESC, mts);
 
         // validation failed
         ValidationResponse c3 = new ValidationResponse(DESC);

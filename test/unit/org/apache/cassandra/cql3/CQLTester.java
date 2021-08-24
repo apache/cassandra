@@ -50,6 +50,7 @@ import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
@@ -63,6 +64,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -90,7 +92,10 @@ import org.apache.cassandra.utils.JMXServerUtils;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
-import static junit.framework.Assert.assertNotNull;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Base class for CQL tests.
@@ -406,6 +411,12 @@ public abstract class CQLTester
         return allArgs;
     }
 
+    protected static void requireNetworkWithoutDriver()
+    {
+        startServices();
+        startServer(server -> {});
+    }
+
     // lazy initialization for all tests that require Java Driver
     protected static void requireNetwork() throws ConfigurationException
     {
@@ -418,11 +429,16 @@ public abstract class CQLTester
         if (server != null)
             return;
 
+        startServices();
+        initializeNetwork(decorator, null);
+    }
+
+    private static void startServices()
+    {
         SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
-        initializeNetwork(decorator, null);
     }
 
     protected static void reinitializeNetwork()
@@ -451,11 +467,7 @@ public abstract class CQLTester
 
     private static void initializeNetwork(Consumer<Server.Builder> decorator, Consumer<Cluster.Builder> clusterConfigurator)
     {
-        Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
-        decorator.accept(serverBuilder);
-        server = serverBuilder.build();
-        ClientMetrics.instance.init(Collections.singleton(server));
-        server.start();
+        startServer(decorator);
 
         for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
@@ -489,6 +501,15 @@ public abstract class CQLTester
 
             logger.info("Started Java Driver instance for protocol version {}", version);
         }
+    }
+
+    private static void startServer(Consumer<Server.Builder> decorator)
+    {
+        Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
+        decorator.accept(serverBuilder);
+        server = serverBuilder.build();
+        ClientMetrics.instance.init(Collections.singleton(server));
+        server.start();
     }
 
     protected void dropPerTestKeyspace() throws Throwable
@@ -923,6 +944,23 @@ public abstract class CQLTester
         Assert.assertEquals(expectedKeyspace, schemaChange.keyspace);
         Assert.assertEquals(expectedName, schemaChange.name);
         Assert.assertEquals(expectedArgTypes != null ? Arrays.asList(expectedArgTypes) : null, schemaChange.argTypes);
+    }
+
+    protected static void assertWarningsContain(Message.Response response, String message)
+    {
+        List<String> warnings = response.getWarnings();
+        Assert.assertNotNull(warnings);
+        assertTrue(warnings.stream().anyMatch(s -> s.contains(message)));
+    }
+
+    protected static void assertNoWarningContains(Message.Response response, String message)
+    {
+        List<String> warnings = response.getWarnings();
+        
+        if (warnings != null) 
+        {
+            assertFalse(warnings.stream().anyMatch(s -> s.contains(message)));
+        }
     }
 
     protected static ResultMessage schemaChange(String query)
@@ -1788,6 +1826,17 @@ public abstract class CQLTester
     {
         requireNetwork();
         return clusters.get(protocolVersion).getMetadata().newTupleType(types);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    protected static Gauge<Integer> getPausedConnectionsGauge()
+    {
+        String metricName = "org.apache.cassandra.metrics.Client.PausedConnections";
+        Map<String, Gauge> metrics = CassandraMetricsRegistry.Metrics.getGauges((name, metric) -> name.equals(metricName));
+        if (metrics.size() != 1)
+            fail(String.format("Expected a single registered metric for paused client connections, found %s",
+                               metrics.size()));
+        return metrics.get(metricName);
     }
 
     // Attempt to find an AbstracType from a value (for serialization/printing sake).

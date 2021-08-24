@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.regex.Pattern;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StatusTest extends CQLTester
 {
+    private static final Pattern PATTERN = Pattern.compile("\\R");
     private static String localHostId;
     private static String token;
 
@@ -69,7 +72,6 @@ public class StatusTest extends CQLTester
      * Validate output, making sure even when bootstrapping any available info is displayed (c16412)
      */
     @Test
-    @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
     public void testOutputWhileBootstrapping()
     {
         // Deleting these tables will simulate we're bootstrapping
@@ -79,12 +81,12 @@ public class StatusTest extends CQLTester
 
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("status");
         tool.assertOnCleanExit();
-        String[] lines = tool.getStdout().split("\\R");
+        String[] lines = PATTERN.split(tool.getStdout());
 
         String hostStatus = lines[lines.length-3].trim();
         assertThat(hostStatus).startsWith("UN");
         assertThat(hostStatus).contains(FBUtilities.getJustLocalAddress().getHostAddress());
-        assertThat(hostStatus).containsPattern("\\d+\\.\\d+ KiB");
+        assertThat(hostStatus).containsPattern("\\d+\\.?\\d+ KiB");
         assertThat(hostStatus).contains(localHostId);
         assertThat(hostStatus).contains(token);
         assertThat(hostStatus).endsWith(SimpleSnitch.RACK_NAME);
@@ -94,7 +96,6 @@ public class StatusTest extends CQLTester
                 .contains("probably still bootstrapping. Effective ownership information is meaningless.");
     }
 
-    @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
     private void validateStatusOutput(String hostForm, String... args)
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
@@ -107,12 +108,12 @@ public class StatusTest extends CQLTester
          --  Address    Load       Owns (effective)  Host ID                               Token                Rack
          UN  localhost  45.71 KiB  100.0%            0b1b5e91-ad3b-444e-9c24-50578486978a  1849950853373272258  rack1
          */
-        String[] lines = tool.getStdout().split("\\R");
+        String[] lines = PATTERN.split(tool.getStdout());
         assertThat(lines[0].trim()).endsWith(SimpleSnitch.DATA_CENTER_NAME);
         String hostStatus = lines[lines.length-1].trim();
         assertThat(hostStatus).startsWith("UN");
         assertThat(hostStatus).contains(hostForm);
-        assertThat(hostStatus).containsPattern("\\d+\\.\\d+ KiB");
+        assertThat(hostStatus).containsPattern("\\d+\\.?\\d+ KiB");
         assertThat(hostStatus).containsPattern("\\d+\\.\\d+%");
         assertThat(hostStatus).contains(localHostId);
         assertThat(hostStatus).contains(token);

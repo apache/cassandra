@@ -21,6 +21,8 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.List;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 public class TableStatsPrinter<T extends StatsHolder>
 {
     public static <T extends StatsHolder> StatsPrinter<T> from(String format, boolean sorted)
@@ -77,8 +79,12 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "SSTable count: " + table.sstableCount);
             out.println(indent + "Old SSTable count: " + table.oldSSTableCount);
             if (table.isLeveledSstable)
+            {
                 out.println(indent + "SSTables in each level: [" + String.join(", ",
-                                                                          table.sstablesInEachLevel) + "]");
+                                                                               table.sstablesInEachLevel) + "]");
+                out.println(indent + "SSTable bytes in each level: [" + String.join(", ",
+                                                                                    table.sstableBytesInEachLevel) + "]");
+            }
 
             out.println(indent + "Space used (live): " + table.spaceUsedLive);
             out.println(indent + "Space used (total): " + table.spaceUsedTotal);
@@ -100,6 +106,10 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.printf(indent + "Local write latency: %01.3f ms%n", table.localWriteLatencyMs);
             out.println(indent + "Pending flushes: " + table.pendingFlushes);
             out.println(indent + "Percent repaired: " + table.percentRepaired);
+
+            out.println(indent +"Bytes repaired: " + FBUtilities.prettyPrintMemory(table.bytesRepaired));
+            out.println(indent +"Bytes unrepaired: " + FBUtilities.prettyPrintMemory(table.bytesUnrepaired));
+            out.println(indent +"Bytes pending repair: " + FBUtilities.prettyPrintMemory(table.bytesPendingRepair));
 
             out.println(indent + "Bloom filter false positives: " + table.bloomFilterFalsePositives);
             out.printf(indent + "Bloom filter false ratio: %01.5f%n", table.bloomFilterFalseRatio);

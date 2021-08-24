@@ -86,6 +86,10 @@ hints_flush_period_in_ms: 10000
 # Maximum size for a single hints file, in megabytes.
 max_hints_file_size_in_mb: 128
 
+# Enable / disable automatic cleanup for the expired and orphaned hints file.
+# Disable the option in order to preserve those hints on the disk.
+auto_hints_cleanup_enabled: false
+
 # Compression to apply to the hint files. If omitted, hints files
 # will be written uncompressed. LZ4, Snappy, and Deflate compressors
 # are supported.
@@ -1288,6 +1292,9 @@ unlogged_batch_across_partitions_warn_threshold: 10
 # Log a warning when compacting partitions larger than this value
 compaction_large_partition_warning_threshold_mb: 100
 
+# Log a warning when writing more tombstones than this value to a partition
+compaction_tombstone_warning_threshold: 100000
+
 # GC Pauses greater than 200 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
 # gc_log_threshold_in_ms: 200
@@ -1434,3 +1441,15 @@ enable_sasi_indexes: false
 # Enables creation of transiently replicated keyspaces on this node.
 # Transient replication is experimental and is not recommended for production use.
 enable_transient_replication: false
+
+# Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.
+# 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
+enable_drop_compact_storage: false
+
+# When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
+# a client metric showing this; this logic will exclude specific subnets from updating these
+# metrics
+#client_error_reporting_exclusions:
+#  subnets:
+#    - 127.0.0.1
+#    - 127.0.0.0/31

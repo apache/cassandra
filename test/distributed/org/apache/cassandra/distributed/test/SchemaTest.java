@@ -18,100 +18,72 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.util.function.Consumer;
-
 import org.junit.Test;
 
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
 
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl
 {
-    private static final Consumer<IInstanceConfig> CONFIG_CONSUMER = config -> {
-        config.set("partitioner", ByteOrderedPartitioner.class.getSimpleName());
-        config.set("initial_token", Integer.toString(config.num() * 1000));
-    };
-
     @Test
-    public void dropColumnMixedMode() throws Throwable
+    public void readRepair() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2, CONFIG_CONSUMER)))
+        try (Cluster cluster = init(Cluster.build(2).start()))
         {
-            cluster.schemaChange("CREATE TABLE "+KEYSPACE+".tbl (id int primary key, v1 int, v2 int, v3 int) WITH read_repair='NONE'");
-            Object [][] someExpected = new Object[5][];
-            Object [][] allExpected1 = new Object[5][];
-            Object [][] allExpected2 = new Object[5][];
-            for (int i = 0; i < 5; i++)
-            {
-                int v1 = i * 10, v2 = i * 100, v3 = i * 1000;
-                cluster.coordinator(1).execute("INSERT INTO "+KEYSPACE+".tbl (id, v1, v2, v3) VALUES (?,?,?, ?)" , ConsistencyLevel.ALL, i, v1, v2, v3);
-                someExpected[i] = new Object[] {i, v1};
-                allExpected1[i] = new Object[] {i, v1, v3};
-                allExpected2[i] = new Object[] {i, v1, v2, v3};
-            }
-            cluster.forEach((instance) -> instance.flush(KEYSPACE));
-            cluster.get(1).schemaChangeInternal("ALTER TABLE "+KEYSPACE+".tbl DROP v2");
-            assertRows(cluster.coordinator(1).execute("SELECT id, v1 FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), someExpected);
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), allExpected1);
-            assertRows(cluster.coordinator(2).execute("SELECT id, v1 FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), someExpected);
-            assertRows(cluster.coordinator(2).execute("SELECT * FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), allExpected2);
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))");
+            String name = "aaa";
+            cluster.get(1).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) values (?,1,1,1)", 1);
+            selectSilent(cluster, name);
+
+            cluster.get(2).flush(KEYSPACE);
+            cluster.get(2).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+            cluster.get(2).shutdown().get();
+            cluster.get(2).startup();
+            cluster.get(2).forceCompact(KEYSPACE, "tbl");
         }
     }
 
     @Test
-    public void addColumnMixedMode() throws Throwable
+    public void readRepairWithCompaction() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2, CONFIG_CONSUMER)))
+        try (Cluster cluster = init(Cluster.build(2).start()))
         {
-            cluster.schemaChange("CREATE TABLE "+KEYSPACE+".tbl (id int primary key, v1 int, v2 int) WITH read_repair='NONE'");
-            Object [][] someExpected = new Object[5][];
-            Object [][] allExpected1 = new Object[5][];
-            Object [][] allExpected2 = new Object[5][];
-            for (int i = 0; i < 5; i++)
-            {
-                int v1 = i * 10, v2 = i * 100;
-                cluster.coordinator(1).execute("INSERT INTO "+KEYSPACE+".tbl (id, v1, v2) VALUES (?,?,?)" , ConsistencyLevel.ALL, i, v1, v2);
-                someExpected[i] = new Object[] {i, v1};
-                allExpected1[i] = new Object[] {i, v1, v2, null};
-                allExpected2[i] = new Object[] {i, v1, v2};
-            }
-            cluster.forEach((instance) -> instance.flush(KEYSPACE));
-            cluster.get(1).schemaChangeInternal("ALTER TABLE "+KEYSPACE+".tbl ADD v3 int");
-            assertRows(cluster.coordinator(1).execute("SELECT id, v1 FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), someExpected);
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), allExpected1);
-            assertRows(cluster.coordinator(2).execute("SELECT id, v1 FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), someExpected);
-            assertRows(cluster.coordinator(2).execute("SELECT * FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), allExpected2);
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))");
+            String name = "v10";
+            cluster.get(1).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) values (?,1,1,1)", 1);
+            selectSilent(cluster, name);
+            cluster.get(2).flush(KEYSPACE);
+            cluster.get(2).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2, " + name + ") values (?,1,1,1,[1])", 1);
+            cluster.get(2).flush(KEYSPACE);
+            cluster.get(2).forceCompact(KEYSPACE, "tbl");
+            cluster.get(2).shutdown().get();
+            cluster.get(2).startup();
+            cluster.get(2).forceCompact(KEYSPACE, "tbl");
         }
     }
 
-    @Test
-    public void addDropColumnMixedMode() throws Throwable
+    private void selectSilent(Cluster cluster, String name)
     {
-        try (Cluster cluster = init(Cluster.create(2, CONFIG_CONSUMER)))
+        try
         {
-            cluster.schemaChange("CREATE TABLE "+KEYSPACE+".tbl (id int primary key, v1 int, v2 int) WITH read_repair='NONE'");
-            Object [][] someExpected = new Object[5][];
-            Object [][] allExpected1 = new Object[5][];
-            Object [][] allExpected2 = new Object[5][];
-            for (int i = 0; i < 5; i++)
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"), ConsistencyLevel.ALL, 1);
+        }
+        catch (Exception e)
+        {
+            boolean causeIsUnknownColumn = false;
+            Throwable cause = e;
+            while (cause != null)
             {
-                int v1 = i * 10, v2 = i * 100;
-                cluster.coordinator(1).execute("INSERT INTO "+KEYSPACE+".tbl (id, v1, v2) VALUES (?,?,?)" , ConsistencyLevel.ALL, i, v1, v2);
-                someExpected[i] = new Object[] {i, v1};
-                allExpected1[i] = new Object[] {i, v1, v2, null};
-                allExpected2[i] = new Object[] {i, v1};
+                if (cause.getMessage() != null && cause.getMessage().contains("Unknown column "+name+" during deserialization"))
+                    causeIsUnknownColumn = true;
+                cause = cause.getCause();
             }
-            cluster.forEach((instance) -> instance.flush(KEYSPACE));
-            cluster.get(1).schemaChangeInternal("ALTER TABLE "+KEYSPACE+".tbl ADD v3 int");
-            cluster.get(2).schemaChangeInternal("ALTER TABLE "+KEYSPACE+".tbl DROP v2");
-            assertRows(cluster.coordinator(1).execute("SELECT id, v1 FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), someExpected);
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), allExpected1);
-            assertRows(cluster.coordinator(2).execute("SELECT id, v1 FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), someExpected);
-            assertRows(cluster.coordinator(2).execute("SELECT * FROM "+KEYSPACE+".tbl", ConsistencyLevel.ALL), allExpected2);
+            assertTrue(causeIsUnknownColumn);
         }
     }
 }

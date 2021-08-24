@@ -109,6 +109,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         return manifest.getAllLevelSize();
     }
 
+    public long[] getAllLevelSizeBytes()
+    {
+        return manifest.getAllLevelSizeBytes();
+    }
+
     @Override
     public void startup()
     {

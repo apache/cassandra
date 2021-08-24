@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -48,7 +49,7 @@ public class ValidationManager
 
     private static MerkleTrees createMerkleTrees(ValidationPartitionIterator validationIterator, Collection<Range<Token>> ranges, ColumnFamilyStore cfs)
     {
-        MerkleTrees tree = new MerkleTrees(cfs.getPartitioner());
+        MerkleTrees trees = new MerkleTrees(cfs.getPartitioner());
         long allPartitions = validationIterator.estimatedPartitions();
         Map<Range<Token>, Long> rangePartitionCounts = validationIterator.getRangePartitionCounts();
 
@@ -72,18 +73,18 @@ public class ValidationManager
                            : 0;
             // determine tree depth from number of partitions, capping at max tree depth (CASSANDRA-5263)
             int depth = numPartitions > 0 ? (int) Math.min(Math.ceil(Math.log(numPartitions) / Math.log(2)), maxDepth) : 0;
-            tree.addMerkleTree((int) Math.pow(2, depth), range);
+            trees.addMerkleTree((int) Math.pow(2, depth), range);
         }
         if (logger.isDebugEnabled())
         {
             // MT serialize may take time
-            logger.debug("Created {} merkle trees with merkle trees size {}, {} partitions, {} bytes", tree.ranges().size(), tree.size(), allPartitions, MerkleTrees.serializer.serializedSize(tree, 0));
+            logger.debug("Created {} merkle trees with merkle trees size {}, {} partitions, {} bytes", trees.ranges().size(), trees.size(), allPartitions, MerkleTrees.serializer.serializedSize(trees, 0));
         }
 
-        return tree;
+        return trees;
     }
 
-    private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator) throws IOException
+    private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator) throws IOException, NoSuchRepairSessionException
     {
         RepairJobDesc desc = validator.desc;
         return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec);
@@ -94,7 +95,7 @@ public class ValidationManager
      * but without writing the merge result
      */
     @SuppressWarnings("resource")
-    private void doValidation(ColumnFamilyStore cfs, Validator validator) throws IOException
+    private void doValidation(ColumnFamilyStore cfs, Validator validator) throws IOException, NoSuchRepairSessionException
     {
         // this isn't meant to be race-proof, because it's not -- it won't cause bugs for a CFS to be dropped
         // mid-validation, or to attempt to validate a droped CFS.  this is just a best effort to avoid useless work,
@@ -111,11 +112,11 @@ public class ValidationManager
         long estimatedTotalBytes = 0;
         try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
         {
-            MerkleTrees tree = createMerkleTrees(vi, validator.desc.ranges, cfs);
+            MerkleTrees trees = createMerkleTrees(vi, validator.desc.ranges, cfs);
             try
             {
                 // validate the CF as we iterate over it
-                validator.prepare(cfs, tree);
+                validator.prepare(cfs, trees);
                 while (vi.hasNext())
                 {
                     try (UnfilteredRowIterator partition = vi.next())
@@ -161,7 +162,7 @@ public class ValidationManager
                 {
                     doValidation(cfs, validator);
                 }
-                catch (PreviewRepairConflictWithIncrementalRepairException e)
+                catch (PreviewRepairConflictWithIncrementalRepairException | NoSuchRepairSessionException | CompactionInterruptedException e)
                 {
                     validator.fail();
                     logger.warn(e.getMessage());

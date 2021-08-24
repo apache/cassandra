@@ -39,6 +39,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
@@ -105,6 +106,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected boolean hasLegacyCounterShards = false;
     protected long totalColumnsSet;
     protected long totalRows;
+    public int totalTombstones;
 
     /**
      * Default cardinality estimation method is to use HyperLogLog++.
@@ -114,6 +116,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
      */
     protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
     private final ClusteringComparator comparator;
+    private final int nowInSec = FBUtilities.nowInSeconds();
 
     private final UUID originatingHostId;
 
@@ -149,6 +152,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         long hashed = MurmurHash.hash2_64(key, key.position(), key.remaining(), 0);
         cardinality.offerHashed(hashed);
+        totalTombstones = 0;
         return this;
     }
 
@@ -182,6 +186,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
         updateTimestamp(newInfo.timestamp());
         updateTTL(newInfo.ttl());
         updateLocalDeletionTime(newInfo.localExpirationTime());
+        if (!newInfo.isLive(nowInSec))
+            updateTombstoneCount();
     }
 
     public void update(Cell<?> cell)
@@ -189,6 +195,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
         updateTimestamp(cell.timestamp());
         updateTTL(cell.ttl());
         updateLocalDeletionTime(cell.localDeletionTime());
+        if (!cell.isLive(nowInSec))
+            updateTombstoneCount();
     }
 
     public void update(DeletionTime dt)
@@ -197,6 +205,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         {
             updateTimestamp(dt.markedForDeleteAt());
             updateLocalDeletionTime(dt.localDeletionTime());
+            updateTombstoneCount();
         }
     }
 
@@ -216,6 +225,11 @@ public class MetadataCollector implements PartitionStatisticsCollector
         localDeletionTimeTracker.update(newLocalDeletionTime);
         if (newLocalDeletionTime != Cell.NO_DELETION_TIME)
             estimatedTombstoneDropTime.update(newLocalDeletionTime);
+    }
+
+    private void updateTombstoneCount()
+    {
+        ++totalTombstones;
     }
 
     private void updateTTL(int newTTL)
