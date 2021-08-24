@@ -427,7 +427,7 @@ public abstract class CassandraIndex implements Index
 
                 if (isPrimaryKeyIndex())
                     indexPrimaryKey(newRow.clustering(),
-                                    newRow.primaryKeyLivenessInfo(),
+                                    getPrimaryKeyIndexLiveness(newRow),
                                     newRow.deletion());
 
                 if (indexedColumn.isComplex())
@@ -505,10 +505,7 @@ public abstract class CassandraIndex implements Index
                     if (cell.isLive(nowInSec))
                     {
                         if (cellTimestamp > timestamp)
-                        {
                             timestamp = cellTimestamp;
-                            ttl = cell.ttl();
-                        }
                     }
                 }
                 return LivenessInfo.create(timestamp, ttl, nowInSec);
