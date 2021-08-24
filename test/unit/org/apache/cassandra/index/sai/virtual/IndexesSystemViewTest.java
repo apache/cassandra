@@ -160,7 +160,7 @@ public class IndexesSystemViewTest extends SAITester
                        isQueryable,
                        isBuilding,
                        isString,
-                       context.getAnalyzer().toString(),
+                       context.getAnalyzerFactory().toString(),
                        sstableCount,
                        cellCount,
                        group.diskUsage(),

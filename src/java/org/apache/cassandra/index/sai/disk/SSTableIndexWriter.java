@@ -81,11 +81,10 @@ public class SSTableIndexWriter implements ColumnIndexWriter
         this.columnContext = columnContext;
         this.descriptor = descriptor;
         this.indexComponents = IndexComponents.create(columnContext.getIndexName(), descriptor, compressionParams);
-        this.analyzer = columnContext.getAnalyzer();
+        this.analyzer = columnContext.getAnalyzerFactory().create();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
         this.maxTermSize = columnContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
-
     }
 
     @Override
@@ -163,10 +162,17 @@ public class SSTableIndexWriter implements ColumnIndexWriter
         else
         {
             analyzer.reset(term);
-            while (analyzer.hasNext())
+            try
             {
-                ByteBuffer token = analyzer.next();
-                limiter.increment(currentBuilder.add(token, key, sstableRowId));
+                while (analyzer.hasNext())
+                {
+                    ByteBuffer tokenTerm = analyzer.next();
+                    limiter.increment(currentBuilder.add(tokenTerm, key, sstableRowId));
+                }
+            }
+            finally
+            {
+                analyzer.end();
             }
         }
     }

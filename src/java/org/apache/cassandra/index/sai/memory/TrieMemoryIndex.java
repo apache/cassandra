@@ -66,7 +66,7 @@ public class TrieMemoryIndex extends MemoryIndex
     private final MemtableTrie<PrimaryKeys> data;
     private final ClusteringComparator clusteringComparator;
     private final PrimaryKeysReducer primaryKeysReducer;
-    private final AbstractAnalyzer analyzer;
+    private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final AbstractType<?> validator;
     private final boolean isLiteral;
     private final Object writeLock = new Object();
@@ -88,7 +88,7 @@ public class TrieMemoryIndex extends MemoryIndex
         this.clusteringComparator = columnContext.clusteringComparator();
         this.primaryKeysReducer = new PrimaryKeysReducer();
         // MemoryIndex is per-core, so analyzer should be thread-safe..
-        this.analyzer = columnContext.getAnalyzer();
+        this.analyzerFactory = columnContext.getAnalyzerFactory();
         this.validator = columnContext.getValidator();
         this.isLiteral = TypeUtil.isLiteral(validator);
     }
@@ -98,39 +98,48 @@ public class TrieMemoryIndex extends MemoryIndex
     {
         synchronized (writeLock)
         {
-            AbstractAnalyzer analyzer = columnContext.getAnalyzer();
-            value = TypeUtil.encode(value, validator);
-            analyzer.reset(value.duplicate());
-            final PrimaryKey primaryKey = PrimaryKey.of(key, clustering);
-            final long initialSizeOnHeap = data.sizeOnHeap();
-            final long initialSizeOffHeap = data.sizeOffHeap();
-            final long reducerHeapSize = primaryKeysReducer.heapAllocations();
-
-
-            while (analyzer.hasNext())
+            AbstractAnalyzer analyzer = analyzerFactory.create();
+            try
             {
-                final ByteBuffer term = analyzer.next();
-                setMinMaxTerm(term);
+                value = TypeUtil.encode(value, validator);
+                analyzer.reset(value.duplicate());
+                final PrimaryKey primaryKey = PrimaryKey.of(key, clustering);
+                final long initialSizeOnHeap = data.sizeOnHeap();
+                final long initialSizeOffHeap = data.sizeOffHeap();
+                final long reducerHeapSize = primaryKeysReducer.heapAllocations();
 
-                final ByteComparable encodedTerm = encode(term);
-                try
+                while (analyzer.hasNext())
                 {
-                    if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
+                    final ByteBuffer term = analyzer.next();
+
+                    setMinMaxTerm(term.duplicate());
+
+                    final ByteComparable encodedTerm = encode(term.duplicate());
+
+                    try
                     {
-                        data.putRecursive(encodedTerm, primaryKey, primaryKeysReducer);
+                        if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
+                        {
+                            data.putRecursive(encodedTerm, primaryKey, primaryKeysReducer);
+                        }
+                        else
+                        {
+                            data.apply(Trie.singleton(encodedTerm, primaryKey), primaryKeysReducer);
+                        }
                     }
-                    else
+                    catch (MemtableTrie.SpaceExhaustedException e)
                     {
-                        data.apply(Trie.singleton(encodedTerm, primaryKey), primaryKeysReducer);
+                        //TODO Handle this properly
+                        throw new RuntimeException(e);
                     }
                 }
-                catch (MemtableTrie.SpaceExhaustedException e)
-                {
-                    //TODO Handle this properly
-                    throw new RuntimeException(e);
-                }
+
+                return (data.sizeOnHeap() - initialSizeOnHeap) + (data.sizeOffHeap() - initialSizeOffHeap) + (primaryKeysReducer.heapAllocations() - reducerHeapSize);
             }
-            return (data.sizeOnHeap() - initialSizeOnHeap) + (data.sizeOffHeap() - initialSizeOffHeap) + (primaryKeysReducer.heapAllocations() - reducerHeapSize);
+            finally
+            {
+                analyzer.end();
+            }
         }
     }
 

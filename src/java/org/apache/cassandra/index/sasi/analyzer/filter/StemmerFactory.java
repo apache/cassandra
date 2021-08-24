@@ -24,7 +24,7 @@ import java.util.Map;
 
 import com.google.common.util.concurrent.MoreExecutors;
 
-import org.tartarus.snowball.SnowballStemmer;
+import org.tartarus.snowball.SnowballProgram;
 import org.tartarus.snowball.ext.*;
 
 import com.github.benmanes.caffeine.cache.CacheLoader;
@@ -64,24 +64,24 @@ public class StemmerFactory
     static
     {
         SUPPORTED_LANGUAGES = new HashMap<>();
-        SUPPORTED_LANGUAGES.put("de", germanStemmer.class);
-        SUPPORTED_LANGUAGES.put("da", danishStemmer.class);
-        SUPPORTED_LANGUAGES.put("es", spanishStemmer.class);
-        SUPPORTED_LANGUAGES.put("en", englishStemmer.class);
-        SUPPORTED_LANGUAGES.put("fl", finnishStemmer.class);
-        SUPPORTED_LANGUAGES.put("fr", frenchStemmer.class);
-        SUPPORTED_LANGUAGES.put("hu", hungarianStemmer.class);
-        SUPPORTED_LANGUAGES.put("it", italianStemmer.class);
-        SUPPORTED_LANGUAGES.put("nl", dutchStemmer.class);
-        SUPPORTED_LANGUAGES.put("no", norwegianStemmer.class);
-        SUPPORTED_LANGUAGES.put("pt", portugueseStemmer.class);
-        SUPPORTED_LANGUAGES.put("ro", romanianStemmer.class);
-        SUPPORTED_LANGUAGES.put("ru", russianStemmer.class);
-        SUPPORTED_LANGUAGES.put("sv", swedishStemmer.class);
-        SUPPORTED_LANGUAGES.put("tr", turkishStemmer.class);
+        SUPPORTED_LANGUAGES.put("de", GermanStemmer.class);
+        SUPPORTED_LANGUAGES.put("da", DanishStemmer.class);
+        SUPPORTED_LANGUAGES.put("es", SpanishStemmer.class);
+        SUPPORTED_LANGUAGES.put("en", EnglishStemmer.class);
+        SUPPORTED_LANGUAGES.put("fl", FinnishStemmer.class);
+        SUPPORTED_LANGUAGES.put("fr", FrenchStemmer.class);
+        SUPPORTED_LANGUAGES.put("hu", HungarianStemmer.class);
+        SUPPORTED_LANGUAGES.put("it", ItalianStemmer.class);
+        SUPPORTED_LANGUAGES.put("nl", DutchStemmer.class);
+        SUPPORTED_LANGUAGES.put("no", NorwegianStemmer.class);
+        SUPPORTED_LANGUAGES.put("pt", PortugueseStemmer.class);
+        SUPPORTED_LANGUAGES.put("ro", RomanianStemmer.class);
+        SUPPORTED_LANGUAGES.put("ru", RussianStemmer.class);
+        SUPPORTED_LANGUAGES.put("sv", SwedishStemmer.class);
+        SUPPORTED_LANGUAGES.put("tr", TurkishStemmer.class);
     }
 
-    public static SnowballStemmer getStemmer(Locale locale)
+    public static SnowballProgram getStemmer(Locale locale)
     {
         if (locale == null)
             return null;
@@ -93,7 +93,7 @@ public class StemmerFactory
             if(clazz == null)
                 return null;
             Constructor<?> ctor = STEMMER_CONSTRUCTOR_CACHE.get(clazz);
-            return (SnowballStemmer) ctor.newInstance();
+            return (SnowballProgram) ctor.newInstance();
         }
         catch (Exception e)
         {
