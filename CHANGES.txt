@@ -5,6 +5,7 @@
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)
 Merged from 3.0:
+ * Fix secondary indexes on primary key columns skipping some writes (CASSANDRA-16868)
  * Fix incorrect error message in LegacyLayout (CASSANDRA-15136)
  * Use JMX to validate nodetool --jobs parameter (CASSANDRA-16104)
  * Handle properly UnsatisfiedLinkError in NativeLibrary#getProcessID() (CASSANDRA-16578)
