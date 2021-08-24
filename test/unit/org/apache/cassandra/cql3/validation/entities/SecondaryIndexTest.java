@@ -1235,43 +1235,177 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnPartitionKeyInsertExpiringColumn() throws Throwable
     {
+        testIndexOnPartitionKeyInsertExpiringColumn(false);
+    }
+
+    @Test
+    public void testIndexOnPartitionKeyInsertExpiringColumnWithFlush() throws Throwable
+    {
+        testIndexOnPartitionKeyInsertExpiringColumn(true);
+    }
+
+    private void testIndexOnPartitionKeyInsertExpiringColumn(boolean flushBeforeUpdate) throws Throwable
+    {
         createTable("CREATE TABLE %s (k1 int, k2 int, a int, b int, PRIMARY KEY ((k1, k2)))");
-        createIndex("CREATE INDEX on %s(k1)");
+        createIndex("CREATE INDEX ON %s(k1)");
         execute("INSERT INTO %s (k1, k2, a, b) VALUES (1, 2, 3, 4)");
         assertRows(execute("SELECT * FROM %s WHERE k1 = 1"), row(1, 2, 3, 4));
+
+        if (flushBeforeUpdate)
+            flush();
+
         execute("UPDATE %s USING TTL 1 SET b = 10 WHERE k1 = 1 AND k2 = 2");
         Thread.sleep(1000);
         assertRows(execute("SELECT * FROM %s WHERE k1 = 1"), row(1, 2, 3, null));
     }
 
     @Test
+    public void testIndexOnPartitionKeyOverridingExpiredRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY ((k1, k2)))");
+        createIndex("CREATE INDEX ON %s(k1)");
+
+        execute("UPDATE %s USING TTL 1 SET v = 3 WHERE k1 = 1 AND k2 = 2");
+        Thread.sleep(1000);
+
+        assertEmpty(execute("SELECT * FROM %s WHERE k1 = 1"));
+
+        execute("UPDATE %s SET v = 3 WHERE k1 = 1 AND k2 = 2");
+        assertRows(execute("SELECT * FROM %s WHERE k1 = 1"), row(1, 2, 3));
+    }
+
+    @Test
+    public void testIndexOnPartitionKeyOverridingDeletedRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, k2 int, c int, v int, PRIMARY KEY ((k1, k2), c))");
+        createIndex("CREATE INDEX ON %s(k1)");
+
+        execute("INSERT INTO %s(k1, k2, c, v) VALUES (1, 2, 3, 4)");
+        execute("DELETE FROM %s WHERE k1 = 1 AND k2 = 2 AND c = 3");
+        execute("UPDATE %s SET v = 4 WHERE k1 = 1 AND k2 = 2 AND c = 3");
+
+        assertRows(execute("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND c = 3"), row(1, 2, 3, 4));
+        assertRows(execute("SELECT * FROM %s WHERE k1 = 1"), row(1, 2, 3, 4));
+    }
+
+    @Test
     public void testIndexOnClusteringKeyInsertExpiringColumn() throws Throwable
     {
+        testIndexOnClusteringKeyInsertExpiringColumn(false);
+    }
+
+    @Test
+    public void testIndexOnClusteringKeyInsertExpiringColumnWithFlush() throws Throwable
+    {
+        testIndexOnClusteringKeyInsertExpiringColumn(true);
+    }
+
+    private void testIndexOnClusteringKeyInsertExpiringColumn(boolean flushBeforeUpdate) throws Throwable
+    {
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
-        createIndex("CREATE INDEX on %s(ck)");
+        createIndex("CREATE INDEX ON %s(ck)");
         execute("INSERT INTO %s (pk, ck, a, b) VALUES (1, 2, 3, 4)");
         assertRows(execute("SELECT * FROM %s WHERE ck = 2"), row(1, 2, 3, 4));
+
+        if (flushBeforeUpdate)
+            flush();
+
         execute("UPDATE %s USING TTL 1 SET b = 10 WHERE pk = 1 AND ck = 2");
         Thread.sleep(1000);
         assertRows(execute("SELECT * FROM %s WHERE ck = 2"), row(1, 2, 3, null));
     }
 
     @Test
+    public void testIndexOnClusteringKeyOverridingExpiredRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(ck)");
+
+        execute("UPDATE %s USING TTL 1 SET v = 3 WHERE pk = 1 AND ck = 2");
+        Thread.sleep(1000);
+
+        assertEmpty(execute("SELECT * FROM %s WHERE ck = 2"));
+
+        execute("UPDATE %s SET v = 3 WHERE pk = 1 AND ck = 2");
+        assertRows(execute("SELECT * FROM %s WHERE ck = 2"), row(1, 2, 3));
+    }
+
+    @Test
+    public void testIndexOnClusteringKeyOverridingDeletedRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(ck)");
+
+        execute("INSERT INTO %s(pk, ck, v) VALUES (1, 2, 3)");
+        execute("DELETE FROM %s WHERE pk = 1 AND ck = 2");
+        execute("UPDATE %s SET v = 3 WHERE pk = 1 AND ck = 2");
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND ck = 2"), row(1, 2, 3));
+        assertRows(execute("SELECT * FROM %s WHERE ck = 2"), row(1, 2, 3));
+    }
+
+    @Test
     public void testIndexOnRegularColumnInsertExpiringColumn() throws Throwable
     {
+        testIndexOnRegularColumnInsertExpiringColumn(false);
+    }
+
+    @Test
+    public void testIndexOnRegularColumnInsertExpiringColumnWithFlush() throws Throwable
+    {
+        testIndexOnRegularColumnInsertExpiringColumn(true);
+    }
+
+    private void testIndexOnRegularColumnInsertExpiringColumn(boolean flushBeforeUpdate) throws Throwable
+    {
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
-        createIndex("CREATE INDEX on %s(a)");
+        createIndex("CREATE INDEX ON %s(a)");
         execute("INSERT INTO %s (pk, ck, a, b) VALUES (1, 2, 3, 4)");
         assertRows(execute("SELECT * FROM %s WHERE a = 3"), row(1, 2, 3, 4));
+
+        if (flushBeforeUpdate)
+            flush();
 
         execute("UPDATE %s USING TTL 1 SET b = 10 WHERE pk = 1 AND ck = 2");
         Thread.sleep(1000);
         assertRows(execute("SELECT * FROM %s WHERE a = 3"), row(1, 2, 3, null));
 
+        if (flushBeforeUpdate)
+            flush();
+
         execute("UPDATE %s USING TTL 1 SET a = 5 WHERE pk = 1 AND ck = 2");
         Thread.sleep(1000);
         assertEmpty(execute("SELECT * FROM %s WHERE a = 3"));
         assertEmpty(execute("SELECT * FROM %s WHERE a = 5"));
+    }
+
+    @Test
+    public void testIndexOnRegularColumnOverridingExpiredRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(v)");
+
+        execute("UPDATE %s USING TTL 1 SET v = 3 WHERE pk = 1 AND ck = 2");
+        Thread.sleep(1000);
+
+        assertEmpty(execute("SELECT * FROM %s WHERE v = 3"));
+
+        execute("UPDATE %s SET v = 3 WHERE pk = 1 AND ck = 2");
+        assertRows(execute("SELECT * FROM %s WHERE v = 3"), row(1, 2, 3));
+    }
+
+    @Test
+    public void testIndexOnRegularColumnOverridingDeletedRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(v)");
+
+        execute("INSERT INTO %s(pk, ck, v) VALUES (1, 2, 3)");
+        execute("DELETE FROM %s WHERE pk=1 AND ck=2");
+        execute("UPDATE %s SET v=3 WHERE pk=1 AND ck=2");
+
+        assertRows(execute("SELECT * FROM %s WHERE pk=1 AND ck=2"), row(1, 2, 3));
+        assertRows(execute("SELECT * FROM %s WHERE v=3"), row(1, 2, 3));
     }
 
     @Test
