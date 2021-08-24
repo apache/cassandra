@@ -251,7 +251,7 @@ public class SelectStatement implements CQLStatement
 
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
-        if (DatabaseDescriptor.getClientTrackWarningsEnabled())
+        if (trackWarnings)
             query.trackWarnings();
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
