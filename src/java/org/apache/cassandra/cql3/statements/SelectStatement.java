@@ -97,10 +97,6 @@ public class SelectStatement implements CQLStatement
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
 
-    private final boolean trackWarnings = DatabaseDescriptor.getClientTrackWarningsEnabled();
-    private final long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
-    private final long clientLargeReadBlockThresholdKB = DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
-
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
     public final Parameters parameters;
@@ -251,7 +247,8 @@ public class SelectStatement implements CQLStatement
 
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
-        if (trackWarnings)
+
+        if (options.isClientTrackWarningsEnabled())
             query.trackWarnings();
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
@@ -819,11 +816,11 @@ public class SelectStatement implements CQLStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
-        if (!trackWarnings)
+        if (!options.isClientTrackWarningsEnabled())
             return;
-        if (result.shouldWarn(clientLargeReadWarnThresholdKb))
+        if (result.shouldWarn(options.getClientLargeReadWarnThresholdKb()))
         {
-            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, clientLargeReadWarnThresholdKb);
+            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getClientLargeReadWarnThresholdKb());
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
             logger.warn("{} with query {}", msg, asCQL(options));
             cfs().metric.clientReadSizeWarnings.mark();
@@ -832,11 +829,11 @@ public class SelectStatement implements CQLStatement
 
     private void maybeFail(ResultSetBuilder result, QueryOptions options)
     {
-        if (!trackWarnings)
+        if (!options.isClientTrackWarningsEnabled())
             return;
-        if (result.shouldReject(clientLargeReadBlockThresholdKB))
+        if (result.shouldReject(options.getClientLargeReadAbortThresholdKB()))
         {
-            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, clientLargeReadBlockThresholdKB);
+            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, options.getClientLargeReadAbortThresholdKB());
             String clientMsg = msg + " with " + loggableTokens(options);
             ClientWarn.instance.warn(clientMsg);
             logger.warn("{} with query {}", msg, asCQL(options));
