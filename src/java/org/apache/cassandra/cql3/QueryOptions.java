@@ -239,7 +239,7 @@ public abstract class QueryOptions
         return this;
     }
 
-    public interface TrackWarnings
+    interface TrackWarnings
     {
         boolean isEnabled();
 
