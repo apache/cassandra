@@ -29,9 +29,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class K8SecretsSslContextFactoryTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(K8SecretsSslContextFactoryTest.class);
+
     private Map<String,Object> commonConfig = new HashMap<>();
 
     private static class K8SecretsSslContextFactoryForTestOnly extends K8SecretsSslContextFactory {
@@ -50,8 +54,15 @@ public class K8SecretsSslContextFactoryTest
          */
         @Override
         String getValueFromEnv(String envVarName, String defaultValue) {
-            String pwd = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
-            return StringUtils.isEmpty(pwd) ? super.getValueFromEnv(envVarName, defaultValue) : pwd;
+            String envVarValue = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
+            if (StringUtils.isEmpty(envVarValue)) {
+                logger.info("Configuration doesn't have env variable {}. Will use parent's implementation", envVarName);
+                return super.getValueFromEnv(envVarName, defaultValue);
+            } else {
+                logger.info("Configuration has env variable {} with value {}. Will use that.",
+                            envVarName, envVarValue);
+                return envVarValue;
+            }
         }
     }
 
@@ -183,7 +194,7 @@ public class K8SecretsSslContextFactoryTest
         Assert.assertFalse(k8SecretsSslContextFactory.shouldReload());
 
         config.put(K8SecretsSslContextFactory.DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR,
-                   String.valueOf(System.currentTimeMillis()));
+                   String.valueOf(System.nanoTime()));
         Assert.assertTrue(k8SecretsSslContextFactory.shouldReload());
 
         config.remove(K8SecretsSslContextFactory.DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR);
@@ -204,7 +215,7 @@ public class K8SecretsSslContextFactoryTest
         Assert.assertFalse(k8SecretsSslContextFactory.shouldReload());
 
         config.put(K8SecretsSslContextFactory.DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR,
-                   String.valueOf(System.currentTimeMillis()));
+                   String.valueOf(System.nanoTime()));
         Assert.assertTrue(k8SecretsSslContextFactory.shouldReload());
 
         config.remove(K8SecretsSslContextFactory.DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR);

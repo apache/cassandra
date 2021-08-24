@@ -64,7 +64,7 @@ import org.slf4j.LoggerFactory;
  *
  * Below is the corresponding sample YAML configuration for K8 env.
  * <pre>
- *     apiVersion: v1
+ * apiVersion: v1
  * kind: Pod
  * metadata:
  *   name: my-pod
