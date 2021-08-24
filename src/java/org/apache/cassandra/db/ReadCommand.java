@@ -142,7 +142,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                           ColumnFilter columnFilter,
                           RowFilter rowFilter,
                           DataLimits limits,
-                          IndexMetadata index)
+                          IndexMetadata index,
+                          boolean trackWarnings)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
         if (acceptsTransient && isDigestQuery)
@@ -153,6 +154,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
         this.index = index;
+        this.trackWarnings = trackWarnings;
     }
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
@@ -284,6 +286,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         return repairedDataInfo.isConclusive();
     }
 
+    @Override
     public void trackWarnings()
     {
         trackWarnings = true;
@@ -712,7 +715,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                    : Message.outWithFlag(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
         // can't rely on trackWarnings as this won't be called yet; that happens at the start of execution
         // if track warnings is enabled, then add to the message
-        if (DatabaseDescriptor.getClientTrackWarningsEnabled())
+        if (trackWarnings)
             msg = msg.withFlag(MessageFlag.TRACK_WARNINGS);
         return msg;
     }

@@ -166,7 +166,8 @@ public class ReadCommandVerbHandlerTest
                                               DataLimits.NONE,
                                               KEY,
                                               new ClusteringIndexSliceFilter(Slices.ALL, false),
-                                              null);
+                                              null,
+                                              false);
     }
 
     private static DecoratedKey key(TableMetadata metadata, int key)

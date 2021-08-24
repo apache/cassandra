@@ -45,6 +45,10 @@ import org.apache.cassandra.service.QueryState;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
 
+/**
+ * ReadSize client warn/abort is coordinator only, so the fact ClientMetrics is coordinator only does not
+ * impact the user experience
+ */
 public class ClientReadSizeWarningTest extends TestBaseImpl
 {
     private static final Random RANDOM = new Random(0);
@@ -96,12 +100,22 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
     }
 
     @Test
-    public void noWarnings()
+    public void noWarningsSinglePartition()
+    {
+        noWarnings("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+    }
+
+    @Test
+    public void noWarningsScan()
+    {
+        noWarnings("SELECT * FROM " + KEYSPACE + ".tbl");
+    }
+
+    public void noWarnings(String cql)
     {
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(128));
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(128));
 
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
         Consumer<List<String>> test = warnings ->
                                       Assert.assertEquals(Collections.emptyList(), warnings);
 
@@ -116,13 +130,22 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
     }
 
     @Test
-    public void warnThreshold()
+    public void warnThresholdSinglePartition()
+    {
+        warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+    }
+
+    @Test
+    public void warnThresholdScan()
+    {
+        warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl");
+    }
+
+    public void warnThreshold(String cql)
     {
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(512));
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(512));
 
-
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
         Consumer<List<String>> testEnabled = warnings ->
                                              assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size warning threshold", Iterables.getOnlyElement(warnings));
 
@@ -141,7 +164,18 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
     }
 
     @Test
-    public void failThreshold() throws UnknownHostException
+    public void failThresholdSinglePartition() throws UnknownHostException
+    {
+        failThreshold("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+    }
+
+    @Test
+    public void failThresholdScan() throws UnknownHostException
+    {
+        failThreshold("SELECT * FROM " + KEYSPACE + ".tbl");
+    }
+
+    public void failThreshold(String cql) throws UnknownHostException
     {
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(512));
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(512));
@@ -150,7 +184,6 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 5, ?)", ConsistencyLevel.ALL, bytes(512));
 
         enable(true);
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
             try

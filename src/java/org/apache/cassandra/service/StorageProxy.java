@@ -2009,8 +2009,6 @@ public class StorageProxy implements StorageProxyMBean
             try
             {
                 MessageParams.reset();
-                if (DatabaseDescriptor.getClientTrackWarningsEnabled())
-                    command.trackWarnings();
 
                 boolean readRejected = false;
                 command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));

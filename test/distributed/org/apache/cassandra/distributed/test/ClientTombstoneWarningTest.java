@@ -94,7 +94,18 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
     }
 
     @Test
-    public void noWarnings()
+    public void noWarningsSinglePartition()
+    {
+        noWarnings("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+    }
+
+    @Test
+    public void noWarningsScan()
+    {
+        noWarnings("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+    }
+
+    public void noWarnings(String cql)
     {
         Consumer<List<String>> test = warnings ->
                                       Assert.assertEquals(Collections.emptyList(), warnings);
@@ -106,7 +117,6 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         {
             enable(b);
 
-            String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
             SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
             test.accept(result.warnings());
             test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
@@ -116,13 +126,23 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
     }
 
     @Test
-    public void warnThreshold()
+    public void warnThresholdSinglePartition()
     {
-        for (int i=0; i<TOMBSTONE_WARN + 1; i++)
+        warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", false);
+    }
+
+    @Test
+    public void warnThresholdScan()
+    {
+        warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl", true);
+    }
+
+    private void warnThreshold(String cql, boolean isScan)
+    {
+        for (int i = 0; i < TOMBSTONE_WARN + 1; i++)
             CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, null)", ConsistencyLevel.ALL, i);
 
         enable(true);
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1";
         Consumer<List<String>> testEnabled = warnings ->
                                              Assertions.assertThat(Iterables.getOnlyElement(warnings))
                                                        .contains("nodes scanned up to " + (TOMBSTONE_WARN + 1) + " tombstones and issued tombstone warnings for query " + cql);
@@ -134,9 +154,19 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         assertWarnAborts(2, 0, 0);
 
         enable(false);
-        Consumer<List<String>> testDisabled = warnings ->
-                                              Assertions.assertThat(Iterables.getOnlyElement(warnings))
-                                                        .startsWith("Read " + (TOMBSTONE_WARN + 1) + " live rows and " + (TOMBSTONE_WARN + 1) + " tombstone cells for query " + cql);
+        Consumer<List<String>> testDisabled = warnings -> {
+            // client warnings are currently coordinator only, so if present only 1 is expected
+            if (isScan)
+            {
+                // Scans perform multiple ReadCommands, which will not propgate the warnings to the top-level coordinator; so no warnings are expected
+                Assertions.assertThat(warnings).isEmpty();
+            }
+            else
+            {
+                Assertions.assertThat(Iterables.getOnlyElement(warnings))
+                          .startsWith("Read " + (TOMBSTONE_WARN + 1) + " live rows and " + (TOMBSTONE_WARN + 1) + " tombstone cells for query " + cql);
+            }
+        };
         result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         testDisabled.accept(result.warnings());
         assertWarnAborts(2, 0, 0);
@@ -145,13 +175,23 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
     }
 
     @Test
-    public void failThreshold() throws UnknownHostException
+    public void failThresholdSinglePartition() throws UnknownHostException
     {
-        for (int i=0; i<TOMBSTONE_FAIL + 1; i++)
+        failThreshold("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", false);
+    }
+
+    @Test
+    public void failThresholdScan() throws UnknownHostException
+    {
+        failThreshold("SELECT * FROM " + KEYSPACE + ".tbl", true);
+    }
+
+    private void failThreshold(String cql, boolean isScan) throws UnknownHostException
+    {
+        for (int i = 0; i < TOMBSTONE_FAIL + 1; i++)
             CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, null)", ConsistencyLevel.ALL, i);
 
         enable(true);
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1";
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
             try
@@ -206,8 +246,17 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
             }
             return ClientWarn.instance.getWarnings();
         }).call();
-        Assertions.assertThat(Iterables.getOnlyElement(warnings))
-                  .startsWith("Read " + TOMBSTONE_FAIL + " live rows and " + (TOMBSTONE_FAIL + 1) + " tombstone cells for query " + cql);
+        // client warnings are currently coordinator only, so if present only 1 is expected
+        if (isScan)
+        {
+            // Scans perform multiple ReadCommands, which will not propgate the warnings to the top-level coordinator; so no warnings are expected
+            Assertions.assertThat(warnings).isNull();
+        }
+        else
+        {
+            Assertions.assertThat(Iterables.getOnlyElement(warnings))
+                      .startsWith("Read " + TOMBSTONE_FAIL + " live rows and " + (TOMBSTONE_FAIL + 1) + " tombstone cells for query " + cql);
+        }
 
         assertWarnAborts(0, 2, 0);
 
@@ -252,7 +301,10 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
 
     private static long totalReadAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.Read-ALL")).sum();
+        return CLUSTER.stream().mapToLong(i ->
+                                          i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.Read-ALL")
+                                          + i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.RangeSlice")
+        ).sum();
     }
 
     private static ResultSet driverQueryAll(String cql)
