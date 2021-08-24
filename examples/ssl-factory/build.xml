@@ -31,7 +31,7 @@
 	<property name="test.build.dir" value="${build.dir}/test" />
 	<property name="test.conf.dir" value="${test.src}/conf" />
 	<property name="test.build.classes" value="${test.build.dir}/classes" />
-	<property name="final.name" value="security-example" />
+	<property name="final.name" value="ssl-factory-example" />
 
 	<path id="build.classpath">
 		<fileset dir="${cassandra.dir.lib}">
