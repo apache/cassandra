@@ -45,6 +45,7 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
+import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
@@ -79,8 +80,16 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         for (RowFilter.Expression expression : controller.filterOperation())
         {
-            if (controller.getContext(expression).getAnalyzer().transformValue())
-                return applyIndexFilter(fullResponse, analyzeFilter(), queryContext);
+            AbstractAnalyzer analyzer = controller.getContext(expression).getAnalyzerFactory().create();
+            try
+            {
+                if (analyzer.transformValue())
+                    return applyIndexFilter(fullResponse, analyzeFilter(), queryContext);
+            }
+            finally
+            {
+                analyzer.end();
+            }
         }
 
         // if no analyzer does transformation
@@ -90,7 +99,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return  new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
+        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
     }
 
     /**
@@ -159,7 +168,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             if (!operation.hasNext())
                 return endOfData();
             currentKeys = operation.next().keys();
-
 
             // IMPORTANT: The correctness of the entire query pipeline relies on the fact that we consume a token
             // and materialize its keys before moving on to the next token in the flow. This sequence must not be broken

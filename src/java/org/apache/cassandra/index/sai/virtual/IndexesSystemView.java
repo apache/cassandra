@@ -17,11 +17,6 @@
  */
 package org.apache.cassandra.index.sai.virtual;
 
-import java.util.function.Consumer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -48,8 +43,6 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public class IndexesSystemView extends AbstractVirtualTable
 {
-    private static final Logger logger = LoggerFactory.getLogger(IndexesSystemView.class);
-
     static final String NAME = "indexes";
 
     static final String KEYSPACE_NAME = "keyspace_name";
@@ -64,8 +57,6 @@ public class IndexesSystemView extends AbstractVirtualTable
     static final String CELL_COUNT = "cell_count";
     static final String PER_TABLE_DISK_SIZE = "per_table_disk_size";
     static final String PER_COLUMN_DISK_SIZE = "per_column_disk_size";
-    static final String PER_TABLE_FILE_CACHE_SIZE = "per_table_file_cache_size";
-    static final String PER_COLUMN_FILE_CACHE_SIZE = "per_column_file_cache_size";
 
     public IndexesSystemView(String keyspace)
     {
@@ -87,7 +78,6 @@ public class IndexesSystemView extends AbstractVirtualTable
                            .addRegularColumn(PER_COLUMN_DISK_SIZE, LongType.instance)
                            .build());
     }
-
 
     @Override
     public void apply(PartitionUpdate update)
@@ -126,7 +116,7 @@ public class IndexesSystemView extends AbstractVirtualTable
                                .column(IS_QUERYABLE, manager.isIndexQueryable(index))
                                .column(IS_BUILDING, manager.isIndexBuilding(indexName))
                                .column(IS_STRING, context.isLiteral())
-                               .column(ANALYZER, context.getAnalyzer().toString())
+                               .column(ANALYZER, context.getAnalyzerFactory().toString())
                                .column(INDEXED_SSTABLE_COUNT, view.size())
                                .column(CELL_COUNT, context.getCellCount())
                                .column(PER_TABLE_DISK_SIZE, group.diskUsage())
@@ -137,17 +127,5 @@ public class IndexesSystemView extends AbstractVirtualTable
         }
 
         return dataset;
-    }
-
-    private static Consumer<Boolean> isQueryableUpdateConsumer(SecondaryIndexManager manager, StorageAttachedIndex index)
-    {
-        return isQueryable -> {
-            logger.debug(index.getContext().logMessage("Index is now {}queryable."), isQueryable ? "" : "non-");
-
-            if (isQueryable)
-                manager.makeIndexQueryable(index, Index.Status.BUILD_SUCCEEDED);
-            else
-                manager.makeIndexNonQueryable(index, Index.Status.BUILD_FAILED);
-        };
     }
 }

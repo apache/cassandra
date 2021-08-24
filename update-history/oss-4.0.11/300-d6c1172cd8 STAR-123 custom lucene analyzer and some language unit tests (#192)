@@ -1,0 +1,27 @@
+--- a/build.xml
++++ b/build.xml
+@@ -861,11 +861,8 @@
+         <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>
+ 
+         <!-- sasi deps -->
+-<<<<<<<
+         <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />
+-=======
+         <dependency groupId="de.jflex" artifactId="jflex" />
+->>>>>>>
+         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" />
+ 
+         <!-- compile tools -->
+diff --cc build.xml
+index 0b64527504,510b8bfb1b..0000000000
+--- a/build.xml
++++ b/build.xml
+@@@ -858,7 -849,7 +861,8 @@@
+          <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>
+  
+          <!-- sasi deps -->
+ +        <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />
++         <dependency groupId="de.jflex" artifactId="jflex" />
+          <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" />
+  
+          <!-- compile tools -->
