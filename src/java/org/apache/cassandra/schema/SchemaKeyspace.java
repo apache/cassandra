@@ -65,7 +65,7 @@ import static org.apache.cassandra.schema.SchemaKeyspaceTables.*;
  * Please notice this class is _not_ thread safe. It should be accessed through {@link org.apache.cassandra.schema.Schema}. See CASSANDRA-16856/16996
  */
 @NotThreadSafe
-final class SchemaKeyspace
+public final class SchemaKeyspace
 {
     private SchemaKeyspace()
     {
@@ -253,7 +253,8 @@ final class SchemaKeyspace
         return KeyspaceMetadata.create(SchemaConstants.SCHEMA_KEYSPACE_NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
 
-    static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
+    @VisibleForTesting
+    public static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
     {
         Map<String, Mutation> mutations = new HashMap<>();
 

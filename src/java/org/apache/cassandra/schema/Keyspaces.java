@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
@@ -192,7 +193,8 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         }
     }
 
-    static KeyspacesDiff diff(Keyspaces before, Keyspaces after)
+    @VisibleForTesting
+    public static KeyspacesDiff diff(Keyspaces before, Keyspaces after)
     {
         return KeyspacesDiff.diff(before, after);
     }

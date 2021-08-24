@@ -592,10 +592,15 @@ public final class Schema implements SchemaProvider
      */
     public synchronized void reloadSchemaAndAnnounceVersion()
     {
+        reloadSchema();
+        updateVersionAndAnnounce();
+    }
+
+    public synchronized void reloadSchema()
+    {
         Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name));
         Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
         merge(Keyspaces.diff(before, after));
-        updateVersionAndAnnounce();
     }
 
     /**
@@ -672,7 +677,7 @@ public final class Schema implements SchemaProvider
     /**
      * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
      */
-    synchronized void merge(Collection<Mutation> mutations)
+    public synchronized void merge(Collection<Mutation> mutations)
     {
         // only compare the keyspaces affected by this set of schema mutations
         Set<String> affectedKeyspaces = SchemaKeyspace.affectedKeyspaces(mutations);
