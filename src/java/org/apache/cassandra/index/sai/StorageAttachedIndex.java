@@ -85,6 +85,7 @@ import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.analyzer.LuceneAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.disk.ColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
@@ -200,7 +201,9 @@ public class StorageAttachedIndex implements Index
                                                                      IndexTarget.TARGET_OPTION_NAME,
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_MIN_LEAVES,
-                                                                     IndexWriterConfig.POSTING_LIST_LVL_SKIP_OPTION);
+                                                                     IndexWriterConfig.POSTING_LIST_LVL_SKIP_OPTION,
+                                                                     LuceneAnalyzer.INDEX_ANALYZER,
+                                                                     LuceneAnalyzer.QUERY_ANALYZER);
 
     public static final Set<CQL3Type> SUPPORTED_TYPES = ImmutableSet.of(CQL3Type.Native.ASCII, CQL3Type.Native.BIGINT, CQL3Type.Native.DATE,
                                                                         CQL3Type.Native.DOUBLE, CQL3Type.Native.FLOAT, CQL3Type.Native.INT,

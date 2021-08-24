@@ -191,7 +191,7 @@ public final class IndexMetadata
                 throw (RequestValidationException) e.getTargetException();
             if (e.getTargetException() instanceof ConfigurationException)
                 throw (ConfigurationException) e.getTargetException();
-            throw new ConfigurationException("Failed to validate custom indexer options: " + options);
+            throw new ConfigurationException("Failed to validate custom indexer options: " + options, e);
         }
         catch (ConfigurationException e)
         {

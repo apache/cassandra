@@ -623,7 +623,6 @@
           <dependency groupId="de.jflex" artifactId="jflex" version="${jflex.version}">
             <exclusion groupId="org.apache.ant" artifactId="ant"/>
           </dependency>
-          <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
           <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
           <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.3.5" />
           <dependency groupId="org.jctools" artifactId="jctools-core" version="3.1.0"/>
@@ -659,8 +658,10 @@
           <dependency groupId="org.agrona" artifactId="agrona" version="0.9.26" />
           <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="7.5.0" />
           <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
+          <dependency groupId="org.apache.lucene" artifactId="lucene-analyzers-common" version="7.5.0" />
+
           <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
-              <exclusion groupId="junit" artifactId="junit"/>
+            <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
@@ -740,6 +741,7 @@
         <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
         <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
+        <dependency groupId="org.apache.lucene" artifactId="lucene-analyzers-common"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -826,13 +828,13 @@
         <dependency groupId="org.agrona" artifactId="agrona"/>
         <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
         <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.23" scope="test"/>
+        <dependency groupId="org.apache.lucene" artifactId="lucene-analyzers-common"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
         <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>
 
         <!-- sasi deps -->
         <dependency groupId="de.jflex" artifactId="jflex" />
-        <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />
         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" />
 
         <!-- compile tools -->
