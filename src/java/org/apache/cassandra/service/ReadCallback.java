@@ -158,7 +158,14 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
         int n = waitingFor(message.from)
               ? recievedUpdater.incrementAndGet(this)
               : received;
-        if (n >= blockfor && resolver.isDataPresent())
+
+        /*
+         * Ensure that data is present and the response accumulator has properly published the
+         * responses it has received. This may result in not signaling immediately when we receive
+         * the minimum number of required results, but it guarantees at least the minimum will
+         * be accessible when we do signal. (see rdar://77320313)
+         */
+        if (n >= blockfor && resolver.responses.size() >= blockfor && resolver.isDataPresent())
         {
             condition.signalAll();
             // kick off a background digest comparison if this is a result that (may have) arrived after
@@ -178,9 +185,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
      */
     private boolean waitingFor(InetAddress from)
     {
-        return consistencyLevel.isDatacenterLocal()
-             ? DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from))
-             : true;
+        return !consistencyLevel.isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
     }
 
     /**
