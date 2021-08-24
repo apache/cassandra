@@ -713,8 +713,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         Message<ReadCommand> msg = trackRepairedData
                                    ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
                                    : Message.outWithFlag(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
-        // can't rely on trackWarnings as this won't be called yet; that happens at the start of execution
-        // if track warnings is enabled, then add to the message
         if (trackWarnings)
             msg = msg.withFlag(MessageFlag.TRACK_WARNINGS);
         return msg;
