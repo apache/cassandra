@@ -18,7 +18,7 @@
  ~ under the License.
 -->
 
-<project default="jar" name="security-example">
+<project default="jar" name="ssl-factory-example">
 	<property name="cassandra.dir" value="../.." />
 	<property name="cassandra.dir.lib" value="${cassandra.dir}/lib" />
 	<property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />

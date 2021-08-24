@@ -59,6 +59,7 @@ public class ParameterizedClass
         return Objects.equal(class_name, that.class_name) && Objects.equal(parameters, that.parameters);
     }
 
+    @Override
     public int hashCode()
     {
         return Objects.hashCode(class_name, parameters);

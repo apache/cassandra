@@ -32,6 +32,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.security.K8SecretsSslContextFactory.ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR;
+import static org.apache.cassandra.security.K8SecretsSslContextFactory.ConfigKeys.KEYSTORE_PATH;
+import static org.apache.cassandra.security.K8SecretsSslContextFactory.ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR;
+import static org.apache.cassandra.security.K8SecretsSslContextFactory.ConfigKeys.TRUSTSTORE_PATH;
+
 public class K8SecretsSslContextFactoryTest
 {
     private static final Logger logger = LoggerFactory.getLogger(K8SecretsSslContextFactoryTest.class);
@@ -66,16 +71,11 @@ public class K8SecretsSslContextFactoryTest
         }
     }
 
-    /*
-    private final String K8_SECRET_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR = "KEYSTORE_LAST_UPDATEDTIME";
-    private final String K8_SECRET_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR = "TRUSTSTORE_LAST_UPDATEDTIME";
-     */
-
     @Before
     public void setup()
     {
-        commonConfig.put("TRUSTSTORE_PATH", "test/conf/cassandra_ssl_test.truststore");
-        commonConfig.put("TRUSTSTORE_PASSWORD_ENV_VAR", "MY_TRUSTSTORE_PASSWORD");
+        commonConfig.put(TRUSTSTORE_PATH, "test/conf/cassandra_ssl_test.truststore");
+        commonConfig.put(TRUSTSTORE_PASSWORD_ENV_VAR, "MY_TRUSTSTORE_PASSWORD");
         /*
          * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
          *  done to avoid having a dependency on env in the unit test.
@@ -87,8 +87,9 @@ public class K8SecretsSslContextFactoryTest
 
     private void addKeystoreOptions(Map<String,Object> config)
     {
-        config.put("KEYSTORE_PATH", "test/conf/cassandra_ssl_test.keystore");
-        config.put("KEYSTORE_PASSWORD_ENV_VAR", "MY_KEYSTORE_PASSWORD");
+        config.put(KEYSTORE_PATH, "test/conf/cassandra_ssl_test" +
+                                  ".keystore");
+        config.put(KEYSTORE_PASSWORD_ENV_VAR, "MY_KEYSTORE_PASSWORD");
         /*
          * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
          *  done to avoid having a dependency on env in the unit test.
@@ -101,7 +102,7 @@ public class K8SecretsSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.put("TRUSTSTORE_PATH", "/this/is/probably/not/a/file/on/your/test/machine");
+        config.put(TRUSTSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
 
         K8SecretsSslContextFactory k8SecretsSslContextFactory = new K8SecretsSslContextFactoryForTestOnly(config);
         k8SecretsSslContextFactory.checkedExpiry = false;
@@ -113,7 +114,7 @@ public class K8SecretsSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.remove("TRUSTSTORE_PASSWORD_ENV_VAR");
+        config.remove(TRUSTSTORE_PASSWORD_ENV_VAR);
         config.put(K8SecretsSslContextFactory.DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME, "HomeOfBadPasswords");
 
         K8SecretsSslContextFactory k8SecretsSslContextFactory = new K8SecretsSslContextFactoryForTestOnly(config);
@@ -138,7 +139,7 @@ public class K8SecretsSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.put("KEYSTORE_PATH", "/this/is/probably/not/a/file/on/your/test/machine");
+        config.put(KEYSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
 
         K8SecretsSslContextFactory k8SecretsSslContextFactory = new K8SecretsSslContextFactoryForTestOnly(config);
         k8SecretsSslContextFactory.checkedExpiry = false;
@@ -150,7 +151,7 @@ public class K8SecretsSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.put("KEYSTORE_PATH", "test/conf/cassandra_ssl_test.keystore");
+        config.put(KEYSTORE_PATH, "test/conf/cassandra_ssl_test.keystore");
         config.put(K8SecretsSslContextFactory.DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME, "HomeOfBadPasswords");
 
         K8SecretsSslContextFactory k8SecretsSslContextFactory = new K8SecretsSslContextFactoryForTestOnly(config);

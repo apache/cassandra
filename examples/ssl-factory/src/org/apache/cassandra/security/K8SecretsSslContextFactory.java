@@ -115,33 +115,46 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(K8SecretsSslContextFactory.class);
 
-    public static final String DEFAULT_KEYSTORE_PASSWORD = "cassandra";
-    public static final String DEFAULT_TRUSTSTORE_PASSWORD = "cassandra";
+    /**
+     * Use below config-keys to configure this factory.
+     */
+    public interface ConfigKeys {
+        String KEYSTORE_PATH = "KEYSTORE_PATH";
+        String KEYSTORE_PASSWORD_ENV_VAR = "KEYSTORE_PASSWORD_ENV_VAR";
+        String TRUSTSTORE_PATH = "TRUSTSTORE_PATH";
+        String TRUSTSTORE_PASSWORD_ENV_VAR = "TRUSTSTORE_PASSWORD_ENV_VAR";
+        String KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR = "KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR";
+        String TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR = "TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR";
+    }
+
     public static final String DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR = "KEYSTORE_LAST_UPDATEDTIME";
     public static final String DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR = "TRUSTSTORE_LAST_UPDATEDTIME";
+
+    public static final String DEFAULT_KEYSTORE_PASSWORD = "cassandra";
+    public static final String DEFAULT_TRUSTSTORE_PASSWORD = "cassandra";
 
     @VisibleForTesting
     static final String DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME = "KEYSTORE_PASSWORD";
     @VisibleForTesting
     static final String DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME = "TRUSTSTORE_PASSWORD";
 
-    private static final String KEYSTORE_PATH = "/etc/my-ssl-store/keystore";
-    private static final String TRUSTSTORE_PATH = "/etc/my-ssl-store/truststore";
-    private static final String KEYSTORE_PASSWORD_ENV_VAR = DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME;
-    private static final String KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR = DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR;
-    private static final String TRUSTSTORE_PASSWORD_ENV_VAR = DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME;
-    private static final String TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR = DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR;
+    private static final String KEYSTORE_PATH_VALUE = "/etc/my-ssl-store/keystore";
+    private static final String TRUSTSTORE_PATH_VALUE = "/etc/my-ssl-store/truststore";
+    private static final String KEYSTORE_PASSWORD_ENV_VAR_NAME = DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME;
+    private static final String KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME = DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR;
+    private static final String TRUSTSTORE_PASSWORD_ENV_VAR_NAME = DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME;
+    private static final String TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME = DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR;
 
     private long keystoreLastUpdatedTime;
     private long truststoreLastUpdatedTime;
 
     public K8SecretsSslContextFactory()
     {
-        keystore = KEYSTORE_PATH;
-        keystore_password = getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR,
+        keystore = KEYSTORE_PATH_VALUE;
+        keystore_password = getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME,
                                             DEFAULT_KEYSTORE_PASSWORD);
-        truststore = TRUSTSTORE_PATH;
-        truststore_password = getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR,
+        truststore = TRUSTSTORE_PATH_VALUE;
+        truststore_password = getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME,
                                               DEFAULT_TRUSTSTORE_PASSWORD);
         keystoreLastUpdatedTime = System.currentTimeMillis();
         truststoreLastUpdatedTime = keystoreLastUpdatedTime;
@@ -150,12 +163,12 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
     public K8SecretsSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        keystore = getString("KEYSTORE_PATH", KEYSTORE_PATH);
-        keystore_password = getValueFromEnv(getString("KEYSTORE_PASSWORD_ENV_VAR",
-                                                      KEYSTORE_PASSWORD_ENV_VAR), DEFAULT_KEYSTORE_PASSWORD);
-        truststore = getString("TRUSTSTORE_PATH", TRUSTSTORE_PATH);
-        truststore_password = getValueFromEnv(getString("TRUSTSTORE_PASSWORD_ENV_VAR",
-                                                        TRUSTSTORE_PASSWORD_ENV_VAR), DEFAULT_TRUSTSTORE_PASSWORD);
+        keystore = getString(ConfigKeys.KEYSTORE_PATH, KEYSTORE_PATH_VALUE);
+        keystore_password = getValueFromEnv(getString(ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR,
+                                                      KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD);
+        truststore = getString(ConfigKeys.TRUSTSTORE_PATH, TRUSTSTORE_PATH_VALUE);
+        truststore_password = getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
+                                                        TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD);
         keystoreLastUpdatedTime = System.currentTimeMillis();
         truststoreLastUpdatedTime = keystoreLastUpdatedTime;
     }
@@ -209,8 +222,8 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
     }
 
     private long getKeystoreLastUpdatedTime() {
-        String keystoreUpdatedTimeEnvVarKey = getString("KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR",
-                                                        KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR);
+        String keystoreUpdatedTimeEnvVarKey = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR,
+                                                        KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME);
         String keystoreUpdatedTimeEnvVarValue = getValueFromEnv(keystoreUpdatedTimeEnvVarKey, "InvalidNumber");
         if ("InvalidNumber".equals(keystoreUpdatedTimeEnvVarValue)) {
             logger.warn("Failed to load env variable {}'s value. Will use " +
@@ -222,8 +235,8 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
     }
 
     private long getTruststoreLastUpdatedTime() {
-        String truststoreUpdatedTimeEnvVarKey = getString("TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR",
-                                                          TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR);
+        String truststoreUpdatedTimeEnvVarKey = getString(ConfigKeys.TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR,
+                                                          TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME);
         String truststoreUpdatedTimeEnvVarValue = getValueFromEnv(truststoreUpdatedTimeEnvVarKey, "InvalidNumber");
         if ("InvalidNumber".equals(truststoreUpdatedTimeEnvVarValue)) {
             logger.warn("Failed to load env variable {}'s value. Will use " +

@@ -100,11 +100,11 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
 
         if (hasKeystore || hasTruststore) {
             List<HotReloadableFile> fileList = new ArrayList<>();
-            if ( hasKeystore )
+            if (hasKeystore)
             {
                 fileList.add(new HotReloadableFile(keystore));
             }
-            if ( hasTruststore ) {
+            if (hasTruststore) {
                 fileList.add(new HotReloadableFile(truststore));
             }
             hotReloadableFiles = fileList;
