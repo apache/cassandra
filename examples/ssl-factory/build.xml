@@ -89,6 +89,7 @@
 	</target>
 
 	<target name="clean">
+		<delete dir="${build.dir}" />
 		<delete dir="${test.build.classes}" />
 	</target>
 </project>
