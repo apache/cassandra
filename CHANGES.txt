@@ -16,6 +16,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Remove assumption that all urgent messages are small (CASSANDRA-16877)
  * ArrayClustering.unsharedHeapSize does not include the data so undercounts the heap size (CASSANDRA-16845)
  * Improve help, doc and error messages about sstabledump -k and -x arguments (CASSANDRA-16818)
  * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
