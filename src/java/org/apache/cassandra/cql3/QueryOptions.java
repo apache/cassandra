@@ -257,7 +257,7 @@ public abstract class QueryOptions
                 return DisabledTrackWarnings.INSTANCE;
             long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
             long clientLargeReadAbortThresholdKB = DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
-            return new DefaultTrackWarnings(enabled, clientLargeReadWarnThresholdKb, clientLargeReadAbortThresholdKB);
+            return new DefaultTrackWarnings(clientLargeReadWarnThresholdKb, clientLargeReadAbortThresholdKB);
         }
     }
 
@@ -286,13 +286,11 @@ public abstract class QueryOptions
 
     private static class DefaultTrackWarnings implements TrackWarnings
     {
-        private final boolean enabled;
         private final long clientLargeReadWarnThresholdKb;
         private final long clientLargeReadAbortThresholdKB;
 
-        public DefaultTrackWarnings(boolean enabled, long clientLargeReadWarnThresholdKb, long clientLargeReadAbortThresholdKB)
+        public DefaultTrackWarnings(long clientLargeReadWarnThresholdKb, long clientLargeReadAbortThresholdKB)
         {
-            this.enabled = enabled;
             this.clientLargeReadWarnThresholdKb = clientLargeReadWarnThresholdKb;
             this.clientLargeReadAbortThresholdKB = clientLargeReadAbortThresholdKB;
         }
@@ -300,7 +298,7 @@ public abstract class QueryOptions
         @Override
         public boolean isEnabled()
         {
-            return enabled;
+            return true;
         }
 
         @Override
