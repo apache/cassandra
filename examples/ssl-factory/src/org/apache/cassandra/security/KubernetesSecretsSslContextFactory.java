@@ -18,7 +18,12 @@
 
 package org.apache.cassandra.security;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
@@ -28,12 +33,12 @@ import org.slf4j.LoggerFactory;
 /**
  * Custom {@link ISslContextFactory} implementation based on Kubernetes Secrets. It allows the keystore and
  * truststore paths to be configured from the K8 secrets via volumeMount and passwords via K8 secrets environment
- * variables.
+ * variables. The official Kubernetes Secret Spec can be found <a href="https://kubernetes.io/docs/concepts/configuration/secret/ ">here</a>.
  *
  * When keystore or truststore is updated, this implementation can detect that based on updated K8 secrets
- * environment variable ({@code KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR} for the keystore and {@code
- * TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR} for the truststore. The values in those timestamp variables is expected to
- * be numeric values. Most obvious choice might be to just use time in milliseconds but any other strategy would work
+ * at the mounted paths ({@code KEYSTORE_UPDATED_TIMESTAMP_PATH} for the keystore and {@code
+ * TRUSTSTORE_UPDATED_TIMESTAMP_PATH} for the truststore. The values in those paths are expected to be numeric values.
+ * Most obvious choice might be to just use time in nano/milli-seconds but any other strategy would work
  * as well, as far as the comparison of those values can be done in a consistent/predictable manner. Again, those
  * values don't have to necessarily reflect actual file's update timestamps, using the actual file's timestamps is
  * just one of the valid options to signal updates.
@@ -42,8 +47,10 @@ import org.slf4j.LoggerFactory;
  * <pre>
  *     keystore path = /etc/my-ssl-store/keystore
  *     keystore password = cassandra
+ *     keystore updated timestamp path = /etc/my-ssl-store/keystore-last-updatedtime
  *     truststore path = /etc/my-ssl-store/truststore
  *     truststore password = cassandra
+ *     truststore updated timestamp path = /etc/my-ssl-store/truststore-last-updatedtime
  * </pre>
  *
  * Customization: In order to customize the K8 secret configuration, override appropriate values in the below cassandra
@@ -56,10 +63,10 @@ import org.slf4j.LoggerFactory;
  *         parameters:
  *           KEYSTORE_PATH: /etc/my-ssl-store/keystore
  *           KEYSTORE_PASSWORD_ENV_VAR: KEYSTORE_PASSWORD
- *           KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR: KEYSTORE_LAST_UPDATEDTIME
+ *           KEYSTORE_UPDATED_TIMESTAMP_PATH: /etc/my-ssl-store/keystore-last-updatedtime
  *           TRUSTSTORE_PATH: /etc/my-ssl-store/truststore
  *           TRUSTSTORE_PASSWORD_ENV_VAR: TRUSTSTORE_PASSWORD
- *           TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR: TRUSTSTORE_LAST_UPDATEDTIME
+ *           TRUSTSTORE_UPDATED_TIMESTAMP_PATH: /etc/my-ssl-store/truststore-last-updatedtime
  * </pre>
  *
  * Below is the corresponding sample YAML configuration for K8 env.
@@ -81,21 +88,11 @@ import org.slf4j.LoggerFactory;
  *           secretKeyRef:
  *             name: my-ssl-store
  *             key: keystore-password
- *       - name: KEYSTORE_LAST_UPDATEDTIME
- *         valueFrom:
- *           secretKeyRef:
- *             name: my-ssl-store
- *             key: keystore-last-updatedtime
  *       - name: TRUSTSTORE_PASSWORD
  *         valueFrom:
  *           secretKeyRef:
  *             name: my-ssl-store
  *             key: truststore-password
- *       - name: TRUSTSTORE_LAST_UPDATEDTIME
- *         valueFrom:
- *           secretKeyRef:
- *             name: my-ssl-store
- *             key: truststore-last-updatedtime
  *     volumeMounts:
  *     - name: my-ssl-store
  *       mountPath: "/etc/my-ssl-store"
@@ -107,13 +104,17 @@ import org.slf4j.LoggerFactory;
  *       items:
  *         - key: cassandra_ssl_keystore
  *           path: keystore
+ *         - key: keystore-last-updatedtime
+ *           path: keystore-last-updatedtime
  *         - key: cassandra_ssl_truststore
  *           path: truststore
+ *         - key: truststore-last-updatedtime
+ *           path: truststore-last-updatedtime
  * </pre>
  */
-public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
+public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFactory
 {
-    private static final Logger logger = LoggerFactory.getLogger(K8SecretsSslContextFactory.class);
+    private static final Logger logger = LoggerFactory.getLogger(KubernetesSecretsSslContextFactory.class);
 
     /**
      * Use below config-keys to configure this factory.
@@ -123,15 +124,12 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
         String KEYSTORE_PASSWORD_ENV_VAR = "KEYSTORE_PASSWORD_ENV_VAR";
         String TRUSTSTORE_PATH = "TRUSTSTORE_PATH";
         String TRUSTSTORE_PASSWORD_ENV_VAR = "TRUSTSTORE_PASSWORD_ENV_VAR";
-        String KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR = "KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR";
-        String TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR = "TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR";
+        String KEYSTORE_UPDATED_TIMESTAMP_PATH = "KEYSTORE_UPDATED_TIMESTAMP_PATH";
+        String TRUSTSTORE_UPDATED_TIMESTAMP_PATH = "TRUSTSTORE_UPDATED_TIMESTAMP_PATH";
     }
 
-    public static final String DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR = "KEYSTORE_LAST_UPDATEDTIME";
-    public static final String DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR = "TRUSTSTORE_LAST_UPDATEDTIME";
-
-    public static final String DEFAULT_KEYSTORE_PASSWORD = "cassandra";
-    public static final String DEFAULT_TRUSTSTORE_PASSWORD = "cassandra";
+    public static final String DEFAULT_KEYSTORE_PASSWORD = "";
+    public static final String DEFAULT_TRUSTSTORE_PASSWORD = "";
 
     @VisibleForTesting
     static final String DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME = "KEYSTORE_PASSWORD";
@@ -141,14 +139,14 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
     private static final String KEYSTORE_PATH_VALUE = "/etc/my-ssl-store/keystore";
     private static final String TRUSTSTORE_PATH_VALUE = "/etc/my-ssl-store/truststore";
     private static final String KEYSTORE_PASSWORD_ENV_VAR_NAME = DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME;
-    private static final String KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME = DEFAULT_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR;
+    private static final String KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE = "/etc/my-ssl-store/keystore-last-updatedtime";
     private static final String TRUSTSTORE_PASSWORD_ENV_VAR_NAME = DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME;
-    private static final String TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME = DEFAULT_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR;
+    private static final String TRUSTSTORE_UPDATED_TIMESTAMP_PATH_VALUE = "/etc/my-ssl-store/truststore-last-updatedtime";
 
     private long keystoreLastUpdatedTime;
     private long truststoreLastUpdatedTime;
 
-    public K8SecretsSslContextFactory()
+    public KubernetesSecretsSslContextFactory()
     {
         keystore = KEYSTORE_PATH_VALUE;
         keystore_password = getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME,
@@ -156,11 +154,11 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
         truststore = TRUSTSTORE_PATH_VALUE;
         truststore_password = getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME,
                                               DEFAULT_TRUSTSTORE_PASSWORD);
-        keystoreLastUpdatedTime = System.currentTimeMillis();
+        keystoreLastUpdatedTime = System.nanoTime();
         truststoreLastUpdatedTime = keystoreLastUpdatedTime;
     }
 
-    public K8SecretsSslContextFactory(Map<String, Object> parameters)
+    public KubernetesSecretsSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
         keystore = getString(ConfigKeys.KEYSTORE_PATH, KEYSTORE_PATH_VALUE);
@@ -169,7 +167,7 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
         truststore = getString(ConfigKeys.TRUSTSTORE_PATH, TRUSTSTORE_PATH_VALUE);
         truststore_password = getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
                                                         TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD);
-        keystoreLastUpdatedTime = System.currentTimeMillis();
+        keystoreLastUpdatedTime = System.nanoTime();
         truststoreLastUpdatedTime = keystoreLastUpdatedTime;
     }
 
@@ -222,28 +220,40 @@ public class K8SecretsSslContextFactory extends FileBasedSslContextFactory
     }
 
     private long getKeystoreLastUpdatedTime() {
-        String keystoreUpdatedTimeEnvVarKey = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR,
-                                                        KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME);
-        String keystoreUpdatedTimeEnvVarValue = getValueFromEnv(keystoreUpdatedTimeEnvVarKey, "InvalidNumber");
-        if ("InvalidNumber".equals(keystoreUpdatedTimeEnvVarValue)) {
-            logger.warn("Failed to load env variable {}'s value. Will use " +
-                        "existing value {}", keystoreUpdatedTimeEnvVarKey, keystoreLastUpdatedTime);
+        String keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
+                                                        KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
+        Optional<String> keystoreUpdatedTimeSecretKeyValue = readSecretFromMountedVolume(keystoreUpdatedTimeSecretKeyPath);
+        if (keystoreUpdatedTimeSecretKeyValue.isEmpty()) {
+            logger.warn("Failed to load {}'s value. Will use existing value {}", keystoreUpdatedTimeSecretKeyPath,
+                        keystoreLastUpdatedTime);
             return keystoreLastUpdatedTime;
         } else {
-            return parseLastUpdatedTime(keystoreUpdatedTimeEnvVarValue, keystoreLastUpdatedTime);
+            return parseLastUpdatedTime(keystoreUpdatedTimeSecretKeyValue.get(), keystoreLastUpdatedTime);
         }
     }
 
     private long getTruststoreLastUpdatedTime() {
-        String truststoreUpdatedTimeEnvVarKey = getString(ConfigKeys.TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR,
-                                                          TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR_NAME);
-        String truststoreUpdatedTimeEnvVarValue = getValueFromEnv(truststoreUpdatedTimeEnvVarKey, "InvalidNumber");
-        if ("InvalidNumber".equals(truststoreUpdatedTimeEnvVarValue)) {
-            logger.warn("Failed to load env variable {}'s value. Will use " +
-                        "existing value {}", truststoreUpdatedTimeEnvVarKey, truststoreLastUpdatedTime);
+        String truststoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.TRUSTSTORE_UPDATED_TIMESTAMP_PATH,
+                                                          TRUSTSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
+        Optional<String> truststoreUpdatedTimeSecretKeyValue = readSecretFromMountedVolume(truststoreUpdatedTimeSecretKeyPath);
+        if (truststoreUpdatedTimeSecretKeyValue.isEmpty()) {
+            logger.warn("Failed to load {}'s value. Will use existing value {}", truststoreUpdatedTimeSecretKeyPath,
+                        truststoreLastUpdatedTime);
             return truststoreLastUpdatedTime;
         } else {
-            return parseLastUpdatedTime(truststoreUpdatedTimeEnvVarValue, truststoreLastUpdatedTime);
+            return parseLastUpdatedTime(truststoreUpdatedTimeSecretKeyValue.get(), truststoreLastUpdatedTime);
+        }
+    }
+
+    private Optional<String> readSecretFromMountedVolume(String secretKeyPath) {
+        try (InputStream is = Files.newInputStream(Paths.get(secretKeyPath)))
+        {
+            return Optional.of(new String(is.readAllBytes()));
+        }
+        catch (IOException e)
+        {
+            logger.warn("Failed to read secretKeyPath {} from the mounted volume", secretKeyPath, e);
+            return Optional.empty();
         }
     }
 
