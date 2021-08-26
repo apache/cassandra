@@ -884,4 +884,11 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setCompactionTombstoneWarningThreshold(int count);
     public int getCompactionTombstoneWarningThreshold();
+
+     public long getClientLargeReadWarnThresholdKB();
+     public void setClientLargeReadWarnThresholdKB(long threshold);
+     public long getClientLargeReadAbortThresholdKB();
+     public void setClientLargeReadAbortThresholdKB(long threshold);
+     public boolean getClientTrackWarningsEnabled();
+     public void setClientTrackWarningsEnabled(boolean value);
 }

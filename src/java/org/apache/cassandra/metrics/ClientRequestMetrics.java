@@ -22,6 +22,9 @@ package org.apache.cassandra.metrics;
 
 
 import com.codahale.metrics.Meter;
+import org.apache.cassandra.exceptions.ReadAbortException;
+import org.apache.cassandra.exceptions.ReadSizeAbortException;
+import org.apache.cassandra.exceptions.TombstoneAbortException;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -31,6 +34,9 @@ public class ClientRequestMetrics extends LatencyMetrics
     public final Meter timeouts;
     public final Meter unavailables;
     public final Meter failures;
+    public final Meter aborts;
+    public final Meter tombstoneAborts;
+    public final Meter readSizeAborts;
 
     public ClientRequestMetrics(String scope)
     {
@@ -39,6 +45,24 @@ public class ClientRequestMetrics extends LatencyMetrics
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
         unavailables = Metrics.meter(factory.createMetricName("Unavailables"));
         failures = Metrics.meter(factory.createMetricName("Failures"));
+        aborts = Metrics.meter(factory.createMetricName("Aborts"));
+        tombstoneAborts = Metrics.meter(factory.createMetricName("TombstoneAborts"));
+        readSizeAborts = Metrics.meter(factory.createMetricName("ReadSizeAborts"));
+    }
+
+    public void markAbort(Throwable cause)
+    {
+        aborts.mark();
+        if (!(cause instanceof ReadAbortException))
+            return;
+        if (cause instanceof TombstoneAbortException)
+        {
+            tombstoneAborts.mark();
+        }
+        else if (cause instanceof ReadSizeAbortException)
+        {
+            readSizeAborts.mark();
+        }
     }
 
     public void release()
@@ -47,5 +71,8 @@ public class ClientRequestMetrics extends LatencyMetrics
         Metrics.remove(factory.createMetricName("Timeouts"));
         Metrics.remove(factory.createMetricName("Unavailables"));
         Metrics.remove(factory.createMetricName("Failures"));
+        Metrics.remove(factory.createMetricName("Aborts"));
+        Metrics.remove(factory.createMetricName("TombstoneAborts"));
+        Metrics.remove(factory.createMetricName("ReadSizeAborts"));
     }
 }

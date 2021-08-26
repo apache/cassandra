@@ -19,12 +19,12 @@ package org.apache.cassandra.net;
 
 import java.util.HashMap;
 import java.util.Map;
-
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
@@ -54,7 +54,10 @@ public enum ParamType
     TRACE_TYPE          (6, "TraceType",     Tracing.traceTypeSerializer),
 
     @Deprecated
-    TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer);
+    TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
+
+    TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
+    TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string

@@ -38,6 +38,13 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
+      emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
+      to be enabled in 4.2; it is controlled with the configuration client_track_warnings_enabled,
+      setting to true will enable this feature.  Each check has its own warn/abort thresholds, currently
+      tombstones (tombstone_warn_threshold, and tombstone_failure_threshold) and coordinator result set
+      materialized size (client_large_read_warn_threshold_kb, and client_large_read_abort_threshold_kb)
+      are supported; more checks will be added over time.
 
 Upgrading
 ---------

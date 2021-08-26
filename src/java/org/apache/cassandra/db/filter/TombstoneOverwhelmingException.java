@@ -24,7 +24,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 
-public class TombstoneOverwhelmingException extends RuntimeException
+public class TombstoneOverwhelmingException extends RejectException
 {
     public TombstoneOverwhelmingException(int numTombstones, String query, TableMetadata metadata, DecoratedKey lastPartitionKey, ClusteringPrefix<?> lastClustering)
     {

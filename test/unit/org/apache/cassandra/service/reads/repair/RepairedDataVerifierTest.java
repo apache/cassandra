@@ -287,7 +287,8 @@ public class RepairedDataVerifierTest
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   new ClusteringIndexSliceFilter(Slices.ALL, false),
-                  null);
+                  null,
+                  false);
         }
     }
 }

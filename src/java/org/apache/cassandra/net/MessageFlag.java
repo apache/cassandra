@@ -27,7 +27,9 @@ public enum MessageFlag
     /** a failure response should be sent back in case of failure */
     CALL_BACK_ON_FAILURE (0),
     /** track repaired data - see CASSANDRA-14145 */
-    TRACK_REPAIRED_DATA  (1);
+    TRACK_REPAIRED_DATA  (1),
+    /** allow creating warnings or aborting queries based off query - see CASSANDRA-16850 */
+    TRACK_WARNINGS(2);
 
     private final int id;
 

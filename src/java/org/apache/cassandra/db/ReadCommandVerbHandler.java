@@ -48,9 +48,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         ReadCommand command = message.payload;
         validateTransientStatus(message);
+        MessageParams.reset();
 
         long timeout = message.expiresAtNanos() - message.createdAtNanos();
         command.setMonitoringTime(message.createdAtNanos(), message.isCrossNode(), timeout, DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
+
+        if (message.trackWarnings())
+            command.trackWarnings();
 
         if (message.trackRepairedData())
             command.trackRepairedStatus();
@@ -60,6 +64,21 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
              UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
         {
             response = command.createResponse(iterator);
+        }
+        catch (RejectException e)
+        {
+            if (!command.isTrackingWarnings())
+                throw e;
+
+            // make sure to log as the exception is swallowed
+            logger.error(e.getMessage());
+
+            response = command.createResponse(EmptyIterators.unfilteredPartition(command.metadata()));
+            Message<ReadResponse> reply = message.responseWith(response);
+            reply = MessageParams.addToMessage(reply);
+
+            MessagingService.instance().send(reply, message.from());
+            return;
         }
 
         if (!command.complete())
@@ -71,6 +90,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         Tracing.trace("Enqueuing response to {}", message.from());
         Message<ReadResponse> reply = message.responseWith(response);
+        reply = MessageParams.addToMessage(reply);
         MessagingService.instance().send(reply, message.from());
     }
 

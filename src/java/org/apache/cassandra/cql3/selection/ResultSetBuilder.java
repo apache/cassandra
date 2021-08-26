@@ -59,6 +59,9 @@ public final class ResultSetBuilder
     final long[] timestamps;
     final int[] ttls;
 
+    private long size = 0;
+    private boolean sizeWarningEmitted = false;
+
     public ResultSetBuilder(ResultMetadata metadata, Selectors selectors)
     {
         this(metadata, selectors, null);
@@ -77,6 +80,30 @@ public final class ResultSetBuilder
             Arrays.fill(timestamps, Long.MIN_VALUE);
         if (ttls != null)
             Arrays.fill(ttls, -1);
+    }
+
+    private void addSize(List<ByteBuffer> row)
+    {
+        for (int i=0, isize=row.size(); i<isize; i++)
+        {
+            ByteBuffer value = row.get(i);
+            size += value != null ? value.remaining() : 0;
+        }
+    }
+
+    public boolean shouldWarn(long thresholdKB)
+    {
+        if (thresholdKB > 0 && !sizeWarningEmitted && size > thresholdKB << 10)
+        {
+            sizeWarningEmitted = true;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean shouldReject(long thresholdKB)
+    {
+        return thresholdKB > 0 && size > thresholdKB << 10;
     }
 
     public void add(ByteBuffer v)
@@ -166,6 +193,8 @@ public final class ResultSetBuilder
 
     private List<ByteBuffer> getOutputRow()
     {
-        return selectors.getOutputRow();
+        List<ByteBuffer> row = selectors.getOutputRow();
+        addSize(row);
+        return row;
     }
 }

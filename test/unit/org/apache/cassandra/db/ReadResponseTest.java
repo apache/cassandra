@@ -236,7 +236,8 @@ public class ReadResponseTest
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   null,
-                  null);
+                  null,
+                  false);
             this.repairedDigest = repairedDigest;
             this.conclusive = conclusive;
         }

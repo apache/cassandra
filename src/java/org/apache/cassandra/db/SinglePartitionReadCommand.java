@@ -71,9 +71,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          DataLimits limits,
                                          DecoratedKey partitionKey,
                                          ClusteringIndexFilter clusteringIndexFilter,
-                                         IndexMetadata index)
+                                         IndexMetadata index,
+                                         boolean trackWarnings)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -112,7 +113,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               limits,
                                               partitionKey,
                                               clusteringIndexFilter,
-                                              indexMetadata);
+                                              indexMetadata,
+                                              false);
     }
 
     /**
@@ -288,7 +290,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               limits(),
                                               partitionKey(),
                                               clusteringIndexFilter(),
-                                              indexMetadata());
+                                              indexMetadata(),
+                                              isTrackingWarnings());
     }
 
     @Override
@@ -304,7 +307,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               limits(),
                                               partitionKey(),
                                               clusteringIndexFilter(),
-                                              indexMetadata());
+                                              indexMetadata(),
+                                              isTrackingWarnings());
     }
 
     @Override
@@ -320,7 +324,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               limits(),
                                               partitionKey(),
                                               clusteringIndexFilter(),
-                                              indexMetadata());
+                                              indexMetadata(),
+                                              isTrackingWarnings());
     }
 
     @Override
@@ -336,7 +341,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               newLimits,
                                               partitionKey(),
                                               clusteringIndexFilter(),
-                                              indexMetadata());
+                                              indexMetadata(),
+                                              isTrackingWarnings());
     }
 
     @Override
@@ -371,13 +377,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         // We shouldn't have set digest yet when reaching that point
         assert !isDigestQuery();
-        return create(metadata(),
-                      nowInSec(),
-                      columnFilter(),
-                      rowFilter(),
-                      limits,
-                      partitionKey(),
-                      lastReturned == null ? clusteringIndexFilter() : clusteringIndexFilter.forPaging(metadata().comparator, lastReturned, false));
+        SinglePartitionReadCommand cmd = create(metadata(),
+                                                nowInSec(),
+                                                columnFilter(),
+                                                rowFilter(),
+                                                limits,
+                                                partitionKey(),
+                                                lastReturned == null ? clusteringIndexFilter() : clusteringIndexFilter.forPaging(metadata().comparator, lastReturned, false));
+        if (isTrackingWarnings())
+            cmd.trackWarnings();
+        return cmd;
     }
 
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
@@ -1068,6 +1077,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
     }
 
+    @Override
+    public String loggableTokens()
+    {
+        return "token=" + partitionKey.getToken().toString();
+    }
+
     protected void serializeSelection(DataOutputPlus out, int version) throws IOException
     {
         metadata().partitionKeyType.writeValue(partitionKey().getKey(), out);
@@ -1151,7 +1166,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return new SinglePartitionReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index);
+            return new SinglePartitionReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index, false);
         }
     }
 

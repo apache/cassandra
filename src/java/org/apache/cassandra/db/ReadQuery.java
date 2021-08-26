@@ -254,4 +254,8 @@ public interface ReadQuery
     default void maybeValidateIndex()
     {
     }
+
+    default void trackWarnings()
+    {
+    }
 }

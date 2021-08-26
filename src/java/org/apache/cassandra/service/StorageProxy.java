@@ -53,11 +53,14 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
@@ -75,6 +78,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.ViewUtils;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -355,6 +359,12 @@ public class StorageProxy implements StorageProxyMBean
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
+            throw e;
+        }
+        catch (ReadAbortException e)
+        {
+            casWriteMetrics.markAbort(e);
+            writeMetricsMap.get(consistencyForPaxos).markAbort(e);
             throw e;
         }
         catch (WriteFailureException | ReadFailureException e)
@@ -1798,6 +1808,13 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsMap.get(consistencyLevel).timeouts.mark();
             throw e;
         }
+        catch (ReadAbortException e)
+        {
+            readMetrics.markAbort(e);
+            casReadMetrics.markAbort(e);
+            readMetricsMap.get(consistencyLevel).markAbort(e);
+            throw e;
+        }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
@@ -1846,6 +1863,11 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsMap.get(consistencyLevel).timeouts.mark();
             throw e;
         }
+        catch (ReadAbortException e)
+        {
+            recordReadRegularAbort(consistencyLevel, e);
+            throw e;
+        }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
@@ -1861,6 +1883,12 @@ public class StorageProxy implements StorageProxyMBean
             for (ReadCommand command : group.queries)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
+    }
+
+    public static void recordReadRegularAbort(ConsistencyLevel consistencyLevel, Throwable cause)
+    {
+        readMetrics.markAbort(cause);
+        readMetricsMap.get(consistencyLevel).markAbort(cause);
     }
 
     public static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair<?, ?>> repairs)
@@ -1980,6 +2008,9 @@ public class StorageProxy implements StorageProxyMBean
         {
             try
             {
+                MessageParams.reset();
+
+                boolean readRejected = false;
                 command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
                 ReadResponse response;
@@ -1987,6 +2018,13 @@ public class StorageProxy implements StorageProxyMBean
                      UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
                 {
                     response = command.createResponse(iterator);
+                }
+                catch (RejectException e)
+                {
+                    if (!command.isTrackingWarnings())
+                        throw e;
+                    response = command.createResponse(EmptyIterators.unfilteredPartition(command.metadata()));
+                    readRejected = true;
                 }
 
                 if (command.complete())
@@ -1999,7 +2037,8 @@ public class StorageProxy implements StorageProxyMBean
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                 }
 
-                MessagingService.instance().latencySubscribers.add(FBUtilities.getBroadcastAddressAndPort(), MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
+                if (!readRejected)
+                    MessagingService.instance().latencySubscribers.add(FBUtilities.getBroadcastAddressAndPort(), MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
             }
             catch (Throwable t)
             {

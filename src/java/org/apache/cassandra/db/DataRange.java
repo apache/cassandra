@@ -312,7 +312,7 @@ public class DataRange
              : (isInclusive ? "<=" : "<");
     }
 
-    private static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key)
+    public static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key)
     {
         if (type instanceof CompositeType)
         {
