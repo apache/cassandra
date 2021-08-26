@@ -259,6 +259,11 @@ public class TableMetrics
     /** When sampler activated, will track the slowest local reads **/
     public final Sampler<String> topLocalReadQueryTime;
 
+    public final TableMeter clientTombstoneWarnings;
+    public final TableMeter clientTombstoneAborts;
+    public final TableMeter clientReadSizeWarnings;
+    public final TableMeter clientReadSizeAborts;
+
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
@@ -913,6 +918,12 @@ public class TableMetrics
             }
             return cnt;
         });
+
+        clientTombstoneWarnings = createTableMeter("ClientTombstoneWarnings", cfs.keyspace.metric.clientTombstoneWarnings);
+        clientTombstoneAborts = createTableMeter("ClientTombstoneAborts", cfs.keyspace.metric.clientTombstoneAborts);
+
+        clientReadSizeWarnings = createTableMeter("ClientReadSizeWarnings", cfs.keyspace.metric.clientReadSizeWarnings);
+        clientReadSizeAborts = createTableMeter("ClientReadSizeAborts", cfs.keyspace.metric.clientReadSizeAborts);
     }
 
     public void updateSSTableIterated(int count)

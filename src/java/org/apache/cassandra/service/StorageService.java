@@ -6059,4 +6059,43 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void addSnapshot(TableSnapshot snapshot) {
         snapshotManager.addSnapshot(snapshot);
     }
+
+    @Override
+    public long getClientLargeReadWarnThresholdKB()
+    {
+        return DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
+    }
+
+    @Override
+    public void setClientLargeReadWarnThresholdKB(long threshold)
+    {
+        DatabaseDescriptor.setClientLargeReadWarnThresholdKB(threshold);
+        logger.info("updated client_large_read_warn_threshold_kb to {}", threshold);
+    }
+
+    @Override
+    public long getClientLargeReadAbortThresholdKB()
+    {
+        return DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
+    }
+
+    @Override
+    public void setClientLargeReadAbortThresholdKB(long threshold)
+    {
+        DatabaseDescriptor.setClientLargeReadAbortThresholdKB(threshold);
+        logger.info("updated client_large_read_abort_threshold_kb to {}", threshold);
+    }
+
+    @Override
+    public boolean getClientTrackWarningsEnabled()
+    {
+        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+    }
+
+    @Override
+    public void setClientTrackWarningsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
+        logger.info("updated client_track_warnings_enabled to {}", value);
+    }
 }

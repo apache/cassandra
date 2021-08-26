@@ -15,28 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.exceptions;
 
 import java.util.Map;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class ReadFailureException extends RequestFailureException
+public class ReadSizeAbortException extends ReadAbortException
 {
-    public final boolean dataPresent;
-
-    public ReadFailureException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    public ReadSizeAbortException(String msg, ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super(ExceptionCode.READ_FAILURE, consistency, received, blockFor, ImmutableMap.copyOf(failureReasonByEndpoint));
-        this.dataPresent = dataPresent;
-    }
-
-    protected ReadFailureException(String msg, ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
-    {
-        super(ExceptionCode.READ_FAILURE, msg, consistency, received, blockFor, failureReasonByEndpoint);
-        this.dataPresent = dataPresent;
+        super(msg, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
     }
 }
