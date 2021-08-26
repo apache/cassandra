@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -184,25 +185,49 @@ public final class SSLFactory
         logger.debug("Checking whether certificates have been updated for server {} and client {}",
                      serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
 
-        boolean serverSslContextShouldReload =
-        serverOpts != null && serverOpts.sslContextFactoryInstance.shouldReload();
+        checkCertFilesForHotReloading(serverOpts);
+        checkCertFilesForHotReloading(clientOpts);
+    }
 
-        boolean clientSslContextShouldReload =
-        clientOpts != null && clientOpts.sslContextFactoryInstance.shouldReload();
-
-        if (serverSslContextShouldReload || clientSslContextShouldReload)
+    private static void checkCertFilesForHotReloading(EncryptionOptions options)
+    {
+        try
         {
-            logger.info("SSL certificates have been updated. Resetting the ssl contexts for new connections.");
-            try
+            if (options != null && options.sslContextFactoryInstance.shouldReload())
             {
-                validateSslCerts(serverOpts, clientOpts);
-                cachedSslContexts.clear();
-            }
-            catch(Exception e)
-            {
-                logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files.", e);
+                validateAndRefreshSslContextCache(options);
             }
         }
+        catch(Exception e)
+        {
+            logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files.", e);
+        }
+    }
+
+    private static void validateAndRefreshSslContextCache(EncryptionOptions options) throws IOException
+    {
+        if (options != null)
+        {
+            boolean isServerOptions = options instanceof EncryptionOptions.ServerEncryptionOptions;
+
+            if (isServerOptions)
+            {
+                validateSslContext("server_encryption_options", options, true, false);
+            } else {
+                validateSslContext("client_encryption_options", options, options.require_client_auth, false);
+            }
+            clearSslContextCache(options);
+        }
+    }
+
+    private static void clearSslContextCache(EncryptionOptions options)
+    {
+        cachedSslContexts.forEachKey(1, cacheKey -> {
+            if (cacheKey.encryptionOptions.equals(options))
+            {
+                cachedSslContexts.remove(cacheKey);
+            }
+        });
     }
 
     /**
