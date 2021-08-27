@@ -40,7 +40,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BiMultiValMap;
@@ -253,7 +253,7 @@ public class TokenMetadata
             InetAddressAndPort storedEp = endpointToHostIdMap.inverse().get(hostId);
             if (storedEp != null)
             {
-                if (!storedEp.equals(endpoint) && (FailureDetector.instance.isAlive(storedEp)))
+                if (!storedEp.equals(endpoint) && (IFailureDetector.instance.isAlive(storedEp)))
                 {
                     throw new RuntimeException(String.format("Host ID collision between active endpoint %s and %s (id=%s)",
                                                              storedEp,

@@ -50,7 +50,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -244,7 +244,7 @@ public class MigrationCoordinator
     @VisibleForTesting
     protected boolean isAlive(InetAddressAndPort endpoint)
     {
-        return FailureDetector.instance.isAlive(endpoint);
+        return IFailureDetector.instance.isAlive(endpoint);
     }
 
     @VisibleForTesting

@@ -54,6 +54,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -62,6 +63,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -77,8 +79,10 @@ import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 public class ActiveRepairServiceTest
 {
@@ -485,5 +489,57 @@ public class ActiveRepairServiceTest
             Uninterruptibles.awaitUninterruptibly(blocked, TASK_SECONDS, TimeUnit.SECONDS);
             complete.countDown();
         }
+    }
+
+    @Test
+    public void testPrepareRepairWithDeadNodes()
+    {
+        Set<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
+        UUID parentRepairSession = UUID.randomUUID();
+        List<ColumnFamilyStore> columnFamilyStores = Arrays.asList(prepareColumnFamilyStore());
+        boolean isForcedRepair = false;
+
+        Set<InetAddressAndPort> endpoints = new HashSet<>();
+
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        Token token = tmd.partitioner.getMinimumToken();
+        IPartitioner partitioner = tmd.partitioner;
+        Util.joinNodeToRing(REMOTE, token, partitioner);
+
+        // Mark remote node as dead
+        Util.markNodeAsDead(REMOTE);
+        endpoints.add(REMOTE);
+
+        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, true, false, 1, ranges, false, false, false,  PreviewKind.ALL, false, false);
+        try
+        {
+            ActiveRepairService.instance.prepareForRepair(parentRepairSession, LOCAL, endpoints, options, isForcedRepair, columnFamilyStores);
+            fail();
+        }
+        catch (RuntimeException ex)
+        {
+            String msg = ex.getMessage();
+            final String expected = "Endpoint not alive";
+            assertTrue(String.format("Did not see expected '%s' message", expected), msg.contains(expected));
+        }
+    }
+
+    @Test
+    public void testCleanUpLiveAndDeadNodes()
+    {
+        UUID parentRepairSession = UUID.randomUUID();
+        Set<InetAddressAndPort> endpoints = new HashSet<>();
+        endpoints.add(LOCAL);
+
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        Token token = tmd.partitioner.getMinimumToken();
+        IPartitioner partitioner = tmd.partitioner;
+
+        Util.joinNodeToRing(REMOTE, token, partitioner);
+        Util.markNodeAsDead(REMOTE);
+
+        endpoints.add(REMOTE);
+
+        ActiveRepairService.instance.cleanUp(parentRepairSession, endpoints);
     }
 }

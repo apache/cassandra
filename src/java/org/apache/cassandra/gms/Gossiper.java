@@ -338,7 +338,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
         fatClientTimeout = (QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
-        FailureDetector.instance.registerFailureDetectionEventListener(this);
+        IFailureDetector.instance.registerFailureDetectionEventListener(this);
 
         // Register this instance with JMX
         if (registerJmx)
@@ -545,7 +545,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
-        FailureDetector.instance.forceConviction(endpoint);
+        IFailureDetector.instance.forceConviction(endpoint);
         GossiperDiagnostics.markedAsShutdown(this, endpoint);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onChange(endpoint, ApplicationState.STATUS_WITH_PORT, shutdown);
@@ -577,7 +577,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         unreachableEndpoints.remove(endpoint);
         endpointStateMap.remove(endpoint);
         expireTimeEndpointMap.remove(endpoint);
-        FailureDetector.instance.remove(endpoint);
+        IFailureDetector.instance.remove(endpoint);
         quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("evicting {} from gossip", endpoint);
@@ -1008,7 +1008,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 continue;
 
-            FailureDetector.instance.interpret(endpoint);
+            IFailureDetector.instance.interpret(endpoint);
             EndpointState epState = endpointStateMap.get(endpoint);
             if (epState != null)
             {
@@ -1212,7 +1212,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         */
         if (localEndpointState != null)
         {
-            IFailureDetector fd = FailureDetector.instance;
+            IFailureDetector fd = IFailureDetector.instance;
             int localGeneration = localEndpointState.getHeartBeatState().getGeneration();
             int remoteGeneration = remoteEndpointState.getHeartBeatState().getGeneration();
             if (remoteGeneration > localGeneration)
@@ -1490,7 +1490,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             else
             {
                 // this is a new node, report it to the FD in case it is the first time we are seeing it AND it's not alive
-                FailureDetector.instance.report(ep);
+                IFailureDetector.instance.report(ep);
                 handleMajorStateChange(ep, remoteState);
             }
         }

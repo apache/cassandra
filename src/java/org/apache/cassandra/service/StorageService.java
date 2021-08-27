@@ -581,7 +581,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // down), then we're safe to proceed with the replacement. In this case, there
                 // will be no local endpoint state as we discard the results of the shadow
                 // round after preparing replacement info. We inject a minimal EndpointState
-                // to keep FailureDetector::isAlive and Gossiper::compareEndpointStartup from
+                // to keep IFailureDetector::isAlive and Gossiper::compareEndpointStartup from
                 // failing later in the replacement, as they both expect the replaced node to
                 // be fully present in gossip.
                 // Otherwise, if the replaced node is present in gossip, we need check that
@@ -2628,7 +2628,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return;
         }
 
-        if (FailureDetector.instance.isAlive(oldNode))
+        if (IFailureDetector.instance.isAlive(oldNode))
         {
             throw new RuntimeException(String.format("Node %s is trying to replace alive node %s.", newNode, oldNode));
         }
@@ -2757,7 +2757,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             assert !endpoint.equals(replacingNode.get()) : "Pending replacement endpoint with same address is not supported";
             logger.info("Node {} will complete replacement of {} for tokens {}", endpoint, replacingNode.get(), tokens);
-            if (FailureDetector.instance.isAlive(replacingNode.get()))
+            if (IFailureDetector.instance.isAlive(replacingNode.get()))
             {
                 logger.error("Node {} cannot complete replacement of alive node {}.", endpoint, replacingNode.get());
                 return;
@@ -2999,12 +2999,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         InetAddressAndPort myAddress = FBUtilities.getBroadcastAddressAndPort();
         EndpointsByRange rangeReplicas = Keyspace.open(keyspaceName).getReplicationStrategy().getRangeAddresses(tokenMetadata.cloneOnlyTokenMap());
-        Multimap<InetAddressAndPort, FetchReplica> sourceRanges = HashMultimap.create();
-        IFailureDetector failureDetector = FailureDetector.instance;
 
         logger.debug("Getting new source replicas for {}", leavingReplicas);
+        return findLiveReplicasForRanges(leavingReplicas, rangeReplicas, myAddress);
+    }
 
-        // find alive sources for our new ranges
+    // find alive sources for ranges
+    @VisibleForTesting
+    public Multimap<InetAddressAndPort, FetchReplica> findLiveReplicasForRanges(Set<LeavingReplica> leavingReplicas, EndpointsByRange rangeReplicas, InetAddressAndPort myAddress)
+    {
+        Multimap<InetAddressAndPort, FetchReplica> sourceRanges = HashMultimap.create();
+        IFailureDetector failureDetector = IFailureDetector.instance;
+
         for (LeavingReplica leaver : leavingReplicas)
         {
             //We need this to find the replicas from before leaving to supply the data
@@ -3056,7 +3062,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         // notify the remote token
         Message msg = Message.out(REPLICATION_DONE_REQ, noPayload);
-        IFailureDetector failureDetector = FailureDetector.instance;
+        IFailureDetector failureDetector = IFailureDetector.instance;
         if (logger.isDebugEnabled())
             logger.debug("Notifying {} of replication completion\n", remote);
         while (failureDetector.isAlive(remote))
@@ -3074,7 +3080,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    private static class LeavingReplica
+    @VisibleForTesting
+    public static class LeavingReplica
     {
         //The node that is leaving
         private final Replica leavingReplica;
@@ -4549,10 +4556,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return HintsService.instance.transferHints(this::getPreferredHintsStreamTarget);
     }
 
-    private static EndpointsForRange getStreamCandidates(Collection<InetAddressAndPort> endpoints)
+    @VisibleForTesting
+    public static EndpointsForRange getStreamCandidates(Collection<InetAddressAndPort> endpoints)
     {
         endpoints = endpoints.stream()
-                             .filter(endpoint -> FailureDetector.instance.isAlive(endpoint) && !FBUtilities.getBroadcastAddressAndPort().equals(endpoint))
+                             .filter(endpoint -> IFailureDetector.instance.isAlive(endpoint) && !FBUtilities.getBroadcastAddressAndPort().equals(endpoint))
                              .collect(Collectors.toList());
 
         return SystemReplicas.getSystemReplicas(endpoints);
@@ -4768,7 +4776,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // get all ranges that change ownership (that is, a node needs
             // to take responsibility for new range)
             EndpointsByReplica changedRanges = getChangedReplicasForLeaving(keyspaceName, endpoint, tokenMetadata, Keyspace.open(keyspaceName).getReplicationStrategy());
-            IFailureDetector failureDetector = FailureDetector.instance;
+            IFailureDetector failureDetector = IFailureDetector.instance;
             for (InetAddressAndPort ep : transform(changedRanges.flattenValues(), Replica::endpoint))
             {
                 if (failureDetector.isAlive(ep))

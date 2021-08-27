@@ -29,7 +29,7 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.diag.DiagnosticEvent;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
@@ -86,7 +86,7 @@ final class SchemaMigrationEvent extends DiagnosticEvent
             endpointMessagingVersion = MessagingService.instance().versions.getRaw(endpoint);
 
         endpointGossipOnlyMember = Gossiper.instance.isGossipOnlyMember(endpoint);
-        this.isAlive = FailureDetector.instance.isAlive(endpoint);
+        this.isAlive = IFailureDetector.instance.isAlive(endpoint);
     }
 
     public Enum<?> getType()

@@ -54,7 +54,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
@@ -129,7 +128,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     private static final Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
     // singleton enforcement
-    public static final ActiveRepairService instance = new ActiveRepairService(FailureDetector.instance, Gossiper.instance);
+    public static final ActiveRepairService instance = new ActiveRepairService(IFailureDetector.instance, Gossiper.instance);
 
     public static final long UNREPAIRED_SSTABLE = 0;
     public static final UUID NO_PENDING_REPAIR = null;
@@ -570,7 +569,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         for (InetAddressAndPort neighbour : endpoints)
         {
-            if (FailureDetector.instance.isAlive(neighbour))
+            if (IFailureDetector.instance.isAlive(neighbour))
             {
                 PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
                 Message<RepairMessage> msg = Message.out(PREPARE_MSG, message);
@@ -621,7 +620,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         {
             try
             {
-                if (FailureDetector.instance.isAlive(endpoint))
+                if (IFailureDetector.instance.isAlive(endpoint))
                 {
                     CleanupMessage message = new CleanupMessage(parentRepairSession);
                     Message<CleanupMessage> msg = Message.out(Verb.CLEANUP_MSG, message);
@@ -664,7 +663,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (!registeredForEndpointChanges)
         {
             Gossiper.instance.register(this);
-            FailureDetector.instance.registerFailureDetectionEventListener(this);
+            IFailureDetector.instance.registerFailureDetectionEventListener(this);
             registeredForEndpointChanges = true;
         }
 

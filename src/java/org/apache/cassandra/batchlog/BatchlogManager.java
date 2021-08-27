@@ -57,7 +57,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -479,7 +479,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 mutation.apply();
 
             ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(
-                    r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
+                    r -> IFailureDetector.isReplicaAlive.test(r) && r != selfReplica);
 
             for (Replica replica : liveAndDown.all())
             {

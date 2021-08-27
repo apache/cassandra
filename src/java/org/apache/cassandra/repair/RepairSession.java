@@ -276,7 +276,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         // Checking all nodes are live
         for (InetAddressAndPort endpoint : commonRange.endpoints)
         {
-            if (!FailureDetector.instance.isAlive(endpoint) && !commonRange.hasSkippedReplicas)
+            if (!IFailureDetector.instance.isAlive(endpoint) && !commonRange.hasSkippedReplicas)
             {
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 logger.error("{} {}", previewKind.logPrefix(getId()), message);

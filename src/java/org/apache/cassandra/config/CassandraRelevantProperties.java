@@ -178,7 +178,10 @@ public enum CassandraRelevantProperties
     IS_DISABLED_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
 
     /** what class to use for mbean registeration */
-    MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class");
+    MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
+
+    /** Which class to use for failure detection */
+    CUSTOM_FAILURE_DETECTOR_PROPERTY("cassandra.custom_failure_detector_class");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

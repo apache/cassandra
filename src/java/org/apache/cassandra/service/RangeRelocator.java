@@ -36,7 +36,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -100,7 +100,7 @@ public class RangeRelocator
                                                                    tmdBefore,
                                                                    tmdAfter,
                                                                    keyspace,
-                                                                   Arrays.asList(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance),
+                                                                   Arrays.asList(new RangeStreamer.FailureDetectorSourceFilter(IFailureDetector.instance),
                                                                                  new RangeStreamer.ExcludeLocalNodeFilter()));
         return RangeStreamer.convertPreferredEndpointsToWorkMap(preferredEndpoints);
     }
