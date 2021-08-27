@@ -83,7 +83,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
@@ -178,7 +178,7 @@ public class LocalSessions
     @VisibleForTesting
     protected boolean isAlive(InetAddressAndPort address)
     {
-        return FailureDetector.instance.isAlive(address);
+        return IFailureDetector.instance.isAlive(address);
     }
 
     @VisibleForTesting
