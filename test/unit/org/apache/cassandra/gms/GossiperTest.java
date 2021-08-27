@@ -478,4 +478,35 @@ public class GossiperTest
             return new ArrayList<>();
         }
     }
+
+    @Test
+    public void testShutdownMarksNodeAsDead() throws UnknownHostException
+    {
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        try
+        {
+            InetAddressAndPort remoteHostAddress = hosts.get(1);
+
+            EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
+            HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
+
+            // Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
+
+            VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+            HeartBeatState proposedRemoteHeartBeat = new HeartBeatState(initialRemoteHeartBeat.getGeneration() + Gossiper.MAX_GENERATION_DIFFERENCE + 1);
+            EndpointState proposedRemoteState = new EndpointState(proposedRemoteHeartBeat);
+            proposedRemoteState.addApplicationState(ApplicationState.STATUS_WITH_PORT, factory.shutdown(true));
+
+            assertTrue(Gossiper.instance.isAlive(remoteHostAddress));
+            Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
+            assertFalse(Gossiper.instance.isAlive(remoteHostAddress));
+        }
+        finally
+        {
+            // clean up the gossip states
+            Gossiper.instance.endpointStateMap.clear();
+        }
+
+    }
 }

@@ -39,7 +39,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -88,7 +87,7 @@ public final class HintsService implements HintsServiceMBean
 
     private HintsService()
     {
-        this(FailureDetector.instance);
+        this(IFailureDetector.instance);
     }
 
     @VisibleForTesting

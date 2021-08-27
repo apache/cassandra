@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -64,7 +65,7 @@ public class GossipSettlesTest extends TestBaseImpl
                 // First prove that the storage port is added
                 Assert.assertEquals("stuff 127.0.0.1:7012 morestuff 127.0.0.2:7012", addStoragePortToIP("stuff 127.0.0.1 morestuff 127.0.0.2"));
 
-                FailureDetector fd = ((FailureDetector) FailureDetector.instance);
+                FailureDetector fd = ((FailureDetector) IFailureDetector.instance);
                 Assert.assertEquals(addStoragePortToInstanceName(fd.getAllEndpointStates(false)),
                                     fd.getAllEndpointStates(true));
                 Assert.assertEquals(addPortToKeys(fd.getSimpleStates()), fd.getSimpleStatesWithPort());

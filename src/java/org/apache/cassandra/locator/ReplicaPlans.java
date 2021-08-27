@@ -37,7 +37,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -251,7 +251,7 @@ public class ReplicaPlans
         return filterBatchlogEndpoints(localRack,
                                        endpoints,
                                        Collections::shuffle,
-                                       FailureDetector.isEndpointAlive,
+                                       IFailureDetector.isEndpointAlive,
                                        ThreadLocalRandom.current()::nextInt);
     }
 
@@ -338,7 +338,7 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Selector selector) throws UnavailableException
     {
-        return forWrite(keyspace, consistencyLevel, liveAndDown, FailureDetector.isReplicaAlive, selector);
+        return forWrite(keyspace, consistencyLevel, liveAndDown, IFailureDetector.isReplicaAlive, selector);
     }
 
     private static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
@@ -503,7 +503,7 @@ public class ReplicaPlans
             liveAndDown = liveAndDown.filter(InOurDcTester.replicas());
         }
 
-        ReplicaLayout.ForTokenWrite live = liveAndDown.filter(FailureDetector.isReplicaAlive);
+        ReplicaLayout.ForTokenWrite live = liveAndDown.filter(IFailureDetector.isReplicaAlive);
 
         // TODO: this should use assureSufficientReplicas
         int participants = liveAndDown.all().size();

@@ -254,7 +254,8 @@ public enum CassandraRelevantProperties
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
 
-    ;
+    /** Which class to use for failure detection */
+    CUSTOM_FAILURE_DETECTOR_PROPERTY("cassandra.custom_failure_detector_class");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
