@@ -22,9 +22,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
-import com.sun.tools.javac.util.List;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.junit.Assert.assertEquals;
@@ -104,7 +104,7 @@ public class StaticControllerTest extends ControllerTest
 
         assertEquals(1.0d / ControllerTest.numShards, controller.getMaxSpaceOverhead(), 0.0d);
 
-        for (Double d : List.of(0.0, 10.0, -10.0))
+        for (Double d : ImmutableList.of(0.0, 10.0, -10.0))
         {
             String s = d.toString();
             try
