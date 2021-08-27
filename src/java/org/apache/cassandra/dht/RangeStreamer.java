@@ -43,9 +43,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsByRange;
@@ -84,7 +83,7 @@ public class RangeStreamer
                                                              (!Gossiper.instance.isEnabled() ||
                                                               (Gossiper.instance.getEndpointStateForEndpoint(replica.endpoint()) == null ||
                                                                Gossiper.instance.getEndpointStateForEndpoint(replica.endpoint()).isAlive())) &&
-                                                             FailureDetector.instance.isAlive(replica.endpoint());
+                                                             IFailureDetector.instance.isAlive(replica.endpoint());
 
     /* bootstrap tokens. can be null if replacing the node. */
     private final Collection<Token> tokens;
@@ -255,7 +254,7 @@ public class RangeStreamer
                          int connectionsPerHost)
     {
         this(metadata, tokens, address, streamOperation, useStrictConsistency, snitch, stateStore,
-             FailureDetector.instance, connectSequentially, connectionsPerHost);
+             IFailureDetector.instance, connectSequentially, connectionsPerHost);
     }
 
     RangeStreamer(TokenMetadata metadata,

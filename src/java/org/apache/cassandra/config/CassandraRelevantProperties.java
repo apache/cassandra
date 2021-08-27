@@ -206,7 +206,10 @@ public enum CassandraRelevantProperties
      * immediately as it is high chance they will fail anyway. It is better to wait a bit instead of flooding logs
      * and wasting resources.
      */
-    SCHEMA_PULL_BACKOFF_DELAY_MS("cassandra.schema_pull_backoff_delay_ms", "3000");
+    SCHEMA_PULL_BACKOFF_DELAY_MS("cassandra.schema_pull_backoff_delay_ms", "3000"),
+
+    /** Which class to use for failure detection */
+    CUSTOM_FAILURE_DETECTOR_PROPERTY("cassandra.custom_failure_detector_class");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
