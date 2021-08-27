@@ -2728,6 +2728,38 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.updateTokens(endpoint, tokensToUpdateInSystemKeyspace);
     }
 
+    @VisibleForTesting
+    public boolean isReplacingSameHostAddressAndHostId(UUID hostId)
+    {
+        try
+        {
+            return isReplacingSameAddress() &&
+                    Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null
+                    && hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()));
+        }
+        catch (RuntimeException ex)
+        {
+            // If a host is decomissioned and the DNS entry is removed before the
+            // bootstrap completes, when it completes and advertises NORMAL state to other nodes, they will be unable
+            // to resolve it to an InetAddress unless it happens to be cached. This could happen on nodes
+            // storing large amounts of data or with long index rebuild times or if new instances have been added
+            // to the cluster through expansion or additional host replacement.
+            //
+            // The original host replacement must have been able to resolve the replacing address on startup
+            // when setting StorageService.replacing, so if it is impossible to resolve now it is probably
+            // decommissioned and did not have the same IP address or host id.  Allow the handleStateNormal
+            // handling to proceed, otherwise gossip state will be inconistent with some nodes believing the
+            // replacement host to be normal, and nodes unable to resolve the hostname will be left in JOINING.
+            if (ex.getCause() != null && ex.getCause().getClass() == UnknownHostException.class)
+            {
+                logger.info("Suppressed exception while checking isReplacingSameHostAddressAndHostId({}). Original host was probably decommissioned. ({})",
+                        hostId, ex.getMessage());
+                return false;
+            }
+            throw ex; // otherwise rethrow
+        }
+    }
+
     /**
      * Handle node move to normal state. That is, node is entering token ring and participating
      * in reads.
@@ -2773,9 +2805,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
         UUID hostId = Gossiper.instance.getHostId(endpoint);
         InetAddressAndPort existing = tokenMetadata.getEndpointForHostId(hostId);
-        if (replacing && isReplacingSameAddress() && Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null
-            && (hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()))))
+        if (replacing && isReplacingSameHostAddressAndHostId(hostId))
+        {
             logger.warn("Not updating token metadata for {} because I am replacing it", endpoint);
+        }
         else
         {
             if (existing != null && !existing.equals(endpoint))
