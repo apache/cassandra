@@ -19,6 +19,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866) 
  * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
  * Bump zstd-jni version to 1.5.0-4 (CASSANDRA-16884)
  * Remove assumption that all urgent messages are small (CASSANDRA-16877)
@@ -27,7 +28,6 @@ Merged from 4.0:
  * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
  * Upgrade lz4-java to 1.8.0 to add RH6 support back (CASSANDRA-16753)
  * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
- * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
@@ -64,6 +64,7 @@ Merged from 3.0:
 
 4.0-rc2
  * Avoid memoizing the wrong min cluster version during upgrades (CASSANDRA-16759)
+ * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
  * Fix queries on empty partitions with static data (CASSANDRA-16686)
  * Keep python driver in artifacts (CASSANDRA-16700)
  * Improve AuditLogging documentation and logback.xml(CASSANDRA-16682)
@@ -89,7 +90,7 @@ Merged from 3.0:
  * CQL shell should prefer newer TLS version by default (CASSANDRA-16695)
  * Ensure that existing empty rows are properly returned (CASSANDRA-16671)
  * Failure to execute queries should emit a KPI other than read timeout/unavailable so it can be alerted/tracked (CASSANDRA-16581)
- * Don't wait on schema versions from replacement target when replacing a node
+ * Don't wait on schema versions from replacement target when replacing a node (CASSANDRA-16692)
  * StandaloneVerifier does not fail when unable to verify SSTables, it only fails if Corruption is thrown (CASSANDRA-16683)
  * Fix bloom filter false ratio calculation by including true negatives (CASSANDRA-15834)
  * Prevent loss of commit log data when moving sstables between nodes (CASSANDRA-16619)

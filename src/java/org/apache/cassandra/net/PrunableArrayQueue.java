@@ -19,6 +19,8 @@ package org.apache.cassandra.net;
 
 import java.util.function.Predicate;
 
+import org.apache.cassandra.utils.Throwables;
+
 /**
  * A growing array-based queue that allows efficient bulk in-place removal.
  *
@@ -103,10 +105,12 @@ final class PrunableArrayQueue<E>
      *
      * @return count of removed elements.
      */
+    @SuppressWarnings("ThrowFromFinallyBlock")
     int prune(Pruner<E> pruner)
     {
         E e;
         int removed = 0;
+        Throwable error = null;
 
         try
         {
@@ -120,11 +124,35 @@ final class PrunableArrayQueue<E>
                 int k = (tail - 1 - i) & mask;
                 e = buffer[k];
 
-                if (pruner.shouldPrune(e))
+                boolean shouldPrune = false;
+
+                // If any error has been thrown from the Pruner callbacks, don't bother asking the
+                // pruner. Just move any elements that need to be moved, correct the head, and rethrow.
+                if (error == null)
+                {
+                    try
+                    {
+                        shouldPrune = pruner.shouldPrune(e);
+                    }
+                    catch (Throwable t)
+                    {
+                        error = t;
+                    }
+                }
+
+                if (shouldPrune)
                 {
                     buffer[k] = null;
                     removed++;
-                    pruner.onPruned(e);
+
+                    try
+                    {
+                        pruner.onPruned(e);
+                    }
+                    catch (Throwable t)
+                    {
+                        error = t;
+                    }
                 }
                 else
                 {
@@ -133,13 +161,28 @@ final class PrunableArrayQueue<E>
                         buffer[(k + removed) & mask] = e;
                         buffer[k] = null;
                     }
-                    pruner.onKept(e);
+
+                    try
+                    {
+                        pruner.onKept(e);
+                    }
+                    catch (Throwable t)
+                    {
+                        if (error == null)
+                        {
+                            error = t;
+                        }
+                    }
                 }
             }
         }
         finally
         {
             head = (head + removed) & mask;
+
+            // Rethrow any error(s) from the Pruner callbacks, but only after the queue state is valid.
+            if (error != null)
+                throw Throwables.unchecked(error);
         }
 
         return removed;
