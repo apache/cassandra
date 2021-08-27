@@ -49,7 +49,6 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -85,6 +84,7 @@ import org.apache.cassandra.utils.UUIDGen;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -234,7 +234,7 @@ public class ReadCommandTest
     }
 
     @Test
-    public void testSinglePartitionSliceAbort() throws Exception
+    public void testSinglePartitionSliceAbort()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
 
@@ -265,7 +265,7 @@ public class ReadCommandTest
     }
 
     @Test
-    public void testSinglePartitionNamesAbort() throws Exception
+    public void testSinglePartitionNamesAbort()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
 
@@ -672,15 +672,14 @@ public class ReadCommandTest
         cfs.forceBlockingFlush();
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         assertEquals(2, sstables.size());
-        Collections.sort(sstables, SSTableReader.maxTimestampDescending);
+        sstables.sort(SSTableReader.maxTimestampDescending);
 
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).includeRow("dd").columns("a").build();
 
         assertEquals(0, readCount(sstables.get(0)));
         assertEquals(0, readCount(sstables.get(1)));
         ReadCommand withTracking = readCommand.copy();
-        withTracking.trackRepairedStatus();
-        Util.getAll(withTracking);
+        Util.getAll(withTracking, withTracking.executionController(true));
         assertEquals(1, readCount(sstables.get(0)));
         assertEquals(1, readCount(sstables.get(1)));
 
@@ -691,7 +690,7 @@ public class ReadCommandTest
     }
 
     @Test
-    public void dontIncludeLegacyCounterContextInDigest() throws IOException
+    public void dontIncludeLegacyCounterContextInDigest()
     {
         // Serializations of a CounterContext containing legacy (pre-2.1) shards
         // can legitimately differ across replicas. For this reason, the context
@@ -715,7 +714,7 @@ public class ReadCommandTest
         // execute a read and capture the digest
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
         ByteBuffer digestWithLegacyCounter0 = performReadAndVerifyRepairedInfo(readCommand, 1, 1, true);
-        assertFalse(EMPTY_BYTE_BUFFER.equals(digestWithLegacyCounter0));
+        assertNotEquals(EMPTY_BYTE_BUFFER, digestWithLegacyCounter0);
 
         // truncate, then re-insert the same partition, but this time with a legacy
         // shard having the value 1. The repaired digest should match the previous, as
@@ -745,9 +744,9 @@ public class ReadCommandTest
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
 
         ByteBuffer digestWithCounterCell = performReadAndVerifyRepairedInfo(readCommand, 1, 1, true);
-        assertFalse(EMPTY_BYTE_BUFFER.equals(digestWithCounterCell));
-        assertFalse(digestWithLegacyCounter0.equals(digestWithCounterCell));
-        assertFalse(digestWithLegacyCounter1.equals(digestWithCounterCell));
+        assertNotEquals(EMPTY_BYTE_BUFFER, digestWithCounterCell);
+        assertNotEquals(digestWithLegacyCounter0, digestWithCounterCell);
+        assertNotEquals(digestWithLegacyCounter1, digestWithCounterCell);
     }
 
     /**
@@ -758,7 +757,7 @@ public class ReadCommandTest
      * Also, neither digest should be empty as the partition is not made empty by the purging.
      */
     @Test
-    public void purgeGCableTombstonesBeforeCalculatingDigest() throws Exception
+    public void purgeGCableTombstonesBeforeCalculatingDigest()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF8);
         cfs.truncateBlocking();
@@ -767,7 +766,6 @@ public class ReadCommandTest
 
         DecoratedKey[] keys = new DecoratedKey[] { Util.dk("key0"), Util.dk("key1"), Util.dk("key2"), Util.dk("key3") };
         int nowInSec = FBUtilities.nowInSeconds();
-        TableMetadata cfm = cfs.metadata();
 
         // A simple tombstone
         new RowUpdateBuilder(cfs.metadata(), 0, keys[0]).clustering("cc").delete("a").build().apply();
@@ -793,17 +791,20 @@ public class ReadCommandTest
         for (DecoratedKey key : keys)
         {
             ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec).build();
-            cmd.trackRepairedStatus();
-            Partition partition = Util.getOnlyPartitionUnfiltered(cmd);
-            assertFalse(partition.isEmpty());
-            partition.unfilteredIterator().forEachRemaining(u -> {
-                // must be either a RT, or a row containing some kind of deletion
-                assertTrue(u.isRangeTombstoneMarker() || ((Row)u).hasDeletion(cmd.nowInSec()));
-            });
-            ByteBuffer digestWithTombstones = cmd.getRepairedDataDigest();
-            // None should generate an empty digest
-            assertDigestsDiffer(EMPTY_BYTE_BUFFER, digestWithTombstones);
-            digestsWithTombstones.put(key, digestWithTombstones);
+
+            try (ReadExecutionController controller = cmd.executionController(true))
+            {
+                Partition partition = Util.getOnlyPartitionUnfiltered(cmd, controller);
+                assertFalse(partition.isEmpty());
+                partition.unfilteredIterator().forEachRemaining(u -> {
+                    // must be either a RT, or a row containing some kind of deletion
+                    assertTrue(u.isRangeTombstoneMarker() || ((Row) u).hasDeletion(cmd.nowInSec()));
+                });
+                ByteBuffer digestWithTombstones = controller.getRepairedDataDigest();
+                // None should generate an empty digest
+                assertDigestsDiffer(EMPTY_BYTE_BUFFER, digestWithTombstones);
+                digestsWithTombstones.put(key, digestWithTombstones);
+            }
         }
 
         // Make tombstones eligible for purging and re-run cmd with an incremented nowInSec
@@ -813,27 +814,29 @@ public class ReadCommandTest
         for (DecoratedKey key : keys)
         {
             ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec + 60).build();
-            cmd.trackRepairedStatus();
-            Partition partition = Util.getOnlyPartitionUnfiltered(cmd);
-            assertFalse(partition.isEmpty());
-            partition.unfilteredIterator().forEachRemaining(u -> {
-                // After purging, only rows without any deletions should remain.
-                // The one exception is "key2:cc" which has a regular column tombstone which is not
-                // eligible for purging. This is to prevent the partition from being fully purged
-                // when its RT is removed.
-                assertTrue(u.isRow());
-                Row r = (Row)u;
-                assertTrue(!r.hasDeletion(cmd.nowInSec())
-                           || (key.equals(keys[2]) && r.clustering()
-                                                       .bufferAt(0)
-                                                       .equals(AsciiType.instance.fromString("cc"))));
-
-            });
-            ByteBuffer digestWithoutTombstones = cmd.getRepairedDataDigest();
-            // not an empty digest
-            assertDigestsDiffer(EMPTY_BYTE_BUFFER, digestWithoutTombstones);
-            // should not match the pre-purge digest
-            assertDigestsDiffer(digestsWithTombstones.get(key), digestWithoutTombstones);
+            
+            try (ReadExecutionController controller = cmd.executionController(true))
+            {
+                Partition partition = Util.getOnlyPartitionUnfiltered(cmd, controller);
+                assertFalse(partition.isEmpty());
+                partition.unfilteredIterator().forEachRemaining(u -> {
+                    // After purging, only rows without any deletions should remain.
+                    // The one exception is "key2:cc" which has a regular column tombstone which is not
+                    // eligible for purging. This is to prevent the partition from being fully purged
+                    // when its RT is removed.
+                    assertTrue(u.isRow());
+                    Row r = (Row) u;
+                    assertTrue(!r.hasDeletion(cmd.nowInSec())
+                               || (key.equals(keys[2]) && r.clustering()
+                                                           .bufferAt(0)
+                                                           .equals(AsciiType.instance.fromString("cc"))));
+                });
+                ByteBuffer digestWithoutTombstones = controller.getRepairedDataDigest();
+                // not an empty digest
+                assertDigestsDiffer(EMPTY_BYTE_BUFFER, digestWithoutTombstones);
+                // should not match the pre-purge digest
+                assertDigestsDiffer(digestsWithTombstones.get(key), digestWithoutTombstones);
+            }
         }
     }
 
@@ -864,8 +867,7 @@ public class ReadCommandTest
 
         // Overread up to (limit - 1) if tracking is enabled
         cmd = cmd.copy();
-        cmd.trackRepairedStatus();
-        readAndCheckRowCount(Collections.singletonList(Util.getOnlyPartition(cmd)), limit);
+        readAndCheckRowCount(Collections.singletonList(Util.getOnlyPartition(cmd, true)), limit);
         // overread count is always < limit as the first read is counted during merging (and so is expected)
         assertEquals(limit - 1, getAndResetOverreadCount(cfs));
 
@@ -885,8 +887,7 @@ public class ReadCommandTest
 
         // Overread up to (limit - 1) if tracking is enabled
         cmd = cmd.copy();
-        cmd.trackRepairedStatus();
-        readAndCheckRowCount(Util.getAll(cmd), limit);
+        readAndCheckRowCount(Util.getAll(cmd, cmd.executionController(true)), limit);
         assertEquals(limit - 1, getAndResetOverreadCount(cfs));
 
         // if limit already requires reading all repaired data, no overreads should be recorded
@@ -974,7 +975,7 @@ public class ReadCommandTest
      * the row deletion is eligible for purging, both the result set and the repaired data digest should
      * be empty.
      */
-    private void fullyPurgedPartitionCreatesEmptyDigest(ColumnFamilyStore cfs, ReadCommand command) throws Exception
+    private void fullyPurgedPartitionCreatesEmptyDigest(ColumnFamilyStore cfs, ReadCommand command)
     {
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -986,26 +987,30 @@ public class ReadCommandTest
         cfs.forceBlockingFlush();
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
 
-        command.trackRepairedStatus();
-        List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(command);
-        assertEquals(1, partitions.size());
-        ByteBuffer digestWithTombstones = command.getRepairedDataDigest();
-        assertTrue(ByteBufferUtil.compareUnsigned(EMPTY_BYTE_BUFFER, digestWithTombstones) != 0);
+        try (ReadExecutionController controller = command.executionController(true))
+        {
+            List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(command, controller);
+            assertEquals(1, partitions.size());
+            ByteBuffer digestWithTombstones = controller.getRepairedDataDigest();
+            assertTrue(ByteBufferUtil.compareUnsigned(EMPTY_BYTE_BUFFER, digestWithTombstones) != 0);
 
-        // Make tombstones eligible for purging and re-run cmd with an incremented nowInSec
-        setGCGrace(cfs, 0);
+            // Make tombstones eligible for purging and re-run cmd with an incremented nowInSec
+            setGCGrace(cfs, 0);
+        }
 
         AbstractReadCommandBuilder builder = command instanceof PartitionRangeReadCommand
                                              ? Util.cmd(cfs)
                                              : Util.cmd(cfs, Util.dk("key"));
         builder.withNowInSeconds(command.nowInSec() + 60);
         command = builder.build();
-        command.trackRepairedStatus();
 
-        partitions = Util.getAllUnfiltered(command);
-        assertTrue(partitions.isEmpty());
-        ByteBuffer digestWithoutTombstones = command.getRepairedDataDigest();
-        assertEquals(0, ByteBufferUtil.compareUnsigned(EMPTY_BYTE_BUFFER, digestWithoutTombstones));
+        try (ReadExecutionController controller = command.executionController(true))
+        {
+            List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(command, controller);
+            assertTrue(partitions.isEmpty());
+            ByteBuffer digestWithoutTombstones = controller.getRepairedDataDigest();
+            assertEquals(0, ByteBufferUtil.compareUnsigned(EMPTY_BYTE_BUFFER, digestWithoutTombstones));
+        }
     }
 
     /**
@@ -1036,27 +1041,33 @@ public class ReadCommandTest
         RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key-1"), "cc").apply();
         cfs.forceBlockingFlush();
 
-        command.trackRepairedStatus();
-        List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(command);
-        assertEquals(1, partitions.size());
-        ByteBuffer digestWithoutPurgedPartition = command.getRepairedDataDigest();
-        assertTrue(ByteBufferUtil.compareUnsigned(EMPTY_BYTE_BUFFER, digestWithoutPurgedPartition) != 0);
-
+        ByteBuffer digestWithoutPurgedPartition = null;
+        
+        try (ReadExecutionController controller = command.executionController(true))
+        {
+            List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(command, controller);
+            assertEquals(1, partitions.size());
+            digestWithoutPurgedPartition = controller.getRepairedDataDigest();
+            assertTrue(ByteBufferUtil.compareUnsigned(EMPTY_BYTE_BUFFER, digestWithoutPurgedPartition) != 0);
+        }
+        
         // mark the sstable containing the purged partition as repaired, so both partitions are now
         // read during in the digest calculation. Because the purged partition is entirely
         // discarded, the resultant digest should match the earlier one.
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
         command = Util.cmd(cfs).withNowInSeconds(command.nowInSec()).build();
-        command.trackRepairedStatus();
 
-        partitions = Util.getAllUnfiltered(command);
-        assertEquals(1, partitions.size());
-        ByteBuffer digestWithPurgedPartition = command.getRepairedDataDigest();
-        assertEquals(0, ByteBufferUtil.compareUnsigned(digestWithPurgedPartition, digestWithoutPurgedPartition));
+        try (ReadExecutionController controller = command.executionController(true))
+        {
+            List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(command, controller);
+            assertEquals(1, partitions.size());
+            ByteBuffer digestWithPurgedPartition = controller.getRepairedDataDigest();
+            assertEquals(0, ByteBufferUtil.compareUnsigned(digestWithPurgedPartition, digestWithoutPurgedPartition));
+        }
     }
 
     @Test
-    public void purgingConsidersRepairedDataOnly() throws Exception
+    public void purgingConsidersRepairedDataOnly()
     {
         // 2 sstables, first is repaired and contains data that is all purgeable
         // the second is unrepaired and contains non-purgable data. Even though
@@ -1079,19 +1090,22 @@ public class ReadCommandTest
 
         int nowInSec = FBUtilities.nowInSeconds() + 10;
         ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec).build();
-        cmd.trackRepairedStatus();
-        Partition partition = Util.getOnlyPartitionUnfiltered(cmd);
-        assertFalse(partition.isEmpty());
-        // check that
-        try (UnfilteredRowIterator rows = partition.unfilteredIterator())
+
+        try (ReadExecutionController controller = cmd.executionController(true))
         {
-            assertFalse(rows.isEmpty());
-            Unfiltered unfiltered = rows.next();
-            assertFalse(rows.hasNext());
-            assertTrue(unfiltered.isRow());
-            assertFalse(((Row) unfiltered).hasDeletion(nowInSec));
+            Partition partition = Util.getOnlyPartitionUnfiltered(cmd, controller);
+            assertFalse(partition.isEmpty());
+            // check that
+            try (UnfilteredRowIterator rows = partition.unfilteredIterator())
+            {
+                assertFalse(rows.isEmpty());
+                Unfiltered unfiltered = rows.next();
+                assertFalse(rows.hasNext());
+                assertTrue(unfiltered.isRow());
+                assertFalse(((Row) unfiltered).hasDeletion(nowInSec));
+            }
+            assertEquals(EMPTY_BYTE_BUFFER, controller.getRepairedDataDigest());
         }
-        assertEquals(EMPTY_BYTE_BUFFER, cmd.getRepairedDataDigest());
     }
 
     private long readCount(SSTableReader sstable)
@@ -1126,9 +1140,11 @@ public class ReadCommandTest
         cacheHits = cfs.metric.rowCacheHit.getCount();
 
         ReadCommand withRepairedInfo = readCommand.copy();
-        withRepairedInfo.trackRepairedStatus();
-        Util.getAll(withRepairedInfo);
-        assertEquals(cacheHits, cfs.metric.rowCacheHit.getCount());
+        try (ReadExecutionController controller = withRepairedInfo.executionController(true))
+        {
+            Util.getAll(withRepairedInfo, controller);
+            assertEquals(cacheHits, cfs.metric.rowCacheHit.getCount());
+        }
     }
 
     @Test (expected = IllegalArgumentException.class)
@@ -1175,7 +1191,7 @@ public class ReadCommandTest
                                                            ReplicaUtils.full(addr, token)));
     }
 
-    private void testRepairedDataTracking(ColumnFamilyStore cfs, ReadCommand readCommand) throws IOException
+    private void testRepairedDataTracking(ColumnFamilyStore cfs, ReadCommand readCommand)
     {
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -1302,16 +1318,18 @@ public class ReadCommandTest
         for (int i = 0; i < 10; i++)
         {
             ReadCommand withRepairedInfo = command.copy();
-            withRepairedInfo.trackRepairedStatus();
 
-            List<FilteredPartition> partitions = Util.getAll(withRepairedInfo);
-            assertEquals(expectedPartitions, partitions.size());
-            partitions.forEach(p -> assertEquals(expectedRowsPerPartition, p.rowCount()));
+            try (ReadExecutionController controller = withRepairedInfo.executionController(true))
+            {
+                List<FilteredPartition> partitions = Util.getAll(withRepairedInfo, controller);
+                assertEquals(expectedPartitions, partitions.size());
+                partitions.forEach(p -> assertEquals(expectedRowsPerPartition, p.rowCount()));
 
-            ByteBuffer digest = withRepairedInfo.getRepairedDataDigest();
-            digests.add(digest);
-            assertEquals(1, digests.size());
-            assertEquals(expectConclusive, withRepairedInfo.isRepairedDataDigestConclusive());
+                ByteBuffer digest = controller.getRepairedDataDigest();
+                digests.add(digest);
+                assertEquals(1, digests.size());
+                assertEquals(expectConclusive, controller.isRepairedDataDigestConclusive());
+            }
         }
         return digests.iterator().next();
     }

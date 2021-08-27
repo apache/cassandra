@@ -142,7 +142,8 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
             Assert.assertNotNull(e.toMap());
         }
 
-        void sendReadCommand(Replica to, ReadCallback callback, boolean speculative)
+        @Override
+        void sendReadCommand(Replica to, ReadCallback callback, boolean speculative, boolean trackRepairedStatus)
         {
             assert readCallback == null || readCallback == callback;
             readCallback = callback;

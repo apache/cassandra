@@ -191,7 +191,7 @@ public abstract  class AbstractReadRepairTest
     static Message<ReadResponse> msg(InetAddressAndPort from, Cell<?>... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());
-        return Message.builder(INTERNAL_RSP, ReadResponse.createDataResponse(iter, command))
+        return Message.builder(INTERNAL_RSP, ReadResponse.createDataResponse(iter, command, command.executionController().getRepairedDataInfo()))
                       .from(from)
                       .build();
     }

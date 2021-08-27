@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,7 +30,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -43,7 +41,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static junit.framework.Assert.assertTrue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -106,11 +103,11 @@ public class PartitionTest
         CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
 
         assertEquals(partition.columns().regulars.size(), deserialized.columns().regulars.size());
-        assertTrue(deserialized.columns().regulars.getSimple(1).equals(partition.columns().regulars.getSimple(1)));
-        assertTrue(deserialized.columns().regulars.getSimple(5).equals(partition.columns().regulars.getSimple(5)));
+        assertEquals(deserialized.columns().regulars.getSimple(1), partition.columns().regulars.getSimple(1));
+        assertEquals(deserialized.columns().regulars.getSimple(5), partition.columns().regulars.getSimple(5));
 
         ColumnMetadata cDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val8"));
-        assertTrue(partition.lastRow().getCell(cDef).buffer().equals(deserialized.lastRow().getCell(cDef).buffer()));
+        assertEquals(partition.lastRow().getCell(cDef).buffer(), deserialized.lastRow().getCell(cDef).buffer());
         assert deserialized.partitionKey().equals(partition.partitionKey());
     }
 

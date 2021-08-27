@@ -182,26 +182,23 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
     private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
         PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-        // If enabled, request repaired data tracking info from full replicas but
-        // only if there are multiple full replicas to compare results from
-        if (DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-            && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
-        {
-            command.trackRepairedStatus();
-            rangeCommand.trackRepairedStatus();
-        }
+        
+        // If enabled, request repaired data tracking info from full replicas, but
+        // only if there are multiple full replicas to compare results from.
+        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
+                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1;
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
                 ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
         DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-                new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime);
+                new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime, trackRepairedStatus);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
                 new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
 
         if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
         {
-            Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler));
+            Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler, trackRepairedStatus));
         }
         else
         {
@@ -209,7 +206,7 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
             {
                 Tracing.trace("Enqueuing request to {}", replica);
                 ReadCommand command = replica.isFull() ? rangeCommand : rangeCommand.copyAsTransientQuery(replica);
-                Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && replica.isFull());
+                Message<ReadCommand> message = command.createMessage(trackRepairedStatus && replica.isFull());
                 MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
             }
         }
