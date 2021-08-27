@@ -49,7 +49,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
         ReadCallback readCallback = null;
 
         @Override
-        void sendReadCommand(Replica to, ReadCallback callback, boolean speculative)
+        void sendReadCommand(Replica to, ReadCallback callback, boolean speculative, boolean trackRepairedStatus)
         {
             assert readCallback == null || readCallback == callback;
             readCommandRecipients.add(to.endpoint());

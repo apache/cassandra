@@ -57,7 +57,6 @@ import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.MessageParams;
@@ -1996,12 +1995,19 @@ public class StorageProxy implements StorageProxyMBean
     {
         private final ReadCommand command;
         private final ReadCallback handler;
+        private final boolean trackRepairedStatus;
 
         public LocalReadRunnable(ReadCommand command, ReadCallback handler)
+        {
+            this(command, handler, false);
+        }
+
+        public LocalReadRunnable(ReadCommand command, ReadCallback handler, boolean trackRepairedStatus)
         {
             super(Verb.READ_REQ);
             this.command = command;
             this.handler = handler;
+            this.trackRepairedStatus = trackRepairedStatus;
         }
 
         protected void runMayThrow()
@@ -2014,16 +2020,17 @@ public class StorageProxy implements StorageProxyMBean
                 command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
                 ReadResponse response;
-                try (ReadExecutionController executionController = command.executionController();
-                     UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
+                try (ReadExecutionController controller = command.executionController(trackRepairedStatus);
+                     UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                 {
-                    response = command.createResponse(iterator);
+                    response = command.createResponse(iterator, controller.getRepairedDataInfo());
                 }
                 catch (RejectException e)
                 {
                     if (!command.isTrackingWarnings())
                         throw e;
-                    response = command.createResponse(EmptyIterators.unfilteredPartition(command.metadata()));
+                    
+                    response = command.createEmptyResponse();
                     readRejected = true;
                 }
 
