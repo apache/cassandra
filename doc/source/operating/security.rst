@@ -335,7 +335,7 @@ See also : `Using File-Based Password Authentication In JMX
 Cassandra Integrated Auth
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-An alternative to the out-of-the-box JMX auth is to useeCassandra's own authentication and/or authorization providers
+An alternative to the out-of-the-box JMX auth is to use Cassandra's own authentication and/or authorization providers
 for JMX clients. This is potentially more flexible and secure but it come with one major caveat. Namely that it is not
 available until `after` a node has joined the ring, because the auth subsystem is not fully configured until that point
 However, it is often critical for monitoring purposes to have JMX access particularly during bootstrap. So it is
