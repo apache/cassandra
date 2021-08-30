@@ -80,7 +80,7 @@ public class FullQueryLogger implements QueryEvents.Listener
     public static final String QUERIES = "queries";
     public static final String VALUES = "values";
 
-    private static final int EMPTY_BYTEBUFFER_SIZE = Ints.checkedCast(ObjectSizes.sizeOnHeapExcludingData(ByteBuffer.allocate(0)));
+    private static final int EMPTY_BYTEBUFFER_SIZE = Ints.checkedCast(ObjectSizes.sizeOfEmptyHeapByteBuffer());
 
     private static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList(0)));
     private static final int EMPTY_BYTEBUF_SIZE;

@@ -28,6 +28,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
+import static java.lang.String.format;
+
 public class BufferCell extends AbstractCell<ByteBuffer>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new BufferCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, null));
@@ -43,7 +45,7 @@ public class BufferCell extends AbstractCell<ByteBuffer>
     {
         super(column);
         assert !column.isPrimaryKeyColumn();
-        assert column.isComplex() == (path != null);
+        assert column.isComplex() == (path != null) : format("Column %s.%s(%s: %s) isComplex: %b with cellpath: %s", column.ksName, column.cfName, column.name, column.type.toString(), column.isComplex(), path);
         this.timestamp = timestamp;
         this.ttl = ttl;
         this.localDeletionTime = localDeletionTime;
@@ -142,6 +144,6 @@ public class BufferCell extends AbstractCell<ByteBuffer>
 
     public long unsharedHeapSizeExcludingData()
     {
-        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value) + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
+        return EMPTY_SIZE + ObjectSizes.sizeOfEmptyHeapByteBuffer() + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
     }
 }
