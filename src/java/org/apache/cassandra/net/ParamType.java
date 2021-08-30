@@ -25,6 +25,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
+import org.apache.cassandra.utils.Int64Serializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
@@ -58,8 +59,8 @@ public enum ParamType
 
     TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
     TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer),
-    LOCAL_READ_TOO_LARGE_ABORT(10, "LRTLA", Int32Serializer.serializer),
-    LOCAL_READ_TOO_LARGE_WARNING(11, "LRTLW", Int32Serializer.serializer);
+    LOCAL_READ_TOO_LARGE_ABORT(10, "LRTLA", Int64Serializer.serializer),
+    LOCAL_READ_TOO_LARGE_WARNING(11, "LRTLW", Int64Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string

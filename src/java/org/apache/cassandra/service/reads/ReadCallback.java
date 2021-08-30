@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -29,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.MessageParams;
+import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
@@ -56,30 +58,36 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements RequestCallback<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
+
+    private class WarnAbortCounter
+    {
+        final AtomicInteger warnings = new AtomicInteger();
+        // the highest number reported by a node's warning
+        final AtomicLong maxWarningCount = new AtomicLong();
+
+        final AtomicInteger aborts = new AtomicInteger();
+        // the highest number reported by a node's rejection.
+        final AtomicLong maxAbortsCount = new AtomicLong();
+
+        void addWarning(InetAddressAndPort from, long value)
+        {
+            if (!waitingFor(from)) return;
+            warnings.incrementAndGet();
+            maxWarningCount.accumulateAndGet(value, Math::max);
+        }
+
+        void addAbort(InetAddressAndPort from, long value)
+        {
+            if (!waitingFor(from)) return;
+            aborts.incrementAndGet();
+            maxAbortsCount.accumulateAndGet(value, Math::max);
+        }
+    }
+
     private class WarningCounter
     {
-        // the highest number of tombstones reported by a node's warning
-        final AtomicInteger tombstoneWarnings = new AtomicInteger();
-        final AtomicInteger maxTombstoneWarningCount = new AtomicInteger();
-        // the highest number of tombstones reported by a node's rejection. This should be the same as
-        // our configured limit, but including to aid in diagnosing misconfigurations
-        final AtomicInteger tombstoneAborts = new AtomicInteger();
-        final AtomicInteger maxTombstoneAbortsCount = new AtomicInteger();
-
-        // TODO: take message as arg and return boolean for 'had warning' etc
-        void addTombstoneWarning(InetAddressAndPort from, int tombstones)
-        {
-            if (!waitingFor(from)) return;
-            tombstoneWarnings.incrementAndGet();
-            maxTombstoneWarningCount.accumulateAndGet(tombstones, Math::max);
-        }
-
-        void addTombstoneAbort(InetAddressAndPort from, int tombstones)
-        {
-            if (!waitingFor(from)) return;
-            tombstoneAborts.incrementAndGet();
-            maxTombstoneAbortsCount.accumulateAndGet(tombstones, Math::max);
-        }
+        final WarnAbortCounter tombstones = new WarnAbortCounter();
+        final WarnAbortCounter localReadSizeTooLarge = new WarnAbortCounter();
     }
 
     public final ResponseResolver<E, P> resolver;
@@ -143,6 +151,18 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings for query %s  (see tombstone_warn_threshold)", nodes, tombstones, cql);
     }
 
+    @VisibleForTesting
+    public static String localReadSizeTooLargeAbortMessage(long nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes and aborted the query %s (see local_read_too_large_abort_threshold_kb)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String localReadSizeTooLargeWarnMessage(int nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see local_read_too_large_warning_threshold_kb)", nodes, bytes, cql);
+    }
+
     private ColumnFamilyStore cfs()
     {
         return Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
@@ -161,22 +181,54 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         int received = resolver.responses.size();
         boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
         WarningCounter warnings = warningCounter;
+        class Cache {
+            String cql, loggableTokens;
+            String cql()
+            {
+                if (cql == null)
+                    cql = command.toCQLString();
+                return cql;
+            }
+            String loggableTokens()
+            {
+                if (loggableTokens == null)
+                    loggableTokens = command.loggableTokens();
+                return loggableTokens;
+            }
+        }
+        Cache cache = new Cache();
         if (warnings != null)
         {
-            if (warnings.tombstoneAborts.get() > 0)
+            if (warnings.tombstones.aborts.get() > 0)
             {
-                String msg = tombstoneAbortMessage(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get(), command.toCQLString());
-                ClientWarn.instance.warn(msg + " with " + command.loggableTokens());
+                String msg = tombstoneAbortMessage(warnings.tombstones.aborts.get(), Math.toIntExact(warnings.tombstones.maxAbortsCount.get()), cache.cql());
+                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
                 logger.warn(msg);
                 cfs().metric.clientTombstoneAborts.mark();
             }
 
-            if (warnings.tombstoneWarnings.get() > 0)
+            if (warnings.tombstones.warnings.get() > 0)
             {
-                String msg = tombstoneWarnMessage(warnings.tombstoneWarnings.get(), warnings.maxTombstoneWarningCount.get(), command.toCQLString());
-                ClientWarn.instance.warn(msg + " with " + command.loggableTokens());
+                String msg = tombstoneWarnMessage(warnings.tombstones.warnings.get(), Math.toIntExact(warnings.tombstones.maxWarningCount.get()), cache.cql());
+                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
                 logger.warn(msg);
                 cfs().metric.clientTombstoneWarnings.mark();
+            }
+
+            if (warnings.localReadSizeTooLarge.aborts.get() > 0)
+            {
+                String msg = localReadSizeTooLargeAbortMessage(warnings.localReadSizeTooLarge.aborts.get(), warnings.localReadSizeTooLarge.maxAbortsCount.get(), cache.cql());
+                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
+                logger.warn(msg);
+                cfs().metric.clientLocalReadSizeTooLargeAborts.mark();
+            }
+
+            if (warnings.localReadSizeTooLarge.warnings.get() > 0)
+            {
+                String msg = localReadSizeTooLargeWarnMessage(warnings.localReadSizeTooLarge.warnings.get(), warnings.localReadSizeTooLarge.maxWarningCount.get(), cache.cql());
+                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
+                logger.warn(msg);
+                cfs().metric.clientLocalReadSizeTooLargeWarnings.mark();
             }
         }
         if (signaled && !failed)
@@ -193,9 +245,16 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             logger.debug("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
         }
 
-        if (warnings != null && warnings.tombstoneAborts.get() > 0)
-            throw new TombstoneAbortException(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get(), command.toCQLString(), resolver.isDataPresent(),
-                                              replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
+        if (warnings != null)
+        {
+            if (warnings.tombstones.aborts.get() > 0)
+                throw new TombstoneAbortException(warnings.tombstones.aborts.get(), Math.toIntExact(warnings.tombstones.maxAbortsCount.get()), cache.cql(), resolver.isDataPresent(),
+                                                  replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
+
+            if (warnings.localReadSizeTooLarge.aborts.get() > 0)
+                throw new ReadSizeAbortException(localReadSizeTooLargeAbortMessage(warnings.localReadSizeTooLarge.aborts.get(), warnings.localReadSizeTooLarge.maxAbortsCount.get(), cache.cql()),
+                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
+        }
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
@@ -215,13 +274,23 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         Map<ParamType, Object> params = message.header.params();
         if (params.containsKey(ParamType.TOMBSTONE_ABORT))
         {
-            getWarningCounter().addTombstoneAbort(message.from(), (Integer) params.get(ParamType.TOMBSTONE_ABORT));
+            getWarningCounter().tombstones.addAbort(message.from(), (Integer) params.get(ParamType.TOMBSTONE_ABORT));
             onFailure(message.from(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
             return;
         }
         else if (params.containsKey(ParamType.TOMBSTONE_WARNING))
         {
-            getWarningCounter().addTombstoneWarning(message.from(), (Integer) params.get(ParamType.TOMBSTONE_WARNING));
+            getWarningCounter().tombstones.addWarning(message.from(), (Integer) params.get(ParamType.TOMBSTONE_WARNING));
+        }
+        if (params.containsKey(ParamType.LOCAL_READ_TOO_LARGE_ABORT))
+        {
+            getWarningCounter().localReadSizeTooLarge.addAbort(message.from(), (Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_ABORT));
+            onFailure(message.from(), RequestFailureReason.READ_TOO_LARGE);
+            return;
+        }
+        else if (params.containsKey(ParamType.LOCAL_READ_TOO_LARGE_WARNING))
+        {
+            getWarningCounter().localReadSizeTooLarge.addWarning(message.from(), (Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_WARNING));
         }
         resolver.preprocess(message);
 

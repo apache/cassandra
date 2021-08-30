@@ -159,6 +159,9 @@ public class KeyspaceMetrics
     public final Meter clientReadSizeWarnings;
     public final Meter clientReadSizeAborts;
 
+    public final Meter clientLocalReadSizeTooLargeWarnings;
+    public final Meter clientLocalReadSizeTooLargeAborts;
+
     public final MetricNameFactory factory;
     private Keyspace keyspace;
 
@@ -247,6 +250,9 @@ public class KeyspaceMetrics
 
         clientReadSizeWarnings = createKeyspaceMeter("ClientReadSizeWarnings");
         clientReadSizeAborts = createKeyspaceMeter("ClientReadSizeAborts");
+
+        clientLocalReadSizeTooLargeWarnings = createKeyspaceMeter("ClientLocalReadSizeTooLargeWarnings");
+        clientLocalReadSizeTooLargeAborts = createKeyspaceMeter("ClientLocalReadSizeTooLargeAborts");
     }
 
     /**

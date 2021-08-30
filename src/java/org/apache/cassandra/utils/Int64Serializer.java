@@ -16,24 +16,34 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.exceptions;
+package org.apache.cassandra.utils;
 
-import java.util.Map;
+import java.io.IOException;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
-import static org.apache.cassandra.service.reads.ReadCallback.tombstoneAbortMessage;
-
-public class TombstoneAbortException extends ReadAbortException
+public class Int64Serializer implements IVersionedSerializer<Long>
 {
-    public final int nodes;
-    public final long tombstones;
+    public static final Int64Serializer serializer = new Int64Serializer();
 
-    public TombstoneAbortException(int nodes, int tombstones, String cql, boolean dataPresent, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    @Override
+    public void serialize(Long t, DataOutputPlus out, int version) throws IOException
     {
-        super(tombstoneAbortMessage(nodes, tombstones, cql), consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
-        this.nodes = nodes;
-        this.tombstones = tombstones;
+        out.writeLong(t);
+    }
+
+    @Override
+    public Long deserialize(DataInputPlus in, int version) throws IOException
+    {
+        return in.readLong();
+    }
+
+    @Override
+    public long serializedSize(Long t, int version)
+    {
+        return TypeSizes.sizeof(t);
     }
 }

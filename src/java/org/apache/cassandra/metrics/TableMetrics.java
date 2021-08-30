@@ -263,6 +263,8 @@ public class TableMetrics
     public final TableMeter clientTombstoneAborts;
     public final TableMeter clientReadSizeWarnings;
     public final TableMeter clientReadSizeAborts;
+    public final TableMeter clientLocalReadSizeTooLargeWarnings;
+    public final TableMeter clientLocalReadSizeTooLargeAborts;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -924,6 +926,9 @@ public class TableMetrics
 
         clientReadSizeWarnings = createTableMeter("ClientReadSizeWarnings", cfs.keyspace.metric.clientReadSizeWarnings);
         clientReadSizeAborts = createTableMeter("ClientReadSizeAborts", cfs.keyspace.metric.clientReadSizeAborts);
+
+        clientLocalReadSizeTooLargeWarnings = createTableMeter("ClientLocalReadSizeTooLargeWarnings", cfs.keyspace.metric.clientLocalReadSizeTooLargeWarnings);
+        clientLocalReadSizeTooLargeAborts = createTableMeter("ClientLocalReadSizeTooLargeAborts", cfs.keyspace.metric.clientLocalReadSizeTooLargeAborts);
     }
 
     public void updateSSTableIterated(int count)

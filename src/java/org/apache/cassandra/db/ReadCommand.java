@@ -652,7 +652,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
             {
                 currentKey = iter.partitionKey();
-                sizeInBytes += currentKey.getKey().remaining() + ObjectSizes.sizeOfEmptyHeapByteBuffer();
+                //TODO once CASSANDRA-16900 merges, add ObjectSizes.sizeOfEmptyHeapByteBuffer()
+                sizeInBytes += currentKey.getKey().remaining();
                 return Transformation.apply(iter, this);
             }
 
