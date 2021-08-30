@@ -540,10 +540,12 @@
             <exclusion groupId="org.eclipse.jdt" artifactId="core"/>
             <exclusion groupId="ant" artifactId="ant"/>
             <exclusion groupId="junit" artifactId="junit"/>
+            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3" scope="provided">
             <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
+            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.6.0"/>
