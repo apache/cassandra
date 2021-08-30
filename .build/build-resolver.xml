@@ -25,14 +25,11 @@
     <property name="resolver-ant-tasks.url" value="https://repo1.maven.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
 
     <!-- version of lib/ downloads -->
-    <property name="lib.download.sha" value="6c29ee84a2f62ccd05c328bbaa0c364eb1a7a821"/>
+    <property name="lib.download.sha" value="27de93ebb1285e731570eb8585d66832c79c4289"/>
 
     <condition property="resolver-ant-tasks.jar.exists">
         <available file="${resolver-ant-tasks.local}" />
     </condition>
-
-    <!-- version of lib/ downloads -->
-    <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
 
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
