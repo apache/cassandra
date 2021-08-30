@@ -35,7 +35,6 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -271,10 +270,19 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException;
 
     /**
-     *  Get the details of all the snapshot
+     * Get the details of all the snapshot
      * @return A map of snapshotName to all its details in Tabular form.
      */
+    @Deprecated
     public Map<String, TabularData> getSnapshotDetails();
+
+    /**
+     * Get the details of all the snapshots
+     *
+     * @param options map of options used for filtering of snapshots
+     * @return A map of snapshotName to all its details in Tabular form.
+     */
+    public Map<String, TabularData> getSnapshotDetails(Map<String, String> options);
 
     /**
      * Get the true size taken by all snapshots across all keyspaces.
@@ -556,7 +564,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setNativeTransportMaxConcurrentRequestsInBytes(long newLimit);
     public long getNativeTransportMaxConcurrentRequestsInBytesPerIp();
     public void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long newLimit);
-
+    public int getNativeTransportMaxRequestsPerSecond();
+    public void setNativeTransportMaxRequestsPerSecond(int newPerSecond);
+    public void setNativeTransportRateLimitingEnabled(boolean enabled);
+    public boolean getNativeTransportRateLimitingEnabled();
 
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException;
@@ -790,8 +801,22 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Clears the history of clients that have connected in the past **/
     void clearConnectionHistory();
     public void disableAuditLog();
-    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
-    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException;
+
+    @Deprecated
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException;
+
+    @Deprecated
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException;
+
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException;
+
     public boolean isAuditLogEnabled();
     public String getCorruptedTombstoneStrategy();
     public void setCorruptedTombstoneStrategy(String strategy);
@@ -859,4 +884,11 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setCompactionTombstoneWarningThreshold(int count);
     public int getCompactionTombstoneWarningThreshold();
+
+     public long getClientLargeReadWarnThresholdKB();
+     public void setClientLargeReadWarnThresholdKB(long threshold);
+     public long getClientLargeReadAbortThresholdKB();
+     public void setClientLargeReadAbortThresholdKB(long threshold);
+     public boolean getClientTrackWarningsEnabled();
+     public void setClientTrackWarningsEnabled(boolean value);
 }

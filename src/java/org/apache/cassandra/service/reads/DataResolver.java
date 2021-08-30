@@ -60,12 +60,19 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 {
     private final boolean enforceStrictLiveness;
     private final ReadRepair<E, P> readRepair;
+    private final boolean trackRepairedStatus;
 
     public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
+    {
+        this(command, replicaPlan, readRepair, queryStartNanoTime, false);
+    }
+
+    public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
     {
         super(command, replicaPlan, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
+        this.trackRepairedStatus = trackRepairedStatus;
     }
 
     public PartitionIterator getData()
@@ -89,7 +96,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         E replicas = replicaPlan().candidates().select(transform(messages, Message::from), false);
 
         // If requested, inspect each response for a digest of the replica's repaired data set
-        RepairedDataTracker repairedDataTracker = command.isTrackingRepairedStatus()
+        RepairedDataTracker repairedDataTracker = trackRepairedStatus
                                                   ? new RepairedDataTracker(getRepairedDataVerifier(command))
                                                   : null;
         if (repairedDataTracker != null)

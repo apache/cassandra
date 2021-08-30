@@ -19,6 +19,8 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashSet;
@@ -60,6 +62,17 @@ public class SchemaKeyspaceTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
+
+    /** See CASSANDRA-16856. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+    *
+    * @throws Exception
+    */
+   @Test
+   public void testSchemaPullSynchoricity() throws Exception
+   {
+       Method method = SchemaKeyspace.class.getDeclaredMethod("convertSchemaToMutations");
+       assertTrue(Modifier.isSynchronized(method.getModifiers()));
+   }
 
     @Test
     public void testConversionsInverses() throws Exception
