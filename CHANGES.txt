@@ -1,3 +1,6 @@
+4.0.2
+ * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
+
 4.0.1
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
  * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)

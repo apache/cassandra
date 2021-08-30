@@ -326,14 +326,17 @@ public final class CreateViewStatement extends AlterSchemaStatement
     private AbstractType<?> getType(TableMetadata table, ColumnIdentifier name)
     {
         AbstractType<?> type = table.getColumn(name).type;
-        boolean reverse = !clusteringOrder.getOrDefault(name, true);
+        if (clusteringOrder.containsKey(name))
+        {
+            boolean reverse = !clusteringOrder.get(name);
 
-        if (type.isReversed() && !reverse)
-            return ((ReversedType) type).baseType;
-        else if (!type.isReversed() && reverse)
-            return ReversedType.getInstance(type);
-        else
-            return type;
+            if (type.isReversed() && !reverse)
+                return ((ReversedType) type).baseType;
+
+            if (!type.isReversed() && reverse)
+                return ReversedType.getInstance(type);
+        }
+        return type;
     }
 
     @Override
