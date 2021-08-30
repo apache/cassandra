@@ -497,6 +497,19 @@ public class BTreeRow extends AbstractRow
         return Ints.checkedCast(accumulate((cd, v) -> v + cd.dataSize(), dataSize));
     }
 
+    @Override
+    public long unsharedHeapSize()
+    {
+        long heapSize = EMPTY_SIZE
+                        + clustering.unsharedHeapSize()
+                        + primaryKeyLivenessInfo.unsharedHeapSize()
+                        + deletion.unsharedHeapSize()
+                        + BTree.sizeOfStructureOnHeap(btree);
+
+        return accumulate((cd, v) -> v + cd.unsharedHeapSize(), heapSize);
+    }
+
+    @Override
     public long unsharedHeapSizeExcludingData()
     {
         long heapSize = EMPTY_SIZE

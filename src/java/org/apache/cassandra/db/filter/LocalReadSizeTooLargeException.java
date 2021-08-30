@@ -16,24 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.exceptions;
+package org.apache.cassandra.db.filter;
 
-import java.util.Map;
+import org.apache.cassandra.db.RejectException;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.locator.InetAddressAndPort;
-
-import static org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot.tombstoneAbortMessage;
-
-public class TombstoneAbortException extends ReadAbortException
+public class LocalReadSizeTooLargeException extends RejectException
 {
-    public final int nodes;
-    public final long tombstones;
-
-    public TombstoneAbortException(int nodes, long tombstones, String cql, boolean dataPresent, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    public LocalReadSizeTooLargeException(String message)
     {
-        super(tombstoneAbortMessage(nodes, tombstones, cql), consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
-        this.nodes = nodes;
-        this.tombstones = tombstones;
+        super(message);
     }
 }

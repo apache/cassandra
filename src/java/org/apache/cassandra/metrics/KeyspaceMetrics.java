@@ -156,8 +156,17 @@ public class KeyspaceMetrics
     public final Meter clientTombstoneWarnings;
     public final Meter clientTombstoneAborts;
 
-    public final Meter clientReadSizeWarnings;
-    public final Meter clientReadSizeAborts;
+    public final Meter coordinatorReadSizeWarnings;
+    public final Meter coordinatorReadSizeAborts;
+    public final Histogram coordinatorReadSize;
+
+    public final Meter localReadSizeWarnings;
+    public final Meter localReadSizeAborts;
+    public final Histogram localReadSize;
+
+    public final Meter rowIndexSizeWarnings;
+    public final Meter rowIndexSizeAborts;
+    public final Histogram rowIndexSize;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -245,8 +254,17 @@ public class KeyspaceMetrics
         clientTombstoneWarnings = createKeyspaceMeter("ClientTombstoneWarnings");
         clientTombstoneAborts = createKeyspaceMeter("ClientTombstoneAborts");
 
-        clientReadSizeWarnings = createKeyspaceMeter("ClientReadSizeWarnings");
-        clientReadSizeAborts = createKeyspaceMeter("ClientReadSizeAborts");
+        coordinatorReadSizeWarnings = createKeyspaceMeter("CoordinatorReadSizeWarnings");
+        coordinatorReadSizeAborts = createKeyspaceMeter("CoordinatorReadSizeAborts");
+        coordinatorReadSize = createKeyspaceHistogram("CoordinatorReadSize", false);
+
+        localReadSizeWarnings = createKeyspaceMeter("LocalReadSizeWarnings");
+        localReadSizeAborts = createKeyspaceMeter("LocalReadSizeAborts");
+        localReadSize = createKeyspaceHistogram("LocalReadSize", false);
+
+        rowIndexSizeWarnings = createKeyspaceMeter("RowIndexSizeWarnings");
+        rowIndexSizeAborts = createKeyspaceMeter("RowIndexSizeAborts");
+        rowIndexSize = createKeyspaceHistogram("RowIndexSize", false);
     }
 
     /**

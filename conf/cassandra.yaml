@@ -1459,15 +1459,25 @@ enable_drop_compact_storage: false
 #    - 127.0.0.0/31
 
 # Enables tracking warnings/aborts across all replicas for reporting back to client.
-# Scheduled to enable in 4.2
 # See: CASSANDRA-16850
-# See: tombstone_warn_threshold, tombstone_failure_threshold, client_large_read_warn_threshold_kb, and client_large_read_abort_threshold_kb
-#client_track_warnings_enabled: false
-
-# When client_track_warnings_enabled: true, this tracks the materialized size of a query on the
-# coordinator. If client_large_read_warn_threshold_kb is greater than 0, this will emit a warning
-# to clients with details on what query triggered this as well as the size of the result set; if
-# client_large_read_abort_threshold_kb is greater than 0, this will abort the query after it
-# has exceeded this threshold, returning a read error to the user.
-#client_large_read_warn_threshold_kb: 0
-#client_large_read_abort_threshold_kb: 0
+#track_warnings:
+#	# Scheduled to enable in 4.2
+#	enabled: false
+#	# When track_warnings.enabled: true, this tracks the materialized size of a query on the
+#	# coordinator. If coordinator_large_read.warn_threshold_kb is greater than 0, this will emit a warning
+#	# to clients with details on what query triggered this as well as the size of the result set; if
+#	# coordinator_large_read.abort_threshold_kb is greater than 0, this will abort the query after it
+#	# has exceeded this threshold, returning a read error to the user.
+#	coordinator_large_read:
+#		warn_threshold_kb: 0
+#		abort_threshold_kb: 0
+#	# When track_warnings.enabled: true, this tracks the size of the local read (as defined by
+#	# heap size), and will warn/abort based off these thresholds; 0 disables these checks.
+#	local_read_size:
+#		warn_threshold_kb: 0
+#		abort_threshold_kb: 0
+#	# When track_warnings.enabled: true, this tracks the expected memory size of the RowIndexEntry
+#	# and will warn/abort based off these thresholds; 0 disables these checks.
+#	row_index_size:
+#		warn_threshold_kb: 0
+#		abort_threshold_kb: 0

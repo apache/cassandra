@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.util.*;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
@@ -27,7 +28,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * <p>
  * There is 2 types of markers: bounds (see {@link RangeTombstoneBoundMarker}) and boundaries (see {@link RangeTombstoneBoundaryMarker}).
  */
-public interface RangeTombstoneMarker extends Unfiltered
+public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
 {
     @Override
     public ClusteringBoundOrBoundary<?> clustering();
