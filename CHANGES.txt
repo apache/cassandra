@@ -1,4 +1,5 @@
 4.1
+ * Add number of sstables in a compaction to compactionstats output (CASSANDRA-16844)
  * Upgrade Caffeine to 2.9.2 (CASSANDRA-15153)
  * Allow DELETE and TRUNCATE to work on Virtual Tables if the implementation allows it (CASSANDRA-16806)
  * Include SASI components to snapshots (CASSANDRA-15134)
