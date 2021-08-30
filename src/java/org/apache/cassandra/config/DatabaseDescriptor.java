@@ -688,6 +688,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
+        applyReadWarningValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -857,9 +858,6 @@ public class DatabaseDescriptor
             throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
                                              "set the system property cassandra.allow_unlimited_concurrent_validations=true");
         }
-
-        conf.client_large_read_warn_threshold_kb = Math.max(conf.client_large_read_warn_threshold_kb, 0);
-        conf.client_large_read_abort_threshold_kb = Math.max(conf.client_large_read_abort_threshold_kb, 0);
     }
 
     @VisibleForTesting
@@ -867,6 +865,24 @@ public class DatabaseDescriptor
     {
         if (config.repair_command_pool_size < 1)
             config.repair_command_pool_size = config.concurrent_validations;
+    }
+
+    @VisibleForTesting
+    static void applyReadWarningValidations(Config config)
+    {
+        // coordinator
+        config.client_large_read_warn_threshold_kb = Math.max(config.client_large_read_warn_threshold_kb, 0);
+        config.client_large_read_abort_threshold_kb = Math.max(config.client_large_read_abort_threshold_kb, 0);
+        if (config.client_large_read_abort_threshold_kb < config.client_large_read_warn_threshold_kb)
+            throw new ConfigurationException(String.format("client_large_read_abort_threshold_kb (%d) must be greater than or equal to client_large_read_warn_threshold_kb (%d)",
+                                                           config.client_large_read_abort_threshold_kb, config.client_large_read_warn_threshold_kb));
+
+        // local
+        config.local_read_too_large_warning_threshold_kb = Math.max(config.local_read_too_large_warning_threshold_kb, 0);
+        config.local_read_too_large_abort_threshold_kb = Math.max(config.local_read_too_large_abort_threshold_kb, 0);
+        if (config.local_read_too_large_abort_threshold_kb < config.local_read_too_large_warning_threshold_kb)
+            throw new ConfigurationException(String.format("local_read_too_large_abort_threshold_kb (%d) must be greater than or equal to local_read_too_large_warning_threshold_kb (%d)",
+                                                           config.local_read_too_large_abort_threshold_kb, config.local_read_too_large_warning_threshold_kb));
     }
 
     private static String storagedirFor(String type)
@@ -3485,5 +3501,25 @@ public class DatabaseDescriptor
     public static void setClientTrackWarningsEnabled(boolean value)
     {
         conf.client_track_warnings_enabled = value;
+    }
+
+    public static long getLocalReadTooLargeWarningThresholdKb()
+    {
+        return conf.local_read_too_large_warning_threshold_kb;
+    }
+
+    public static void setLocalReadTooLargeWarningThresholdKb(long value)
+    {
+        conf.local_read_too_large_warning_threshold_kb = value;
+    }
+
+    public static long getLocalReadTooLargeAbortThresholdKb()
+    {
+        return conf.local_read_too_large_abort_threshold_kb;
+    }
+
+    public static void setLocalReadTooLargeAbortThresholdKb(long value)
+    {
+        conf.local_read_too_large_abort_threshold_kb = value;
     }
 }

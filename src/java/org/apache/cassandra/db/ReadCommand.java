@@ -67,6 +67,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -406,6 +407,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         try
         {
+            iterator = withQuerySizeTracking(iterator);
             iterator = withStateTracking(iterator);
             iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
             iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
@@ -630,6 +632,79 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (!metadata().keyspace.startsWith("system"))
                 FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
         }
+    }
+
+    private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)
+    {
+        if (!trackWarnings || SchemaConstants.isSystemKeyspace(metadata().keyspace)) // exclude internal keyspaces
+            return iterator;
+        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadTooLargeWarningThresholdKb() * 1024;
+        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadTooLargeAbortThresholdKb() * 1024;
+        if (warnThresholdBytes == 0 && abortThresholdBytes == 0)
+            return iterator;
+        //TODO Heap Size or logical size?
+        class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
+        {
+            private DecoratedKey currentKey;
+            private long sizeInBytes = 0;
+
+            @Override
+            public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
+            {
+                currentKey = iter.partitionKey();
+                sizeInBytes += currentKey.getKey().remaining() + ObjectSizes.sizeOfEmptyHeapByteBuffer();
+                return Transformation.apply(iter, this);
+            }
+
+            @Override
+            protected Row applyToStatic(Row row)
+            {
+                return applyToRow(row);
+            }
+
+            @Override
+            protected Row applyToRow(Row row)
+            {
+                //TODO should I add unsharedHeapSize() to row?
+                addSize(row.unsharedHeapSizeExcludingData() + row.dataSize());
+                return row;
+            }
+
+            //TODO no API to track size
+//            @Override
+//            protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+//            {
+//                addSize(marker.i);
+//                return marker;
+//            }
+
+            @Override
+            protected DeletionTime applyToDeletion(DeletionTime deletionTime)
+            {
+                addSize(deletionTime.unsharedHeapSize());
+                return deletionTime;
+            }
+
+            private void addSize(long size)
+            {
+                this.sizeInBytes += size;
+                if (abortThresholdBytes > 0 && this.sizeInBytes >= abortThresholdBytes)
+                {
+                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see local_read_too_large_abort_threshold_kb)",
+                                               ReadCommand.this.toCQLString(), this.sizeInBytes, abortThresholdBytes);
+                    Tracing.trace(msg);
+                    MessageParams.remove(ParamType.LOCAL_READ_TOO_LARGE_WARNING);
+                    MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_ABORT, this.sizeInBytes);
+                    throw new LocalReadSizeTooLargeException(msg);
+                } else if (warnThresholdBytes > 0 && this.sizeInBytes >= warnThresholdBytes)
+                {
+                    MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_WARNING, this.sizeInBytes);
+                }
+            }
+        }
+
+        iterator = Transformation.apply(iterator, new QuerySizeTracking());
+        return iterator;
     }
 
     protected UnfilteredPartitionIterator withStateTracking(UnfilteredPartitionIterator iter)

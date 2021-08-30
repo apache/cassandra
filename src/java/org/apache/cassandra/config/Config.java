@@ -349,8 +349,12 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    // coordiantor reads
     public volatile long client_large_read_warn_threshold_kb = 0;
     public volatile long client_large_read_abort_threshold_kb = 0;
+    // local reads
+    public volatile long local_read_too_large_warning_threshold_kb = 0;
+    public volatile long local_read_too_large_abort_threshold_kb = 0;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 

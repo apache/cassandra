@@ -36,6 +36,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -592,5 +593,67 @@ public class DatabaseDescriptorTest
 
         Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
         Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
+    }
+
+    @Test
+    public void testClientLargeReadWarnAndAbortNegative()
+    {
+        Config conf = new Config();
+        conf.client_large_read_warn_threshold_kb = -2;
+        conf.client_large_read_abort_threshold_kb = -2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+        Assertions.assertThat(conf.client_large_read_warn_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.client_large_read_abort_threshold_kb).isEqualTo(0);
+    }
+
+    @Test
+    public void testClientLargeReadWarnGreaterThanAbort()
+    {
+        Config conf = new Config();
+        conf.client_large_read_warn_threshold_kb = 2;
+        conf.client_large_read_abort_threshold_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("client_large_read_abort_threshold_kb (1) must be greater than or equal to client_large_read_warn_threshold_kb (2)");
+    }
+
+    @Test
+    public void testClientLargeReadWarnEqAbort()
+    {
+        Config conf = new Config();
+        conf.client_large_read_warn_threshold_kb = 2;
+        conf.client_large_read_abort_threshold_kb = 2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
+    @Test
+    public void testLocalLargeReadWarnAndAbortNegative()
+    {
+        Config conf = new Config();
+        conf.local_read_too_large_warning_threshold_kb = -2;
+        conf.local_read_too_large_abort_threshold_kb = -2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+        Assertions.assertThat(conf.local_read_too_large_warning_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.local_read_too_large_abort_threshold_kb).isEqualTo(0);
+    }
+
+    @Test
+    public void testLocalLargeReadWarnGreaterThanAbort()
+    {
+        Config conf = new Config();
+        conf.local_read_too_large_warning_threshold_kb = 2;
+        conf.local_read_too_large_abort_threshold_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("local_read_too_large_abort_threshold_kb (1) must be greater than or equal to local_read_too_large_warning_threshold_kb (2)");
+    }
+
+    @Test
+    public void testLocalLargeReadWarnEqAbort()
+    {
+        Config conf = new Config();
+        conf.local_read_too_large_warning_threshold_kb = 2;
+        conf.local_read_too_large_abort_threshold_kb = 2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 }

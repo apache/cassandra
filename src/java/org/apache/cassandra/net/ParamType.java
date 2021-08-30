@@ -57,7 +57,9 @@ public enum ParamType
     TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
 
     TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
-    TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer);
+    TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer),
+    LOCAL_READ_TOO_LARGE_ABORT(10, "LRTLA", Int32Serializer.serializer),
+    LOCAL_READ_TOO_LARGE_WARNING(11, "LRTLW", Int32Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string
