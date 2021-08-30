@@ -142,6 +142,13 @@ public class BufferCell extends AbstractCell<ByteBuffer>
         return new BufferCell(column, timestamp, ttl, localDeletionTime, allocator.clone(value), path == null ? null : path.copy(allocator));
     }
 
+    @Override
+    public long unsharedHeapSize()
+    {
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(value) + (path == null ? 0 : path.unsharedHeapSize());
+    }
+
+    @Override
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE + ObjectSizes.sizeOfEmptyHeapByteBuffer() + (path == null ? 0 : path.unsharedHeapSizeExcludingData());

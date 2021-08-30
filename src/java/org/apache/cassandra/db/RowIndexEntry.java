@@ -24,6 +24,7 @@ import java.util.List;
 import com.codahale.metrics.Histogram;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.RowIndexEntryTooLargeException;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -36,6 +37,9 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
+import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
 import org.github.jamm.Unmetered;
@@ -324,6 +328,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
                 int columnsIndexCount = (int) in.readUnsignedVInt();
 
+                checkSize(columnsIndexCount, size);
+
                 int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount);
 
                 if (size <= DatabaseDescriptor.getColumnIndexCacheSize())
@@ -341,6 +347,51 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                                    indexedPartSize, idxInfoSerializer);
                 }
             }
+        }
+
+        private void checkSize(int entries, int bytes)
+        {
+            ReadCommand command = ReadCommand.getCommand();
+            if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getTrackWarningsEnabled())
+                return;
+
+            int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKb() * 1024;
+            int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKb() * 1024;
+            if (warnThreshold == 0 && abortThreshold == 0)
+                return;
+
+            long estimatedMemory = estimateMaterializedIndexSize(entries, bytes);
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
+            if (cfs != null)
+                cfs.metric.rowIndexSize.update(estimatedMemory);
+
+            if (abortThreshold != 0 && estimatedMemory > abortThreshold)
+            {
+                String msg = String.format("Query %s attempted to access a large RowIndexEntry estimated to be %d bytes " +
+                                           "in-memory (total entries: %d, total bytes: %d) but the max allowed is %d;" +
+                                           " query aborted  (see row_index_size_abort_threshold_kb)",
+                                           command.toCQLString(), estimatedMemory, entries, bytes, abortThreshold);
+                MessageParams.remove(ParamType.ROW_INDEX_SIZE_WARN);
+                MessageParams.add(ParamType.ROW_INDEX_SIZE_ABORT, estimatedMemory);
+
+                throw new RowIndexEntryTooLargeException(msg);
+            }
+            else if (warnThreshold != 0 && estimatedMemory > warnThreshold)
+            {
+                // use addIfLarger rather than add as a previous partition may be larger than this one
+                Long current = MessageParams.get(ParamType.ROW_INDEX_SIZE_WARN);
+                if (current == null || current.compareTo(estimatedMemory) < 0)
+                    MessageParams.add(ParamType.ROW_INDEX_SIZE_WARN, estimatedMemory);
+            }
+        }
+
+        private static long estimateMaterializedIndexSize(int entries, int bytes)
+        {
+            long overhead = IndexInfo.EMPTY_SIZE
+                            + ArrayClustering.EMPTY_SIZE
+                            + DeletionTime.EMPTY_SIZE;
+
+            return (overhead * entries) + bytes;
         }
 
         public long deserializePositionAndSkip(DataInputPlus in) throws IOException

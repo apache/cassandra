@@ -688,6 +688,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
+        applyTrackWarningsValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -857,9 +858,6 @@ public class DatabaseDescriptor
             throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
                                              "set the system property cassandra.allow_unlimited_concurrent_validations=true");
         }
-
-        conf.client_large_read_warn_threshold_kb = Math.max(conf.client_large_read_warn_threshold_kb, 0);
-        conf.client_large_read_abort_threshold_kb = Math.max(conf.client_large_read_abort_threshold_kb, 0);
     }
 
     @VisibleForTesting
@@ -867,6 +865,12 @@ public class DatabaseDescriptor
     {
         if (config.repair_command_pool_size < 1)
             config.repair_command_pool_size = config.concurrent_validations;
+    }
+
+    @VisibleForTesting
+    static void applyTrackWarningsValidations(Config config)
+    {
+        config.track_warnings.validate("track_warnings");
     }
 
     private static String storagedirFor(String type)
@@ -3477,33 +3481,73 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
-    public static long getClientLargeReadWarnThresholdKB()
+    public static boolean getTrackWarningsEnabled()
     {
-        return conf.client_large_read_warn_threshold_kb;
+        return conf.track_warnings.enabled;
     }
 
-    public static void setClientLargeReadWarnThresholdKB(long threshold)
+    public static void setTrackWarningsEnabled(boolean value)
     {
-        conf.client_large_read_warn_threshold_kb = Math.max(threshold, 0);
+        conf.track_warnings.enabled = value;
     }
 
-    public static long getClientLargeReadAbortThresholdKB()
+    public static long getCoordinatorReadSizeWarnThresholdKB()
     {
-        return conf.client_large_read_abort_threshold_kb;
+        return conf.track_warnings.coordinator_read_size.getWarnThresholdKb();
     }
 
-    public static void setClientLargeReadAbortThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeWarnThresholdKB(long threshold)
     {
-        conf.client_large_read_abort_threshold_kb = Math.max(threshold, 0);
+        conf.track_warnings.coordinator_read_size.setWarnThresholdKb(threshold);
     }
 
-    public static boolean getClientTrackWarningsEnabled()
+    public static long getCoordinatorReadSizeAbortThresholdKB()
     {
-        return conf.client_track_warnings_enabled;
+        return conf.track_warnings.coordinator_read_size.getAbortThresholdKb();
     }
 
-    public static void setClientTrackWarningsEnabled(boolean value)
+    public static void setCoordinatorReadSizeAbortThresholdKB(long threshold)
     {
-        conf.client_track_warnings_enabled = value;
+        conf.track_warnings.coordinator_read_size.setAbortThresholdKb(threshold);
+    }
+
+    public static long getLocalReadSizeWarnThresholdKb()
+    {
+        return conf.track_warnings.local_read_size.getWarnThresholdKb();
+    }
+
+    public static void setLocalReadSizeWarnThresholdKb(long value)
+    {
+        conf.track_warnings.local_read_size.setWarnThresholdKb(value);
+    }
+
+    public static long getLocalReadSizeAbortThresholdKb()
+    {
+        return conf.track_warnings.local_read_size.getAbortThresholdKb();
+    }
+
+    public static void setLocalReadSizeAbortThresholdKb(long value)
+    {
+        conf.track_warnings.local_read_size.setAbortThresholdKb(value);
+    }
+
+    public static int getRowIndexSizeWarnThresholdKb()
+    {
+        return conf.track_warnings.row_index_size.getWarnThresholdKb();
+    }
+
+    public static void setRowIndexSizeWarnThresholdKb(int value)
+    {
+        conf.track_warnings.row_index_size.setWarnThresholdKb(value);
+    }
+
+    public static int getRowIndexSizeAbortThresholdKb()
+    {
+        return conf.track_warnings.row_index_size.getAbortThresholdKb();
+    }
+
+    public static void setRowIndexSizeAbortThresholdKb(int value)
+    {
+        conf.track_warnings.row_index_size.setAbortThresholdKb(value);
     }
 }

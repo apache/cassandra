@@ -90,6 +90,12 @@ public class QueryMessage extends Message.Request
     }
 
     @Override
+    protected boolean isTrackable()
+    {
+        return true;
+    }
+
+    @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         CQLStatement statement = null;

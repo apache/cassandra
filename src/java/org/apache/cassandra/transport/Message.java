@@ -209,7 +209,18 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
+        /**
+         * @return true if the execution of this {@link Request} should be recorded in a tracing session
+         */
         protected boolean isTraceable()
+        {
+            return false;
+        }
+
+        /**
+         * @return true if warnings should be tracked and aborts enforced for resource limits on this {@link Request}
+         */
+        protected boolean isTrackable()
         {
             return false;
         }

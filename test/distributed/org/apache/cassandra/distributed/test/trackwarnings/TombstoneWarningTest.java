@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test;
+package org.apache.cassandra.distributed.test.trackwarnings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -44,14 +44,17 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.test.JavaDriverUtils;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.assertj.core.api.Assertions;
 
-public class ClientTombstoneWarningTest extends TestBaseImpl
+public class TombstoneWarningTest extends TestBaseImpl
 {
     private static final int TOMBSTONE_WARN = 50;
     private static final int TOMBSTONE_FAIL = 100;
@@ -90,7 +93,7 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
 
     private static void enable(boolean value)
     {
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setClientTrackWarningsEnabled(value)));
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setTrackWarningsEnabled(value)));
     }
 
     @Test
@@ -194,6 +197,7 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         enable(true);
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
+            CoordinatorWarnings.init();
             try
             {
                 QueryProcessor.execute(cql, org.apache.cassandra.db.ConsistencyLevel.ALL, QueryState.forInternalCalls());
@@ -205,6 +209,8 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
                 Assert.assertEquals(TOMBSTONE_FAIL + 1, e.tombstones);
                 // expected, client transport returns an error message and includes client warnings
             }
+            CoordinatorWarnings.done();
+            CoordinatorWarnings.reset();
             return ClientWarn.instance.getWarnings();
         }).call();
         Assertions.assertThat(Iterables.getOnlyElement(warnings))

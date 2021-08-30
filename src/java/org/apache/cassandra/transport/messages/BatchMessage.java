@@ -161,6 +161,12 @@ public class BatchMessage extends Message.Request
     }
 
     @Override
+    protected boolean isTrackable()
+    {
+        return true;
+    }
+
+    @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         List<QueryHandler.Prepared> prepared = null;

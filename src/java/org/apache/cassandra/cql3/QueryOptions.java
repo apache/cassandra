@@ -219,19 +219,19 @@ public abstract class QueryOptions
 
     abstract TrackWarnings getTrackWarnings();
 
-    public boolean isClientTrackWarningsEnabled()
+    public boolean isTrackWarningsEnabled()
     {
         return getTrackWarnings().isEnabled();
     }
 
-    public long getClientLargeReadWarnThresholdKb()
+    public long getCoordinatorReadSizeWarnThresholdKB()
     {
-        return getTrackWarnings().getClientLargeReadWarnThresholdKb();
+        return getTrackWarnings().getCoordinatorReadSizeWarnThresholdKB();
     }
 
-    public long getClientLargeReadAbortThresholdKB()
+    public long getCoordinatorReadSizeAbortThresholdKB()
     {
-        return getTrackWarnings().getClientLargeReadAbortThresholdKB();
+        return getTrackWarnings().getCoordinatorReadSizeAbortThresholdKB();
     }
 
     public QueryOptions prepare(List<ColumnSpecification> specs)
@@ -243,21 +243,21 @@ public abstract class QueryOptions
     {
         boolean isEnabled();
 
-        long getClientLargeReadWarnThresholdKb();
+        long getCoordinatorReadSizeWarnThresholdKB();
 
-        long getClientLargeReadAbortThresholdKB();
+        long getCoordinatorReadSizeAbortThresholdKB();
 
         static TrackWarnings create()
         {
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
             if (!DatabaseDescriptor.isDaemonInitialized())
                 return DisabledTrackWarnings.INSTANCE;
-            boolean enabled = DatabaseDescriptor.getClientTrackWarningsEnabled();
+            boolean enabled = DatabaseDescriptor.getTrackWarningsEnabled();
             if (!enabled)
                 return DisabledTrackWarnings.INSTANCE;
-            long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
-            long clientLargeReadAbortThresholdKB = DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
-            return new DefaultTrackWarnings(clientLargeReadWarnThresholdKb, clientLargeReadAbortThresholdKB);
+            long warnThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
+            long abortThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
+            return new DefaultTrackWarnings(warnThresholdKB, abortThresholdKB);
         }
     }
 
@@ -272,13 +272,13 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getClientLargeReadWarnThresholdKb()
+        public long getCoordinatorReadSizeWarnThresholdKB()
         {
             return 0;
         }
 
         @Override
-        public long getClientLargeReadAbortThresholdKB()
+        public long getCoordinatorReadSizeAbortThresholdKB()
         {
             return 0;
         }
@@ -286,13 +286,13 @@ public abstract class QueryOptions
 
     private static class DefaultTrackWarnings implements TrackWarnings
     {
-        private final long clientLargeReadWarnThresholdKb;
-        private final long clientLargeReadAbortThresholdKB;
+        private final long warnThresholdKB;
+        private final long abortThresholdKB;
 
-        public DefaultTrackWarnings(long clientLargeReadWarnThresholdKb, long clientLargeReadAbortThresholdKB)
+        public DefaultTrackWarnings(long warnThresholdKB, long abortThresholdKB)
         {
-            this.clientLargeReadWarnThresholdKb = clientLargeReadWarnThresholdKb;
-            this.clientLargeReadAbortThresholdKB = clientLargeReadAbortThresholdKB;
+            this.warnThresholdKB = warnThresholdKB;
+            this.abortThresholdKB = abortThresholdKB;
         }
 
         @Override
@@ -302,15 +302,15 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getClientLargeReadWarnThresholdKb()
+        public long getCoordinatorReadSizeWarnThresholdKB()
         {
-            return clientLargeReadWarnThresholdKb;
+            return warnThresholdKB;
         }
 
         @Override
-        public long getClientLargeReadAbortThresholdKB()
+        public long getCoordinatorReadSizeAbortThresholdKB()
         {
-            return clientLargeReadAbortThresholdKB;
+            return abortThresholdKB;
         }
     }
 

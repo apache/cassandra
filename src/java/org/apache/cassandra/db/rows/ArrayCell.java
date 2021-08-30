@@ -110,6 +110,13 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new BufferCell(column, timestamp, ttl, localDeletionTime, allocator.clone(value), path == null ? null : path.copy(allocator));
     }
 
+    @Override
+    public long unsharedHeapSize()
+    {
+        return EMPTY_SIZE + ObjectSizes.sizeOfArray(value) + (path == null ? 0 : path.unsharedHeapSize());
+    }
+
+    @Override
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE + ObjectSizes.sizeOfEmptyByteArray() + (path == null ? 0 : path.unsharedHeapSizeExcludingData());

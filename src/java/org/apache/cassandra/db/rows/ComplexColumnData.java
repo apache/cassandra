@@ -121,6 +121,16 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return size;
     }
 
+    @Override
+    public long unsharedHeapSize()
+    {
+        long heapSize = EMPTY_SIZE + ObjectSizes.sizeOfArray(cells);
+        for (Cell<?> cell : this)
+            heapSize += cell.unsharedHeapSize();
+        return heapSize;
+    }
+
+    @Override
     public long unsharedHeapSizeExcludingData()
     {
         long heapSize = EMPTY_SIZE + ObjectSizes.sizeOfArray(cells);

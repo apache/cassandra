@@ -45,12 +45,6 @@ public class ClusteringHeapSizeTest
     public void unsharedHeap()
     {
         long measureDeep = ObjectSizes.measureDeep(clustering);
-        if (clustering instanceof BufferClustering)
-        {
-            // jamm (used in measureDeep) uses .remaining() where as .sizeOnHeapOf() done in unsharedHeapSize actually looks at memory cost
-            // without assuming the array is shared (unless capacity > remaining); so account for that
-            measureDeep += ObjectSizes.measureDeep(new byte[0]);
-        }
         long unsharedHeapSize = clustering.unsharedHeapSize();
 
         double allowedDiff = 0.1; // 10% is seen as "close enough"
