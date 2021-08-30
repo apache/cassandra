@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.security;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -35,18 +36,22 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.EncryptionOptions;
+
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR;
-import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_PATH;
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH;
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR;
-import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.TRUSTSTORE_PATH;
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.TRUSTSTORE_UPDATED_TIMESTAMP_PATH;
 
 public class KubernetesSecretsSslContextFactoryTest
 {
     private static final Logger logger = LoggerFactory.getLogger(KubernetesSecretsSslContextFactoryTest.class);
+    private static final String TRUSTSTORE_PATH = EncryptionOptions.ConfigKey.TRUSTSTORE.toString();
+    private static final String KEYSTORE_PATH = EncryptionOptions.ConfigKey.KEYSTORE.toString();
 
     private Map<String,Object> commonConfig = new HashMap<>();
+    private final String truststoreUpdatedTimestampFilepath = "test/conf/cassandra_truststore_last_updatedtime";
+    private final String keystoreUpdatedTimestampFilepath = "test/conf/cassandra_keystore_last_updatedtime";
 
     private static class KubernetesSecretsSslContextFactoryForTestOnly extends KubernetesSecretsSslContextFactory
     {
@@ -80,9 +85,12 @@ public class KubernetesSecretsSslContextFactoryTest
     @Before
     public void setup()
     {
+        deleteFileIfExists(truststoreUpdatedTimestampFilepath);
+        deleteFileIfExists(keystoreUpdatedTimestampFilepath);
+
         commonConfig.put(TRUSTSTORE_PATH, "test/conf/cassandra_ssl_test.truststore");
         commonConfig.put(TRUSTSTORE_PASSWORD_ENV_VAR, "MY_TRUSTSTORE_PASSWORD");
-        commonConfig.put(TRUSTSTORE_UPDATED_TIMESTAMP_PATH, "test/conf/cassandra_truststore_last_updatedtime");
+        commonConfig.put(TRUSTSTORE_UPDATED_TIMESTAMP_PATH, truststoreUpdatedTimestampFilepath);
         /*
          * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
          *  done to avoid having a dependency on env in the unit test.
@@ -92,12 +100,28 @@ public class KubernetesSecretsSslContextFactoryTest
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
+    private void deleteFileIfExists(String filePath)
+    {
+        try {
+            logger.info("Deleting the file {} to prepare for the tests", filePath);
+            File file = new File(filePath);
+            if (file.exists())
+            {
+                file.delete();
+            }
+        }
+        catch(Exception e)
+        {
+            logger.warn("File {} could not be deleted.", filePath, e);
+        }
+    }
+
     private void addKeystoreOptions(Map<String,Object> config)
     {
         config.put(KEYSTORE_PATH, "test/conf/cassandra_ssl_test" +
                                   ".keystore");
         config.put(KEYSTORE_PASSWORD_ENV_VAR, "MY_KEYSTORE_PASSWORD");
-        config.put(KEYSTORE_UPDATED_TIMESTAMP_PATH, "test/conf/cassandra_keystore_last_updatedtime");
+        config.put(KEYSTORE_UPDATED_TIMESTAMP_PATH, keystoreUpdatedTimestampFilepath);
         /*
          * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
          *  done to avoid having a dependency on env in the unit test.
@@ -209,6 +233,7 @@ public class KubernetesSecretsSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
+        addKeystoreOptions(config);
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
         kubernetesSecretsSslContextFactory.checkedExpiry = false;
