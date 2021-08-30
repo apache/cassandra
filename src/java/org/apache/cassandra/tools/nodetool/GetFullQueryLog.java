@@ -24,7 +24,7 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
-@Command(name = "getfullquerylog", description = "print configuration of fql if enabled, otherwise the configuration reflected in cassandra.yaml")
+@Command(name = "getfullquerylog", description = "Print configuration of fql if enabled, otherwise the configuration reflected in cassandra.yaml")
 public class GetFullQueryLog extends NodeToolCmd
 {
     protected void execute(NodeProbe probe)

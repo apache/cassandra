@@ -159,6 +159,17 @@ public enum CassandraRelevantProperties
      */
     REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
 
+    /**
+     * Directory where Cassandra puts its logs, defaults to "." which is current directory.
+     */
+    LOG_DIR("cassandra.logdir", "."),
+
+    /**
+     * Directory where Cassandra persists logs from audit logging. If this property is not set, the audit log framework
+     * will set it automatically to {@link CassandraRelevantProperties#LOG_DIR} + "/audit".
+     */
+    LOG_DIR_AUDIT("cassandra.logdir.audit"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**
@@ -177,8 +188,18 @@ public enum CassandraRelevantProperties
     /** This property indicates whether disable_mbean_registration is true */
     IS_DISABLED_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
 
+    /** snapshots ttl cleanup period in seconds */
+    SNAPSHOT_CLEANUP_PERIOD_SECONDS("cassandra.snapshot.ttl_cleanup_period_seconds", "60"),
+
+    /** snapshots ttl cleanup initial delay in seconds */
+    SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS("cassandra.snapshot.ttl_cleanup_initial_delay_seconds", "5"),
+
+    /** minimum allowed TTL for snapshots */
+    SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
+
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class");
+
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

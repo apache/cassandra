@@ -282,6 +282,12 @@ public interface SinglePartitionReadQuery extends ReadQuery
         }
 
         @Override
+        public void trackWarnings()
+        {
+            queries.forEach(ReadQuery::trackWarnings);
+        }
+
+        @Override
         public String toString()
         {
             return queries.toString();

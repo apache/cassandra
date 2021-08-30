@@ -168,7 +168,7 @@ public class SystemKeyspaceTest
         Set<String> snapshottedTableNames = new HashSet<>();
         for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
         {
-            if (!cfs.getSnapshotDetails().isEmpty())
+            if (!cfs.listSnapshots().isEmpty())
                 snapshottedTableNames.add(cfs.getTableName());
         }
         return snapshottedTableNames;

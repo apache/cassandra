@@ -113,6 +113,7 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
@@ -189,6 +190,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // when creating a cluster globally in a test class we get the logs without the suite, try finding those logs:
         if (!f.exists())
             f = new File(String.format("build/test/logs/%s/%s/%s/system.log", tag, clusterId, instanceId));
+        if (!f.exists())
+            throw new AssertionError("Unable to locate system.log under " + new File("build/test/logs").getAbsolutePath() + "; make sure ICluster.setup() is called or extend TestBaseImpl and do not define a static beforeClass function with @BeforeClass");
         return new FileLogAction(f);
     }
 
@@ -728,7 +731,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES)
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
+                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 
             error = parallelRun(error, executor,
