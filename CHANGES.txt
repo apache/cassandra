@@ -1,4 +1,5 @@
 4.0.1
+ * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
  * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)
  * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866)
  * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
