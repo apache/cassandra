@@ -63,11 +63,15 @@ public class DigestResolver extends ResponseResolver
      */
     public PartitionIterator resolve() throws DigestMismatchException
     {
-        if (responses.size() == 1)
+        int responseCount = responses.size();
+        
+        assert responseCount > 0 : "Attempted response match comparison while no responses have been received.";
+        
+        if (responseCount == 1)
             return getData();
 
         if (logger.isTraceEnabled())
-            logger.trace("resolving {} responses", responses.size());
+            logger.trace("resolving {} responses", responseCount);
 
         compareResponses();
 
