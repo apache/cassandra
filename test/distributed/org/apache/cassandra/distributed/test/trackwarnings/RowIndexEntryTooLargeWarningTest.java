@@ -36,8 +36,6 @@ public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
     {
         AbstractClientSizeWarning.setupClass();
 
-        // setup threshold after init to avoid driver issues loading
-        // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
             DatabaseDescriptor.setRowIndexSizeWarningThresholdKb(1);
             DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(2);
@@ -53,6 +51,19 @@ public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
     {
         // need to flush as RowIndexEntry is at the SSTable level
         return true;
+    }
+
+    @Override
+    protected int warnThresholdRowCount()
+    {
+        return 15;
+    }
+
+    @Override
+    protected int failThresholdRowCount()
+    {
+        // since the RowIndexEntry grows slower than a partition, need even more rows to trigger
+        return 40;
     }
 
     @Override
@@ -74,19 +85,6 @@ public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
     }
 
     @Override
-    protected int warnThresholdRowCount()
-    {
-        return 15;
-    }
-
-    @Override
-    protected int failThresholdRowCount()
-    {
-        // since the RowIndexEntry grows slower than a partition, need even more rows to trigger
-        return 40;
-    }
-
-    @Override
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
@@ -101,14 +99,20 @@ public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
     }
 
     @Override
+    protected long[] getHistogram()
+    {
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSize." + KEYSPACE)).toArray();
+    }
+
+    @Override
     protected long totalWarnings()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexTooLargeWarnings." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSizeTooLargeWarnings." + KEYSPACE)).sum();
     }
 
     @Override
     protected long totalAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexTooLargeAborts." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSizeTooLargeAborts." + KEYSPACE)).sum();
     }
 }

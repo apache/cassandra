@@ -722,6 +722,14 @@ public abstract class ReadCommand extends AbstractReadQuery
                     MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_WARNING, this.sizeInBytes);
                 }
             }
+
+            @Override
+            protected void onClose()
+            {
+                ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
+                if (cfs != null)
+                    cfs.metric.clientLocalReadSize.update(sizeInBytes);
+            }
         }
 
         iterator = Transformation.apply(iterator, new QuerySizeTracking());

@@ -66,6 +66,11 @@ public class ClientReadSizeWarningTest extends AbstractClientSizeWarning
         assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size failure threshold", warnings.get(0));
     }
 
+    @Override
+    protected long[] getHistogram()
+    {
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSize." + KEYSPACE)).toArray();
+    }
 
     @Override
     protected long totalWarnings()

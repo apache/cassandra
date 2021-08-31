@@ -115,9 +115,26 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
         for (boolean b : Arrays.asList(true, false))
         {
             enable(b);
+            checkpointHistogram();
             SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
             test.accept(result.warnings());
+            if (b)
+            {
+                assertHistogramUpdated();
+            }
+            else
+            {
+                assertHistogramNotUpdated();
+            }
             test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+            if (b)
+            {
+                assertHistogramUpdated();
+            }
+            else
+            {
+                assertHistogramNotUpdated();
+            }
             assertWarnAborts(0, 0, 0);
         }
     }
@@ -148,16 +165,21 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
             CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
 
         enable(true);
+        checkpointHistogram();
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         assertWarnings(result.warnings());
+        assertHistogramUpdated();
         assertWarnAborts(1, 0, 0);
         assertWarnings(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        assertHistogramUpdated();
         assertWarnAborts(2, 0, 0);
 
         enable(false);
         result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         assertThat(result.warnings()).isEmpty();
+        assertHistogramNotUpdated();
         assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
+        assertHistogramNotUpdated();
         assertWarnAborts(2, 0, 0);
     }
 
@@ -188,6 +210,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
             CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
 
         enable(true);
+        checkpointHistogram();
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
             try
@@ -202,6 +225,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
             return ClientWarn.instance.getWarnings();
         }).call();
         assertAbortWarnings(warnings);
+        assertHistogramUpdated();
         assertWarnAborts(0, 1, 1);
 
         try
@@ -227,13 +251,16 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
                 }
             });
         }
+        assertHistogramUpdated();
         assertWarnAborts(0, 2, 1);
 
         // query should no longer fail
         enable(false);
         SimpleQueryResult result = node.executeWithResult(cql, ConsistencyLevel.ALL);
         assertThat(result.warnings()).isEmpty();
+        assertHistogramNotUpdated();
         assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
+        assertHistogramNotUpdated();
         assertWarnAborts(0, 2, 0);
     }
 
@@ -252,6 +279,42 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
     protected static ResultSet driverQueryAll(String cql)
     {
         return JAVA_DRIVER_SESSION.execute(new SimpleStatement(cql).setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.ALL));
+    }
+
+    protected abstract long[] getHistogram();
+    private static long[] previous = new long[0];
+    protected void assertHistogramUpdated()
+    {
+        long[] latestCount = getHistogram();
+        try
+        {
+            // why notEquals?  timing can cause 1 replica to not process before the failure makes it to the test
+            // for this reason it is possible 1 replica was not updated but the others were; by expecting everyone
+            // to update the test will become flaky
+            assertThat(latestCount).isNotEqualTo(previous);
+        }
+        finally
+        {
+            previous = latestCount;
+        }
+    }
+
+    protected void assertHistogramNotUpdated()
+    {
+        long[] latestCount = getHistogram();
+        try
+        {
+            assertThat(latestCount).isEqualTo(previous);
+        }
+        finally
+        {
+            previous = latestCount;
+        }
+    }
+
+    private void checkpointHistogram()
+    {
+        previous = getHistogram();
     }
 
     private static long GLOBAL_READ_ABORTS = 0;

@@ -140,8 +140,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             trackAborts(  localReadSizeTooLarge, cfs().metric.clientLocalReadSizeTooLargeAborts,   ReadCallback::localReadSizeTooLargeAbortMessage);
             trackWarnings(localReadSizeTooLarge, cfs().metric.clientLocalReadSizeTooLargeWarnings, ReadCallback::localReadSizeTooLargeWarnMessage);
 
-            trackAborts(  rowIndexTooLarge, cfs().metric.rowIndexTooLargeAborts,   ReadCallback::rowIndexTooLargeAbortMessage);
-            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexTooLargeWarnings, ReadCallback::rowIndexTooLargeWarnMessage);
+            trackAborts(rowIndexTooLarge, cfs().metric.rowIndexSizeTooLargeAborts, ReadCallback::rowIndexTooLargeAbortMessage);
+            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexSizeTooLargeWarnings, ReadCallback::rowIndexTooLargeWarnMessage);
         }
 
         void mayAbort(int received)

@@ -61,6 +61,12 @@ public class ClientLocalReadSizeWarningTest extends AbstractClientSizeWarning
     }
 
     @Override
+    protected long[] getHistogram()
+    {
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientLocalReadSize." + KEYSPACE)).toArray();
+    }
+
+    @Override
     protected long totalWarnings()
     {
         return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientLocalReadSizeTooLargeWarnings." + KEYSPACE)).sum();

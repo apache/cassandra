@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
 import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -358,6 +359,9 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKb() * 1024;
 
             long estimatedMemory = estimateMaterializedIndexSize(entries, bytes);
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
+            if (cfs != null)
+                cfs.metric.rowIndexSize.update(estimatedMemory);
 
             if (abortThreshold >= 1 && estimatedMemory > abortThreshold)
             {

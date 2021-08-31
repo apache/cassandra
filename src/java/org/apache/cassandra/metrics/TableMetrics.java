@@ -261,12 +261,18 @@ public class TableMetrics
 
     public final TableMeter clientTombstoneWarnings;
     public final TableMeter clientTombstoneAborts;
+
     public final TableMeter clientReadSizeWarnings;
     public final TableMeter clientReadSizeAborts;
+    public final TableHistogram clientReadSize;
+
     public final TableMeter clientLocalReadSizeTooLargeWarnings;
     public final TableMeter clientLocalReadSizeTooLargeAborts;
-    public final TableMeter rowIndexTooLargeWarnings;
-    public final TableMeter rowIndexTooLargeAborts;
+    public final TableHistogram clientLocalReadSize;
+
+    public final TableMeter rowIndexSizeTooLargeWarnings;
+    public final TableMeter rowIndexSizeTooLargeAborts;
+    public final TableHistogram rowIndexSize;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -928,12 +934,15 @@ public class TableMetrics
 
         clientReadSizeWarnings = createTableMeter("ClientReadSizeWarnings", cfs.keyspace.metric.clientReadSizeWarnings);
         clientReadSizeAborts = createTableMeter("ClientReadSizeAborts", cfs.keyspace.metric.clientReadSizeAborts);
+        clientReadSize = createTableHistogram("ClientReadSize", cfs.keyspace.metric.clientReadSize, false);
 
         clientLocalReadSizeTooLargeWarnings = createTableMeter("ClientLocalReadSizeTooLargeWarnings", cfs.keyspace.metric.clientLocalReadSizeTooLargeWarnings);
         clientLocalReadSizeTooLargeAborts = createTableMeter("ClientLocalReadSizeTooLargeAborts", cfs.keyspace.metric.clientLocalReadSizeTooLargeAborts);
+        clientLocalReadSize = createTableHistogram("ClientLocalReadSize", cfs.keyspace.metric.clientLocalReadSize, false);
 
-        rowIndexTooLargeWarnings = createTableMeter("RowIndexTooLargeWarnings", cfs.keyspace.metric.rowIndexTooLargeWarnings);
-        rowIndexTooLargeAborts = createTableMeter("RowIndexTooLargeAborts", cfs.keyspace.metric.rowIndexTooLargeAborts);
+        rowIndexSizeTooLargeWarnings = createTableMeter("RowIndexSizeTooLargeWarnings", cfs.keyspace.metric.rowIndexSizeTooLargeWarnings);
+        rowIndexSizeTooLargeAborts = createTableMeter("RowIndexSizeTooLargeAborts", cfs.keyspace.metric.rowIndexSizeTooLargeAborts);
+        rowIndexSize = createTableHistogram("RowIndexSize", cfs.keyspace.metric.rowIndexSize, false);
     }
 
     public void updateSSTableIterated(int count)
