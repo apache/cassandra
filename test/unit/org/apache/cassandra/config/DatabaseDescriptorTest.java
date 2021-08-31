@@ -627,6 +627,24 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 
+    @Test
+    public void testClientLargeReadWarnEnabledAbortDisabled()
+    {
+        Config conf = new Config();
+        conf.client_large_read_warn_threshold_kb = 2;
+        conf.client_large_read_abort_threshold_kb = 0;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
+    @Test
+    public void testClientLargeReadAbortEnabledWarnDisabled()
+    {
+        Config conf = new Config();
+        conf.client_large_read_warn_threshold_kb = 0;
+        conf.client_large_read_abort_threshold_kb = 2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
     // local read
     @Test
     public void testLocalLargeReadWarnAndAbortNegative()
@@ -659,6 +677,24 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 
+    @Test
+    public void testLocalLargeReadWarnEnabledAbortDisabled()
+    {
+        Config conf = new Config();
+        conf.local_read_too_large_warning_threshold_kb = 2;
+        conf.local_read_too_large_abort_threshold_kb = 0;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
+    @Test
+    public void testLocalLargeReadAbortEnabledWarnDisabled()
+    {
+        Config conf = new Config();
+        conf.local_read_too_large_warning_threshold_kb = 0;
+        conf.local_read_too_large_abort_threshold_kb = 2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
     // row index entry
     @Test
     public void testRowIndexSizeWarnAndAbortNegative()
@@ -687,6 +723,24 @@ public class DatabaseDescriptorTest
     {
         Config conf = new Config();
         conf.row_index_size_warning_threshold_kb = 2;
+        conf.row_index_size_abort_threshold_kb = 2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
+    @Test
+    public void testRowIndexSizeWarnEnabledAbortDisabled()
+    {
+        Config conf = new Config();
+        conf.row_index_size_warning_threshold_kb = 2;
+        conf.row_index_size_abort_threshold_kb = 0;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
+    @Test
+    public void testRowIndexSizeAbortEnabledWarnDisabled()
+    {
+        Config conf = new Config();
+        conf.row_index_size_warning_threshold_kb = 0;
         conf.row_index_size_abort_threshold_kb = 2;
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
