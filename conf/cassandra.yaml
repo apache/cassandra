@@ -1467,3 +1467,13 @@ enable_drop_compact_storage: false
 # has exceeded this threshold, returning a read error to the user.
 #client_large_read_warn_threshold_kb: 0
 #client_large_read_abort_threshold_kb: 0
+
+# When client_track_warnings_enabled: true, this tracks the size of the local read (as defined by
+# heap size), and will warn/abort based off these thresholds; 0 disables these checks.
+#local_read_too_large_warning_threshold_kb: 0
+#local_read_too_large_abort_threshold_kb: 0
+
+# When client_track_warnings_enabled: true, this tracks the expected memory size of the RowIndexEntry
+# and will warn/abort based off these thresholds; 0 disables these checks.
+#row_index_size_warning_threshold_kb: 0
+#row_index_size_abort_threshold_kb: 0

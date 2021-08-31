@@ -56,3 +56,7 @@ auto_hints_cleanup_enabled: true
 client_track_warnings_enabled: true
 client_large_read_warn_threshold_kb: 1024
 client_large_read_abort_threshold_kb: 4096
+local_read_too_large_warning_threshold_kb: 4096
+local_read_too_large_abort_threshold_kb: 8192
+row_index_size_warning_threshold_kb: 4096
+row_index_size_abort_threshold_kb: 8192
