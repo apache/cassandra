@@ -6149,6 +6149,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setClientLargeReadWarnThresholdKB(long threshold)
     {
+        if (threshold < 0)
+            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setClientLargeReadWarnThresholdKB(threshold);
         logger.info("updated client_large_read_warn_threshold_kb to {}", threshold);
     }
@@ -6162,6 +6164,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setClientLargeReadAbortThresholdKB(long threshold)
     {
+        if (threshold < 0)
+            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setClientLargeReadAbortThresholdKB(threshold);
         logger.info("updated client_large_read_abort_threshold_kb to {}", threshold);
     }
@@ -6175,6 +6179,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setLocalReadTooLargeWarningThresholdKb(long value)
     {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setLocalReadTooLargeWarningThresholdKb(value);
         logger.info("updated local_read_too_large_warning_threshold_kb to {}", value);
     }
@@ -6188,6 +6194,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setLocalReadTooLargeAbortThresholdKb(long value)
     {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setLocalReadTooLargeAbortThresholdKb(value);
         logger.info("updated local_read_too_large_abort_threshold_kb to {}", value);
     }
@@ -6201,6 +6209,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setRowIndexSizeWarningThresholdKb(int value)
     {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setRowIndexSizeWarningThresholdKb(value);
         logger.info("updated row_index_size_warning_threshold_kb to {}", value);
     }
@@ -6214,6 +6224,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setRowIndexSizeAbortThresholdKb(int value)
     {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(value);
         logger.info("updated row_index_size_abort_threshold_kb to {}", value);
     }
