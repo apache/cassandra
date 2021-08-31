@@ -6128,6 +6128,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public boolean getClientTrackWarningsEnabled()
+    {
+        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+    }
+
+    @Override
+    public void setClientTrackWarningsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
+        logger.info("updated client_track_warnings_enabled to {}", value);
+    }
+
+    @Override
     public long getClientLargeReadWarnThresholdKB()
     {
         return DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
@@ -6154,15 +6167,54 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public boolean getClientTrackWarningsEnabled()
+    public long getLocalReadTooLargeWarningThresholdKb()
     {
-        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+        return DatabaseDescriptor.getLocalReadTooLargeWarningThresholdKb();
     }
 
     @Override
-    public void setClientTrackWarningsEnabled(boolean value)
+    public void setLocalReadTooLargeWarningThresholdKb(long value)
     {
-        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
-        logger.info("updated client_track_warnings_enabled to {}", value);
+        DatabaseDescriptor.setLocalReadTooLargeWarningThresholdKb(value);
+        logger.info("updated local_read_too_large_warning_threshold_kb to {}", value);
+    }
+
+    @Override
+    public long getLocalReadTooLargeAbortThresholdKb()
+    {
+        return DatabaseDescriptor.getLocalReadTooLargeAbortThresholdKb();
+    }
+
+    @Override
+    public void setLocalReadTooLargeAbortThresholdKb(long value)
+    {
+        DatabaseDescriptor.setLocalReadTooLargeAbortThresholdKb(value);
+        logger.info("updated local_read_too_large_abort_threshold_kb to {}", value);
+    }
+
+    @Override
+    public int getRowIndexSizeWarningThresholdKb()
+    {
+        return DatabaseDescriptor.getRowIndexSizeWarningThresholdKb();
+    }
+
+    @Override
+    public void setRowIndexSizeWarningThresholdKb(int value)
+    {
+        DatabaseDescriptor.setRowIndexSizeWarningThresholdKb(value);
+        logger.info("updated row_index_size_warning_threshold_kb to {}", value);
+    }
+
+    @Override
+    public int getRowIndexSizeAbortThresholdKb()
+    {
+        return DatabaseDescriptor.getRowIndexSizeAbortThresholdKb();
+    }
+
+    @Override
+    public void setRowIndexSizeAbortThresholdKb(int value)
+    {
+        DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(value);
+        logger.info("updated row_index_size_abort_threshold_kb to {}", value);
     }
 }
