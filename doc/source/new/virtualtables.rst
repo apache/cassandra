@@ -66,20 +66,21 @@ Virtual Table Limitations
 
 Virtual tables and virtual keyspaces have some limitations initially though some of these could change such as:
 
-- Cannot alter or drop virtual keyspaces or tables
 - Expiring columns are not supported by virtual tables
+- Custom timestamps are not supported by virtual tables
 - Conditional updates are not supported by virtual tables
-- Cannot create tables in virtual keyspaces
-- Cannot perform any operations against virtual keyspace
 - Secondary indexes are not supported on virtual tables
-- Cannot create functions in virtual keyspaces
-- Cannot create types in virtual keyspaces
 - Materialized views are not supported on virtual tables
 - Virtual tables support modifications only if the underlaying implementation allows it
 - Cannot ``CREATE TRIGGER`` against a virtual table
 - Conditional ``BATCH`` statements cannot include mutations for virtual tables
 - Cannot include a virtual table statement in a logged batch
 - Mutations for virtual and regular tables cannot exist in the same batch
+- Cannot alter or drop virtual keyspaces or tables
+- Cannot create functions in virtual keyspaces
+- Cannot create types in virtual keyspaces
+- Cannot create tables in virtual keyspaces
+- Cannot perform any operations against virtual keyspace
 - Cannot create aggregates in virtual keyspaces; but may run aggregate functions on select
 
 Listing and Describing Virtual Tables

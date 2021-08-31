@@ -48,7 +48,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
     protected AbstractVirtualTable(TableMetadata metadata)
     {
         if (!metadata.isVirtual())
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Cannot instantiate a non-virtual table");
 
         this.metadata = metadata;
     }
