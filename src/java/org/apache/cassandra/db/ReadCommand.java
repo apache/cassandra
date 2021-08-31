@@ -705,7 +705,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             private void addSize(long size)
             {
                 this.sizeInBytes += size;
-                if (abortThresholdBytes > 0 && this.sizeInBytes >= abortThresholdBytes)
+                if (abortThresholdBytes != 0 && this.sizeInBytes >= abortThresholdBytes)
                 {
                     String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see local_read_too_large_abort_threshold_kb)",
                                                ReadCommand.this.toCQLString(), this.sizeInBytes, abortThresholdBytes);
@@ -713,7 +713,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     MessageParams.remove(ParamType.LOCAL_READ_TOO_LARGE_WARNING);
                     MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_ABORT, this.sizeInBytes);
                     throw new LocalReadSizeTooLargeException(msg);
-                } else if (warnThresholdBytes > 0 && this.sizeInBytes >= warnThresholdBytes)
+                } else if (warnThresholdBytes != 0 && this.sizeInBytes >= warnThresholdBytes)
                 {
                     MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_WARNING, this.sizeInBytes);
                 }

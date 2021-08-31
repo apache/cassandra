@@ -363,7 +363,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (cfs != null)
                 cfs.metric.rowIndexSize.update(estimatedMemory);
 
-            if (abortThreshold >= 1 && estimatedMemory > abortThreshold)
+            if (abortThreshold != 0 && estimatedMemory > abortThreshold)
             {
                 String msg = String.format("Query %s attempted to access a large RowIndexEntry estimated to be %d bytes " +
                                            "in-memory (total entries: %d, total bytes: %d) but the max allowed is %d;" +
@@ -374,7 +374,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
                 throw new RowIndexEntryTooLargeException(msg);
             }
-            else if (warnThreshold >= 1 && estimatedMemory > warnThreshold)
+            else if (warnThreshold != 0 && estimatedMemory > warnThreshold)
             {
                 // use addIfLarger rather than add as a previous partition may be larger than this one
                 MessageParams.addIfLarger(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING, estimatedMemory);
