@@ -39,8 +39,8 @@ default_env_vars: &default_env_vars
     CASS_DRIVER_NO_CYTHON: true
     #Skip all syncing to disk to avoid performance issues in flaky CI environments
     CASSANDRA_SKIP_SYNC: true
-    DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    DTEST_BRANCH: trunk
+    DTEST_REPO: git://github.com/adelapena/cassandra-dtest.git
+    DTEST_BRANCH: CASSANDRA-16902
     CCM_MAX_HEAP_SIZE: 1024M
     CCM_HEAP_NEWSIZE: 256M
 
