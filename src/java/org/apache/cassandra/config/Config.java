@@ -356,6 +356,9 @@ public class Config
     public volatile long local_read_too_large_warning_threshold_kb = 0;
     public volatile long local_read_too_large_abort_threshold_kb = 0;
 
+    public volatile int row_index_size_warning_threshold_kb = 0;
+    public volatile int row_index_size_abort_threshold_kb = 0;
+
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     public volatile Long index_summary_capacity_in_mb;

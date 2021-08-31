@@ -22,7 +22,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class ArrayClustering extends AbstractArrayClusteringPrefix implements Clustering<byte[]>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayClustering(EMPTY_VALUES_ARRAY));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayClustering(EMPTY_VALUES_ARRAY));
 
     public ArrayClustering(byte[]... values)
     {

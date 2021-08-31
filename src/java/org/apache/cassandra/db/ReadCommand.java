@@ -33,6 +33,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.*;
@@ -86,6 +87,10 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
+
+    // Expose the active command running so transitive calls can lookup this command.
+    // This is useful for a few reasons, but mainly because the CQL query is here.
+    private static final FastThreadLocal<ReadCommand> COMMAND = new FastThreadLocal<>();
 
     private final Kind kind;
 
@@ -149,6 +154,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.acceptsTransient = acceptsTransient;
         this.index = index;
         this.trackWarnings = trackWarnings;
+    }
+
+    public static ReadCommand getCommand()
+    {
+        return COMMAND.get();
     }
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
@@ -389,6 +399,12 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         long startTimeNanos = System.nanoTime();
 
+        // Looks like searcher.search can throw so should wrap this in a try/finally
+        // but choose not to for the following reasons
+        // 1) makes diff larger
+        // 2) worst case we leak when a search fails; assumption is that reads are frequent, so another command will release
+        COMMAND.set(this);
+
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
         Index index = getIndex(cfs);
 
@@ -450,6 +466,10 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             iterator.close();
             throw e;
+        }
+        finally
+        {
+            COMMAND.remove();
         }
     }
 

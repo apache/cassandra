@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test;
+package org.apache.cassandra.distributed.test.trackwarnings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -29,32 +29,38 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.*;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.test.JavaDriverUtils;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
 
-/**
- * ReadSize client warn/abort is coordinator only, so the fact ClientMetrics is coordinator only does not
- * impact the user experience
- */
-public class ClientReadSizeWarningTest extends TestBaseImpl
+import static org.assertj.core.api.Assertions.assertThat;
+
+public abstract class AbstractClientSizeWarning extends TestBaseImpl
 {
     private static final Random RANDOM = new Random(0);
-    private static ICluster<IInvokableInstance> CLUSTER;
-    private static com.datastax.driver.core.Cluster JAVA_DRIVER;
-    private static com.datastax.driver.core.Session JAVA_DRIVER_SESSION;
+    protected static ICluster<IInvokableInstance> CLUSTER;
+    protected static com.datastax.driver.core.Cluster JAVA_DRIVER;
+    protected static com.datastax.driver.core.Session JAVA_DRIVER_SESSION;
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -64,13 +70,15 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         CLUSTER = builder.start();
         JAVA_DRIVER = JavaDriverUtils.create(CLUSTER);
         JAVA_DRIVER_SESSION = JAVA_DRIVER.connect();
+    }
 
-        // setup threshold after init to avoid driver issues loading
-        // the test uses a rather small limit, which causes driver to fail while loading metadata
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setClientLargeReadWarnThresholdKB(1);
-            DatabaseDescriptor.setClientLargeReadAbortThresholdKB(2);
-        }));
+    protected abstract long totalWarnings();
+    protected abstract long totalAborts();
+    protected abstract void assertWarnings(List<String> warnings);
+    protected abstract void assertAbortWarnings(List<String> warnings);
+    protected boolean shouldFlush()
+    {
+        return false;
     }
 
     @Before
@@ -78,25 +86,8 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
     {
         CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
         init(CLUSTER);
-        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v blob, PRIMARY KEY (pk, ck))");
-    }
-
-    private static void enable(boolean value)
-    {
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setClientTrackWarningsEnabled(value)));
-    }
-
-    private static void assertPrefix(String expectedPrefix, String actual)
-    {
-        if (!actual.startsWith(expectedPrefix))
-            throw new AssertionError(String.format("expected \"%s\" to begin with \"%s\"", actual, expectedPrefix));
-    }
-
-    private static ByteBuffer bytes(int size)
-    {
-        byte[] b = new byte[size];
-        RANDOM.nextBytes(b);
-        return ByteBuffer.wrap(b);
+        // disable key cache so RowIndexEntry is read each time
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v blob, PRIMARY KEY (pk, ck)) WITH caching = { 'keys' : 'NONE'}");
     }
 
     @Test
@@ -115,6 +106,8 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
     {
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(128));
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(128));
+        if (shouldFlush())
+            CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
 
         Consumer<List<String>> test = warnings ->
                                       Assert.assertEquals(Collections.emptyList(), warnings);
@@ -141,25 +134,30 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl");
     }
 
+    protected int warnThresholdRowCount()
+    {
+        return 2;
+    }
+
     public void warnThreshold(String cql)
     {
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(512));
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(512));
+        for (int i = 0; i < warnThresholdRowCount(); i++)
+            CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)", ConsistencyLevel.ALL, i + 1, bytes(512));
 
-        Consumer<List<String>> testEnabled = warnings ->
-                                             assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size warning threshold", Iterables.getOnlyElement(warnings));
+        if (shouldFlush())
+            CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
 
         enable(true);
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-        testEnabled.accept(result.warnings());
+        assertWarnings(result.warnings());
         assertWarnAborts(1, 0, 0);
-        testEnabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        assertWarnings(driverQueryAll(cql).getExecutionInfo().getWarnings());
         assertWarnAborts(2, 0, 0);
 
         enable(false);
         result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-        Assertions.assertThat(result.warnings()).isEmpty();
-        Assertions.assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
+        assertThat(result.warnings()).isEmpty();
+        assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
         assertWarnAborts(2, 0, 0);
     }
 
@@ -175,13 +173,19 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         failThreshold("SELECT * FROM " + KEYSPACE + ".tbl");
     }
 
+    protected int failThresholdRowCount()
+    {
+        return 5;
+    }
+
     public void failThreshold(String cql) throws UnknownHostException
     {
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(512));
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(512));
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, ?)", ConsistencyLevel.ALL, bytes(512));
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 4, ?)", ConsistencyLevel.ALL, bytes(512));
-        CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 5, ?)", ConsistencyLevel.ALL, bytes(512));
+        ICoordinator node = CLUSTER.coordinator(1);
+        for (int i = 0; i < failThresholdRowCount(); i++)
+            node.execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)", ConsistencyLevel.ALL, i + 1, bytes(512));
+
+        if (shouldFlush())
+            CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
 
         enable(true);
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
@@ -197,8 +201,7 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
             }
             return ClientWarn.instance.getWarnings();
         }).call();
-        Assertions.assertThat(warnings).hasSize(1);
-        assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size failure threshold", warnings.get(0));
+        assertAbortWarnings(warnings);
         assertWarnAborts(0, 1, 1);
 
         try
@@ -211,56 +214,61 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
             // without changing the client can't produce a better message...
             // client does NOT include the message sent from the server in the exception; so the message doesn't work
             // well in this case
-            Assertions.assertThat(e.getMessage()).endsWith("(1 responses were required but only 0 replica responded, 1 failed)");
+            assertThat(e.getMessage()).contains("responses were required but only 0 replica responded");
             ImmutableSet<InetAddress> expectedKeys = ImmutableSet.of(InetAddress.getByAddress(new byte[]{ 127, 0, 0, 1 }), InetAddress.getByAddress(new byte[]{ 127, 0, 0, 2 }), InetAddress.getByAddress(new byte[]{ 127, 0, 0, 3 }));
-            Assertions.assertThat(e.getFailuresMap())
-                      .hasSize(1)
-                      // coordinator changes from run to run, so can't assert map as the key is dynamic... so assert the domain of keys and the single value expect
-                      .containsValue(RequestFailureReason.READ_TOO_LARGE.code)
-                      .hasKeySatisfying(new Condition<InetAddress>() {
-                          public boolean matches(InetAddress value)
-                          {
-                              return expectedKeys.contains(value);
-                          }
-                      });
+            assertThat(e.getFailuresMap())
+            .hasSizeBetween(1, 3)
+            // coordinator changes from run to run, so can't assert map as the key is dynamic... so assert the domain of keys and the single value expect
+            .containsValue(RequestFailureReason.READ_TOO_LARGE.code)
+            .hasKeySatisfying(new Condition<InetAddress>() {
+                public boolean matches(InetAddress value)
+                {
+                    return expectedKeys.contains(value);
+                }
+            });
         }
         assertWarnAborts(0, 2, 1);
 
         // query should no longer fail
         enable(false);
-        SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-        Assertions.assertThat(result.warnings()).isEmpty();
-        Assertions.assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
+        SimpleQueryResult result = node.executeWithResult(cql, ConsistencyLevel.ALL);
+        assertThat(result.warnings()).isEmpty();
+        assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
         assertWarnAborts(0, 2, 0);
     }
 
-    private static long GLOBAL_READ_ABORTS = 0;
-    private static void assertWarnAborts(int warns, int aborts, int globalAborts)
+    protected static void enable(boolean value)
     {
-        Assertions.assertThat(totalWarnings()).as("warnings").isEqualTo(warns);
-        Assertions.assertThat(totalAborts()).as("aborts").isEqualTo(aborts);
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setClientTrackWarningsEnabled(value)));
+    }
+
+    protected static ByteBuffer bytes(int size)
+    {
+        byte[] b = new byte[size];
+        RANDOM.nextBytes(b);
+        return ByteBuffer.wrap(b);
+    }
+
+    protected static ResultSet driverQueryAll(String cql)
+    {
+        return JAVA_DRIVER_SESSION.execute(new SimpleStatement(cql).setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.ALL));
+    }
+
+    private static long GLOBAL_READ_ABORTS = 0;
+    protected void assertWarnAborts(int warns, int aborts, int globalAborts)
+    {
+        assertThat(totalWarnings()).as("warnings").isEqualTo(warns);
+        assertThat(totalAborts()).as("aborts").isEqualTo(aborts);
         long expectedGlobalAborts = GLOBAL_READ_ABORTS + globalAborts;
-        Assertions.assertThat(totalReadAborts()).as("global aborts").isEqualTo(expectedGlobalAborts);
+        assertThat(totalReadAborts()).as("global aborts").isEqualTo(expectedGlobalAborts);
         GLOBAL_READ_ABORTS = expectedGlobalAborts;
     }
 
-    private static long totalWarnings()
+    protected static long totalReadAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSizeWarnings." + KEYSPACE)).sum();
-    }
-
-    private static long totalAborts()
-    {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSizeAborts." + KEYSPACE)).sum();
-    }
-
-    private static long totalReadAborts()
-    {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.Read-ALL")).sum();
-    }
-
-    private static ResultSet driverQueryAll(String cql)
-    {
-        return JAVA_DRIVER_SESSION.execute(new SimpleStatement(cql).setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.ALL));
+        return CLUSTER.stream().mapToLong(i ->
+                                          i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.Read-ALL")
+                                          + i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.RangeSlice")
+        ).sum();
     }
 }

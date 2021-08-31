@@ -50,6 +50,14 @@ public class MessageParams
         get().put(key, value);
     }
 
+    public static <T extends Comparable<T>> void addIfLarger(ParamType key, T value)
+    {
+        Map<ParamType, Object> map = get();
+        T current = (T) map.get(key);
+        if (current == null || current.compareTo(value) < 0)
+            map.put(key, value);
+    }
+
     public static <T> T get(ParamType key)
     {
         return (T) get().get(key);

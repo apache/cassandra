@@ -44,6 +44,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
@@ -84,10 +85,79 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
     }
 
+    private interface ToString
+    {
+        String apply(int count, long value, String cql);
+    }
+
     private class WarningCounter
     {
         final WarnAbortCounter tombstones = new WarnAbortCounter();
         final WarnAbortCounter localReadSizeTooLarge = new WarnAbortCounter();
+        final WarnAbortCounter rowIndexTooLarge = new WarnAbortCounter();
+
+        private String cql, loggableTokens;
+        private String cql()
+        {
+            if (cql == null)
+                cql = command.toCQLString();
+            return cql;
+        }
+        private String loggableTokens()
+        {
+            if (loggableTokens == null)
+                loggableTokens = command.loggableTokens();
+            return loggableTokens;
+        }
+
+        private void trackAborts(WarnAbortCounter counter, TableMetrics.TableMeter metric, ToString toString)
+        {
+            if (counter.aborts.get() > 0)
+            {
+                String msg = toString.apply(counter.aborts.get(), counter.maxAbortsCount.get(), cql());
+                ClientWarn.instance.warn(msg + " with " + loggableTokens());
+                logger.warn(msg);
+                metric.mark();
+            }
+        }
+
+        private void trackWarnings(WarnAbortCounter counter, TableMetrics.TableMeter metric, ToString toString)
+        {
+            if (counter.warnings.get() > 0)
+            {
+                String msg = toString.apply(counter.warnings.get(), counter.maxWarningCount.get(), cql());
+                ClientWarn.instance.warn(msg + " with " + loggableTokens());
+                logger.warn(msg);
+                metric.mark();
+            }
+        }
+
+        void track()
+        {
+            trackAborts(  tombstones, cfs().metric.clientTombstoneAborts,   ReadCallback::tombstoneAbortMessage);
+            trackWarnings(tombstones, cfs().metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
+
+            trackAborts(  localReadSizeTooLarge, cfs().metric.clientLocalReadSizeTooLargeAborts,   ReadCallback::localReadSizeTooLargeAbortMessage);
+            trackWarnings(localReadSizeTooLarge, cfs().metric.clientLocalReadSizeTooLargeWarnings, ReadCallback::localReadSizeTooLargeWarnMessage);
+
+            trackAborts(  rowIndexTooLarge, cfs().metric.rowIndexTooLargeAborts,   ReadCallback::rowIndexTooLargeAbortMessage);
+            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexTooLargeWarnings, ReadCallback::rowIndexTooLargeWarnMessage);
+        }
+
+        void mayAbort(int received)
+        {
+            if (tombstones.aborts.get() > 0)
+                throw new TombstoneAbortException(tombstones.aborts.get(), Math.toIntExact(tombstones.maxAbortsCount.get()), cql(), resolver.isDataPresent(),
+                                                  replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
+
+            if (localReadSizeTooLarge.aborts.get() > 0)
+                throw new ReadSizeAbortException(localReadSizeTooLargeAbortMessage(localReadSizeTooLarge.aborts.get(), localReadSizeTooLarge.maxAbortsCount.get(), cql()),
+                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
+
+            if (rowIndexTooLarge.aborts.get() > 0)
+                throw new ReadSizeAbortException(rowIndexTooLargeAbortMessage(rowIndexTooLarge.aborts.get(), rowIndexTooLarge.maxAbortsCount.get(), cql()),
+                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
+        }
     }
 
     public final ResponseResolver<E, P> resolver;
@@ -140,13 +210,13 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     }
 
     @VisibleForTesting
-    public static String tombstoneAbortMessage(int nodes, int tombstones, String cql)
+    public static String tombstoneAbortMessage(int nodes, long tombstones, String cql)
     {
         return String.format("%s nodes scanned over %s tombstones and aborted the query %s (see tombstone_failure_threshold)", nodes, tombstones, cql);
     }
 
     @VisibleForTesting
-    public static String tombstoneWarnMessage(int nodes, int tombstones, String cql)
+    public static String tombstoneWarnMessage(int nodes, long tombstones, String cql)
     {
         return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings for query %s  (see tombstone_warn_threshold)", nodes, tombstones, cql);
     }
@@ -161,6 +231,18 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public static String localReadSizeTooLargeWarnMessage(int nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see local_read_too_large_warning_threshold_kb)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String rowIndexTooLargeAbortMessage(long nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see row_index_size_abort_threshold_kb)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String rowIndexTooLargeWarnMessage(int nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see row_index_size_warning_threshold_kb)", nodes, bytes, cql);
     }
 
     private ColumnFamilyStore cfs()
@@ -181,56 +263,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         int received = resolver.responses.size();
         boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
         WarningCounter warnings = warningCounter;
-        class Cache {
-            String cql, loggableTokens;
-            String cql()
-            {
-                if (cql == null)
-                    cql = command.toCQLString();
-                return cql;
-            }
-            String loggableTokens()
-            {
-                if (loggableTokens == null)
-                    loggableTokens = command.loggableTokens();
-                return loggableTokens;
-            }
-        }
-        Cache cache = new Cache();
         if (warnings != null)
-        {
-            if (warnings.tombstones.aborts.get() > 0)
-            {
-                String msg = tombstoneAbortMessage(warnings.tombstones.aborts.get(), Math.toIntExact(warnings.tombstones.maxAbortsCount.get()), cache.cql());
-                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
-                logger.warn(msg);
-                cfs().metric.clientTombstoneAborts.mark();
-            }
-
-            if (warnings.tombstones.warnings.get() > 0)
-            {
-                String msg = tombstoneWarnMessage(warnings.tombstones.warnings.get(), Math.toIntExact(warnings.tombstones.maxWarningCount.get()), cache.cql());
-                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
-                logger.warn(msg);
-                cfs().metric.clientTombstoneWarnings.mark();
-            }
-
-            if (warnings.localReadSizeTooLarge.aborts.get() > 0)
-            {
-                String msg = localReadSizeTooLargeAbortMessage(warnings.localReadSizeTooLarge.aborts.get(), warnings.localReadSizeTooLarge.maxAbortsCount.get(), cache.cql());
-                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
-                logger.warn(msg);
-                cfs().metric.clientLocalReadSizeTooLargeAborts.mark();
-            }
-
-            if (warnings.localReadSizeTooLarge.warnings.get() > 0)
-            {
-                String msg = localReadSizeTooLargeWarnMessage(warnings.localReadSizeTooLarge.warnings.get(), warnings.localReadSizeTooLarge.maxWarningCount.get(), cache.cql());
-                ClientWarn.instance.warn(msg + " with " + cache.loggableTokens());
-                logger.warn(msg);
-                cfs().metric.clientLocalReadSizeTooLargeWarnings.mark();
-            }
-        }
+            warnings.track();
         if (signaled && !failed)
             return;
 
@@ -246,15 +280,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
 
         if (warnings != null)
-        {
-            if (warnings.tombstones.aborts.get() > 0)
-                throw new TombstoneAbortException(warnings.tombstones.aborts.get(), Math.toIntExact(warnings.tombstones.maxAbortsCount.get()), cache.cql(), resolver.isDataPresent(),
-                                                  replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
-
-            if (warnings.localReadSizeTooLarge.aborts.get() > 0)
-                throw new ReadSizeAbortException(localReadSizeTooLargeAbortMessage(warnings.localReadSizeTooLarge.aborts.get(), warnings.localReadSizeTooLarge.maxAbortsCount.get(), cache.cql()),
-                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
-        }
+            warnings.mayAbort(received);
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
@@ -291,6 +317,16 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         else if (params.containsKey(ParamType.LOCAL_READ_TOO_LARGE_WARNING))
         {
             getWarningCounter().localReadSizeTooLarge.addWarning(message.from(), (Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_WARNING));
+        }
+        if (params.containsKey(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_ABORT))
+        {
+            getWarningCounter().rowIndexTooLarge.addAbort(message.from(), (Long) params.get(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_ABORT));
+            onFailure(message.from(), RequestFailureReason.READ_TOO_LARGE);
+            return;
+        }
+        else if (params.containsKey(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING))
+        {
+            getWarningCounter().rowIndexTooLarge.addWarning(message.from(), (Long) params.get(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING));
         }
         resolver.preprocess(message);
 

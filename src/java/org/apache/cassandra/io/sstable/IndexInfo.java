@@ -59,7 +59,7 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class IndexInfo
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0, null));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0, null));
 
     public final long offset;
     public final long width;

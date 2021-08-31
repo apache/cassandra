@@ -883,6 +883,13 @@ public class DatabaseDescriptor
         if (config.local_read_too_large_abort_threshold_kb < config.local_read_too_large_warning_threshold_kb)
             throw new ConfigurationException(String.format("local_read_too_large_abort_threshold_kb (%d) must be greater than or equal to local_read_too_large_warning_threshold_kb (%d)",
                                                            config.local_read_too_large_abort_threshold_kb, config.local_read_too_large_warning_threshold_kb));
+
+        // RowIndexEntry
+        config.row_index_size_warning_threshold_kb = Math.max(config.row_index_size_warning_threshold_kb, 0);
+        config.row_index_size_abort_threshold_kb = Math.max(config.row_index_size_abort_threshold_kb, 0);
+        if (config.row_index_size_abort_threshold_kb < config.row_index_size_warning_threshold_kb)
+            throw new ConfigurationException(String.format("row_index_size_abort_threshold_kb (%d) must be greater than or equal to row_index_size_warning_threshold_kb (%d)",
+                                                           config.row_index_size_abort_threshold_kb, config.row_index_size_warning_threshold_kb));
     }
 
     private static String storagedirFor(String type)
@@ -3521,5 +3528,25 @@ public class DatabaseDescriptor
     public static void setLocalReadTooLargeAbortThresholdKb(long value)
     {
         conf.local_read_too_large_abort_threshold_kb = value;
+    }
+
+    public static int getRowIndexSizeWarningThresholdKb()
+    {
+        return conf.row_index_size_warning_threshold_kb;
+    }
+
+    public static void setRowIndexSizeWarningThresholdKb(int value)
+    {
+        conf.row_index_size_warning_threshold_kb = value;
+    }
+
+    public static int getRowIndexSizeAbortThresholdKb()
+    {
+        return conf.row_index_size_abort_threshold_kb;
+    }
+
+    public static void setRowIndexSizeAbortThresholdKb(int value)
+    {
+        conf.row_index_size_abort_threshold_kb = value;
     }
 }

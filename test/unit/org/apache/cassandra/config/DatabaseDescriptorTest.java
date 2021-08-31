@@ -595,6 +595,7 @@ public class DatabaseDescriptorTest
         Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
     }
 
+    // coordinator read
     @Test
     public void testClientLargeReadWarnAndAbortNegative()
     {
@@ -626,6 +627,7 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 
+    // local read
     @Test
     public void testLocalLargeReadWarnAndAbortNegative()
     {
@@ -654,6 +656,38 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_too_large_warning_threshold_kb = 2;
         conf.local_read_too_large_abort_threshold_kb = 2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+    }
+
+    // row index entry
+    @Test
+    public void testRowIndexSizeWarnAndAbortNegative()
+    {
+        Config conf = new Config();
+        conf.row_index_size_warning_threshold_kb = -2;
+        conf.row_index_size_abort_threshold_kb = -2;
+        DatabaseDescriptor.applyReadWarningValidations(conf);
+        Assertions.assertThat(conf.row_index_size_warning_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.row_index_size_abort_threshold_kb).isEqualTo(0);
+    }
+
+    @Test
+    public void testRowIndexSizeWarnGreaterThanAbort()
+    {
+        Config conf = new Config();
+        conf.row_index_size_warning_threshold_kb = 2;
+        conf.row_index_size_abort_threshold_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("row_index_size_abort_threshold_kb (1) must be greater than or equal to row_index_size_warning_threshold_kb (2)");
+    }
+
+    @Test
+    public void testRowIndexSizeWarnEqAbort()
+    {
+        Config conf = new Config();
+        conf.row_index_size_warning_threshold_kb = 2;
+        conf.row_index_size_abort_threshold_kb = 2;
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 }

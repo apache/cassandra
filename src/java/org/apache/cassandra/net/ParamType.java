@@ -60,7 +60,9 @@ public enum ParamType
     TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
     TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer),
     LOCAL_READ_TOO_LARGE_ABORT(10, "LRTLA", Int64Serializer.serializer),
-    LOCAL_READ_TOO_LARGE_WARNING(11, "LRTLW", Int64Serializer.serializer);
+    LOCAL_READ_TOO_LARGE_WARNING(11, "LRTLW", Int64Serializer.serializer),
+    ROW_INDEX_ENTRY_TOO_LARGE_ABORT(12, "RIETLA", Int64Serializer.serializer),
+    ROW_INDEX_ENTRY_TOO_LARGE_WARNING(13, "RIETLW", Int64Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string
