@@ -723,4 +723,138 @@ public class ViewSchemaTest extends CQLTester
         assertInvalidThrowMessage("Cannot use token relation when defining a materialized view", InvalidRequestException.class,
                                   "CREATE MATERIALIZED VIEW mv_test AS SELECT a,b,c FROM %s WHERE a IS NOT NULL and b IS NOT NULL and token(a) = token(1) PRIMARY KEY(b,a)");
     }
+
+    @Test
+    public void testCreateViewWithClusteringOrderOnMvOnly() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "pk int, " +
+                    "c1 int," +
+                    "c2 int," +
+                    "c3 int," +
+                    "v int, " +
+                    "PRIMARY KEY (pk, c1, c2, c3))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 DESC, c1 ASC, c3 ASC)");
+        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 ASC, c1 DESC, c3 DESC)");
+
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 0, 0);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 1, 1);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 2, 2);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 1, 0, 3);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 1, 1, 4);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 1, 2, 5);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 1, 1, 1, 6);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 1, 2, 1, 7);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 2, 1, 1, 8);
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 0),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 2, 2),
+                   row(0, 0, 1, 0, 3),
+                   row(0, 0, 1, 1, 4),
+                   row(0, 0, 1, 2, 5),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 2, 1, 7),
+                   row(0, 2, 1, 1, 8));
+
+        assertRows(execute("SELECT * FROM mv1 WHERE pk = ?", 0),
+                   row(0, 2, 1, 1, 7),
+                   row(0, 1, 0, 0, 3),
+                   row(0, 1, 0, 1, 4),
+                   row(0, 1, 0, 2, 5),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 2, 1, 8),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 2, 2));
+
+        assertRows(execute("SELECT * FROM mv2 WHERE pk = ?", 0),
+                   row(0, 0, 0, 2, 2),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 1, 2, 1, 8),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 0, 2, 5),
+                   row(0, 1, 0, 1, 4),
+                   row(0, 1, 0, 0, 3),
+                   row(0, 2, 1, 1, 7));
+    }
+
+    @Test
+    public void testCreateViewWithClusteringOrderOnBaseTableAndMv() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "pk int, " +
+                    "c1 int," +
+                    "c2 int," +
+                    "c3 int," +
+                    "v int, " +
+                    "PRIMARY KEY (pk, c1, c2, c3)) WITH CLUSTERING ORDER BY (c1 DESC, c2 ASC, c3 DESC)");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3)");
+        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 DESC, c1 ASC, c3 ASC)");
+        createView("mv3", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 ASC, c1 DESC, c3 DESC)");
+
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 0, 0);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 1, 1);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 2, 2);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 1, 0, 3);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 1, 1, 4);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 1, 2, 5);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 1, 1, 1, 6);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 1, 2, 1, 7);
+        updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 2, 1, 1, 8);
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 0),
+                   row(0, 2, 1, 1, 8),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 2, 1, 7),
+                   row(0, 0, 0, 2, 2),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 0, 1, 2, 5),
+                   row(0, 0, 1, 1, 4),
+                  row(0, 0, 1, 0, 3));
+
+        assertRows(execute("SELECT * FROM mv1 WHERE pk = ?", 0),
+                   row(0, 0, 0, 2, 2),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 1, 2, 1, 8),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 0, 2, 5),
+                   row(0, 1, 0, 1, 4),
+                   row(0, 1, 0, 0, 3),
+                   row(0, 2, 1, 1, 7));
+
+        assertRows(execute("SELECT * FROM mv2 WHERE pk = ?", 0),
+                   row(0, 2, 1, 1, 7),
+                   row(0, 1, 0, 0, 3),
+                   row(0, 1, 0, 1, 4),
+                   row(0, 1, 0, 2, 5),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 2, 1, 8),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 2, 2));
+
+        assertRows(execute("SELECT * FROM mv3 WHERE pk = ?", 0),
+                   row(0, 0, 0, 2, 2),
+                   row(0, 0, 0, 1, 1),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 1, 2, 1, 8),
+                   row(0, 1, 1, 1, 6),
+                   row(0, 1, 0, 2, 5),
+                   row(0, 1, 0, 1, 4),
+                   row(0, 1, 0, 0, 3),
+                   row(0, 2, 1, 1, 7));
+    }
 }
