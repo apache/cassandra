@@ -104,15 +104,16 @@ Below is the example to customize internode ssl configuration with ``YourCassand
 can customize the client to node encryption.
 
 ::
-server_encryption_options:
-    ssl_context_factory:
-        class_name: com.your-company.YourCassandraSslContextFactory
-        parameters:
-            key1: "value1"
-            key2: "value2"
-            key3: "value3"
-    internode_encryption: none
-::
+
+    server_encryption_options:
+        ssl_context_factory:
+            class_name: com.your-company.YourCassandraSslContextFactory
+            parameters:
+                key1: "value1"
+                key2: "value2"
+                key3: "value3"
+        internode_encryption: none
+
 .. _operation-roles:
 
 Roles
