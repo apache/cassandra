@@ -55,7 +55,7 @@ import org.apache.cassandra.config.EncryptionOptions;
  *     truststore updated timestamp path = /etc/my-ssl-store/truststore-last-updatedtime
  * </pre>
  *
- * Customization: In order to customize the K8 secret configuration, override appropriate values in the below cassandra
+ * Customization: In order to customize the K8s secret configuration, override appropriate values in the below cassandra
  * configuration. The similar configuration can be applied to {@code client_encryption_options}.
  * <pre>
  *     server_encryption_options:

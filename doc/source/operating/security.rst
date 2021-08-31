@@ -95,9 +95,9 @@ Customizing SSL Context Creation
 
 There are situations when the current file based configurations for keystore/truststore and passwords are not enough and
 you want to customize how SSL Context is created to your specific needs. In that case, you can create a custom implementation
-of cassandra's ``org.apache.cassandra.security.ISslContextFactory`` interface and configure ``cassandra.yaml`` to use it.
-While the ``ISslContextFactory`` provides full control of building SSL Context, you can extend
-``org.apache.cassandra.security.AbstractSslContextFactory`` or ``org.apache.cassandra.security.FileBasedSslContextFactory``
+of cassandra's `org.apache.cassandra.security.ISslContextFactory <../../../src/java/org/apache/cassandra/security/ISslContextFactory.java>`_
+interface and configure ``cassandra.yaml`` to use it. While the ``ISslContextFactory`` provides full control of building
+SSL Context, you can extend ``org.apache.cassandra.security.AbstractSslContextFactory`` or ``org.apache.cassandra.security.FileBasedSslContextFactory``
 to keep your custom implementation to bare minimum. You can find an example of such a customization for Kubernetes `here <../../../examples/ssl-factory/src/org/apache/cassandra/security/KubernetesSecretsSslContextFactory.java>`_.
 
 Below is the example to customize internode ssl configuration with ``YourCassandraSslContextFactory``. The same way you
