@@ -32,6 +32,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -818,13 +819,14 @@ public class SelectStatement implements CQLStatement
     {
         if (!options.isClientTrackWarningsEnabled())
             return;
-        cfs().metric.clientReadSize.update(result.getSize());
+        TableMetrics metric = cfs().metric;
+        metric.clientReadSize.update(result.getSize());
         if (result.shouldWarn(options.getClientLargeReadWarnThresholdKb()))
         {
             String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getClientLargeReadWarnThresholdKb());
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
             logger.warn("{} with query {}", msg, asCQL(options));
-            cfs().metric.clientReadSizeWarnings.mark();
+            metric.clientReadSizeWarnings.mark();
         }
     }
 
@@ -838,8 +840,9 @@ public class SelectStatement implements CQLStatement
             String clientMsg = msg + " with " + loggableTokens(options);
             ClientWarn.instance.warn(clientMsg);
             logger.warn("{} with query {}", msg, asCQL(options));
-            cfs().metric.clientReadSizeAborts.mark();
-            cfs().metric.clientReadSize.update(result.getSize());
+            TableMetrics metric = cfs().metric;
+            metric.clientReadSizeAborts.mark();
+            metric.clientReadSize.update(result.getSize());
             // read errors require blockFor and recieved (its in the protocol message), but this isn't known;
             // to work around this, treat the coordinator as the only response we care about and mark it failed
             ReadSizeAbortException exception = new ReadSizeAbortException(clientMsg, options.getConsistency(), 0, 1, true,
