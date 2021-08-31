@@ -662,7 +662,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         final long abortThresholdBytes = DatabaseDescriptor.getLocalReadTooLargeAbortThresholdKb() * 1024;
         if (warnThresholdBytes == 0 && abortThresholdBytes == 0)
             return iterator;
-        //TODO Heap Size or logical size?
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
         {
             private DecoratedKey currentKey;
@@ -672,8 +671,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
             {
                 currentKey = iter.partitionKey();
-                //TODO once CASSANDRA-16900 merges, add ObjectSizes.sizeOfEmptyHeapByteBuffer()
-                sizeInBytes += currentKey.getKey().remaining();
+                sizeInBytes += ObjectSizes.sizeOnHeapOf(currentKey.getKey());
                 return Transformation.apply(iter, this);
             }
 
@@ -686,18 +684,16 @@ public abstract class ReadCommand extends AbstractReadQuery
             @Override
             protected Row applyToRow(Row row)
             {
-                //TODO should I add unsharedHeapSize() to row?
-                addSize(row.unsharedHeapSizeExcludingData() + row.dataSize());
+                addSize(row.unsharedHeapSize());
                 return row;
             }
 
-            //TODO no API to track size
-//            @Override
-//            protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
-//            {
-//                addSize(marker.i);
-//                return marker;
-//            }
+            @Override
+            protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+            {
+                addSize(marker.unsharedHeapSize());
+                return marker;
+            }
 
             @Override
             protected DeletionTime applyToDeletion(DeletionTime deletionTime)
