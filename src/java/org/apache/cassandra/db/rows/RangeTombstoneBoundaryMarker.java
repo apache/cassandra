@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  */
 public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<ClusteringBoundary<?>>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneBoundaryMarker(new ArrayClusteringBoundary(ClusteringPrefix.Kind.INCL_START_BOUND, AbstractArrayClusteringPrefix.EMPTY_VALUES_ARRAY), null, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneBoundaryMarker(new ArrayClusteringBoundary(ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY, new byte[][] { new byte[0]}), null, null));
 
     private final DeletionTime endDeletion;
     private final DeletionTime startDeletion;
