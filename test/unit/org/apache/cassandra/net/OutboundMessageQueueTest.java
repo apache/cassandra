@@ -33,7 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FreeRunningClock;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 // TODO: incomplete
 public class OutboundMessageQueueTest

@@ -53,7 +53,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.net.ConnectionTest.SETTINGS;
 import static org.apache.cassandra.net.OutboundConnectionSettings.Framing.CRC;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class ProxyHandlerConnectionsTest
 {

@@ -21,7 +21,6 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.util.UUID;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;

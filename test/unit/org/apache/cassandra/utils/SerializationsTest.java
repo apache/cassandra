@@ -31,13 +31,10 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
-
-import java.io.FileInputStream;
 
 import org.apache.cassandra.io.util.File;
 
