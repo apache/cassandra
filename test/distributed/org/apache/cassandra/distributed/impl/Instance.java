@@ -141,6 +141,7 @@ import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -631,12 +632,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 else
                 {
-                    cluster.stream().forEach(peer -> {
-                        if (cluster instanceof Cluster)
-                            GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this);
-                        else
-                            GossipHelper.unsafeStatusToNormal(this, (IInstance) peer);
-                    });
+                    if (config.has(BLANK_GOSSIP))
+                        cluster.stream().forEach(peer -> GossipHelper.statusToBlank((IInvokableInstance) peer).accept(this));
+                    else if (cluster instanceof Cluster)
+                        cluster.stream().forEach(peer -> GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this));
+                    else
+                        cluster.stream().forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
 
                     StorageService.instance.setUpDistributedSystemKeyspaces();
                     StorageService.instance.setNormalModeUnsafe();

@@ -23,7 +23,6 @@ import java.util.Arrays;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner;

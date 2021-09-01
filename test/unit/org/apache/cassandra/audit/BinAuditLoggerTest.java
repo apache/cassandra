@@ -19,7 +19,6 @@ package org.apache.cassandra.audit;
 
 import java.nio.file.Path;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 

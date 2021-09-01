@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;

@@ -86,16 +86,10 @@ public class UnsafeGossipHelper
                 Token token;
                 if (FBUtilities.getBroadcastAddressAndPort().equals(addressAndPort))
                 {
-                    if (tokenString == null)
-                    {
-                        token = Iterables.getOnlyElement(SystemKeyspace.getSavedTokens());
-                    }
-                    else
-                    {
-                        token = DatabaseDescriptor.getPartitioner().getTokenFactory().fromString(tokenString);
-                        SystemKeyspace.setLocalHostId(hostId);
-                        SystemKeyspace.updateTokens(singleton(token));
-                    }
+                    String str = tokenString == null ? Iterables.getOnlyElement(DatabaseDescriptor.getInitialTokens()) : tokenString;
+                    token = DatabaseDescriptor.getPartitioner().getTokenFactory().fromString(str);
+                    SystemKeyspace.setLocalHostId(hostId);
+                    SystemKeyspace.updateTokens(singleton(token));
                 }
                 else
                 {

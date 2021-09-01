@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.LoggerContext;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -59,7 +60,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
     final ClassLoader classLoader;
     private final DynamicFunction<Serializable> transfer;
 
-    IsolatedExecutor(String name, ClassLoader classLoader, ExecutorFactory executorFactory)
+    public IsolatedExecutor(String name, ClassLoader classLoader, ExecutorFactory executorFactory)
     {
         this(name, classLoader, executorFactory.pooled("isolatedExecutor", Integer.MAX_VALUE));
     }

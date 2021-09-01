@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.*;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;

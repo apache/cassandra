@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.*;
 
 import org.apache.cassandra.dht.IPartitioner;

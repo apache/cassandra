@@ -61,6 +61,8 @@ public final class Throwables
     {
         if (existingFail == null)
             return newFail;
+        if (newFail == null)
+            return existingFail;
         existingFail.addSuppressed(newFail);
         return existingFail;
     }

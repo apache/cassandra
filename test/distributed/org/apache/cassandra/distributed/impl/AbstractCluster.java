@@ -43,7 +43,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -139,7 +138,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
     // before we instantiate any for a new instance
     private static final Logger logger = LoggerFactory.getLogger(AbstractCluster.class);
-    private static final AtomicInteger GENERATION = new AtomicInteger();
 
     // include byteman so tests can use
     public static final Predicate<String> SHARED_PREDICATE = getSharedClassPredicate(ANY);
@@ -197,7 +195,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
-        private final int generation;
         private final IInstanceConfig config;
         private volatile IInvokableInstance delegate;
         private volatile Versions.Version version;
@@ -205,6 +202,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         private volatile boolean isShutdown = true;
         @GuardedBy("this")
         private InetSocketAddress broadcastAddress;
+        private int generation = -1;
 
         protected IInvokableInstance delegate()
         {
@@ -216,22 +214,22 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         protected IInvokableInstance delegateForStartup()
         {
             if (delegate == null)
-                delegate = newInstance(generation);
+                delegate = newInstance();
             return delegate;
         }
 
-        public Wrapper(int generation, Versions.Version version, IInstanceConfig config)
+        public Wrapper(Versions.Version version, IInstanceConfig config)
         {
-            this.generation = generation;
             this.config = config;
             this.version = version;
             // we ensure there is always a non-null delegate, so that the executor may be used while the node is offline
-            this.delegate = newInstance(generation);
+            this.delegate = newInstance();
             this.broadcastAddress = config.broadcastAddress();
         }
 
-        private IInvokableInstance newInstance(int generation)
+        private IInvokableInstance newInstance()
         {
+            ++generation;
             ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, sharedClassPredicate, classTransformer);
             ThreadGroup threadGroup = new ThreadGroup(clusterThreadGroup, "node" + config.num() + (generation > 1 ? "_" + generation : ""));
             if (instanceInitializer != null)
@@ -261,6 +259,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public Executor executorFor(int verb)
         {
+            if (isShutdown)
+                throw new IllegalStateException();
+
             // this method must be lock-free to avoid Simulator deadlock
             return delegate().executorFor(verb);
         }
@@ -461,13 +462,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.instanceInitializer = builder.getInstanceInitializer2();
         this.datadirCount = builder.getDatadirCount();
 
-        int generation = GENERATION.incrementAndGet();
         for (int i = 0; i < builder.getNodeCount(); ++i)
         {
             int nodeNum = i + 1;
             InstanceConfig config = createInstanceConfig(nodeNum);
 
-            I instance = newInstanceWrapperInternal(generation, initialVersion, config);
+            I instance = newInstanceWrapperInternal(initialVersion, config);
             instances.add(instance);
             // we use the config().broadcastAddressAndPort() here because we have not initialised the Instance
             I prev = instanceMap.put(instance.config().broadcastAddress(), instance);
@@ -507,17 +507,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     }
 
 
-    protected abstract I newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config);
+    protected abstract I newInstanceWrapper(Versions.Version version, IInstanceConfig config);
 
-    protected I newInstanceWrapperInternal(int generation, Versions.Version version, IInstanceConfig config)
+    protected I newInstanceWrapperInternal(Versions.Version version, IInstanceConfig config)
     {
         config.validate();
-        return newInstanceWrapper(generation, version, config);
+        return newInstanceWrapper(version, config);
     }
 
     public I bootstrap(IInstanceConfig config)
     {
-        I instance = newInstanceWrapperInternal(0, initialVersion, config);
+        I instance = newInstanceWrapperInternal(initialVersion, config);
         instances.add(instance);
         I prev = instanceMap.put(config.broadcastAddress(), instance);
 

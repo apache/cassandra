@@ -73,7 +73,7 @@ public class InstanceConfig implements IInstanceConfig
     {
         this.num = num;
         this.networkTopology = networkTopology;
-        this.hostId = java.util.UUID.randomUUID();
+        this.hostId = new UUID(0x4000L, (1L << 63) | num); // deterministic hostId for simulator
         this    .set("num_tokens", 1)
                 .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)

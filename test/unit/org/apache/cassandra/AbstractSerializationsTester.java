@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.io.util.File;
-
 public class AbstractSerializationsTester
 {
     protected static final String CUR_VER = System.getProperty("cassandra.version", "4.0");

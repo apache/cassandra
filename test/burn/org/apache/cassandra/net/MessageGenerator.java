@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 import sun.misc.Unsafe;
 
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 abstract class MessageGenerator
 {

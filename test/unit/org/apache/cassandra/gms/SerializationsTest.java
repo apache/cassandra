@@ -22,7 +22,6 @@ import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;

@@ -38,9 +38,9 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
         super(builder);
     }
 
-    protected IInvokableInstance newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config)
+    protected IInvokableInstance newInstanceWrapper(Versions.Version version, IInstanceConfig config)
     {
-        return new Wrapper(generation, version, config);
+        return new Wrapper(version, config);
     }
 
     public static Builder build()

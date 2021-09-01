@@ -54,6 +54,11 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class GossipHelper
 {
+    public static InstanceAction statusToBlank(IInvokableInstance newNode)
+    {
+        return (instance) -> changeGossipState(instance, newNode,Collections.emptyList());
+    }
+
     public static InstanceAction statusToBootstrap(IInvokableInstance newNode)
     {
         return (instance) ->

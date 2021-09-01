@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState.TERMINATED;
@@ -41,9 +42,16 @@ public class InfiniteLoopExecutor implements Interruptible
 {
     private static final Logger logger = LoggerFactory.getLogger(InfiniteLoopExecutor.class);
 
+    @Shared(scope = Shared.Scope.SIMULATION)
     public enum InternalState { TERMINATED }
+
+    @Shared(scope = Shared.Scope.SIMULATION)
     public enum SimulatorSafe { SAFE, UNSAFE }
+
+    @Shared(scope = Shared.Scope.SIMULATION)
     public enum Daemon        { DAEMON, NON_DAEMON }
+
+    @Shared(scope = Shared.Scope.SIMULATION)
     public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
 
     private static final AtomicReferenceFieldUpdater<InfiniteLoopExecutor, Object> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(InfiniteLoopExecutor.class, Object.class, "state");
@@ -66,6 +74,15 @@ public class InfiniteLoopExecutor implements Interruptible
     {
         this.task = task;
         this.thread = factory.startThread(name, this::loop, daemon);
+        this.interruptHandler = interrupts == SYNCHRONIZED
+                                ? interruptHandler(task)
+                                : Thread::interrupt;
+    }
+
+    public InfiniteLoopExecutor(BiFunction<String, Runnable, Thread> threadStarter, String name, Task task, Interrupts interrupts)
+    {
+        this.task = task;
+        this.thread = threadStarter.apply(name, this::loop);
         this.interruptHandler = interrupts == SYNCHRONIZED
                                 ? interruptHandler(task)
                                 : Thread::interrupt;

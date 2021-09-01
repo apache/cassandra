@@ -18,7 +18,7 @@
 package org.apache.cassandra.utils;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.junit.Assert.*;
 
 import org.junit.Test;

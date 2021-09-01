@@ -229,6 +229,7 @@ public enum CassandraRelevantProperties
     TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
     TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),
     TEST_SIMULATOR_LIVENESS_CHECK("cassandra.test.simulator.livenesscheck", "true"),
+    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "true"),
 
     // determinism properties for testing
     DETERMINISM_SSTABLE_COMPRESSION_DEFAULT("cassandra.sstable_compression_default", "true"),

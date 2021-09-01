@@ -24,7 +24,6 @@ import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.Random;
 
-import org.apache.cassandra.io.util.File;
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
