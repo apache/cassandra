@@ -32,6 +32,7 @@ import javax.net.ssl.TrustManagerFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,8 +51,8 @@ public class KubernetesSecretsSslContextFactoryTest
     private static final String KEYSTORE_PATH = EncryptionOptions.ConfigKey.KEYSTORE.toString();
 
     private Map<String,Object> commonConfig = new HashMap<>();
-    private final String truststoreUpdatedTimestampFilepath = "test/conf/cassandra_truststore_last_updatedtime";
-    private final String keystoreUpdatedTimestampFilepath = "test/conf/cassandra_keystore_last_updatedtime";
+    private final static String truststoreUpdatedTimestampFilepath = "test/conf/cassandra_truststore_last_updatedtime";
+    private final static String keystoreUpdatedTimestampFilepath = "test/conf/cassandra_keystore_last_updatedtime";
 
     private static class KubernetesSecretsSslContextFactoryForTestOnly extends KubernetesSecretsSslContextFactory
     {
@@ -82,25 +83,14 @@ public class KubernetesSecretsSslContextFactoryTest
         }
     }
 
-    @Before
-    public void setup()
+    @BeforeClass
+    public static void prepare()
     {
         deleteFileIfExists(truststoreUpdatedTimestampFilepath);
         deleteFileIfExists(keystoreUpdatedTimestampFilepath);
-
-        commonConfig.put(TRUSTSTORE_PATH, "test/conf/cassandra_ssl_test.truststore");
-        commonConfig.put(TRUSTSTORE_PASSWORD_ENV_VAR, "MY_TRUSTSTORE_PASSWORD");
-        commonConfig.put(TRUSTSTORE_UPDATED_TIMESTAMP_PATH, truststoreUpdatedTimestampFilepath);
-        /*
-         * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
-         *  done to avoid having a dependency on env in the unit test.
-         */
-        commonConfig.put("MY_TRUSTSTORE_PASSWORD", "cassandra");
-        commonConfig.put("require_client_auth", Boolean.FALSE);
-        commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
-    private void deleteFileIfExists(String filePath)
+    private static void deleteFileIfExists(String filePath)
     {
         try {
             logger.info("Deleting the file {} to prepare for the tests", filePath);
@@ -114,6 +104,21 @@ public class KubernetesSecretsSslContextFactoryTest
         {
             logger.warn("File {} could not be deleted.", filePath, e);
         }
+    }
+
+    @Before
+    public void setup()
+    {
+        commonConfig.put(TRUSTSTORE_PATH, "test/conf/cassandra_ssl_test.truststore");
+        commonConfig.put(TRUSTSTORE_PASSWORD_ENV_VAR, "MY_TRUSTSTORE_PASSWORD");
+        commonConfig.put(TRUSTSTORE_UPDATED_TIMESTAMP_PATH, truststoreUpdatedTimestampFilepath);
+        /*
+         * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
+         *  done to avoid having a dependency on env in the unit test.
+         */
+        commonConfig.put("MY_TRUSTSTORE_PASSWORD", "cassandra");
+        commonConfig.put("require_client_auth", Boolean.FALSE);
+        commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
     private void addKeystoreOptions(Map<String,Object> config)
