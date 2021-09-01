@@ -568,7 +568,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 SystemKeyspace.finishStartup();
 
-                CassandraDaemon.getInstanceForTesting().setupCompleted();
+                StorageService.instance.doAuthSetup(false);
+                CassandraDaemon.getInstanceForTesting().completeSetup();
 
                 if (config.has(NATIVE_PROTOCOL))
                 {
