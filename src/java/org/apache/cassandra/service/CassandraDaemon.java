@@ -440,6 +440,8 @@ public class CassandraDaemon
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 
+        StorageService.instance.doAuthSetup(false);
+
         // re-enable auto-compaction after gossip is settled, so correct disk boundaries are used
         for (Keyspace keyspace : Keyspace.all())
         {
