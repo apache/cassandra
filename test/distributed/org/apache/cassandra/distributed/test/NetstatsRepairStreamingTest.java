@@ -76,7 +76,7 @@ public class NetstatsRepairStreamingTest extends AbstractNetstatsStreaming
 
             final Future<NetstatResults> resultsFuture1 = executorService.submit(new NetstatsCallable(node1));
 
-            node1.nodetoolResult("repair", "netstats_test").asserts().success();
+            node1.nodetoolResult("repair", "--full", "netstats_test").asserts().success();
 
             final NetstatResults results = resultsFuture1.get(1, MINUTES);
 
