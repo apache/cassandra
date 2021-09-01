@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;

@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;

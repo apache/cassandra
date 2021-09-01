@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.primitives.Ints;
-import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 

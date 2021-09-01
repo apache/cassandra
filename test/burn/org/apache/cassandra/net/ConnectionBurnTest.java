@@ -66,8 +66,8 @@ import static java.lang.Math.min;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
-import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 
 public class ConnectionBurnTest
 {

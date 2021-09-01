@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.io.util.File;
 import static org.apache.cassandra.schema.CompressionParams.DEFAULT_CHUNK_LENGTH;
 import static org.apache.commons.io.FileUtils.readFileToByteArray;
 import static org.junit.Assert.assertEquals;

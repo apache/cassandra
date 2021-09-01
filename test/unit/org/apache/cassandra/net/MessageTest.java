@@ -48,7 +48,7 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.ParamType.TRACE_SESSION;
 import static org.apache.cassandra.net.ParamType.TRACE_TYPE;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.junit.Assert.*;
 
 public class MessageTest
