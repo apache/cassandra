@@ -23,12 +23,10 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -58,12 +56,12 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
     @VisibleForTesting
     void process(String query)
     {
-        QueryProcessor.process(query, ConsistencyLevel.LOCAL_ONE);
+        QueryProcessor.process(query, CassandraAuthorizer.authWriteConsistencyLevel());
     }
 
     private Set<String> getAuthorizedDcs(String name)
     {
-        QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+        QueryOptions options = QueryOptions.forInternalCalls(CassandraAuthorizer.authReadConsistencyLevel(),
                                                              Lists.newArrayList(ByteBufferUtil.bytes(name)));
 
         ResultMessage.Rows rows = select(authorizeUserStatement, options);
