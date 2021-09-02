@@ -870,26 +870,7 @@ public class DatabaseDescriptor
     @VisibleForTesting
     static void applyReadWarningValidations(Config config)
     {
-        // coordinator
-        config.client_large_read_warn_threshold_kb = Math.max(config.client_large_read_warn_threshold_kb, 0);
-        config.client_large_read_abort_threshold_kb = Math.max(config.client_large_read_abort_threshold_kb, 0);
-        if (config.client_large_read_abort_threshold_kb != 0 && config.client_large_read_abort_threshold_kb < config.client_large_read_warn_threshold_kb)
-            throw new ConfigurationException(String.format("client_large_read_abort_threshold_kb (%d) must be greater than or equal to client_large_read_warn_threshold_kb (%d)",
-                                                           config.client_large_read_abort_threshold_kb, config.client_large_read_warn_threshold_kb));
-
-        // local
-        config.local_read_too_large_warning_threshold_kb = Math.max(config.local_read_too_large_warning_threshold_kb, 0);
-        config.local_read_too_large_abort_threshold_kb = Math.max(config.local_read_too_large_abort_threshold_kb, 0);
-        if (config.local_read_too_large_abort_threshold_kb != 0 && config.local_read_too_large_abort_threshold_kb < config.local_read_too_large_warning_threshold_kb)
-            throw new ConfigurationException(String.format("local_read_too_large_abort_threshold_kb (%d) must be greater than or equal to local_read_too_large_warning_threshold_kb (%d)",
-                                                           config.local_read_too_large_abort_threshold_kb, config.local_read_too_large_warning_threshold_kb));
-
-        // RowIndexEntry
-        config.row_index_size_warning_threshold_kb = Math.max(config.row_index_size_warning_threshold_kb, 0);
-        config.row_index_size_abort_threshold_kb = Math.max(config.row_index_size_abort_threshold_kb, 0);
-        if (config.row_index_size_abort_threshold_kb != 0 && config.row_index_size_abort_threshold_kb < config.row_index_size_warning_threshold_kb)
-            throw new ConfigurationException(String.format("row_index_size_abort_threshold_kb (%d) must be greater than or equal to row_index_size_warning_threshold_kb (%d)",
-                                                           config.row_index_size_abort_threshold_kb, config.row_index_size_warning_threshold_kb));
+        config.track_warnings.validate("track_warnings");
     }
 
     private static String storagedirFor(String type)
@@ -3480,73 +3461,73 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
-    public static long getClientLargeReadWarnThresholdKB()
-    {
-        return conf.client_large_read_warn_threshold_kb;
-    }
-
-    public static void setClientLargeReadWarnThresholdKB(long threshold)
-    {
-        conf.client_large_read_warn_threshold_kb = Math.max(threshold, 0);
-    }
-
-    public static long getClientLargeReadAbortThresholdKB()
-    {
-        return conf.client_large_read_abort_threshold_kb;
-    }
-
-    public static void setClientLargeReadAbortThresholdKB(long threshold)
-    {
-        conf.client_large_read_abort_threshold_kb = Math.max(threshold, 0);
-    }
-
     public static boolean getClientTrackWarningsEnabled()
     {
-        return conf.client_track_warnings_enabled;
+        return conf.track_warnings.enabled;
     }
 
     public static void setClientTrackWarningsEnabled(boolean value)
     {
-        conf.client_track_warnings_enabled = value;
+        conf.track_warnings.enabled = value;
+    }
+
+    public static long getClientLargeReadWarnThresholdKB()
+    {
+        return conf.track_warnings.client_large_read.getWarnThresholdKb();
+    }
+
+    public static void setClientLargeReadWarnThresholdKB(long threshold)
+    {
+        conf.track_warnings.client_large_read.setWarnThresholdKb(threshold);
+    }
+
+    public static long getClientLargeReadAbortThresholdKB()
+    {
+        return conf.track_warnings.client_large_read.getAbortThresholdKb();
+    }
+
+    public static void setClientLargeReadAbortThresholdKB(long threshold)
+    {
+        conf.track_warnings.client_large_read.setAbortThresholdKb(threshold);
     }
 
     public static long getLocalReadTooLargeWarningThresholdKb()
     {
-        return conf.local_read_too_large_warning_threshold_kb;
+        return conf.track_warnings.local_read_too_large.getWarnThresholdKb();
     }
 
     public static void setLocalReadTooLargeWarningThresholdKb(long value)
     {
-        conf.local_read_too_large_warning_threshold_kb = value;
+        conf.track_warnings.local_read_too_large.setWarnThresholdKb(value);
     }
 
     public static long getLocalReadTooLargeAbortThresholdKb()
     {
-        return conf.local_read_too_large_abort_threshold_kb;
+        return conf.track_warnings.local_read_too_large.getAbortThresholdKb();
     }
 
     public static void setLocalReadTooLargeAbortThresholdKb(long value)
     {
-        conf.local_read_too_large_abort_threshold_kb = value;
+        conf.track_warnings.local_read_too_large.setAbortThresholdKb(value);
     }
 
     public static int getRowIndexSizeWarningThresholdKb()
     {
-        return conf.row_index_size_warning_threshold_kb;
+        return conf.track_warnings.row_index_size.getWarnThresholdKb();
     }
 
     public static void setRowIndexSizeWarningThresholdKb(int value)
     {
-        conf.row_index_size_warning_threshold_kb = value;
+        conf.track_warnings.row_index_size.setWarnThresholdKb(value);
     }
 
     public static int getRowIndexSizeAbortThresholdKb()
     {
-        return conf.row_index_size_abort_threshold_kb;
+        return conf.track_warnings.row_index_size.getAbortThresholdKb();
     }
 
     public static void setRowIndexSizeAbortThresholdKb(int value)
     {
-        conf.row_index_size_abort_threshold_kb = value;
+        conf.track_warnings.row_index_size.setAbortThresholdKb(value);
     }
 }

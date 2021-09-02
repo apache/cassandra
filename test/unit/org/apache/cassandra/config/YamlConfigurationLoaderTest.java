@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.config;
 
+import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,6 +37,48 @@ import static org.junit.Assert.assertEquals;
 
 public class YamlConfigurationLoaderTest
 {
+    @Test
+    public void trackWarningsFromConfig()
+    {
+        // this test just makes sure snakeyaml loads the test config properly and populates the fields (track warnings uses final in some places)
+        // if the config is changed, its ok to update this test to reflect that change
+        TrackWarnings tw = load("test/conf/cassandra.yaml").track_warnings;
+        assertThat(tw.enabled).isTrue();
+
+        assertThat(tw.client_large_read.warn_threshold_kb).isGreaterThan(0);
+        assertThat(tw.client_large_read.abort_threshold_kb).isGreaterThan(0);
+
+        assertThat(tw.local_read_too_large.warn_threshold_kb).isGreaterThan(0);
+        assertThat(tw.local_read_too_large.abort_threshold_kb).isGreaterThan(0);
+
+        assertThat(tw.row_index_size.warn_threshold_kb).isGreaterThan(0);
+        assertThat(tw.row_index_size.abort_threshold_kb).isGreaterThan(0);
+    }
+
+    @Test
+    public void trackWarningsFromMap()
+    {
+        Map<String, Object> map = ImmutableMap.of("track_warnings", ImmutableMap.of(
+        "enabled", true,
+        "client_large_read", ImmutableMap.of("warn_threshold_kb", 1024),
+        "local_read_too_large", ImmutableMap.of("abort_threshold_kb", 1024),
+        "row_index_size", ImmutableMap.of("warn_threshold_kb", 1024, "abort_threshold_kb", 1024)
+        ));
+
+        Config config = YamlConfigurationLoader.fromMap(map, Config.class);
+        TrackWarnings tw = config.track_warnings;
+        assertThat(tw.enabled).isTrue();
+
+        assertThat(tw.client_large_read.warn_threshold_kb).isEqualTo(1024);
+        assertThat(tw.client_large_read.abort_threshold_kb).isEqualTo(0);
+
+        assertThat(tw.local_read_too_large.warn_threshold_kb).isEqualTo(0);
+        assertThat(tw.local_read_too_large.abort_threshold_kb).isEqualTo(1024);
+
+        assertThat(tw.row_index_size.warn_threshold_kb).isEqualTo(1024);
+        assertThat(tw.row_index_size.abort_threshold_kb).isEqualTo(1024);
+    }
+
     @Test
     public void fromMapTest()
     {
@@ -59,10 +104,26 @@ public class YamlConfigurationLoaderTest
     @Test
     public void sharedErrorReportingExclusions()
     {
-        URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource("data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml");
-        Config config = new YamlConfigurationLoader().loadConfig(url);
+        Config config = load("data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml");
         SubnetGroups expected = new SubnetGroups(Arrays.asList("127.0.0.1", "127.0.0.0/31"));
         assertThat(config.client_error_reporting_exclusions).isEqualTo(expected);
         assertThat(config.internode_error_reporting_exclusions).isEqualTo(expected);
+    }
+
+    private static Config load(String path)
+    {
+        URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource(path);
+        if (url == null)
+        {
+            try
+            {
+                url = new File(path).toURI().toURL();
+            }
+            catch (MalformedURLException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
+        return new YamlConfigurationLoader().loadConfig(url);
     }
 }
