@@ -66,7 +66,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @RunWith(BMUnitRunner.class)
 @BMRule(name = "FailureDecector sees all nodes as live", // applies to all test cases in the class
-        targetClass = "IFailureDetector",
+        targetClass = "FailureDetector",
         targetMethod = "isAlive",
         action = "return true;")
 public class AssureSufficientLiveNodesTest
