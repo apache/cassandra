@@ -515,6 +515,11 @@ public class Config
      */
     public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
 
+    // Using String instead of ConsistencyLevel here to keep static initialization from cascading and starting
+    // threads during tool usage mode. See CASSANDRA-12988 and DatabaseDescriptorRefTest for details
+    public volatile String auth_read_consistency_level = "LOCAL_QUORUM";
+    public volatile String auth_write_consistency_level = "EACH_QUORUM";
+
     /**
      * The intial capacity for creating RangeTombstoneList.
      */

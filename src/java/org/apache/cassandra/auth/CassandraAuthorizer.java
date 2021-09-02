@@ -109,7 +109,8 @@ public class CassandraAuthorizer implements IAuthorizer
             UntypedResultSet rows = process(String.format("SELECT resource FROM %s.%s WHERE role = '%s'",
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.ROLE_PERMISSIONS,
-                                                          escape(revokee.getRoleName())));
+                                                          escape(revokee.getRoleName())),
+                                            authReadConsistencyLevel());
 
             List<CQLStatement> statements = new ArrayList<>();
             for (UntypedResultSet.Row row : rows)
@@ -148,7 +149,8 @@ public class CassandraAuthorizer implements IAuthorizer
             UntypedResultSet rows = process(String.format("SELECT role FROM %s.%s WHERE resource = '%s'",
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.RESOURCE_ROLE_INDEX,
-                                                          escape(droppedResource.getName())));
+                                                          escape(droppedResource.getName())),
+                                            authReadConsistencyLevel());
 
             List<CQLStatement> statements = new ArrayList<>();
             for (UntypedResultSet.Row row : rows)
@@ -189,7 +191,7 @@ public class CassandraAuthorizer implements IAuthorizer
     private void addPermissionsForRole(Set<Permission> permissions, IResource resource, RoleResource role)
     throws RequestExecutionException, RequestValidationException
     {
-        QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+        QueryOptions options = QueryOptions.forInternalCalls(authReadConsistencyLevel(),
                                                              Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
                                                                                 ByteBufferUtil.bytes(resource.getName())));
 
@@ -216,7 +218,8 @@ public class CassandraAuthorizer implements IAuthorizer
                               op,
                               "'" + StringUtils.join(permissions, "','") + "'",
                               escape(role.getRoleName()),
-                              escape(resource.getName())));
+                              escape(resource.getName())),
+                authWriteConsistencyLevel());
     }
 
     // Removes an entry from the inverted index table (from resource -> role with defined permissions)
@@ -226,7 +229,8 @@ public class CassandraAuthorizer implements IAuthorizer
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.RESOURCE_ROLE_INDEX,
                               escape(resource.getName()),
-                              escape(role.getRoleName())));
+                              escape(role.getRoleName())),
+                authWriteConsistencyLevel());
     }
 
     // Adds an entry to the inverted index table (from resource -> role with defined permissions)
@@ -236,7 +240,8 @@ public class CassandraAuthorizer implements IAuthorizer
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.RESOURCE_ROLE_INDEX,
                               escape(resource.getName()),
-                              escape(role.getRoleName())));
+                              escape(role.getRoleName())),
+                authWriteConsistencyLevel());
     }
 
     // 'of' can be null - in that case everyone's permissions have been requested. Otherwise only single user's.
@@ -270,7 +275,7 @@ public class CassandraAuthorizer implements IAuthorizer
     throws RequestExecutionException
     {
         Set<PermissionDetails> details = new HashSet<>();
-        for (UntypedResultSet.Row row : process(buildListQuery(resource, role)))
+        for (UntypedResultSet.Row row : process(buildListQuery(resource, role), authReadConsistencyLevel()))
         {
             if (row.has(PERMISSIONS))
             {
@@ -350,16 +355,27 @@ public class CassandraAuthorizer implements IAuthorizer
         return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
     }
 
-    UntypedResultSet process(String query) throws RequestExecutionException
+    UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
-        return QueryProcessor.process(query, ConsistencyLevel.LOCAL_ONE);
+        return QueryProcessor.process(query, cl);
     }
 
     void processBatch(BatchStatement statement)
     {
+        QueryOptions options = QueryOptions.forInternalCalls(authWriteConsistencyLevel(), Collections.emptyList());
         QueryProcessor.instance.processBatch(statement,
                                              QueryState.forInternalCalls(),
-                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT),
+                                             BatchQueryOptions.withoutPerStatementVariables(options),
                                              System.nanoTime());
+    }
+
+    public static ConsistencyLevel authWriteConsistencyLevel()
+    {
+        return AuthProperties.instance.getWriteConsistencyLevel();
+    }
+
+    public static ConsistencyLevel authReadConsistencyLevel()
+    {
+        return AuthProperties.instance.getReadConsistencyLevel();
     }
 }

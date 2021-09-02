@@ -3437,6 +3437,26 @@ public class DatabaseDescriptor
         conf.keyspace_count_warn_threshold = value;
     }
 
+    public static ConsistencyLevel getAuthWriteConsistencyLevel()
+    {
+        return ConsistencyLevel.valueOf(conf.auth_write_consistency_level);
+    }
+
+    public static ConsistencyLevel getAuthReadConsistencyLevel()
+    {
+        return ConsistencyLevel.valueOf(conf.auth_read_consistency_level);
+    }
+
+    public static void setAuthWriteConsistencyLevel(ConsistencyLevel cl)
+    {
+        conf.auth_write_consistency_level = cl.toString();
+    }
+
+    public static void setAuthReadConsistencyLevel(ConsistencyLevel cl)
+    {
+        conf.auth_read_consistency_level = cl.toString();
+    }
+
     public static int getConsecutiveMessageErrorsThreshold()
     {
         return conf.consecutive_message_errors_threshold;

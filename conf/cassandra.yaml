@@ -1426,6 +1426,10 @@ report_unconfirmed_repaired_data_mismatches: false
 # table_count_warn_threshold: 150
 # keyspace_count_warn_threshold: 40
 
+# configure the read and write consistency levels for modifications to auth tables
+# auth_read_consistency_level: LOCAL_QUORUM
+# auth_write_consistency_level: EACH_QUORUM
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################

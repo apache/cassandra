@@ -80,7 +80,7 @@ public class AuthTestUtils
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
-        UntypedResultSet process(String query) throws RequestExecutionException
+        UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
         {
             return QueryProcessor.executeInternal(query);
         }
