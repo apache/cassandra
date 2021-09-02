@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 
@@ -104,5 +105,15 @@ public class NodeToolTest extends TestBaseImpl
             .asserts()
             .failure()
             .stdoutContains("timeout must be non-negative");
+    }
+
+    @Test
+    public void testSetCacheCapacityWhenDisabled() throws Throwable
+    {
+        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
+        {
+            NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
+            ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
+        }
     }
 }
