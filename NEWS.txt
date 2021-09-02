@@ -140,6 +140,9 @@ New features
       See CASSANDRA-10190 for details.
     - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
     - It is now possible to rate limit snapshot creation/clearing. See CASSANDRA-13019
+    - Authentication reads and writes have been changed from a mix of ONE, LOCAL_ONE, and QUORUM
+      to LOCAL_QUORUM on reads and EACH_QUORUM on writes. This is configurable via cassandra.yaml with
+      auth_read_consistency_level and auth_write_consistency_level respectively. See CASSANDRA-12988.
 
 Upgrading
 ---------
