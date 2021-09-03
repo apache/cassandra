@@ -78,9 +78,11 @@
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
 
+    <property name="local.repository" value="${user.home}/.m2/repository" />
+
     <!-- details of what version of Maven ANT Tasks to fetch -->
     <property name="maven-ant-tasks.version" value="2.1.3" />
-    <property name="maven-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/maven-ant-tasks"/>
+    <property name="maven-ant-tasks.local" value="${local.repository}/org/apache/maven/maven-ant-tasks"/>
     <property name="maven-ant-tasks.url"
               value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
