@@ -103,6 +103,115 @@ public class ColumnFamilyStoreCQLHelper
             sb.append("\n(this should not be used to reproduce this schema)\n\n");
         }
 
+        List<ColumnDefinition> clusteringColumns = getClusteringColumns(metadata);
+
+        if (metadata.isView())
+        {
+            sb.append(getViewMetadataAsCQL(metadata, includeDroppedColumns));
+        }
+        else
+        {
+            sb.append(getBaseTableMetadataAsCQL(metadata, includeDroppedColumns));
+        }
+
+        sb.append("WITH ");
+
+        sb.append("ID = ").append(metadata.cfId).append("\n\tAND ");
+
+        if (metadata.isCompactTable())
+            sb.append("COMPACT STORAGE\n\tAND ");
+
+        if (clusteringColumns.size() > 0)
+        {
+            sb.append("CLUSTERING ORDER BY (");
+
+            Consumer<StringBuilder> cOrderCommaAppender = commaAppender(" ");
+            for (ColumnDefinition cd : clusteringColumns)
+            {
+                cOrderCommaAppender.accept(sb);
+                sb.append(cd.name.toCQLString()).append(' ').append(cd.clusteringOrder().toString());
+            }
+            sb.append(")\n\tAND ");
+        }
+
+        sb.append(toCQL(metadata.params));
+        sb.append(";");
+
+        if (!isCqlCompatible(metadata))
+        {
+            sb.append("\n*/");
+        }
+        return sb.toString();
+    }
+
+    private static String getViewMetadataAsCQL(CFMetaData metadata, boolean includeDroppedColumns)
+    {
+        assert metadata.isView();
+        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKSMetaData(metadata.ksName);
+        assert keyspaceMetadata != null;
+        ViewDefinition viewMetadata = keyspaceMetadata.views.get(metadata.cfName).orElse(null);
+        assert viewMetadata != null;
+
+        List<ColumnDefinition> partitionKeyColumns = metadata.partitionKeyColumns();
+        List<ColumnDefinition> clusteringColumns = getClusteringColumns(metadata);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s AS SELECT ",
+                                ColumnIdentifier.maybeQuote(metadata.ksName),
+                                ColumnIdentifier.maybeQuote(metadata.cfName)));
+
+        if (viewMetadata.includeAllColumns)
+        {
+            sb.append("*");
+        }
+        else
+        {
+            boolean isFirst = true;
+            List<ColumnDefinition> columns = new ArrayList<>(metadata.allColumns());
+            columns.sort(Comparator.comparing((c -> c.name.toString())));
+            for (ColumnDefinition column : columns) {
+                if (!isFirst)
+                    sb.append(", ");
+                sb.append(column.name.toString());
+                isFirst = false;
+            }
+        }
+        sb.append(" FROM ").append(viewMetadata.ksName).append(".").append(viewMetadata.baseTableName).append("\n\t");
+        sb.append("WHERE ").append(viewMetadata.whereClause).append("\n\t");
+
+        if (clusteringColumns.size() > 0 || partitionKeyColumns.size() > 1)
+        {
+            sb.append("PRIMARY KEY (");
+            if (partitionKeyColumns.size() > 1)
+            {
+                sb.append("(");
+                Consumer<StringBuilder> pkCommaAppender = commaAppender(" ");
+                for (ColumnDefinition cfd : partitionKeyColumns)
+                {
+                    pkCommaAppender.accept(sb);
+                    sb.append(cfd.name.toCQLString());
+                }
+                sb.append(")");
+            }
+            else
+            {
+                sb.append(partitionKeyColumns.get(0).name.toCQLString());
+            }
+
+            for (ColumnDefinition cfd : metadata.clusteringColumns())
+                sb.append(", ").append(cfd.name.toCQLString());
+
+            sb.append(')');
+        }
+        sb.append("\n\t");
+        return sb.toString();
+    }
+
+    @VisibleForTesting
+    public static String getBaseTableMetadataAsCQL(CFMetaData metadata, boolean includeDroppedColumns)
+    {
+        StringBuilder sb = new StringBuilder();
+
         sb.append("CREATE TABLE IF NOT EXISTS ");
         sb.append(quoteIdentifier(metadata.ksName)).append('.').append(quoteIdentifier(metadata.cfName)).append(" (");
 
@@ -172,33 +281,7 @@ public class ColumnFamilyStoreCQLHelper
             sb.append(')');
         }
         sb.append(")\n\t");
-        sb.append("WITH ");
 
-        sb.append("ID = ").append(metadata.cfId).append("\n\tAND ");
-
-        if (metadata.isCompactTable())
-            sb.append("COMPACT STORAGE\n\tAND ");
-
-        if (clusteringColumns.size() > 0)
-        {
-            sb.append("CLUSTERING ORDER BY (");
-
-            Consumer<StringBuilder> cOrderCommaAppender = commaAppender(" ");
-            for (ColumnDefinition cd : clusteringColumns)
-            {
-                cOrderCommaAppender.accept(sb);
-                sb.append(quoteIdentifier(cd.name.toString())).append(' ').append(cd.clusteringOrder().toString());
-            }
-            sb.append(")\n\tAND ");
-        }
-
-        sb.append(toCQL(metadata.params));
-        sb.append(";");
-
-        if (!isCqlCompatible(metadata))
-        {
-            sb.append("\n*/");
-        }
         return sb.toString();
     }
 

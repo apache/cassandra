@@ -756,6 +756,11 @@ public class Schema
         // make sure all the indexes are dropped, or else.
         cfs.indexManager.markAllIndexesRemoved();
 
+        CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfs.metadata), true);
+
+        if (DatabaseDescriptor.isAutoSnapshot())
+            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+
         // reinitialize the keyspace.
         ViewDefinition view = oldKsm.views.get(viewName).get();
         KeyspaceMetadata newKsm = oldKsm.withSwapped(oldKsm.views.without(viewName));
@@ -763,10 +768,6 @@ public class Schema
         unload(view);
         setKeyspaceMetadata(newKsm);
 
-        CompactionManager.instance.interruptCompactionFor(Collections.singleton(view.metadata), true);
-
-        if (DatabaseDescriptor.isAutoSnapshot())
-            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
         Keyspace.open(ksName).dropCf(view.metadata.cfId);
         Keyspace.open(ksName).viewManager.reload();
         MigrationManager.instance.notifyDropView(view);
