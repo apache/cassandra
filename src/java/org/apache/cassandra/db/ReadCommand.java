@@ -713,7 +713,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                     MessageParams.remove(ParamType.LOCAL_READ_TOO_LARGE_WARNING);
                     MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_ABORT, this.sizeInBytes);
                     throw new LocalReadSizeTooLargeException(msg);
-                } else if (warnThresholdBytes != 0 && this.sizeInBytes >= warnThresholdBytes)
+                }
+                else if (warnThresholdBytes != 0 && this.sizeInBytes >= warnThresholdBytes)
                 {
                     MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_WARNING, this.sizeInBytes);
                 }
