@@ -13,6 +13,8 @@ Merged from 3.0:
  * Use JMX to validate nodetool --jobs parameter (CASSANDRA-16104)
  * Handle properly UnsatisfiedLinkError in NativeLibrary#getProcessID() (CASSANDRA-16578)
  * Remove mutation data from error log message (CASSANDRA-16817)
+Merged from 2.2:
+ * Add python2 location to RPMs (CASSANDRA-16822)
 
 
 3.11.11
