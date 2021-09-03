@@ -27,7 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ClientLocalReadSizeWarningTest extends AbstractClientSizeWarning
+public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
 {
     @BeforeClass
     public static void setupClass() throws IOException
@@ -50,31 +50,31 @@ public class ClientLocalReadSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see local_read_too_large_warning_threshold_kb)").contains("and issued local read size warnings for query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.warn_threshold_kb)").contains("and issued local read size warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see local_read_too_large_abort_threshold_kb)").contains("aborted the query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.abort_threshold_kb)").contains("aborted the query");
     }
 
     @Override
     protected long[] getHistogram()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientLocalReadSize." + KEYSPACE)).toArray();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.LocalReadSize." + KEYSPACE)).toArray();
     }
 
     @Override
     protected long totalWarnings()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientLocalReadSizeTooLargeWarnings." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.LocalReadSizeWarnings." + KEYSPACE)).sum();
     }
 
     @Override
     protected long totalAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientLocalReadSizeTooLargeAborts." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.LocalReadSizeAborts." + KEYSPACE)).sum();
     }
 }

@@ -29,7 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
+public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
 {
     @BeforeClass
     public static void setupClass() throws IOException
@@ -88,14 +88,14 @@ public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see row_index_size_warning_threshold_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see row_index_size_abort_threshold_kb)").contains("bytes in RowIndexEntry and aborted the query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold_kb)").contains("bytes in RowIndexEntry and aborted the query");
     }
 
     @Override
@@ -107,12 +107,12 @@ public class RowIndexEntryTooLargeWarningTest extends AbstractClientSizeWarning
     @Override
     protected long totalWarnings()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSizeTooLargeWarnings." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSizeWarnings." + KEYSPACE)).sum();
     }
 
     @Override
     protected long totalAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSizeTooLargeAborts." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.RowIndexSizeAborts." + KEYSPACE)).sum();
     }
 }

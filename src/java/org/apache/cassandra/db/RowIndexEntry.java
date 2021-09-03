@@ -369,15 +369,15 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                            "in-memory (total entries: %d, total bytes: %d) but the max allowed is %d;" +
                                            " query aborted  (see row_index_size_abort_threshold_kb)",
                                            command.toCQLString(), estimatedMemory, entries, bytes, abortThreshold);
-                MessageParams.remove(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING);
-                MessageParams.add(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_ABORT, estimatedMemory);
+                MessageParams.remove(ParamType.ROW_INDEX_SIZE_WARN);
+                MessageParams.add(ParamType.ROW_INDEX_SIZE_ABORT, estimatedMemory);
 
                 throw new RowIndexEntryTooLargeException(msg);
             }
             else if (warnThreshold != 0 && estimatedMemory > warnThreshold)
             {
                 // use addIfLarger rather than add as a previous partition may be larger than this one
-                MessageParams.addIfLarger(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING, estimatedMemory);
+                MessageParams.addIfLarger(ParamType.ROW_INDEX_SIZE_WARN, estimatedMemory);
             }
         }
 

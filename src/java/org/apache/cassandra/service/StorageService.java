@@ -6182,7 +6182,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setLocalReadTooLargeWarningThresholdKb(value);
-        logger.info("updated track_warnings.local_read_too_large.warn_threshold_kb to {}", value);
+        logger.info("updated track_warnings.local_read_size.warn_threshold_kb to {}", value);
     }
 
     @Override
@@ -6197,7 +6197,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setLocalReadTooLargeAbortThresholdKb(value);
-        logger.info("updated track_warnings.local_read_too_large.abort_threshold_kb to {}", value);
+        logger.info("updated track_warnings.local_read_size.abort_threshold_kb to {}", value);
     }
 
     @Override

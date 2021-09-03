@@ -45,7 +45,7 @@ New features
       tombstones (tombstone_warn_threshold, and tombstone_failure_threshold), coordinator result set
       materialized size (track_warnings.coordinator_large_read.warn_threshold_kb, and
       track_warnings.coordinator_large_read.abort_threshold_kb), local read materialized heap size
-      (track_warnings.local_read_too_large.warn_threshold_kb and track_warnings.local_read_too_large.abort_threshold_kb),
+      (track_warnings.local_read_size.warn_threshold_kb and track_warnings.local_read_size.abort_threshold_kb),
       and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
       track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
 

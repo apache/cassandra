@@ -45,8 +45,8 @@ public class YamlConfigurationLoaderTest
         assertThat(tw.coordinator_large_read.warn_threshold_kb).isGreaterThan(0);
         assertThat(tw.coordinator_large_read.abort_threshold_kb).isGreaterThan(0);
 
-        assertThat(tw.local_read_too_large.warn_threshold_kb).isGreaterThan(0);
-        assertThat(tw.local_read_too_large.abort_threshold_kb).isGreaterThan(0);
+        assertThat(tw.local_read_size.warn_threshold_kb).isGreaterThan(0);
+        assertThat(tw.local_read_size.abort_threshold_kb).isGreaterThan(0);
 
         assertThat(tw.row_index_size.warn_threshold_kb).isGreaterThan(0);
         assertThat(tw.row_index_size.abort_threshold_kb).isGreaterThan(0);
@@ -58,7 +58,7 @@ public class YamlConfigurationLoaderTest
         Map<String, Object> map = ImmutableMap.of("track_warnings", ImmutableMap.of(
         "enabled", true,
         "coordinator_large_read", ImmutableMap.of("warn_threshold_kb", 1024),
-        "local_read_too_large", ImmutableMap.of("abort_threshold_kb", 1024),
+        "local_read_size", ImmutableMap.of("abort_threshold_kb", 1024),
         "row_index_size", ImmutableMap.of("warn_threshold_kb", 1024, "abort_threshold_kb", 1024)
         ));
 
@@ -69,8 +69,8 @@ public class YamlConfigurationLoaderTest
         assertThat(tw.coordinator_large_read.warn_threshold_kb).isEqualTo(1024);
         assertThat(tw.coordinator_large_read.abort_threshold_kb).isEqualTo(0);
 
-        assertThat(tw.local_read_too_large.warn_threshold_kb).isEqualTo(0);
-        assertThat(tw.local_read_too_large.abort_threshold_kb).isEqualTo(1024);
+        assertThat(tw.local_read_size.warn_threshold_kb).isEqualTo(0);
+        assertThat(tw.local_read_size.abort_threshold_kb).isEqualTo(1024);
 
         assertThat(tw.row_index_size.warn_threshold_kb).isEqualTo(1024);
         assertThat(tw.row_index_size.abort_threshold_kb).isEqualTo(1024);

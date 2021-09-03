@@ -58,7 +58,7 @@ track_warnings:
     coordinator_large_read:
         warn_threshold_kb: 1024
         abort_threshold_kb: 4096
-    local_read_too_large:
+    local_read_size:
         warn_threshold_kb: 4096
         abort_threshold_kb: 8192
     row_index_size:

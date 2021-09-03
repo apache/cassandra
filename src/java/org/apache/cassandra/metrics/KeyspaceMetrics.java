@@ -160,12 +160,12 @@ public class KeyspaceMetrics
     public final Meter coordinatorReadSizeAborts;
     public final Histogram coordinatorReadSize;
 
-    public final Meter clientLocalReadSizeTooLargeWarnings;
-    public final Meter clientLocalReadSizeTooLargeAborts;
-    public final Histogram clientLocalReadSize;
+    public final Meter localReadSizeWarnings;
+    public final Meter localReadSizeAborts;
+    public final Histogram localReadSize;
 
-    public final Meter rowIndexSizeTooLargeWarnings;
-    public final Meter rowIndexSizeTooLargeAborts;
+    public final Meter rowIndexSizeWarnings;
+    public final Meter rowIndexSizeAborts;
     public final Histogram rowIndexSize;
 
     public final MetricNameFactory factory;
@@ -258,12 +258,12 @@ public class KeyspaceMetrics
         coordinatorReadSizeAborts = createKeyspaceMeter("CoordinatorReadSizeAborts");
         coordinatorReadSize = createKeyspaceHistogram("CoordinatorReadSize", false);
 
-        clientLocalReadSizeTooLargeWarnings = createKeyspaceMeter("ClientLocalReadSizeTooLargeWarnings");
-        clientLocalReadSizeTooLargeAborts = createKeyspaceMeter("ClientLocalReadSizeTooLargeAborts");
-        clientLocalReadSize = createKeyspaceHistogram("ClientLocalReadSize", false);
+        localReadSizeWarnings = createKeyspaceMeter("LocalReadSizeWarnings");
+        localReadSizeAborts = createKeyspaceMeter("LocalReadSizeAborts");
+        localReadSize = createKeyspaceHistogram("LocalReadSize", false);
 
-        rowIndexSizeTooLargeWarnings = createKeyspaceMeter("RowIndexSizeTooLargeWarnings");
-        rowIndexSizeTooLargeAborts = createKeyspaceMeter("RowIndexSizeTooLargeAborts");
+        rowIndexSizeWarnings = createKeyspaceMeter("RowIndexSizeWarnings");
+        rowIndexSizeAborts = createKeyspaceMeter("RowIndexSizeAborts");
         rowIndexSize = createKeyspaceHistogram("RowIndexSize", false);
     }
 

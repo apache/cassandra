@@ -705,16 +705,16 @@ public abstract class ReadCommand extends AbstractReadQuery
                 this.sizeInBytes += size;
                 if (abortThresholdBytes != 0 && this.sizeInBytes >= abortThresholdBytes)
                 {
-                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see local_read_too_large_abort_threshold_kb)",
+                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see track_warnings.local_read_size.abort_threshold_kb)",
                                                ReadCommand.this.toCQLString(), this.sizeInBytes, abortThresholdBytes);
                     Tracing.trace(msg);
-                    MessageParams.remove(ParamType.LOCAL_READ_TOO_LARGE_WARNING);
-                    MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_ABORT, this.sizeInBytes);
+                    MessageParams.remove(ParamType.LOCAL_READ_SIZE_WARN);
+                    MessageParams.add(ParamType.LOCAL_READ_SIZE_ABORT, this.sizeInBytes);
                     throw new LocalReadSizeTooLargeException(msg);
                 }
                 else if (warnThresholdBytes != 0 && this.sizeInBytes >= warnThresholdBytes)
                 {
-                    MessageParams.add(ParamType.LOCAL_READ_TOO_LARGE_WARNING, this.sizeInBytes);
+                    MessageParams.add(ParamType.LOCAL_READ_SIZE_WARN, this.sizeInBytes);
                 }
             }
 
@@ -723,7 +723,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             {
                 ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
                 if (cfs != null)
-                    cfs.metric.clientLocalReadSize.update(sizeInBytes);
+                    cfs.metric.localReadSize.update(sizeInBytes);
             }
         }
 

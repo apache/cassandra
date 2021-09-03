@@ -1469,7 +1469,7 @@ enable_drop_compact_storage: false
 #		abort_threshold_kb: 0
 #	# When client_track_warnings_enabled: true, this tracks the size of the local read (as defined by
 #	# heap size), and will warn/abort based off these thresholds; 0 disables these checks.
-#	local_read_too_large:
+#	local_read_size:
 #		warn_threshold_kb: 0
 #		abort_threshold_kb: 0
 #	# When client_track_warnings_enabled: true, this tracks the expected memory size of the RowIndexEntry

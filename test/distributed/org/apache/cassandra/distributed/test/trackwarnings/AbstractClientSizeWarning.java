@@ -243,7 +243,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
             assertThat(e.getFailuresMap())
             .hasSizeBetween(1, 3)
             // coordinator changes from run to run, so can't assert map as the key is dynamic... so assert the domain of keys and the single value expect
-            .containsValue(RequestFailureReason.READ_TOO_LARGE.code)
+            .containsValue(RequestFailureReason.READ_SIZE.code)
             .hasKeySatisfying(new Condition<InetAddress>() {
                 public boolean matches(InetAddress value)
                 {

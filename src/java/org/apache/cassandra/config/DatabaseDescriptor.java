@@ -3493,22 +3493,22 @@ public class DatabaseDescriptor
 
     public static long getLocalReadTooLargeWarningThresholdKb()
     {
-        return conf.track_warnings.local_read_too_large.getWarnThresholdKb();
+        return conf.track_warnings.local_read_size.getWarnThresholdKb();
     }
 
     public static void setLocalReadTooLargeWarningThresholdKb(long value)
     {
-        conf.track_warnings.local_read_too_large.setWarnThresholdKb(value);
+        conf.track_warnings.local_read_size.setWarnThresholdKb(value);
     }
 
     public static long getLocalReadTooLargeAbortThresholdKb()
     {
-        return conf.track_warnings.local_read_too_large.getAbortThresholdKb();
+        return conf.track_warnings.local_read_size.getAbortThresholdKb();
     }
 
     public static void setLocalReadTooLargeAbortThresholdKb(long value)
     {
-        conf.track_warnings.local_read_too_large.setAbortThresholdKb(value);
+        conf.track_warnings.local_read_size.setAbortThresholdKb(value);
     }
 
     public static int getRowIndexSizeWarningThresholdKb()

@@ -53,7 +53,7 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.assertj.core.api.Assertions;
 
-public class ClientTombstoneWarningTest extends TestBaseImpl
+public class TombstoneWarningTest extends TestBaseImpl
 {
     private static final int TOMBSTONE_WARN = 50;
     private static final int TOMBSTONE_FAIL = 100;
