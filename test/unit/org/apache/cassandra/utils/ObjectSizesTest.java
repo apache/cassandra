@@ -38,4 +38,13 @@ public class ObjectSizesTest
         assertThat(actual).isEqualTo(empty + ObjectSizes.sizeOfArray(bytes));
         assertThat(ObjectSizes.sizeOnHeapOf(buffer)).isEqualTo(actual);
     }
+
+    @Test
+    public void shouldIgnoreArrayOverheadForSubBuffer()
+    {
+        byte[] bytes = {0, 1, 2, 3, 4};
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        buffer.position(1);
+        assertThat(ObjectSizes.sizeOnHeapOf(buffer)).isEqualTo(ObjectSizes.sizeOfEmptyHeapByteBuffer() + 4);
+    }
 }
