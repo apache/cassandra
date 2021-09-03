@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.test.trackwarnings;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.List;
 
 import org.junit.Assume;
@@ -79,7 +78,7 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     }
 
     @Override
-    public void failThresholdScan() throws UnknownHostException
+    public void failThresholdScan()
     {
         Assume.assumeFalse("Ignore Scans", true);
     }
