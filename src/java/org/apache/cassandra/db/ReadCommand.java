@@ -664,14 +664,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             return iterator;
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
         {
-            private DecoratedKey currentKey;
             private long sizeInBytes = 0;
 
             @Override
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
             {
-                currentKey = iter.partitionKey();
-                sizeInBytes += ObjectSizes.sizeOnHeapOf(currentKey.getKey());
+                sizeInBytes += ObjectSizes.sizeOnHeapOf(iter.partitionKey().getKey());
                 return Transformation.apply(iter, this);
             }
 
