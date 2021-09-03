@@ -22,11 +22,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 public class TrackWarnings
 {
     public volatile boolean enabled = false; // should set to true in 4.2
-    // coordiantor reads
     public final LongByteThreshold client_large_read = new LongByteThreshold();
-    // local reads
     public final LongByteThreshold local_read_too_large = new LongByteThreshold();
-    // RowIndexEntry memory size
     public final IntByteThreshold row_index_size = new IntByteThreshold();
 
     public void validate(String prefix)
