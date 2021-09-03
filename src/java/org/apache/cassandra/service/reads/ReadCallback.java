@@ -64,24 +64,24 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         final AtomicInteger warnings = new AtomicInteger();
         // the highest number reported by a node's warning
-        final AtomicLong maxWarningCount = new AtomicLong();
+        final AtomicLong maxWarningValue = new AtomicLong();
 
         final AtomicInteger aborts = new AtomicInteger();
         // the highest number reported by a node's rejection.
-        final AtomicLong maxAbortsCount = new AtomicLong();
+        final AtomicLong maxAbortsValue = new AtomicLong();
 
         void addWarning(InetAddressAndPort from, long value)
         {
             if (!waitingFor(from)) return;
             warnings.incrementAndGet();
-            maxWarningCount.accumulateAndGet(value, Math::max);
+            maxWarningValue.accumulateAndGet(value, Math::max);
         }
 
         void addAbort(InetAddressAndPort from, long value)
         {
             if (!waitingFor(from)) return;
             aborts.incrementAndGet();
-            maxAbortsCount.accumulateAndGet(value, Math::max);
+            maxAbortsValue.accumulateAndGet(value, Math::max);
         }
     }
 
@@ -114,7 +114,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         {
             if (counter.aborts.get() > 0)
             {
-                String msg = toString.apply(counter.aborts.get(), counter.maxAbortsCount.get(), cql());
+                String msg = toString.apply(counter.aborts.get(), counter.maxAbortsValue.get(), cql());
                 ClientWarn.instance.warn(msg + " with " + loggableTokens());
                 logger.warn(msg);
                 metric.mark();
@@ -125,7 +125,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         {
             if (counter.warnings.get() > 0)
             {
-                String msg = toString.apply(counter.warnings.get(), counter.maxWarningCount.get(), cql());
+                String msg = toString.apply(counter.warnings.get(), counter.maxWarningValue.get(), cql());
                 ClientWarn.instance.warn(msg + " with " + loggableTokens());
                 logger.warn(msg);
                 metric.mark();
@@ -147,15 +147,15 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         void mayAbort(int received)
         {
             if (tombstones.aborts.get() > 0)
-                throw new TombstoneAbortException(tombstones.aborts.get(), Math.toIntExact(tombstones.maxAbortsCount.get()), cql(), resolver.isDataPresent(),
+                throw new TombstoneAbortException(tombstones.aborts.get(), Math.toIntExact(tombstones.maxAbortsValue.get()), cql(), resolver.isDataPresent(),
                                                   replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
 
             if (localReadSizeTooLarge.aborts.get() > 0)
-                throw new ReadSizeAbortException(localReadSizeTooLargeAbortMessage(localReadSizeTooLarge.aborts.get(), localReadSizeTooLarge.maxAbortsCount.get(), cql()),
+                throw new ReadSizeAbortException(localReadSizeTooLargeAbortMessage(localReadSizeTooLarge.aborts.get(), localReadSizeTooLarge.maxAbortsValue.get(), cql()),
                                                  replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
 
             if (rowIndexTooLarge.aborts.get() > 0)
-                throw new ReadSizeAbortException(rowIndexTooLargeAbortMessage(rowIndexTooLarge.aborts.get(), rowIndexTooLarge.maxAbortsCount.get(), cql()),
+                throw new ReadSizeAbortException(rowIndexTooLargeAbortMessage(rowIndexTooLarge.aborts.get(), rowIndexTooLarge.maxAbortsValue.get(), cql()),
                                                  replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
         }
     }
