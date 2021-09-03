@@ -145,7 +145,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         void mayAbort(int received)
         {
             if (tombstones.aborts.get() > 0)
-                throw new TombstoneAbortException(tombstones.aborts.get(), Math.toIntExact(tombstones.maxAbortsValue.get()), cql(), resolver.isDataPresent(),
+                throw new TombstoneAbortException(tombstones.aborts.get(), tombstones.maxAbortsValue.get(), cql(), resolver.isDataPresent(),
                                                   replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
 
             if (localReadSizeTooLarge.aborts.get() > 0)
