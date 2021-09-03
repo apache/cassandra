@@ -60,7 +60,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
-    private class WarnAbortCounter
+    private static class WarnAbortCounter
     {
         final AtomicInteger warnings = new AtomicInteger();
         // the highest number reported by a node's warning
@@ -70,16 +70,14 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         // the highest number reported by a node's rejection.
         final AtomicLong maxAbortsValue = new AtomicLong();
 
-        void addWarning(InetAddressAndPort from, long value)
+        void addWarning(long value)
         {
-            if (!waitingFor(from)) return;
             warnings.incrementAndGet();
             maxWarningValue.accumulateAndGet(value, Math::max);
         }
 
-        void addAbort(InetAddressAndPort from, long value)
+        void addAbort(long value)
         {
-            if (!waitingFor(from)) return;
             aborts.incrementAndGet();
             maxAbortsValue.accumulateAndGet(value, Math::max);
         }
@@ -300,33 +298,33 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         Map<ParamType, Object> params = message.header.params();
         if (params.containsKey(ParamType.TOMBSTONE_ABORT))
         {
-            getWarningCounter().tombstones.addAbort(message.from(), (Integer) params.get(ParamType.TOMBSTONE_ABORT));
+            getWarningCounter().tombstones.addAbort((Integer) params.get(ParamType.TOMBSTONE_ABORT));
             onFailure(message.from(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
             return;
         }
         else if (params.containsKey(ParamType.TOMBSTONE_WARNING))
         {
-            getWarningCounter().tombstones.addWarning(message.from(), (Integer) params.get(ParamType.TOMBSTONE_WARNING));
+            getWarningCounter().tombstones.addWarning((Integer) params.get(ParamType.TOMBSTONE_WARNING));
         }
         if (params.containsKey(ParamType.LOCAL_READ_TOO_LARGE_ABORT))
         {
-            getWarningCounter().localReadSizeTooLarge.addAbort(message.from(), (Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_ABORT));
+            getWarningCounter().localReadSizeTooLarge.addAbort((Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_ABORT));
             onFailure(message.from(), RequestFailureReason.READ_TOO_LARGE);
             return;
         }
         else if (params.containsKey(ParamType.LOCAL_READ_TOO_LARGE_WARNING))
         {
-            getWarningCounter().localReadSizeTooLarge.addWarning(message.from(), (Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_WARNING));
+            getWarningCounter().localReadSizeTooLarge.addWarning((Long) params.get(ParamType.LOCAL_READ_TOO_LARGE_WARNING));
         }
         if (params.containsKey(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_ABORT))
         {
-            getWarningCounter().rowIndexTooLarge.addAbort(message.from(), (Long) params.get(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_ABORT));
+            getWarningCounter().rowIndexTooLarge.addAbort((Long) params.get(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_ABORT));
             onFailure(message.from(), RequestFailureReason.READ_TOO_LARGE);
             return;
         }
         else if (params.containsKey(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING))
         {
-            getWarningCounter().rowIndexTooLarge.addWarning(message.from(), (Long) params.get(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING));
+            getWarningCounter().rowIndexTooLarge.addWarning((Long) params.get(ParamType.ROW_INDEX_ENTRY_TOO_LARGE_WARNING));
         }
         resolver.preprocess(message);
 
@@ -391,12 +389,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
      */
     private void assertWaitingFor(InetAddressAndPort from)
     {
-        assert waitingFor(from): "Received read response from unexpected replica: " + from;
-    }
-
-    private boolean waitingFor(InetAddressAndPort from)
-    {
-        return !replicaPlan().consistencyLevel().isDatacenterLocal()
-               || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
+        assert !replicaPlan().consistencyLevel().isDatacenterLocal()
+               || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from))
+               : "Received read response from unexpected replica: " + from;
     }
 }
