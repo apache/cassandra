@@ -18,12 +18,17 @@
 
 package org.apache.cassandra.config;
 
+import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
+import org.assertj.core.api.Assertions;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 
@@ -49,5 +54,15 @@ public class YamlConfigurationLoaderTest
         assertEquals(seedProvider, config.seed_provider); // Check a parameterized class
         assertEquals(false, config.client_encryption_options.optional); // Check a nested object
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
+    }
+
+    @Test
+    public void sharedErrorReportingExclusions()
+    {
+        URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource("data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml");
+        Config config = new YamlConfigurationLoader().loadConfig(url);
+        SubnetGroups expected = new SubnetGroups(Arrays.asList("127.0.0.1", "127.0.0.0/31"));
+        assertThat(config.client_error_reporting_exclusions).isEqualTo(expected);
+        assertThat(config.internode_error_reporting_exclusions).isEqualTo(expected);
     }
 }

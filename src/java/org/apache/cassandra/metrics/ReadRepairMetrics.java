@@ -35,6 +35,7 @@ public class ReadRepairMetrics
     public static final Meter repairedBackground = Metrics.meter(factory.createMetricName("RepairedBackground"));
     @Deprecated
     public static final Meter attempted = Metrics.meter(factory.createMetricName("Attempted"));
+    public static final Meter timedOut = Metrics.meter(factory.createMetricName("RepairTimedOut"));
 
     // Incremented when additional requests were sent during blocking read repair due to unavailable or slow nodes
     public static final Meter speculatedRead = Metrics.meter(factory.createMetricName("SpeculatedRead"));

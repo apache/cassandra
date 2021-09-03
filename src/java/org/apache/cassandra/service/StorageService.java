@@ -47,7 +47,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
-import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
@@ -69,6 +69,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -101,6 +102,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
@@ -186,6 +189,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean isShutdown = false;
     private final List<Runnable> preShutdownHooks = new ArrayList<>();
     private final List<Runnable> postShutdownHooks = new ArrayList<>();
+
+    private final SnapshotManager snapshotManager = new SnapshotManager();
 
     public static final StorageService instance = new StorageService();
 
@@ -981,6 +986,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             LoadBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
+            snapshotManager.start();
         }
     }
 
@@ -1133,6 +1139,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             try
             {
                 joinTokenRing(0);
+                doAuthSetup(false);
             }
             catch (ConfigurationException e)
             {
@@ -1147,6 +1154,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing(resumedBootstrap, SystemKeyspace.getSavedTokens());
+                doAuthSetup(false);
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1179,10 +1187,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
-        doAuthSetup(false);
     }
 
-    private void doAuthSetup(boolean setUpSchema)
+    @VisibleForTesting
+    public void doAuthSetup(boolean setUpSchema)
     {
         if (!authSetupCalled.getAndSet(true))
         {
@@ -1205,6 +1213,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return authSetupComplete;
     }
+
+    @VisibleForTesting
+    public boolean authSetupCalled()
+    {
+        return authSetupCalled.get();
+    }
+
 
     @VisibleForTesting
     public void setUpDistributedSystemKeyspaces()
@@ -1850,6 +1865,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             isSurveyMode = false;
                             progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
                             finishJoiningRing(true, bootstrapTokens);
+                            doAuthSetup(false);
                         }
                         progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                         if (!isNativeTransportRunning())
@@ -2722,6 +2738,38 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.updateTokens(endpoint, tokensToUpdateInSystemKeyspace);
     }
 
+    @VisibleForTesting
+    public boolean isReplacingSameHostAddressAndHostId(UUID hostId)
+    {
+        try
+        {
+            return isReplacingSameAddress() &&
+                    Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null
+                    && hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()));
+        }
+        catch (RuntimeException ex)
+        {
+            // If a host is decomissioned and the DNS entry is removed before the
+            // bootstrap completes, when it completes and advertises NORMAL state to other nodes, they will be unable
+            // to resolve it to an InetAddress unless it happens to be cached. This could happen on nodes
+            // storing large amounts of data or with long index rebuild times or if new instances have been added
+            // to the cluster through expansion or additional host replacement.
+            //
+            // The original host replacement must have been able to resolve the replacing address on startup
+            // when setting StorageService.replacing, so if it is impossible to resolve now it is probably
+            // decommissioned and did not have the same IP address or host id.  Allow the handleStateNormal
+            // handling to proceed, otherwise gossip state will be inconistent with some nodes believing the
+            // replacement host to be normal, and nodes unable to resolve the hostname will be left in JOINING.
+            if (ex.getCause() != null && ex.getCause().getClass() == UnknownHostException.class)
+            {
+                logger.info("Suppressed exception while checking isReplacingSameHostAddressAndHostId({}). Original host was probably decommissioned. ({})",
+                        hostId, ex.getMessage());
+                return false;
+            }
+            throw ex; // otherwise rethrow
+        }
+    }
+
     /**
      * Handle node move to normal state. That is, node is entering token ring and participating
      * in reads.
@@ -2767,9 +2815,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
         UUID hostId = Gossiper.instance.getHostId(endpoint);
         InetAddressAndPort existing = tokenMetadata.getEndpointForHostId(hostId);
-        if (replacing && isReplacingSameAddress() && Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null
-            && (hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()))))
+        if (replacing && isReplacingSameHostAddressAndHostId(hostId))
+        {
             logger.warn("Not updating token metadata for {} because I am replacing it", endpoint);
+        }
         else
         {
             if (existing != null && !existing.equals(endpoint))
@@ -3697,15 +3746,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
     {
-        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
+        Duration ttl = options.containsKey("ttl") ? new Duration(options.get("ttl")) : null;
+        if (ttl != null)
+        {
+            int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
+            if (ttl.toSeconds() < minAllowedTtlSecs)
+                throw new IllegalArgumentException(String.format("ttl for snapshot must be at least %d seconds", minAllowedTtlSecs));
+        }
 
+        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
         if (entities != null && entities.length > 0 && entities[0].contains("."))
         {
-            takeMultipleTableSnapshot(tag, skipFlush, entities);
+            takeMultipleTableSnapshot(tag, skipFlush, ttl, entities);
         }
         else
         {
-            takeSnapshot(tag, skipFlush, entities);
+            takeSnapshot(tag, skipFlush, ttl, entities);
         }
     }
 
@@ -3723,7 +3779,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
             throws IOException
     {
-        takeMultipleTableSnapshot(tag, false, keyspaceName + "." + tableName);
+        takeMultipleTableSnapshot(tag, false, null, keyspaceName + "." + tableName);
     }
 
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
@@ -3744,7 +3800,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        takeSnapshot(tag, false, keyspaceNames);
+        takeSnapshot(tag, false, null, keyspaceNames);
     }
 
     /**
@@ -3758,7 +3814,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void takeMultipleTableSnapshot(String tag, String... tableList)
             throws IOException
     {
-        takeMultipleTableSnapshot(tag, false, tableList);
+        takeMultipleTableSnapshot(tag, false, null, tableList);
     }
 
     /**
@@ -3768,7 +3824,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param skipFlush Skip blocking flush of memtable
      * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
      */
-    private void takeSnapshot(String tag, boolean skipFlush, String... keyspaceNames) throws IOException
+    private void takeSnapshot(String tag, boolean skipFlush, Duration ttl, String... keyspaceNames) throws IOException
     {
         if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
@@ -3797,7 +3853,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         for (Keyspace keyspace : keyspaces)
-            keyspace.snapshot(tag, null, skipFlush, snapshotRateLimiter);
+        {
+            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter);
+        }
     }
 
     /**
@@ -3811,7 +3869,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param tableList
      *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
      */
-    private void takeMultipleTableSnapshot(String tag, boolean skipFlush, String... tableList)
+    private void takeMultipleTableSnapshot(String tag, boolean skipFlush, Duration ttl, String... tableList)
             throws IOException
     {
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
@@ -3862,7 +3920,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table, skipFlush, snapshotRateLimiter);
+                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter);
         }
 
     }
@@ -3910,27 +3968,33 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Cleared out snapshot directories");
     }
 
-    public Map<String, TabularData> getSnapshotDetails()
+    public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
         Map<String, TabularData> snapshotMap = new HashMap<>();
         for (Keyspace keyspace : Keyspace.all())
         {
             for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
             {
-                for (Map.Entry<String, Directories.SnapshotSizeDetails> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
+                for (Map.Entry<String, TableSnapshot> snapshotDetail : TableSnapshot.filter(cfStore.listSnapshots(), options).entrySet())
                 {
-                    TabularDataSupport data = (TabularDataSupport)snapshotMap.get(snapshotDetail.getKey());
+                    TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshotDetail.getKey());
                     if (data == null)
                     {
                         data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
                         snapshotMap.put(snapshotDetail.getKey(), data);
                     }
 
-                    SnapshotDetailsTabularData.from(snapshotDetail.getKey(), keyspace.getName(), cfStore.getTableName(), snapshotDetail, data);
+                    SnapshotDetailsTabularData.from(snapshotDetail.getValue(), data);
                 }
             }
         }
         return snapshotMap;
+    }
+
+    @Deprecated
+    public Map<String, TabularData> getSnapshotDetails()
+    {
+        return getSnapshotDetails(ImmutableMap.of());
     }
 
     public long trueSnapshotsSize()
@@ -4892,6 +4956,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.error("Batchlog manager timed out shutting down", t);
             }
 
+            snapshotManager.stop();
             HintsService.instance.pauseDispatch();
 
             if (daemon != null)
@@ -4984,6 +5049,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             FBUtilities.waitOnFutures(flushes);
 
+            SnapshotManager.shutdownAndWait(1L, MINUTES);
             HintsService.instance.shutdownBlocking();
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
@@ -5786,38 +5852,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Auditlog is disabled");
     }
 
+    @Deprecated
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
-        enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       Integer.MIN_VALUE, null, null, Long.MIN_VALUE, Integer.MIN_VALUE, null);
     }
 
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
+    {
+        enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
+    }
+
+    @Deprecated
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
-        loggerName = loggerName != null ? loggerName : DatabaseDescriptor.getAuditLoggingOptions().logger.class_name;
+        enableAuditLog(loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       Integer.MIN_VALUE, null, null, Long.MIN_VALUE, Integer.MIN_VALUE, null);
+    }
 
-        Preconditions.checkNotNull(loggerName, "cassandra.yaml did not have logger in audit_logging_option and not set as parameter");
-        Preconditions.checkState(FBUtilities.isAuditLoggerClassExists(loggerName), "Unable to find AuditLogger class: "+loggerName);
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
+    {
+        final AuditLogOptions options = new AuditLogOptions.Builder(DatabaseDescriptor.getAuditLoggingOptions())
+                                        .withEnabled(true)
+                                        .withLogger(loggerName, parameters)
+                                        .withIncludedKeyspaces(includedKeyspaces)
+                                        .withExcludedKeyspaces(excludedKeyspaces)
+                                        .withIncludedCategories(includedCategories)
+                                        .withExcludedCategories(excludedCategories)
+                                        .withIncludedUsers(includedUsers)
+                                        .withExcludedUsers(excludedUsers)
+                                        .withMaxArchiveRetries(maxArchiveRetries)
+                                        .withBlock(block)
+                                        .withRollCycle(rollCycle)
+                                        .withMaxLogSize(maxLogSize)
+                                        .withMaxQueueWeight(maxQueueWeight)
+                                        .withArchiveCommand(archiveCommand)
+                                        .build();
 
-        AuditLogOptions auditLogOptions = new AuditLogOptions();
-        auditLogOptions.enabled = true;
-        auditLogOptions.logger = new ParameterizedClass(loggerName, parameters);
-        auditLogOptions.included_keyspaces = includedKeyspaces != null ? includedKeyspaces : DatabaseDescriptor.getAuditLoggingOptions().included_keyspaces;
-        auditLogOptions.excluded_keyspaces = excludedKeyspaces != null ? excludedKeyspaces : DatabaseDescriptor.getAuditLoggingOptions().excluded_keyspaces;
-        auditLogOptions.included_categories = includedCategories != null ? includedCategories : DatabaseDescriptor.getAuditLoggingOptions().included_categories;
-        auditLogOptions.excluded_categories = excludedCategories != null ? excludedCategories : DatabaseDescriptor.getAuditLoggingOptions().excluded_categories;
-        auditLogOptions.included_users = includedUsers != null ? includedUsers : DatabaseDescriptor.getAuditLoggingOptions().included_users;
-        auditLogOptions.excluded_users = excludedUsers != null ? excludedUsers : DatabaseDescriptor.getAuditLoggingOptions().excluded_users;
-
-        AuditLogManager.instance.enable(auditLogOptions);
-
-        logger.info("AuditLog is enabled with logger: [{}], included_keyspaces: [{}], excluded_keyspaces: [{}], " +
-                    "included_categories: [{}], excluded_categories: [{}], included_users: [{}], "
-                    + "excluded_users: [{}], archive_command: [{}]", auditLogOptions.logger, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
-                    auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users,
-                    auditLogOptions.archive_command);
-
+        AuditLogManager.instance.enable(options);
+        logger.info("AuditLog is enabled with configuration: {}", options);
     }
 
     public boolean isAuditLogEnabled()
@@ -5858,6 +5939,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long newLimit)
     {
         ClientResourceLimits.setEndpointLimit(newLimit);
+    }
+
+    @Override
+    public int getNativeTransportMaxRequestsPerSecond()
+    {
+        return ClientResourceLimits.getNativeTransportMaxRequestsPerSecond();
+    }
+
+    @Override
+    public void setNativeTransportMaxRequestsPerSecond(int newPerSecond)
+    {
+        ClientResourceLimits.setNativeTransportMaxRequestsPerSecond(newPerSecond);
+    }
+
+    @Override
+    public void setNativeTransportRateLimitingEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setNativeTransportRateLimitingEnabled(enabled);
+    }
+
+    @Override
+    public boolean getNativeTransportRateLimitingEnabled()
+    {
+        return DatabaseDescriptor.getNativeTransportRateLimitingEnabled();
     }
 
     @VisibleForTesting
@@ -5992,5 +6097,48 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int getCompactionTombstoneWarningThreshold()
     {
         return DatabaseDescriptor.getCompactionTombstoneWarningThreshold();
+    }
+
+    public void addSnapshot(TableSnapshot snapshot) {
+        snapshotManager.addSnapshot(snapshot);
+    }
+
+    @Override
+    public long getClientLargeReadWarnThresholdKB()
+    {
+        return DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
+    }
+
+    @Override
+    public void setClientLargeReadWarnThresholdKB(long threshold)
+    {
+        DatabaseDescriptor.setClientLargeReadWarnThresholdKB(threshold);
+        logger.info("updated client_large_read_warn_threshold_kb to {}", threshold);
+    }
+
+    @Override
+    public long getClientLargeReadAbortThresholdKB()
+    {
+        return DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
+    }
+
+    @Override
+    public void setClientLargeReadAbortThresholdKB(long threshold)
+    {
+        DatabaseDescriptor.setClientLargeReadAbortThresholdKB(threshold);
+        logger.info("updated client_large_read_abort_threshold_kb to {}", threshold);
+    }
+
+    @Override
+    public boolean getClientTrackWarningsEnabled()
+    {
+        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+    }
+
+    @Override
+    public void setClientTrackWarningsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
+        logger.info("updated client_track_warnings_enabled to {}", value);
     }
 }

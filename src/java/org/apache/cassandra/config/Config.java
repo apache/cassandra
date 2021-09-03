@@ -34,8 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -193,6 +193,8 @@ public class Config
     public volatile boolean native_transport_allow_older_protocols = true;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    public volatile boolean native_transport_rate_limiting_enabled = false;
+    public volatile int native_transport_max_requests_per_second = 1000000;
     public int native_transport_receive_queue_capacity_in_bytes = 1 << 20; // 1MiB
 
     @Deprecated
@@ -347,10 +349,15 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public volatile long client_large_read_warn_threshold_kb = 0;
+    public volatile long client_large_read_abort_threshold_kb = 0;
+
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     public volatile Long index_summary_capacity_in_mb;
     public volatile int index_summary_resize_interval_in_minutes = 60;
+
+    public volatile boolean client_track_warnings_enabled = false; // should set to true in 4.2
 
     public int gc_log_threshold_in_ms = 200;
     public int gc_warn_threshold_in_ms = 1000;
@@ -567,6 +574,9 @@ public class Config
     public volatile int keyspace_count_warn_threshold = 40;
 
     public volatile int consecutive_message_errors_threshold = 1;
+
+    public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
+    public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {

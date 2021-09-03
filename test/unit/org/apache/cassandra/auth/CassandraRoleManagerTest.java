@@ -29,7 +29,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static org.apache.cassandra.auth.RoleTestUtils.*;
+import static org.apache.cassandra.auth.AuthTestUtils.*;
 import static org.junit.Assert.assertEquals;
 
 public class CassandraRoleManagerTest
@@ -80,9 +80,9 @@ public class CassandraRoleManagerTest
 
     private void fetchRolesAndCheckReadCount(IRoleManager roleManager, RoleResource primaryRole)
     {
-        long before = getReadCount();
+        long before = getRolesReadCount();
         Set<Role> granted = roleManager.getRoleDetails(primaryRole);
-        long after = getReadCount();
+        long after = getRolesReadCount();
         assertEquals(granted.size(), after - before);
     }
 }

@@ -19,21 +19,35 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.concurrent.SEPExecutor;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.utils.Throwables;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -44,27 +58,32 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class RepairDigestTrackingTest extends TestBaseImpl
 {
     private static final String TABLE = "tbl";
-    private static final String KS_TABLE = KEYSPACE + "." + TABLE;
+    private static final String KS_TABLE = KEYSPACE + '.' + TABLE;
 
+    @SuppressWarnings("Convert2MethodRef")
     @Test
     public void testInconsistenciesFound() throws Throwable
     {
-        try (Cluster cluster = (Cluster) init(builder().withNodes(2).start()))
+        try (Cluster cluster = init(builder().withNodes(2).start()))
         {
 
-            cluster.get(1).runOnInstance(() -> {
-                StorageProxy.instance.enableRepairedDataTrackingForRangeReads();
-            });
+            cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForRangeReads());
 
             cluster.schemaChange("CREATE TABLE " + KS_TABLE+ " (k INT, c INT, v INT, PRIMARY KEY (k,c)) with read_repair='NONE'");
             for (int i = 0; i < 10; i++)
@@ -99,14 +118,13 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
     }
 
+    @SuppressWarnings("Convert2MethodRef")
     @Test
     public void testPurgeableTombstonesAreIgnored() throws Throwable
     {
-        try (Cluster cluster = (Cluster) init(builder().withNodes(2).start()))
+        try (Cluster cluster = init(builder().withNodes(2).start()))
         {
-            cluster.get(1).runOnInstance(() -> {
-                StorageProxy.instance.enableRepairedDataTrackingForRangeReads();
-            });
+            cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForRangeReads());
 
             cluster.schemaChange("CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, v2 INT, PRIMARY KEY (k,c)) WITH gc_grace_seconds=0");
             // on node1 only insert some tombstones, then flush
@@ -147,14 +165,13 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
     }
 
+    @SuppressWarnings("Convert2MethodRef")
     @Test
     public void testSnapshottingOnInconsistency() throws Throwable
     {
         try (Cluster cluster = init(Cluster.create(2)))
         {
-            cluster.get(1).runOnInstance(() -> {
-                StorageProxy.instance.enableRepairedDataTrackingForPartitionReads();
-            });
+            cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForPartitionReads());
 
             cluster.schemaChange("CREATE TABLE " + KS_TABLE + " (k INT, c INT, v INT, PRIMARY KEY (k,c))");
             for (int i = 0; i < 10; i++)
@@ -191,9 +208,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
 
             // re-introduce a mismatch, enable snapshotting and try again
             cluster.get(1).executeInternal("INSERT INTO " + KS_TABLE + " (k, c, v) VALUES (0, ?, ?)", 5, 555);
-            cluster.get(1).runOnInstance(() -> {
-                StorageProxy.instance.enableSnapshotOnRepairedDataMismatch();
-            });
+            cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableSnapshotOnRepairedDataMismatch());
 
             cluster.coordinator(1).execute("SELECT * FROM " + KS_TABLE + " WHERE k=0", ConsistencyLevel.ALL);
             ccAfter = getConfirmedInconsistencies(cluster.get(1));
@@ -340,6 +355,133 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
     }
 
+    /**
+     * In CASSANDRA-16721, we discovered that if responses from remote replicas came back while the local runnable was 
+     * still executing, the fact that {@link ReadCommand} was mutable meant that the trackRepairedStatus flag on the
+     * command instance could move from false to true in executeLocally(), between setting the 
+     * RepairedDataInfo/gathering the sstables and calling extend(). When this happened, the RDI was still the 
+     * stand-in object NO_OP_REPAIRED_DATA_INFO, which has a null repairedDataCounter, and we hit the NPE.
+     * 
+     * Similarly, the trackRepairedStatus flag could be set after the point at which the RDI is set on the local 
+     * read, assigned to the repairedDataInfo in {@link ReadCommand}, and improperly shared between initial local read
+     * and the local read triggered by read repair.
+     * 
+     * These problems are sidestepped completely by CASSANDRA-16721, as an RDI instance is now created and destroyed 
+     * entirely within the scope of single {@link LocalReadRunnable}, but this test still attempts to validate some
+     * assumptions about the cleanliness of the logs and the correctness of queries made when initial local reads and
+     * local reads triggered by read repair (after speculative reads) execute at roughly the same time.
+     *
+     * This test depends on whether node1 gets a data or a digest request first, we force it to be a digest request
+     * in the forTokenReadLiveSorted ByteBuddy rule below.
+     */
+    @Test
+    public void testLocalDataAndRemoteRequestConcurrency() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withInstanceInitializer(BBHelper::install)
+                                           .withConfig(config -> config.set("repaired_data_tracking_for_partition_reads_enabled", true)
+                                                                       .with(GOSSIP)
+                                                                       .with(NETWORK))
+                                           .start()))
+        {
+            // A speculative read is the reason we have two remote replicas in play that can return results before
+            // the local replica does.
+            setupSchema(cluster, "create table " + KS_TABLE + " (id int primary key, t int) WITH speculative_retry = 'ALWAYS'");
+
+            cluster.get(1).executeInternal("INSERT INTO " + KS_TABLE + " (id, t) values (0, 0)");
+            cluster.get(2).executeInternal("INSERT INTO " + KS_TABLE + " (id, t) values (0, 0)");
+            cluster.get(3).executeInternal("INSERT INTO " + KS_TABLE + " (id, t) values (0, 1)");
+            cluster.forEach(c -> c.flush(KEYSPACE));
+            cluster.forEach(i -> i.runOnInstance(markAllRepaired()));
+            cluster.forEach(i -> i.runOnInstance(assertRepaired()));
+
+            long logPositionBeforeQuery = cluster.get(1).logs().mark();
+            Object[][] rows = cluster.coordinator(1).execute("SELECT * FROM " + KS_TABLE + " WHERE id=0", ConsistencyLevel.QUORUM);
+            assertEquals(1, rows.length);
+            
+            // Given we didn't write at QUORUM, both 0 and 1 are acceptable values.
+            assertTrue((int) rows[0][1] == 0 || (int) rows[0][1] == 1);
+
+            List<String> result = cluster.get(1).logs().grepForErrors(logPositionBeforeQuery).getResult();
+            assertEquals(Collections.emptyList(), result);
+            Assert.assertTrue("Encountered an error", result.isEmpty());
+        }
+    }
+
+    public static class BBHelper
+    {
+        private static final CyclicBarrier barrier = new CyclicBarrier(2);
+
+        public static void install(ClassLoader classLoader, Integer num)
+        {
+            // Only install on the coordinating node, which is also a replica...
+            if (num == 1)
+            {
+                new ByteBuddy().rebase(SEPExecutor.class)
+                               .method(named("maybeExecuteImmediately"))
+                               .intercept(MethodDelegation.to(BBHelper.class))
+                               .make()
+                               .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+
+                new ByteBuddy().rebase(SinglePartitionReadCommand.class)
+                               .method(named("executeLocally"))
+                               .intercept(MethodDelegation.to(BBHelper.class))
+                               .make()
+                               .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+
+                new ByteBuddy().rebase(ReplicaLayout.class)
+                               .method(named("forTokenReadLiveSorted").and(takesArguments(AbstractReplicationStrategy.class, Token.class)))
+                               .intercept(MethodDelegation.to(BBHelper.class))
+                               .make()
+                               .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+            }
+        }
+
+        @SuppressWarnings("unused")
+        public static void maybeExecuteImmediately(Runnable command)
+        {
+            // Force local read runnables (from initial read and read-repair) to execute in separate threads.
+            new Thread(command).start();
+        }
+
+        @SuppressWarnings({ "unused" })
+        public static UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController,
+                                                                 @SuperCall Callable<UnfilteredPartitionIterator> zuperCall)
+        {
+            try
+            {
+                if (executionController.metadata().name.equals(TABLE))
+                {
+                    // Force both the initial local read and the local read triggered by read-repair to proceed at
+                    // roughly the same time.
+                    barrier.await();
+                }
+                return zuperCall.call();
+            }
+            catch (Exception e)
+            {
+                throw Throwables.unchecked(e);
+            }
+        }
+
+        @SuppressWarnings({ "unused" })
+        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(AbstractReplicationStrategy replicationStrategy, Token token)
+        {
+            try
+            {
+                EndpointsForToken.Builder builder = EndpointsForToken.builder(token, 3);
+                builder.add(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.3")));
+                builder.add(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.2")));
+                builder.add(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.1")));
+                return new ReplicaLayout.ForTokenRead(replicationStrategy, builder.build());
+            }
+            catch (Exception e)
+            {
+                throw Throwables.unchecked(e);
+            }
+        }
+    }
+
     private Object[][] rows(Object[][] head, Object[][]...tail)
     {
         return Stream.concat(Stream.of(head),
@@ -439,6 +581,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         };
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private IInvokableInstance.SerializableRunnable assertSnapshotPresent(String snapshotName)
     {
         return () ->
@@ -447,7 +590,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             int attempts = 100;
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
 
-            while (cfs.getSnapshotDetails().isEmpty())
+            while (cfs.listSnapshots().isEmpty())
             {
                 Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                 if (attempts-- < 0)
@@ -473,5 +616,15 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                              .confirmedRepairedInconsistencies
                                              .table
                                              .getCount());
+    }
+
+    private void setupSchema(Cluster cluster, String cql)
+    {
+        cluster.schemaChange(cql);
+        // disable auto compaction to prevent nodes from trying to compact
+        // new sstables with ones we've modified to mark repaired
+        cluster.forEach(i -> i.runOnInstance(() -> Keyspace.open(KEYSPACE)
+                                                           .getColumnFamilyStore(TABLE)
+                                                           .disableAutoCompaction()));
     }
 }
