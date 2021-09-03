@@ -40,11 +40,14 @@ New features
 ------------
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
-      to be enabled in 4.2; it is controlled with the configuration client_track_warnings_enabled,
+      to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
       setting to true will enable this feature.  Each check has its own warn/abort thresholds, currently
-      tombstones (tombstone_warn_threshold, and tombstone_failure_threshold) and coordinator result set
-      materialized size (client_large_read_warn_threshold_kb, and client_large_read_abort_threshold_kb)
-      are supported; more checks will be added over time.
+      tombstones (tombstone_warn_threshold, and tombstone_failure_threshold), coordinator result set
+      materialized size (track_warnings.coordinator_large_read.warn_threshold_kb, and
+      track_warnings.coordinator_large_read.abort_threshold_kb), local read materialized heap size
+      (track_warnings.local_read_too_large.warn_threshold_kb and track_warnings.local_read_too_large.abort_threshold_kb),
+      and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
+      track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
 
 Upgrading
 ---------

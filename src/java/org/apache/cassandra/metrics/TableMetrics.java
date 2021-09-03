@@ -262,9 +262,9 @@ public class TableMetrics
     public final TableMeter clientTombstoneWarnings;
     public final TableMeter clientTombstoneAborts;
 
-    public final TableMeter clientReadSizeWarnings;
-    public final TableMeter clientReadSizeAborts;
-    public final TableHistogram clientReadSize;
+    public final TableMeter coordinatorReadSizeWarnings;
+    public final TableMeter coordinatorReadSizeAborts;
+    public final TableHistogram coordinatorReadSize;
 
     public final TableMeter clientLocalReadSizeTooLargeWarnings;
     public final TableMeter clientLocalReadSizeTooLargeAborts;
@@ -932,9 +932,9 @@ public class TableMetrics
         clientTombstoneWarnings = createTableMeter("ClientTombstoneWarnings", cfs.keyspace.metric.clientTombstoneWarnings);
         clientTombstoneAborts = createTableMeter("ClientTombstoneAborts", cfs.keyspace.metric.clientTombstoneAborts);
 
-        clientReadSizeWarnings = createTableMeter("ClientReadSizeWarnings", cfs.keyspace.metric.clientReadSizeWarnings);
-        clientReadSizeAborts = createTableMeter("ClientReadSizeAborts", cfs.keyspace.metric.clientReadSizeAborts);
-        clientReadSize = createTableHistogram("ClientReadSize", cfs.keyspace.metric.clientReadSize, false);
+        coordinatorReadSizeWarnings = createTableMeter("CoordinatorReadSizeWarnings", cfs.keyspace.metric.coordinatorReadSizeWarnings);
+        coordinatorReadSizeAborts = createTableMeter("CoordinatorReadSizeAborts", cfs.keyspace.metric.coordinatorReadSizeAborts);
+        coordinatorReadSize = createTableHistogram("CoordinatorReadSize", cfs.keyspace.metric.coordinatorReadSize, false);
 
         clientLocalReadSizeTooLargeWarnings = createTableMeter("ClientLocalReadSizeTooLargeWarnings", cfs.keyspace.metric.clientLocalReadSizeTooLargeWarnings);
         clientLocalReadSizeTooLargeAborts = createTableMeter("ClientLocalReadSizeTooLargeAborts", cfs.keyspace.metric.clientLocalReadSizeTooLargeAborts);

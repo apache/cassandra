@@ -22,14 +22,14 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 public class TrackWarnings
 {
     public volatile boolean enabled = false; // should set to true in 4.2
-    public final LongByteThreshold client_large_read = new LongByteThreshold();
+    public final LongByteThreshold coordinator_large_read = new LongByteThreshold();
     public final LongByteThreshold local_read_too_large = new LongByteThreshold();
     public final IntByteThreshold row_index_size = new IntByteThreshold();
 
     public void validate(String prefix)
     {
         prefix += ".";
-        client_large_read.validate(prefix + "client_large_read");
+        coordinator_large_read.validate(prefix + "coordinator_large_read");
         local_read_too_large.validate(prefix + "local_read_too_large");
         row_index_size.validate(prefix + "row_index_size");
     }

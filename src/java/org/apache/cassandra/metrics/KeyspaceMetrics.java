@@ -156,9 +156,9 @@ public class KeyspaceMetrics
     public final Meter clientTombstoneWarnings;
     public final Meter clientTombstoneAborts;
 
-    public final Meter clientReadSizeWarnings;
-    public final Meter clientReadSizeAborts;
-    public final Histogram clientReadSize;
+    public final Meter coordinatorReadSizeWarnings;
+    public final Meter coordinatorReadSizeAborts;
+    public final Histogram coordinatorReadSize;
 
     public final Meter clientLocalReadSizeTooLargeWarnings;
     public final Meter clientLocalReadSizeTooLargeAborts;
@@ -254,9 +254,9 @@ public class KeyspaceMetrics
         clientTombstoneWarnings = createKeyspaceMeter("ClientTombstoneWarnings");
         clientTombstoneAborts = createKeyspaceMeter("ClientTombstoneAborts");
 
-        clientReadSizeWarnings = createKeyspaceMeter("ClientReadSizeWarnings");
-        clientReadSizeAborts = createKeyspaceMeter("ClientReadSizeAborts");
-        clientReadSize = createKeyspaceHistogram("ClientReadSize", false);
+        coordinatorReadSizeWarnings = createKeyspaceMeter("CoordinatorReadSizeWarnings");
+        coordinatorReadSizeAborts = createKeyspaceMeter("CoordinatorReadSizeAborts");
+        coordinatorReadSize = createKeyspaceHistogram("CoordinatorReadSize", false);
 
         clientLocalReadSizeTooLargeWarnings = createKeyspaceMeter("ClientLocalReadSizeTooLargeWarnings");
         clientLocalReadSizeTooLargeAborts = createKeyspaceMeter("ClientLocalReadSizeTooLargeAborts");

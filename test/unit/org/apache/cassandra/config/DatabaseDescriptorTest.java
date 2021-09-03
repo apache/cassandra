@@ -600,30 +600,30 @@ public class DatabaseDescriptorTest
     public void testClientLargeReadWarnAndAbortNegative()
     {
         Config conf = new Config();
-        conf.track_warnings.client_large_read.warn_threshold_kb = -2;
-        conf.track_warnings.client_large_read.abort_threshold_kb = -2;
+        conf.track_warnings.coordinator_large_read.warn_threshold_kb = -2;
+        conf.track_warnings.coordinator_large_read.abort_threshold_kb = -2;
         DatabaseDescriptor.applyReadWarningValidations(conf);
-        Assertions.assertThat(conf.track_warnings.client_large_read.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.client_large_read.abort_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.track_warnings.coordinator_large_read.warn_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.track_warnings.coordinator_large_read.abort_threshold_kb).isEqualTo(0);
     }
 
     @Test
     public void testClientLargeReadWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.client_large_read.warn_threshold_kb = 2;
-        conf.track_warnings.client_large_read.abort_threshold_kb = 1;
+        conf.track_warnings.coordinator_large_read.warn_threshold_kb = 2;
+        conf.track_warnings.coordinator_large_read.abort_threshold_kb = 1;
         Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.client_large_read");
+                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.coordinator_large_read");
     }
 
     @Test
     public void testClientLargeReadWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.client_large_read.warn_threshold_kb = 2;
-        conf.track_warnings.client_large_read.abort_threshold_kb = 2;
+        conf.track_warnings.coordinator_large_read.warn_threshold_kb = 2;
+        conf.track_warnings.coordinator_large_read.abort_threshold_kb = 2;
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 
@@ -631,8 +631,8 @@ public class DatabaseDescriptorTest
     public void testClientLargeReadWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.client_large_read.warn_threshold_kb = 2;
-        conf.track_warnings.client_large_read.abort_threshold_kb = 0;
+        conf.track_warnings.coordinator_large_read.warn_threshold_kb = 2;
+        conf.track_warnings.coordinator_large_read.abort_threshold_kb = 0;
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 
@@ -640,8 +640,8 @@ public class DatabaseDescriptorTest
     public void testClientLargeReadAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.client_large_read.warn_threshold_kb = 0;
-        conf.track_warnings.client_large_read.abort_threshold_kb = 2;
+        conf.track_warnings.coordinator_large_read.warn_threshold_kb = 0;
+        conf.track_warnings.coordinator_large_read.abort_threshold_kb = 2;
         DatabaseDescriptor.applyReadWarningValidations(conf);
     }
 

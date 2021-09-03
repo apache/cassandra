@@ -55,7 +55,7 @@ file_cache_enabled: true
 auto_hints_cleanup_enabled: true
 track_warnings:
     enabled: true
-    client_large_read:
+    coordinator_large_read:
         warn_threshold_kb: 1024
         abort_threshold_kb: 4096
     local_read_too_large:

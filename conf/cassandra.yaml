@@ -1460,11 +1460,11 @@ enable_drop_compact_storage: false
 #	# Scheduled to enable in 4.2
 #	enabled: false
 #	# When client_track_warnings_enabled: true, this tracks the materialized size of a query on the
-#	# coordinator. If client_large_read_warn_threshold_kb is greater than 0, this will emit a warning
+#	# coordinator. If coordinator_large_read.warn_threshold_kb is greater than 0, this will emit a warning
 #	# to clients with details on what query triggered this as well as the size of the result set; if
-#	# client_large_read_abort_threshold_kb is greater than 0, this will abort the query after it
+#	# coordinator_large_read.abort_threshold_kb is greater than 0, this will abort the query after it
 #	# has exceeded this threshold, returning a read error to the user.
-#	client_large_read:
+#	coordinator_large_read:
 #		warn_threshold_kb: 0
 #		abort_threshold_kb: 0
 #	# When client_track_warnings_enabled: true, this tracks the size of the local read (as defined by

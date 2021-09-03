@@ -255,8 +255,8 @@ public abstract class QueryOptions
             boolean enabled = DatabaseDescriptor.getClientTrackWarningsEnabled();
             if (!enabled)
                 return DisabledTrackWarnings.INSTANCE;
-            long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
-            long clientLargeReadAbortThresholdKB = DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
+            long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getCoordinatorLargeReadWarnThresholdKB();
+            long clientLargeReadAbortThresholdKB = DatabaseDescriptor.getCoordinatorLargeReadAbortThresholdKB();
             return new DefaultTrackWarnings(clientLargeReadWarnThresholdKb, clientLargeReadAbortThresholdKB);
         }
     }

@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,8 +27,6 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
-
-import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -45,8 +42,8 @@ public class YamlConfigurationLoaderTest
         TrackWarnings tw = load("test/conf/cassandra.yaml").track_warnings;
         assertThat(tw.enabled).isTrue();
 
-        assertThat(tw.client_large_read.warn_threshold_kb).isGreaterThan(0);
-        assertThat(tw.client_large_read.abort_threshold_kb).isGreaterThan(0);
+        assertThat(tw.coordinator_large_read.warn_threshold_kb).isGreaterThan(0);
+        assertThat(tw.coordinator_large_read.abort_threshold_kb).isGreaterThan(0);
 
         assertThat(tw.local_read_too_large.warn_threshold_kb).isGreaterThan(0);
         assertThat(tw.local_read_too_large.abort_threshold_kb).isGreaterThan(0);
@@ -60,7 +57,7 @@ public class YamlConfigurationLoaderTest
     {
         Map<String, Object> map = ImmutableMap.of("track_warnings", ImmutableMap.of(
         "enabled", true,
-        "client_large_read", ImmutableMap.of("warn_threshold_kb", 1024),
+        "coordinator_large_read", ImmutableMap.of("warn_threshold_kb", 1024),
         "local_read_too_large", ImmutableMap.of("abort_threshold_kb", 1024),
         "row_index_size", ImmutableMap.of("warn_threshold_kb", 1024, "abort_threshold_kb", 1024)
         ));
@@ -69,8 +66,8 @@ public class YamlConfigurationLoaderTest
         TrackWarnings tw = config.track_warnings;
         assertThat(tw.enabled).isTrue();
 
-        assertThat(tw.client_large_read.warn_threshold_kb).isEqualTo(1024);
-        assertThat(tw.client_large_read.abort_threshold_kb).isEqualTo(0);
+        assertThat(tw.coordinator_large_read.warn_threshold_kb).isEqualTo(1024);
+        assertThat(tw.coordinator_large_read.abort_threshold_kb).isEqualTo(0);
 
         assertThat(tw.local_read_too_large.warn_threshold_kb).isEqualTo(0);
         assertThat(tw.local_read_too_large.abort_threshold_kb).isEqualTo(1024);

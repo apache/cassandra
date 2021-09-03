@@ -31,8 +31,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -821,14 +819,14 @@ public class SelectStatement implements CQLStatement
             return;
         ColumnFamilyStore store = cfs();
         if (store != null)
-            store.metric.clientReadSize.update(result.getSize());
+            store.metric.coordinatorReadSize.update(result.getSize());
         if (result.shouldWarn(options.getClientLargeReadWarnThresholdKb()))
         {
             String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getClientLargeReadWarnThresholdKb());
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
             logger.warn("{} with query {}", msg, asCQL(options));
             if (store != null)
-                store.metric.clientReadSizeWarnings.mark();
+                store.metric.coordinatorReadSizeWarnings.mark();
         }
     }
 
@@ -845,8 +843,8 @@ public class SelectStatement implements CQLStatement
             ColumnFamilyStore store = cfs();
             if (store != null)
             {
-                store.metric.clientReadSizeAborts.mark();
-                store.metric.clientReadSize.update(result.getSize());
+                store.metric.coordinatorReadSizeAborts.mark();
+                store.metric.coordinatorReadSize.update(result.getSize());
             }
             // read errors require blockFor and recieved (its in the protocol message), but this isn't known;
             // to work around this, treat the coordinator as the only response we care about and mark it failed

@@ -3471,24 +3471,24 @@ public class DatabaseDescriptor
         conf.track_warnings.enabled = value;
     }
 
-    public static long getClientLargeReadWarnThresholdKB()
+    public static long getCoordinatorLargeReadWarnThresholdKB()
     {
-        return conf.track_warnings.client_large_read.getWarnThresholdKb();
+        return conf.track_warnings.coordinator_large_read.getWarnThresholdKb();
     }
 
-    public static void setClientLargeReadWarnThresholdKB(long threshold)
+    public static void setCoordinatorLargeReadWarnThresholdKB(long threshold)
     {
-        conf.track_warnings.client_large_read.setWarnThresholdKb(threshold);
+        conf.track_warnings.coordinator_large_read.setWarnThresholdKb(threshold);
     }
 
-    public static long getClientLargeReadAbortThresholdKB()
+    public static long getCoordinatorLargeReadAbortThresholdKB()
     {
-        return conf.track_warnings.client_large_read.getAbortThresholdKb();
+        return conf.track_warnings.coordinator_large_read.getAbortThresholdKb();
     }
 
-    public static void setClientLargeReadAbortThresholdKB(long threshold)
+    public static void setCoordinatorLargeReadAbortThresholdKB(long threshold)
     {
-        conf.track_warnings.client_large_read.setAbortThresholdKb(threshold);
+        conf.track_warnings.coordinator_large_read.setAbortThresholdKb(threshold);
     }
 
     public static long getLocalReadTooLargeWarningThresholdKb()

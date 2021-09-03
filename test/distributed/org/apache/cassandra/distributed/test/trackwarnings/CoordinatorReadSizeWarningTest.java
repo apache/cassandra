@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ReadSize client warn/abort is coordinator only, so the fact ClientMetrics is coordinator only does not
  * impact the user experience
  */
-public class ClientReadSizeWarningTest extends AbstractClientSizeWarning
+public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
 {
     @BeforeClass
     public static void setupClass() throws IOException
@@ -41,8 +41,8 @@ public class ClientReadSizeWarningTest extends AbstractClientSizeWarning
         // setup threshold after init to avoid driver issues loading
         // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setClientLargeReadWarnThresholdKB(1);
-            DatabaseDescriptor.setClientLargeReadAbortThresholdKB(2);
+            DatabaseDescriptor.setCoordinatorLargeReadWarnThresholdKB(1);
+            DatabaseDescriptor.setCoordinatorLargeReadAbortThresholdKB(2);
         }));
     }
 
@@ -69,18 +69,18 @@ public class ClientReadSizeWarningTest extends AbstractClientSizeWarning
     @Override
     protected long[] getHistogram()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSize." + KEYSPACE)).toArray();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSize." + KEYSPACE)).toArray();
     }
 
     @Override
     protected long totalWarnings()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSizeWarnings." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSizeWarnings." + KEYSPACE)).sum();
     }
 
     @Override
     protected long totalAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSizeAborts." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSizeAborts." + KEYSPACE)).sum();
     }
 }
