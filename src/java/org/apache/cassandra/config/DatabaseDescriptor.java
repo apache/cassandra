@@ -3471,42 +3471,42 @@ public class DatabaseDescriptor
         conf.track_warnings.enabled = value;
     }
 
-    public static long getCoordinatorLargeReadWarnThresholdKB()
+    public static long getCoordinatorReadSizeWarnThresholdKB()
     {
-        return conf.track_warnings.coordinator_large_read.getWarnThresholdKb();
+        return conf.track_warnings.coordinator_read_size.getWarnThresholdKb();
     }
 
-    public static void setCoordinatorLargeReadWarnThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeWarnThresholdKB(long threshold)
     {
-        conf.track_warnings.coordinator_large_read.setWarnThresholdKb(threshold);
+        conf.track_warnings.coordinator_read_size.setWarnThresholdKb(threshold);
     }
 
-    public static long getCoordinatorLargeReadAbortThresholdKB()
+    public static long getCoordinatorReadSizeAbortThresholdKB()
     {
-        return conf.track_warnings.coordinator_large_read.getAbortThresholdKb();
+        return conf.track_warnings.coordinator_read_size.getAbortThresholdKb();
     }
 
-    public static void setCoordinatorLargeReadAbortThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeAbortThresholdKB(long threshold)
     {
-        conf.track_warnings.coordinator_large_read.setAbortThresholdKb(threshold);
+        conf.track_warnings.coordinator_read_size.setAbortThresholdKb(threshold);
     }
 
-    public static long getLocalReadTooLargeWarningThresholdKb()
+    public static long getLocalReadSizeWarningThresholdKb()
     {
         return conf.track_warnings.local_read_size.getWarnThresholdKb();
     }
 
-    public static void setLocalReadTooLargeWarningThresholdKb(long value)
+    public static void setLocalReadSizeWarningThresholdKb(long value)
     {
         conf.track_warnings.local_read_size.setWarnThresholdKb(value);
     }
 
-    public static long getLocalReadTooLargeAbortThresholdKb()
+    public static long getLocalReadSizeAbortThresholdKb()
     {
         return conf.track_warnings.local_read_size.getAbortThresholdKb();
     }
 
-    public static void setLocalReadTooLargeAbortThresholdKb(long value)
+    public static void setLocalReadSizeAbortThresholdKb(long value)
     {
         conf.track_warnings.local_read_size.setAbortThresholdKb(value);
     }

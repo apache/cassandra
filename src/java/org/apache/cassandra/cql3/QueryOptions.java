@@ -226,12 +226,12 @@ public abstract class QueryOptions
 
     public long getClientLargeReadWarnThresholdKb()
     {
-        return getTrackWarnings().getClientLargeReadWarnThresholdKb();
+        return getTrackWarnings().getCoordinatorLargeReadWarnThresholdKB();
     }
 
     public long getClientLargeReadAbortThresholdKB()
     {
-        return getTrackWarnings().getClientLargeReadAbortThresholdKB();
+        return getTrackWarnings().getCoordinatorLargeReadAbortThresholdKB();
     }
 
     public QueryOptions prepare(List<ColumnSpecification> specs)
@@ -243,9 +243,9 @@ public abstract class QueryOptions
     {
         boolean isEnabled();
 
-        long getClientLargeReadWarnThresholdKb();
+        long getCoordinatorLargeReadWarnThresholdKB();
 
-        long getClientLargeReadAbortThresholdKB();
+        long getCoordinatorLargeReadAbortThresholdKB();
 
         static TrackWarnings create()
         {
@@ -255,9 +255,9 @@ public abstract class QueryOptions
             boolean enabled = DatabaseDescriptor.getClientTrackWarningsEnabled();
             if (!enabled)
                 return DisabledTrackWarnings.INSTANCE;
-            long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getCoordinatorLargeReadWarnThresholdKB();
-            long clientLargeReadAbortThresholdKB = DatabaseDescriptor.getCoordinatorLargeReadAbortThresholdKB();
-            return new DefaultTrackWarnings(clientLargeReadWarnThresholdKb, clientLargeReadAbortThresholdKB);
+            long coordinatorLargeReadWarnThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
+            long coordinatorLargeReadAbortThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
+            return new DefaultTrackWarnings(coordinatorLargeReadWarnThresholdKB, coordinatorLargeReadAbortThresholdKB);
         }
     }
 
@@ -272,13 +272,13 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getClientLargeReadWarnThresholdKb()
+        public long getCoordinatorLargeReadWarnThresholdKB()
         {
             return 0;
         }
 
         @Override
-        public long getClientLargeReadAbortThresholdKB()
+        public long getCoordinatorLargeReadAbortThresholdKB()
         {
             return 0;
         }
@@ -286,13 +286,13 @@ public abstract class QueryOptions
 
     private static class DefaultTrackWarnings implements TrackWarnings
     {
-        private final long clientLargeReadWarnThresholdKb;
-        private final long clientLargeReadAbortThresholdKB;
+        private final long coordinatorLargeReadWarnThresholdKB;
+        private final long coordinatorLargeReadAbortThresholdKB;
 
-        public DefaultTrackWarnings(long clientLargeReadWarnThresholdKb, long clientLargeReadAbortThresholdKB)
+        public DefaultTrackWarnings(long coordinatorLargeReadWarnThresholdKB, long coordinatorLargeReadAbortThresholdKB)
         {
-            this.clientLargeReadWarnThresholdKb = clientLargeReadWarnThresholdKb;
-            this.clientLargeReadAbortThresholdKB = clientLargeReadAbortThresholdKB;
+            this.coordinatorLargeReadWarnThresholdKB = coordinatorLargeReadWarnThresholdKB;
+            this.coordinatorLargeReadAbortThresholdKB = coordinatorLargeReadAbortThresholdKB;
         }
 
         @Override
@@ -302,15 +302,15 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getClientLargeReadWarnThresholdKb()
+        public long getCoordinatorLargeReadWarnThresholdKB()
         {
-            return clientLargeReadWarnThresholdKb;
+            return coordinatorLargeReadWarnThresholdKB;
         }
 
         @Override
-        public long getClientLargeReadAbortThresholdKB()
+        public long getCoordinatorLargeReadAbortThresholdKB()
         {
-            return clientLargeReadAbortThresholdKB;
+            return coordinatorLargeReadAbortThresholdKB;
         }
     }
 

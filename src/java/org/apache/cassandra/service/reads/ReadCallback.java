@@ -135,11 +135,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             trackAborts( tombstones, cfs().metric.clientTombstoneAborts,  ReadCallback::tombstoneAbortMessage);
             trackWarnings(tombstones, cfs().metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
 
-            trackAborts(localReadSize, cfs().metric.localReadSizeAborts, ReadCallback::localReadSizeTooLargeAbortMessage);
-            trackWarnings(localReadSize, cfs().metric.localReadSizeWarnings, ReadCallback::localReadSizeTooLargeWarnMessage);
+            trackAborts(localReadSize, cfs().metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
+            trackWarnings(localReadSize, cfs().metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
 
-            trackAborts(rowIndexTooLarge, cfs().metric.rowIndexSizeAborts, ReadCallback::rowIndexTooLargeAbortMessage);
-            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexSizeWarnings, ReadCallback::rowIndexTooLargeWarnMessage);
+            trackAborts(rowIndexTooLarge, cfs().metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
+            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
         }
 
         void mayAbort(int received)
@@ -149,11 +149,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                   replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
 
             if (localReadSize.aborts.get() > 0)
-                throw new ReadSizeAbortException(localReadSizeTooLargeAbortMessage(localReadSize.aborts.get(), localReadSize.maxAbortsValue.get(), cql()),
+                throw new ReadSizeAbortException(localReadSizeAbortMessage(localReadSize.aborts.get(), localReadSize.maxAbortsValue.get(), cql()),
                                                  replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
 
             if (rowIndexTooLarge.aborts.get() > 0)
-                throw new ReadSizeAbortException(rowIndexTooLargeAbortMessage(rowIndexTooLarge.aborts.get(), rowIndexTooLarge.maxAbortsValue.get(), cql()),
+                throw new ReadSizeAbortException(rowIndexSizeAbortMessage(rowIndexTooLarge.aborts.get(), rowIndexTooLarge.maxAbortsValue.get(), cql()),
                                                  replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
         }
     }
@@ -220,25 +220,25 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     }
 
     @VisibleForTesting
-    public static String localReadSizeTooLargeAbortMessage(long nodes, long bytes, String cql)
+    public static String localReadSizeAbortMessage(long nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes and aborted the query %s (see track_warnings.local_read_size.abort_threshold_kb)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
-    public static String localReadSizeTooLargeWarnMessage(int nodes, long bytes, String cql)
+    public static String localReadSizeWarnMessage(int nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see track_warnings.local_read_size.warn_threshold_kb)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
-    public static String rowIndexTooLargeAbortMessage(long nodes, long bytes, String cql)
+    public static String rowIndexSizeAbortMessage(long nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see track_warnings.row_index_size.abort_threshold_kb)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
-    public static String rowIndexTooLargeWarnMessage(int nodes, long bytes, String cql)
+    public static String rowIndexSizeWarnMessage(int nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see track_warnings.row_index_size.warn_threshold_kb)", nodes, bytes, cql);
     }

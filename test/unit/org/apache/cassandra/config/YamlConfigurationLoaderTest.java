@@ -42,8 +42,8 @@ public class YamlConfigurationLoaderTest
         TrackWarnings tw = load("test/conf/cassandra.yaml").track_warnings;
         assertThat(tw.enabled).isTrue();
 
-        assertThat(tw.coordinator_large_read.warn_threshold_kb).isGreaterThan(0);
-        assertThat(tw.coordinator_large_read.abort_threshold_kb).isGreaterThan(0);
+        assertThat(tw.coordinator_read_size.warn_threshold_kb).isGreaterThan(0);
+        assertThat(tw.coordinator_read_size.abort_threshold_kb).isGreaterThan(0);
 
         assertThat(tw.local_read_size.warn_threshold_kb).isGreaterThan(0);
         assertThat(tw.local_read_size.abort_threshold_kb).isGreaterThan(0);
@@ -57,7 +57,7 @@ public class YamlConfigurationLoaderTest
     {
         Map<String, Object> map = ImmutableMap.of("track_warnings", ImmutableMap.of(
         "enabled", true,
-        "coordinator_large_read", ImmutableMap.of("warn_threshold_kb", 1024),
+        "coordinator_read_size", ImmutableMap.of("warn_threshold_kb", 1024),
         "local_read_size", ImmutableMap.of("abort_threshold_kb", 1024),
         "row_index_size", ImmutableMap.of("warn_threshold_kb", 1024, "abort_threshold_kb", 1024)
         ));
@@ -66,8 +66,8 @@ public class YamlConfigurationLoaderTest
         TrackWarnings tw = config.track_warnings;
         assertThat(tw.enabled).isTrue();
 
-        assertThat(tw.coordinator_large_read.warn_threshold_kb).isEqualTo(1024);
-        assertThat(tw.coordinator_large_read.abort_threshold_kb).isEqualTo(0);
+        assertThat(tw.coordinator_read_size.warn_threshold_kb).isEqualTo(1024);
+        assertThat(tw.coordinator_read_size.abort_threshold_kb).isEqualTo(0);
 
         assertThat(tw.local_read_size.warn_threshold_kb).isEqualTo(0);
         assertThat(tw.local_read_size.abort_threshold_kb).isEqualTo(1024);

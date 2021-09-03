@@ -658,8 +658,8 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         if (!trackWarnings || SchemaConstants.isSystemKeyspace(metadata().keyspace)) // exclude internal keyspaces
             return iterator;
-        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadTooLargeWarningThresholdKb() * 1024;
-        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadTooLargeAbortThresholdKb() * 1024;
+        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarningThresholdKb() * 1024;
+        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKb() * 1024;
         if (warnThresholdBytes == 0 && abortThresholdBytes == 0)
             return iterator;
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
