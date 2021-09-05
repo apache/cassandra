@@ -56,22 +56,27 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
 
                 if (row.deletion().isLive())
                 {
-                    row.forEach(columnData ->
-                    {
-                        if (columnData.column().isComplex())
-                            throw new InvalidRequestException("Complex type columns are not supported by table " + metadata);
+                    if (row.columnCount() == 0)
+                        applyRowWithoutRegularColumnsInsertion(partitionKeyColumnValues, clusteringColumnValues);
+                     else
+                     {
+                        row.forEach(columnData ->
+                        {
+                            if (columnData.column().isComplex())
+                                throw new InvalidRequestException("Complex type columns are not supported by table " + metadata);
 
-                        Cell<?> cell = (Cell<?>) columnData;
-                        String columnName = extractColumnName(cell);
+                            Cell<?> cell = (Cell<?>) columnData;
+                            String columnName = extractColumnName(cell);
 
-                        if (cell.isTombstone())
-                            applyColumnDeletion(partitionKeyColumnValues, clusteringColumnValues, columnName);
-                        else
-                            applyColumnUpdate(partitionKeyColumnValues,
-                                    clusteringColumnValues,
-                                    columnName,
-                                    extractColumnValue(cell));
-                    });
+                            if (cell.isTombstone())
+                                applyColumnDeletion(partitionKeyColumnValues, clusteringColumnValues, columnName);
+                            else
+                                applyColumnUpdate(partitionKeyColumnValues,
+                                        clusteringColumnValues,
+                                        columnName,
+                                        extractColumnValue(cell));
+                        });
+                    }
                 }
                 else
                     applyRowDeletion(partitionKeyColumnValues, clusteringColumnValues);
@@ -138,6 +143,11 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
                                        Range<Comparable<?>> range)
     {
         throw new InvalidRequestException("Range deletion is not supported by table " + metadata);
+    }
+
+    protected void applyRowWithoutRegularColumnsInsertion(Object[] partitionKeyColumnValues, Comparable<?>[] clusteringColumnValues)
+    {
+        throw new InvalidRequestException("Row insertion is not supported by table " + metadata);
     }
 
     protected void applyRowDeletion(Object[] partitionKeyColumnValues, Comparable<?>[] clusteringColumnValues)

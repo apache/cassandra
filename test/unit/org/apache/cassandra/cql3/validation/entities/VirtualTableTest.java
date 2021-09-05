@@ -120,6 +120,17 @@ public class VirtualTableTest extends CQLTester
         }
 
         @Override
+        protected void applyRowWithoutRegularColumnsInsertion(Object[] partitionKeyColumnValues, Comparable<?>[] clusteringColumnValues) {
+            Pair<String, String> pkPair = Pair.create((String) partitionKeyColumnValues[0], (String) partitionKeyColumnValues[1]);
+            String c1 = (String) clusteringColumnValues[0];
+            String c2 = (String) clusteringColumnValues[1];
+
+            backingMap.computeIfAbsent(pkPair, ignored -> new TreeMap<>())
+                    .computeIfAbsent(c1, ignored -> new TreeMap<>())
+                    .put(c2, Pair.create(null, null));
+        }
+
+        @Override
         protected void applyRowDeletion(Object[] partitionKeyColumnValues, Comparable<?>[] clusteringColumnValues)
         {
             Pair<String, String> pkPair = Pair.create((String) partitionKeyColumnValues[0], (String) partitionKeyColumnValues[1]);
@@ -445,6 +456,23 @@ public class VirtualTableTest extends CQLTester
         execute("DELETE v1 FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
         assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", null, 3L));
+
+        // truncate
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
+    }
+
+    @Test
+    public void testInsertRowWithoutRegularColumnsOperationOnMutableTable() throws Throwable
+    {
+        // check for a clean state
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
+
+        // insert a primary key without columns
+        execute("INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
+                row("pk1_1", "pk2_1", "c1_1", "c2_2", null, null));
 
         // truncate
         execute("TRUNCATE test_virtual_ks.vt2");
