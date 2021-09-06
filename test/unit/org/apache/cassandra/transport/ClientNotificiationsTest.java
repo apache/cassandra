@@ -19,7 +19,6 @@
 package org.apache.cassandra.transport;
 
 import java.util.Collections;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
@@ -43,7 +42,7 @@ public class ClientNotificiationsTest extends CQLTester
     @Before
     public void setup()
     {
-        requireNetwork(builder -> builder.withEventNotifier(notifier));
+        requireNetwork(builder -> builder.withEventNotifier(notifier), builder -> {});
     }
 
     @Parameterized.Parameter(0)

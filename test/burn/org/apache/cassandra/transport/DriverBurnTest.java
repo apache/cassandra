@@ -62,7 +62,7 @@ public class DriverBurnTest extends CQLTester
             }
         };
 
-        requireNetwork((builder) -> builder.withPipelineConfigurator(configurator));
+        requireNetwork(builder -> builder.withPipelineConfigurator(configurator), builder -> {});
     }
 
     @Test

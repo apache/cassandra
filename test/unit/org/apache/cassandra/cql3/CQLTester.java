@@ -125,7 +125,9 @@ public abstract class CQLTester
     protected static final InetAddress nativeAddr;
     protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
     private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
-    protected static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
+    private static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
+
+    private static Consumer<Cluster.Builder> clusterBuilderConfigurator;
 
     public static final List<ProtocolVersion> PROTOCOL_VERSIONS = new ArrayList<>(ProtocolVersion.SUPPORTED.size());
 
@@ -411,26 +413,27 @@ public abstract class CQLTester
         return allArgs;
     }
 
-    protected static void requireNetworkWithoutDriver()
-    {
-        startServices();
-        startServer(server -> {});
-    }
-
-    // lazy initialization for all tests that require Java Driver
+    /**
+     *  Initialize Native Transport for test that need it.
+     */
     protected static void requireNetwork() throws ConfigurationException
     {
-        requireNetwork(server -> {});
+        requireNetwork(server -> {}, cluster -> {});
     }
 
-    // lazy initialization for all tests that require Java Driver
-    protected static void requireNetwork(Consumer<Server.Builder> decorator) throws ConfigurationException
+    /**
+     *  Initialize Native Transport for the tests that need it.
+     */
+    protected static void requireNetwork(Consumer<Server.Builder> serverConfigurator,
+                                         Consumer<Cluster.Builder> clusterConfigurator) throws ConfigurationException
     {
         if (server != null)
             return;
 
+        clusterBuilderConfigurator = clusterConfigurator;
+
         startServices();
-        initializeNetwork(decorator, null);
+        startServer(serverConfigurator);
     }
 
     private static void startServices()
@@ -443,10 +446,11 @@ public abstract class CQLTester
 
     protected static void reinitializeNetwork()
     {
-        reinitializeNetwork(null);
+        reinitializeNetwork(server -> {}, cluster -> {});
     }
 
-    protected static void reinitializeNetwork(Consumer<Cluster.Builder> clusterConfigurator)
+    protected static void reinitializeNetwork(Consumer<Server.Builder> serverConfigurator,
+                                              Consumer<Cluster.Builder> clusterConfigurator)
     {
         if (server != null && server.isRunning())
         {
@@ -462,45 +466,9 @@ public abstract class CQLTester
         clusters.clear();
         sessions.clear();
 
-        initializeNetwork(server -> {}, clusterConfigurator);
-    }
+        clusterBuilderConfigurator = clusterConfigurator;
 
-    private static void initializeNetwork(Consumer<Server.Builder> decorator, Consumer<Cluster.Builder> clusterConfigurator)
-    {
-        startServer(decorator);
-
-        for (ProtocolVersion version : PROTOCOL_VERSIONS)
-        {
-            if (clusters.containsKey(version))
-                continue;
-
-            SocketOptions socketOptions = new SocketOptions()
-                                          .setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms", DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
-                                          .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms", DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
-
-            logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
-
-            Cluster.Builder builder = Cluster.builder()
-                                             .withoutJMXReporting()
-                                             .addContactPoints(nativeAddr)
-                                             .withClusterName("Test Cluster")
-                                             .withPort(nativePort)
-                                             .withSocketOptions(socketOptions);
-
-            if (clusterConfigurator != null)
-                clusterConfigurator.accept(builder);
-
-            if (version.isBeta())
-                builder = builder.allowBetaProtocolVersion();
-            else
-                builder = builder.withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()));
-
-            Cluster cluster = builder.build();
-            clusters.put(version, cluster);
-            sessions.put(version, cluster.connect());
-
-            logger.info("Started Java Driver instance for protocol version {}", version);
-        }
+        startServer(serverConfigurator);
     }
 
     private static void startServer(Consumer<Server.Builder> decorator)
@@ -510,6 +478,37 @@ public abstract class CQLTester
         server = serverBuilder.build();
         ClientMetrics.instance.init(Collections.singleton(server));
         server.start();
+    }
+
+    private static Cluster initClientCluster(ProtocolVersion version)
+    {
+        SocketOptions socketOptions =
+                new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms",
+                                                                               DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
+                                   .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms",
+                                                                            DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
+
+        logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
+
+        Cluster.Builder builder = Cluster.builder()
+                                         .withoutJMXReporting()
+                                         .addContactPoints(nativeAddr)
+                                         .withClusterName("Test Cluster")
+                                         .withPort(nativePort)
+                                         .withSocketOptions(socketOptions);
+
+        if (version.isBeta())
+            builder = builder.allowBetaProtocolVersion();
+        else
+            builder = builder.withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()));
+
+        clusterBuilderConfigurator.accept(builder);
+
+        Cluster cluster = builder.build();
+
+        logger.info("Started Java Driver instance for protocol version {}", version);
+
+        return cluster;
     }
 
     protected void dropPerTestKeyspace() throws Throwable
@@ -1023,7 +1022,18 @@ public abstract class CQLTester
     {
         requireNetwork();
 
-        return sessions.get(protocolVersion);
+        return getSession(protocolVersion);
+    }
+
+    private Session getSession(ProtocolVersion protocolVersion)
+    {
+        Cluster cluster = getCluster(protocolVersion);
+        return sessions.computeIfAbsent(protocolVersion, userProto -> cluster.connect());
+    }
+
+    private Cluster getCluster(ProtocolVersion protocolVersion)
+    {
+        return clusters.computeIfAbsent(protocolVersion, userProto -> initClientCluster(protocolVersion));
     }
 
     protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException
@@ -1125,9 +1135,9 @@ public abstract class CQLTester
             for (int j = 0; j < meta.size(); j++)
             {
                 DataType type = meta.getType(j);
-                com.datastax.driver.core.TypeCodec<Object> codec = clusters.get(protocolVersion).getConfiguration()
-                                                                                                .getCodecRegistry()
-                                                                                                .codecFor(type);
+                com.datastax.driver.core.TypeCodec<Object> codec = getCluster(protocolVersion).getConfiguration()
+                                                                                              .getCodecRegistry()
+                                                                                              .codecFor(type);
                 ByteBuffer expectedByteValue = codec.serialize(expected[j], com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()));
                 int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
@@ -1825,7 +1835,7 @@ public abstract class CQLTester
     protected com.datastax.driver.core.TupleType tupleTypeOf(ProtocolVersion protocolVersion, com.datastax.driver.core.DataType...types)
     {
         requireNetwork();
-        return clusters.get(protocolVersion).getMetadata().newTupleType(types);
+        return getCluster(protocolVersion).getMetadata().newTupleType(types);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
