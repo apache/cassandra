@@ -721,4 +721,15 @@ public class AlterTest extends CQLTester
 
         assertInvalidMessage("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.", "ALTER TABLE %s DROP COMPACT STORAGE");
     }
+
+    /**
+     * Test for CASSANDRA-14564
+     */
+    @Test
+    public void testAlterByAddingColumnToCompactTableShouldFail() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        assertInvalidMessage("Cannot add new column to a COMPACT STORAGE table",
+                             "ALTER TABLE %s ADD column1 text");
+    }
 }
