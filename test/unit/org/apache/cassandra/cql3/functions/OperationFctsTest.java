@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Date;
+import java.util.Optional;
 
 import org.junit.Test;
 
@@ -28,6 +29,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.exceptions.OperationExecutionException;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimestampSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class OperationFctsTest extends CQLTester
 {
@@ -861,4 +863,17 @@ public class OperationFctsTest extends CQLTester
     {
         return SimpleDateSerializer.dateStringToDays(dateAsString);
     }
+
+    @Test
+    public void testFunctionException() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c1 int, c2 int, v text, PRIMARY KEY(pk, c1, c2))");
+        execute("INSERT INTO %s (pk, c1, c2, v) VALUES (1, 0, 2, 'test')");
+
+        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
+                                  "the operation 'int / int' failed: / by zero",
+                                  com.datastax.driver.core.exceptions.FunctionExecutionException.class,
+                                  "SELECT c2 / c1 FROM %s WHERE pk = 1");
+    }
+
 }
