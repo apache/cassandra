@@ -69,7 +69,7 @@ public class FromJsonFct extends NativeScalarFunction
         }
         catch (IOException exc)
         {
-            throw new FunctionExecutionException(NAME, Collections.singletonList("text"), String.format("Could not decode JSON string '%s': %s", jsonArg, exc.toString()));
+            throw FunctionExecutionException.create(NAME, Collections.singletonList("text"), String.format("Could not decode JSON string '%s': %s", jsonArg, exc.toString()));
         }
         catch (MarshalException exc)
         {
