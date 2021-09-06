@@ -1944,5 +1944,24 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE (c2) IN ((?), (?)) ALLOW FILTERING", 1, 3),
                    row(1, "1", 1, 5),
                    row(1, "2", 1, 6));
+
+        assertRows(execute("SELECT * FROM %s WHERE c2 IN (?, ?) ALLOW FILTERING", 1, 3),
+                   row(1, "1", 1, 5),
+                   row(1, "2", 1, 6));
+    }
+
+    @Test
+    public void testInRestrictionsWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c1 text, c2 int, c3 int, v int, primary key(pk, c1, c2, c3))");
+        createIndex("CREATE INDEX ON %s (c3)");
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "0", 0, 0, 3);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "1", 0, 0, 4);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "1", 1, 0, 5);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "2", 1, 0, 6);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "2", 2, 0, 7);
+
+        assertInvalidMessage("IN restrictions are not supported on indexed columns", 
+                             "SELECT * FROM %s WHERE (c2, c3) IN ((?, ?), (?, ?)) ALLOW FILTERING", 1, 0, 2, 0);
     }
  }
