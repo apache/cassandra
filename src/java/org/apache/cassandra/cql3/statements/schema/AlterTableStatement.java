@@ -195,6 +195,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (null != tableBuilder.getColumn(name))
                 throw ire("Column with name '%s' already exists", name);
 
+            if (table.isCompactTable())
+                throw ire("Cannot add new column to a COMPACT STORAGE table");
+
             if (isStatic && table.clusteringColumns().isEmpty())
                 throw ire("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
 
