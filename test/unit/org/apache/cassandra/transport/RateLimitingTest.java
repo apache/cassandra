@@ -76,9 +76,8 @@ public class RateLimitingTest extends CQLTester
         // If we don't exceed the queue capacity, we won't actually use the global/endpoint 
         // bytes-in-flight limits, and the assertions we make below around releasing them would be useless.
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
-        
-        // The driver control connections would send queries that might interfere with the tests.
-        requireNetworkWithoutDriver();
+
+        requireNetwork();
     }
 
     @Before

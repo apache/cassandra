@@ -69,7 +69,7 @@ public class ClientRequestSizeMetricsTest extends CQLTester
         // We explicitly disable scheme fetching to avoid that effect
         try
         {
-            reinitializeNetwork(builder -> builder.withQueryOptions(new QueryOptions().setMetadataEnabled(false)));
+            reinitializeNetwork(builder -> {}, builder -> builder.withQueryOptions(new QueryOptions().setMetadataEnabled(false)));
             // We want to ignore all the messages sent by the driver upon connection as well as
             // the event sent upon schema updates
             clearMetrics();
