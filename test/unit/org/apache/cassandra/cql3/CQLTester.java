@@ -483,15 +483,20 @@ public abstract class CQLTester
     private static Cluster initClientCluster(ProtocolVersion version)
     {
         SocketOptions socketOptions = 
-                new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms",
-                                                            DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
+        SocketOptions socketOptions = 
+                new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms", 
+                                                                               DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
                                    .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms",
-                                                         DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
+                                                                            DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
 
         logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
 
-        Cluster.Builder builder = Cluster.builder().withoutJMXReporting().addContactPoints(nativeAddr)
-                .withClusterName("Test Cluster").withPort(nativePort).withSocketOptions(socketOptions);
+        Cluster.Builder builder = Cluster.builder()
+                                         .withoutJMXReporting()
+                                         .addContactPoints(nativeAddr)
+                                         .withClusterName("Test Cluster")
+                                         .withPort(nativePort)
+                                         .withSocketOptions(socketOptions);
 
         if (version.isBeta())
             builder = builder.allowBetaProtocolVersion();
