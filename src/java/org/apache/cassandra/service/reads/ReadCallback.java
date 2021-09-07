@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.reads;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -88,7 +91,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         String apply(int count, long value, String cql);
     }
 
-    private class WarningCounter
+    private class WarningContext
     {
         final WarnAbortCounter tombstones = new WarnAbortCounter();
         final WarnAbortCounter localReadSize = new WarnAbortCounter();
@@ -132,7 +135,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         void track()
         {
-            trackAborts( tombstones, cfs().metric.clientTombstoneAborts,  ReadCallback::tombstoneAbortMessage);
+            trackAborts(tombstones, cfs().metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
             trackWarnings(tombstones, cfs().metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
 
             trackAborts(localReadSize, cfs().metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
@@ -170,9 +173,9 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
-    private volatile WarningCounter warningCounter;
-    private static final AtomicReferenceFieldUpdater<ReadCallback, ReadCallback.WarningCounter> warningsUpdater
-        = AtomicReferenceFieldUpdater.newUpdater(ReadCallback.class, ReadCallback.WarningCounter.class, "warningCounter");
+    private volatile WarningContext warningContext;
+    private static final AtomicReferenceFieldUpdater<ReadCallback, ReadCallback.WarningContext> warningsUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(ReadCallback.class, ReadCallback.WarningContext.class, "warningContext");
 
     public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
@@ -260,7 +263,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          */
         int received = resolver.responses.size();
         boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
-        WarningCounter warnings = warningCounter;
+        WarningContext warnings = warningContext;
         if (warnings != null)
             warnings.track();
         if (signaled && !failed)
@@ -291,40 +294,41 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return blockFor;
     }
 
+    private RequestFailureReason updateCounters(Map<ParamType, Object> params,
+                                                ParamType abort, ParamType warn,
+                                                RequestFailureReason reason,
+                                                Function<WarningContext, WarnAbortCounter> fieldAccess)
+    {
+        // some checks use int32 others user int64; so rely on Number to handle both cases
+        if (params.containsKey(abort))
+        {
+            fieldAccess.apply(getWarningContext()).addAbort(((Number) params.get(abort)).longValue());
+            return reason;
+        }
+        else if (params.containsKey(warn))
+        {
+            fieldAccess.apply(getWarningContext()).addWarning(((Number) params.get(warn)).longValue());
+        }
+        return null;
+    }
+
     @Override
     public void onResponse(Message<ReadResponse> message)
     {
         assertWaitingFor(message.from());
         Map<ParamType, Object> params = message.header.params();
-        if (params.containsKey(ParamType.TOMBSTONE_ABORT))
+        for (Supplier<RequestFailureReason> fn : Arrays.<Supplier<RequestFailureReason>>asList(
+        () -> updateCounters(params, ParamType.TOMBSTONE_ABORT, ParamType.TOMBSTONE_WARNING, RequestFailureReason.READ_TOO_MANY_TOMBSTONES, ctx -> ctx.tombstones),
+        () -> updateCounters(params, ParamType.LOCAL_READ_SIZE_ABORT, ParamType.LOCAL_READ_SIZE_WARN, RequestFailureReason.READ_SIZE, ctx -> ctx.localReadSize),
+        () -> updateCounters(params, ParamType.ROW_INDEX_SIZE_ABORT, ParamType.ROW_INDEX_SIZE_WARN, RequestFailureReason.READ_SIZE, ctx -> ctx.rowIndexTooLarge)
+        ))
         {
-            getWarningCounter().tombstones.addAbort((Integer) params.get(ParamType.TOMBSTONE_ABORT));
-            onFailure(message.from(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
-            return;
-        }
-        else if (params.containsKey(ParamType.TOMBSTONE_WARNING))
-        {
-            getWarningCounter().tombstones.addWarning((Integer) params.get(ParamType.TOMBSTONE_WARNING));
-        }
-        if (params.containsKey(ParamType.LOCAL_READ_SIZE_ABORT))
-        {
-            getWarningCounter().localReadSize.addAbort((Long) params.get(ParamType.LOCAL_READ_SIZE_ABORT));
-            onFailure(message.from(), RequestFailureReason.READ_SIZE);
-            return;
-        }
-        else if (params.containsKey(ParamType.LOCAL_READ_SIZE_WARN))
-        {
-            getWarningCounter().localReadSize.addWarning((Long) params.get(ParamType.LOCAL_READ_SIZE_WARN));
-        }
-        if (params.containsKey(ParamType.ROW_INDEX_SIZE_ABORT))
-        {
-            getWarningCounter().rowIndexTooLarge.addAbort((Long) params.get(ParamType.ROW_INDEX_SIZE_ABORT));
-            onFailure(message.from(), RequestFailureReason.READ_SIZE);
-            return;
-        }
-        else if (params.containsKey(ParamType.ROW_INDEX_SIZE_WARN))
-        {
-            getWarningCounter().rowIndexTooLarge.addWarning((Long) params.get(ParamType.ROW_INDEX_SIZE_WARN));
+            RequestFailureReason reason = fn.get();
+            if (reason != null)
+            {
+                onFailure(message.from(), reason);
+                return;
+            }
         }
         resolver.preprocess(message);
 
@@ -338,16 +342,16 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             condition.signalAll();
     }
 
-    private WarningCounter getWarningCounter()
+    private WarningContext getWarningContext()
     {
-        WarningCounter current;
+        WarningContext current;
         do {
 
-            current = warningCounter;
+            current = warningContext;
             if (current != null)
                 return current;
 
-            current = new WarningCounter();
+            current = new WarningContext();
         } while (!warningsUpdater.compareAndSet(this, null, current));
         return current;
     }
