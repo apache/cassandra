@@ -357,15 +357,11 @@ public class SASICQLTest extends CQLTester
     {
         createTable("CREATE TABLE %s (pk int primary key, v int);");
 
-        createIndex(String.format("CREATE CUSTOM INDEX ON %%s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': 'CONTAINS'};"));
-
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 0, 100);
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 1, 200);
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?);", 2, 300);
+        createIndex("CREATE CUSTOM INDEX ON %s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex';");
 
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                   InvalidQueryException.class, 
-                                  "SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE v IN (200, 250, 300)");
+                                  "SELECT * FROM %s WHERE v IN (200, 250, 300)");
     }
 }

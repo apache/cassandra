@@ -263,7 +263,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
             }
             else
             {
-                throw invalidRequest("IN restrictions are not supported on indexed columns");
+                throw invalidRequest("Multicolumn IN filters are not supported");
             }
         }
 
