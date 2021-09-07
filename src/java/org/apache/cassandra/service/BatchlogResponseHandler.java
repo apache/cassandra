@@ -109,9 +109,14 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
             this.callback = callback;
         }
 
+        public int decrement()
+        {
+            return mutationsWaitingForUpdater.decrementAndGet(this);
+        }
+
         public void ackMutation()
         {
-            if (mutationsWaitingForUpdater.decrementAndGet(this) == 0)
+            if (decrement() == 0)
                 callback.invoke();
         }
     }
