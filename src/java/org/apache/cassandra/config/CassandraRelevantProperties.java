@@ -208,6 +208,9 @@ public enum CassandraRelevantProperties
      */
     SCHEMA_PULL_BACKOFF_DELAY_MS("cassandra.schema_pull_backoff_delay_ms", "3000"),
 
+    /** Which class to use for token metadata provider */
+    CUSTOM_TMD_PROVIDER_PROPERTY("cassandra.custom_token_metadata_provider_class"),
+
     /** Which class to use for failure detection */
     CUSTOM_FAILURE_DETECTOR_PROPERTY("cassandra.custom_failure_detector_class");
 
