@@ -60,10 +60,10 @@ public class SnapshotManifest
         this.expiresAt = null;
     }
 
-    public SnapshotManifest(List<String> files, Duration ttl)
+    public SnapshotManifest(List<String> files, Duration ttl, Instant creationTime)
     {
         this.files = files;
-        this.createdAt = Instant.now();
+        this.createdAt = creationTime;
         this.expiresAt = ttl == null ? null : createdAt.plusMillis(ttl.toMilliseconds());
     }
 

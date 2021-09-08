@@ -24,6 +24,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.util.*;
 import java.util.Objects;
 import java.util.concurrent.*;
@@ -1524,7 +1525,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // skip snapshot creation during scrub, SEE JIRA 5891
         if(!disableSnapshot)
-            snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
+        {
+            Instant creationTime = Instant.now();
+            String snapshotName = "pre-scrub-" + creationTime.toEpochMilli();
+            snapshotWithoutFlush(snapshotName, creationTime);
+        }
 
         try
         {
@@ -1839,13 +1844,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public TableSnapshot snapshotWithoutFlush(String snapshotName)
     {
-        return snapshotWithoutFlush(snapshotName, null, false, null, null);
+        return snapshotWithoutFlush(snapshotName, Instant.now());
+    }
+
+    public TableSnapshot snapshotWithoutFlush(String snapshotName, Instant creationTime)
+    {
+        return snapshotWithoutFlush(snapshotName, null, false, null, null, creationTime);
     }
 
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
      */
-    public TableSnapshot snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, Duration ttl, RateLimiter rateLimiter)
+    public TableSnapshot snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (ephemeral && ttl != null)
         {
@@ -1873,17 +1883,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables);
+        return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables, creationTime);
     }
 
-    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, Duration ttl, Set<SSTableReader> sstables) {
+    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, Duration ttl, Set<SSTableReader> sstables, Instant creationTime) {
         Set<File> snapshotDirs = sstables.stream()
                                          .map(s -> Directories.getSnapshotDirectory(s.descriptor, tag).getAbsoluteFile())
                                          .filter(dir -> !Directories.isSecondaryIndexFolder(dir)) // Remove secondary index subdirectory
                                          .collect(Collectors.toCollection(HashSet::new));
 
         // Create and write snapshot manifest
-        SnapshotManifest manifest = new SnapshotManifest(mapToDataFilenames(sstables), ttl);
+        SnapshotManifest manifest = new SnapshotManifest(mapToDataFilenames(sstables), ttl, creationTime);
         File manifestFile = getDirectories().getSnapshotManifestFile(tag);
         writeSnapshotManifest(manifest, manifestFile);
         snapshotDirs.add(manifestFile.getParentFile().getAbsoluteFile()); // manifest may create empty snapshot dir
@@ -2030,7 +2040,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public TableSnapshot snapshot(String snapshotName)
     {
-        return snapshot(snapshotName, false, null, null);
+        return snapshot(snapshotName, false, null, null, Instant.now());
     }
 
     /**
@@ -2038,11 +2048,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param snapshotName the name of the associated with the snapshot
      * @param skipFlush Skip blocking flush of memtable
+     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
      * @param rateLimiter Rate limiter for hardlinks-per-second
+     * @param creationTime time when this snapshot was taken
      */
-    public TableSnapshot snapshot(String snapshotName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter)
+    public TableSnapshot snapshot(String snapshotName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
     {
-        return snapshot(snapshotName, null, false, skipFlush, ttl, rateLimiter);
+        return snapshot(snapshotName, null, false, skipFlush, ttl, rateLimiter, creationTime);
     }
 
 
@@ -2052,21 +2064,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush)
     {
-        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null, null);
+        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null, null, Instant.now());
     }
 
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
      * @param skipFlush Skip blocking flush of memtable
+     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
      * @param rateLimiter Rate limiter for hardlinks-per-second
+     * @param creationTime time when this snapshot was taken
      */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, Duration ttl, RateLimiter rateLimiter)
+    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (!skipFlush)
         {
             forceBlockingFlush();
         }
-        return snapshotWithoutFlush(snapshotName, predicate, ephemeral, ttl, rateLimiter);
+        return snapshotWithoutFlush(snapshotName, predicate, ephemeral, ttl, rateLimiter, creationTime);
     }
 
     public boolean snapshotExists(String snapshotName)

@@ -185,7 +185,7 @@ public class DirectoriesTest
         if (createManifest)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
-            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new Duration("1m"));
+            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new Duration("1m"), Instant.now());
             manifest.serializeToJsonFile(manifestFile);
         }
 
@@ -310,7 +310,7 @@ public class DirectoriesTest
 
             File manifestFile = directories.getSnapshotManifestFile(tag);
 
-            SnapshotManifest manifest = new SnapshotManifest(files, new Duration("1m"));
+            SnapshotManifest manifest = new SnapshotManifest(files, new Duration("1m"), Instant.now());
             manifest.serializeToJsonFile(manifestFile);
 
             Set<File> dirs = new HashSet<>();

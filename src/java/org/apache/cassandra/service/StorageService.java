@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -3873,10 +3874,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+        Instant creationTime = Instant.now();
 
         for (Keyspace keyspace : keyspaces)
         {
-            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter);
+            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter, creationTime);
         }
     }
 
@@ -3938,13 +3940,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+        Instant creationTime = Instant.now();
 
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter);
+                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter, creationTime);
         }
-
     }
 
     private void verifyKeyspaceIsValid(String keyspaceName)

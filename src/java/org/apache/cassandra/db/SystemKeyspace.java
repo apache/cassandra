@@ -22,6 +22,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -1473,8 +1474,10 @@ public final class SystemKeyspace
             String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
                                                                              previous,
                                                                              next));
+
+            Instant creationTime = Instant.now();
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null, null);
+                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null, null, creationTime);
         }
     }
 
