@@ -57,6 +57,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public abstract class AbstractClientSizeWarning extends TestBaseImpl
 {
+    private static final String CQL_PK_READ = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
+    private static final String CQL_TABLE_SCAN = "SELECT * FROM " + KEYSPACE + ".tbl";
+
     private static final Random RANDOM = new Random(0);
     protected static ICluster<IInvokableInstance> CLUSTER;
     protected static com.datastax.driver.core.Cluster JAVA_DRIVER;
@@ -93,13 +96,13 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
     @Test
     public void noWarningsSinglePartition()
     {
-        noWarnings("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+        noWarnings(CQL_PK_READ);
     }
 
     @Test
     public void noWarningsScan()
     {
-        noWarnings("SELECT * FROM " + KEYSPACE + ".tbl");
+        noWarnings(CQL_TABLE_SCAN);
     }
 
     public void noWarnings(String cql)
@@ -142,13 +145,25 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
     @Test
     public void warnThresholdSinglePartition()
     {
-        warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+        warnThreshold(CQL_PK_READ, false);
     }
 
     @Test
     public void warnThresholdScan()
     {
-        warnThreshold("SELECT * FROM " + KEYSPACE + ".tbl");
+        warnThreshold(CQL_TABLE_SCAN, false);
+    }
+
+    @Test
+    public void warnThresholdSinglePartitionWithReadRepair()
+    {
+        warnThreshold(CQL_PK_READ, true);
+    }
+
+    @Test
+    public void warnThresholdScanWithReadRepair()
+    {
+        warnThreshold(CQL_TABLE_SCAN, true);
     }
 
     protected int warnThresholdRowCount()
@@ -156,10 +171,21 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
         return 2;
     }
 
-    public void warnThreshold(String cql)
+    public void warnThreshold(String cql, boolean triggerReadRepair)
     {
         for (int i = 0; i < warnThresholdRowCount(); i++)
-            CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)", ConsistencyLevel.ALL, i + 1, bytes(512));
+        {
+            if (triggerReadRepair)
+            {
+                int finalI = i;
+                // cell timestamps will not match (even though the values match) which will trigger a read-repair
+                CLUSTER.stream().forEach(node -> node.executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)", finalI + 1, bytes(512)));
+            }
+            else
+            {
+                CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)", ConsistencyLevel.ALL, i + 1, bytes(512));
+            }
+        }
 
         if (shouldFlush())
             CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
@@ -186,13 +212,13 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
     @Test
     public void failThresholdSinglePartition() throws UnknownHostException
     {
-        failThreshold("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1");
+        failThreshold(CQL_PK_READ);
     }
 
     @Test
     public void failThresholdScan() throws UnknownHostException
     {
-        failThreshold("SELECT * FROM " + KEYSPACE + ".tbl");
+        failThreshold(CQL_TABLE_SCAN);
     }
 
     protected int failThresholdRowCount()

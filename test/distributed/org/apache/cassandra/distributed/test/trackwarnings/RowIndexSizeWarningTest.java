@@ -78,6 +78,12 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     }
 
     @Override
+    public void warnThresholdScanWithReadRepair()
+    {
+        Assume.assumeFalse("Ignore Scans", true);
+    }
+
+    @Override
     public void failThresholdScan()
     {
         Assume.assumeFalse("Ignore Scans", true);

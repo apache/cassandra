@@ -54,6 +54,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.reads.trackwarnings.Shared;
+import org.apache.cassandra.service.reads.trackwarnings.TrackWarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -84,6 +86,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             aborts.incrementAndGet();
             maxAbortsValue.accumulateAndGet(value, Math::max);
         }
+
+        TrackWarningsSnapshot.Warnings snapshot()
+        {
+            return TrackWarningsSnapshot.Warnings.create(TrackWarningsSnapshot.Counter.create(warnings.get(), maxWarningValue.get()), TrackWarningsSnapshot.Counter.create(aborts.get(), maxAbortsValue.get()));
+        }
     }
 
     private interface ToString
@@ -91,7 +98,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         String apply(int count, long value, String cql);
     }
 
-    private class WarningContext
+    public class WarningContext
     {
         final WarnAbortCounter tombstones = new WarnAbortCounter();
         final WarnAbortCounter localReadSize = new WarnAbortCounter();
@@ -109,6 +116,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             if (loggableTokens == null)
                 loggableTokens = command.loggableTokens();
             return loggableTokens;
+        }
+
+        public TrackWarningsSnapshot snapshot()
+        {
+            return TrackWarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
         }
 
         private void trackAborts(WarnAbortCounter counter, TableMetrics.TableMeter metric, ToString toString)
@@ -135,15 +147,21 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         void track()
         {
-            trackAborts(tombstones, cfs().metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
-            trackWarnings(tombstones, cfs().metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
-
-            trackAborts(localReadSize, cfs().metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
-            trackWarnings(localReadSize, cfs().metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
-
-            trackAborts(rowIndexTooLarge, cfs().metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
-            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
+            Shared.update(command, snapshot());
+//            trackAborts(tombstones, cfs().metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
+//            trackWarnings(tombstones, cfs().metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
+//
+//            trackAborts(localReadSize, cfs().metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
+//            trackWarnings(localReadSize, cfs().metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
+//
+//            trackAborts(rowIndexTooLarge, cfs().metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
+//            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
         }
+
+//        private ColumnFamilyStore cfs()
+//        {
+//            return Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
+//        }
 
         void mayAbort(int received)
         {
@@ -244,11 +262,6 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public static String rowIndexSizeWarnMessage(int nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see track_warnings.row_index_size.warn_threshold_kb)", nodes, bytes, cql);
-    }
-
-    private ColumnFamilyStore cfs()
-    {
-        return Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
     }
 
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
