@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -123,13 +124,14 @@ public class SharedExecutorPool
     public synchronized void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         shuttingDown = true;
-        for (SEPExecutor executor : executors)
+        ArrayList<SEPExecutor> toShutdown = new ArrayList<>(executors);
+        for (SEPExecutor executor : toShutdown)
             executor.shutdownNow();
 
         terminateWorkers();
 
         long until = System.nanoTime() + unit.toNanos(timeout);
-        for (SEPExecutor executor : executors)
+        for (SEPExecutor executor : toShutdown)
         {
             executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
             if (!executor.isTerminated())
