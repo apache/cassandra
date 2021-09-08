@@ -734,4 +734,26 @@ public class LeaveAndBootstrapTest
                 ksmd.params.replication.options);
     }
 
+    @Test
+    public void testRemoveExistingMember() throws UnknownHostException
+    {
+        // create a ring of 1 node
+        StorageService ss = StorageService.instance;
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        List<UUID> hostIds = new ArrayList<>();
+        Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(), new ArrayList<InetAddressAndPort>(), hostIds, 1);
+
+        InetAddressAndPort removeNode = InetAddressAndPort.getByName("127.0.0.87");
+        UUID removeHostId = UUID.randomUUID();
+        Token token = ss.getTokenFactory().fromString("87");
+        Util.joinNodeToRing(removeNode, token, partitioner, removeHostId, 1);
+        UUID coordinatorHostID = hostIds.get(0);
+        Gossiper.instance.injectApplicationState(removeNode, ApplicationState.REMOVAL_COORDINATOR, valueFactory.removalCoordinator(coordinatorHostID));
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        assertEquals(removeNode, tmd.getEndpointForHostId(removeHostId));
+        ss.onChange(removeNode, ApplicationState.STATUS_WITH_PORT, valueFactory.removingNonlocal(UUID.randomUUID()));
+        assertTrue("Removed node should be marked as leaving", tmd.isLeaving(removeNode));
+        assertTrue("Removed node not in list of leaving nodes", ss.getLeavingNodes().contains(removeNode.getHostAddress(false)));
+    }
 }

@@ -1060,11 +1060,15 @@ public class Util
 
     public static void joinNodeToRing(InetAddressAndPort address, Token token, IPartitioner partitioner)
     {
-        Gossiper.instance.initializeNodeUnsafe(address, UUID.randomUUID(), MessagingService.current_version, 1);
+        joinNodeToRing(address, token, partitioner, UUID.randomUUID(), 1);
+    }
+
+    public static void joinNodeToRing(InetAddressAndPort address, Token token, IPartitioner partitioner, UUID hostId, int generationNbr)
+    {
+        Gossiper.instance.initializeNodeUnsafe(address, hostId, MessagingService.current_version, generationNbr);
         Gossiper.instance.injectApplicationState(address, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
         StorageService.instance.onChange(address,
                     ApplicationState.STATUS_WITH_PORT,
                     new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
-
     }
 }
