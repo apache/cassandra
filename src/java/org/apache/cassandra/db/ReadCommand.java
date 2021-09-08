@@ -658,7 +658,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         if (!trackWarnings || SchemaConstants.isSystemKeyspace(metadata().keyspace)) // exclude internal keyspaces
             return iterator;
-        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarningThresholdKb() * 1024;
+        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarnThresholdKb() * 1024;
         final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKb() * 1024;
         if (warnThresholdBytes == 0 && abortThresholdBytes == 0)
             return iterator;

@@ -6171,17 +6171,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public long getLocalReadTooLargeWarningThresholdKb()
+    public long getLocalReadTooLargeWarnThresholdKb()
     {
-        return DatabaseDescriptor.getLocalReadSizeWarningThresholdKb();
+        return DatabaseDescriptor.getLocalReadSizeWarnThresholdKb();
     }
 
     @Override
-    public void setLocalReadTooLargeWarningThresholdKb(long value)
+    public void setLocalReadTooLargeWarnThresholdKb(long value)
     {
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setLocalReadSizeWarningThresholdKb(value);
+        DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(value);
         logger.info("updated track_warnings.local_read_size.warn_threshold_kb to {}", value);
     }
 
@@ -6201,17 +6201,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public int getRowIndexSizeWarningThresholdKb()
+    public int getRowIndexSizeWarnThresholdKb()
     {
-        return DatabaseDescriptor.getRowIndexSizeWarningThresholdKb();
+        return DatabaseDescriptor.getRowIndexSizeWarnThresholdKb();
     }
 
     @Override
-    public void setRowIndexSizeWarningThresholdKb(int value)
+    public void setRowIndexSizeWarnThresholdKb(int value)
     {
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeWarningThresholdKb(value);
+        DatabaseDescriptor.setRowIndexSizeWarnThresholdKb(value);
         logger.info("updated track_warnings.row_index_size.warn_threshold_kb to {}", value);
     }
 

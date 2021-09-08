@@ -3491,12 +3491,12 @@ public class DatabaseDescriptor
         conf.track_warnings.coordinator_read_size.setAbortThresholdKb(threshold);
     }
 
-    public static long getLocalReadSizeWarningThresholdKb()
+    public static long getLocalReadSizeWarnThresholdKb()
     {
         return conf.track_warnings.local_read_size.getWarnThresholdKb();
     }
 
-    public static void setLocalReadSizeWarningThresholdKb(long value)
+    public static void setLocalReadSizeWarnThresholdKb(long value)
     {
         conf.track_warnings.local_read_size.setWarnThresholdKb(value);
     }
@@ -3511,12 +3511,12 @@ public class DatabaseDescriptor
         conf.track_warnings.local_read_size.setAbortThresholdKb(value);
     }
 
-    public static int getRowIndexSizeWarningThresholdKb()
+    public static int getRowIndexSizeWarnThresholdKb()
     {
         return conf.track_warnings.row_index_size.getWarnThresholdKb();
     }
 
-    public static void setRowIndexSizeWarningThresholdKb(int value)
+    public static void setRowIndexSizeWarnThresholdKb(int value)
     {
         conf.track_warnings.row_index_size.setWarnThresholdKb(value);
     }

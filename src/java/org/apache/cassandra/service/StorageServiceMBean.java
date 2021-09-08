@@ -900,13 +900,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     public long getCoordinatorLargeReadAbortThresholdKB();
     public void setCoordinatorLargeReadAbortThresholdKB(long threshold);
 
-    public long getLocalReadTooLargeWarningThresholdKb();
-    public void setLocalReadTooLargeWarningThresholdKb(long value);
+    public long getLocalReadTooLargeWarnThresholdKb();
+    public void setLocalReadTooLargeWarnThresholdKb(long value);
     public long getLocalReadTooLargeAbortThresholdKb();
     public void setLocalReadTooLargeAbortThresholdKb(long value);
 
-    public int getRowIndexSizeWarningThresholdKb();
-    public void setRowIndexSizeWarningThresholdKb(int value);
+    public int getRowIndexSizeWarnThresholdKb();
+    public void setRowIndexSizeWarnThresholdKb(int value);
     public int getRowIndexSizeAbortThresholdKb();
     public void setRowIndexSizeAbortThresholdKb(int value);
 }

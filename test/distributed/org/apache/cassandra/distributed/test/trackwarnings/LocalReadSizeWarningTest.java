@@ -41,7 +41,7 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
             DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(0);
             DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(0);
 
-            DatabaseDescriptor.setLocalReadSizeWarningThresholdKb(1);
+            DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(1);
             DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(2);
         }));
     }
