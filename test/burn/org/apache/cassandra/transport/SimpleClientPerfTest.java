@@ -172,7 +172,7 @@ public class SimpleClientPerfTest
                 QueryMessage queryMessage = QueryMessage.codec.decode(body, version);
                 return new QueryMessage(queryMessage.query, queryMessage.options)
                 {
-                    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+                    public Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
                     {
                         int idx = Integer.parseInt(queryMessage.query); // unused
                         return generateRows(idx, responseCaps);

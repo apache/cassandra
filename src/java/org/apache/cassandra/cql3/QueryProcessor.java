@@ -52,6 +52,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.service.reads.trackwarnings.Shared;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -210,16 +211,24 @@ public class QueryProcessor implements QueryHandler
         statement.validate(clientState);
 
         ResultMessage result;
-        if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
+        Shared.init();
+        try
         {
-            assert Boolean.getBoolean("cassandra.enable_nodelocal_queries") : "Node local consistency level is highly dangerous and should be used only for debugging purposes";
-            assert statement instanceof SelectStatement : "Only SELECT statements are permitted for node-local execution";
-            logger.info("Statement {} executed with NODE_LOCAL consistency level.", statement);
-            result = statement.executeLocally(queryState, options);
+            if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
+            {
+                assert Boolean.getBoolean("cassandra.enable_nodelocal_queries") : "Node local consistency level is highly dangerous and should be used only for debugging purposes";
+                assert statement instanceof SelectStatement : "Only SELECT statements are permitted for node-local execution";
+                logger.info("Statement {} executed with NODE_LOCAL consistency level.", statement);
+                result = statement.executeLocally(queryState, options);
+            }
+            else
+            {
+                result = statement.execute(queryState, options, queryStartNanoTime);
+            }
         }
-        else
+        finally
         {
-            result = statement.execute(queryState, options, queryStartNanoTime);
+            Shared.done();
         }
         return result == null ? new ResultMessage.Void() : result;
     }
@@ -336,6 +345,7 @@ public class QueryProcessor implements QueryHandler
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
     throws RequestExecutionException
     {
+        Shared.init();
         try
         {
             Prepared prepared = prepareInternal(query);
@@ -348,6 +358,10 @@ public class QueryProcessor implements QueryHandler
         catch (RequestValidationException e)
         {
             throw new RuntimeException("Error validating " + query, e);
+        }
+        finally
+        {
+            Shared.done();
         }
     }
 

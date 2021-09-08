@@ -67,7 +67,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.AggregationQueryPager;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.service.reads.trackwarnings.Shared;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -251,26 +250,18 @@ public class SelectStatement implements CQLStatement
         if (options.isClientTrackWarningsEnabled())
             query.trackWarnings();
 
-        Shared.init();
-        try
-        {
-            if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
-                return execute(query, options, state, selectors, nowInSec, userLimit, queryStartNanoTime);
+        if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
+            return execute(query, options, state, selectors, nowInSec, userLimit, queryStartNanoTime);
 
-            QueryPager pager = getPager(query, options);
+        QueryPager pager = getPager(query, options);
 
-            return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()),
-                           options,
-                           selectors,
-                           pageSize,
-                           nowInSec,
-                           userLimit,
-                           queryStartNanoTime);
-        }
-        finally
-        {
-            Shared.done();
-        }
+        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()),
+                       options,
+                       selectors,
+                       pageSize,
+                       nowInSec,
+                       userLimit,
+                       queryStartNanoTime);
     }
 
     public ReadQuery getQuery(QueryOptions options, int nowInSec) throws RequestValidationException
