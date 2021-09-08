@@ -3,6 +3,8 @@
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
  * org.apache.cassandra.db.rows.ArrayCell#unsharedHeapSizeExcludingData includes data twice (CASSANDRA-16900)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
+Merged from 3.11:
+ * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
  * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
 
