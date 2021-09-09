@@ -29,32 +29,27 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.MessageParams;
-import org.apache.cassandra.exceptions.ReadSizeAbortException;
-import org.apache.cassandra.exceptions.TombstoneAbortException;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.exceptions.ReadFailureException;
+import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.reads.trackwarnings.Shared;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
 import org.apache.cassandra.service.reads.trackwarnings.TrackWarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -93,75 +88,32 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
     }
 
-    private interface ToString
-    {
-        String apply(int count, long value, String cql);
-    }
-
     public class WarningContext
     {
         final WarnAbortCounter tombstones = new WarnAbortCounter();
         final WarnAbortCounter localReadSize = new WarnAbortCounter();
         final WarnAbortCounter rowIndexTooLarge = new WarnAbortCounter();
 
-        private String cql, loggableTokens;
+        // cache to generate the CQL string once
+        private String cql;
         private String cql()
         {
             if (cql == null)
                 cql = command.toCQLString();
             return cql;
         }
-        private String loggableTokens()
-        {
-            if (loggableTokens == null)
-                loggableTokens = command.loggableTokens();
-            return loggableTokens;
-        }
-
-        public TrackWarningsSnapshot snapshot()
-        {
-            return TrackWarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
-        }
-
-        private void trackAborts(WarnAbortCounter counter, TableMetrics.TableMeter metric, ToString toString)
-        {
-            if (counter.aborts.get() > 0)
-            {
-                String msg = toString.apply(counter.aborts.get(), counter.maxAbortsValue.get(), cql());
-                ClientWarn.instance.warn(msg + " with " + loggableTokens());
-                logger.warn(msg);
-                metric.mark();
-            }
-        }
-
-        private void trackWarnings(WarnAbortCounter counter, TableMetrics.TableMeter metric, ToString toString)
-        {
-            if (counter.warnings.get() > 0)
-            {
-                String msg = toString.apply(counter.warnings.get(), counter.maxWarningValue.get(), cql());
-                ClientWarn.instance.warn(msg + " with " + loggableTokens());
-                logger.warn(msg);
-                metric.mark();
-            }
-        }
 
         void track()
         {
-            Shared.update(command, snapshot());
-//            trackAborts(tombstones, cfs().metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
-//            trackWarnings(tombstones, cfs().metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
-//
-//            trackAborts(localReadSize, cfs().metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
-//            trackWarnings(localReadSize, cfs().metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
-//
-//            trackAborts(rowIndexTooLarge, cfs().metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
-//            trackWarnings(rowIndexTooLarge, cfs().metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
+            TrackWarningsSnapshot snapshot = snapshot();
+            if (!snapshot.isEmpty())
+                CoordinatorTrackWarnings.update(command, snapshot);
         }
 
-//        private ColumnFamilyStore cfs()
-//        {
-//            return Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
-//        }
+        private TrackWarningsSnapshot snapshot()
+        {
+            return TrackWarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
+        }
 
         void mayAbort(int received)
         {

@@ -52,7 +52,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.service.reads.trackwarnings.Shared;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -211,7 +211,7 @@ public class QueryProcessor implements QueryHandler
         statement.validate(clientState);
 
         ResultMessage result;
-        Shared.init();
+        CoordinatorTrackWarnings.init();
         try
         {
             if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
@@ -228,7 +228,7 @@ public class QueryProcessor implements QueryHandler
         }
         finally
         {
-            Shared.done();
+            CoordinatorTrackWarnings.done();
         }
         return result == null ? new ResultMessage.Void() : result;
     }
@@ -345,7 +345,7 @@ public class QueryProcessor implements QueryHandler
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
     throws RequestExecutionException
     {
-        Shared.init();
+        CoordinatorTrackWarnings.init();
         try
         {
             Prepared prepared = prepareInternal(query);
@@ -361,7 +361,7 @@ public class QueryProcessor implements QueryHandler
         }
         finally
         {
-            Shared.done();
+            CoordinatorTrackWarnings.done();
         }
     }
 

@@ -48,11 +48,16 @@ public class TrackWarningsSnapshot
         return accum == EMPTY ? null : accum;
     }
 
+    public boolean isEmpty()
+    {
+        return this == EMPTY;
+    }
+
     private TrackWarningsSnapshot merge(TrackWarningsSnapshot other)
     {
         if (other == null || other == EMPTY)
             return this;
-        return new TrackWarningsSnapshot(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooLarge.merge(other.rowIndexTooLarge));
+        return TrackWarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooLarge.merge(other.rowIndexTooLarge));
     }
 
     public static final class Warnings
@@ -79,7 +84,7 @@ public class TrackWarningsSnapshot
         {
             if (other == EMPTY)
                 return this;
-            return new Warnings(warnings.merge(other.warnings), aborts.merge(other.aborts));
+            return Warnings.create(warnings.merge(other.warnings), aborts.merge(other.aborts));
         }
     }
 
@@ -108,7 +113,7 @@ public class TrackWarningsSnapshot
         {
             if (other == EMPTY)
                 return this;
-            return new Counter(count + other.count, Math.max(maxValue, other.maxValue));
+            return Counter.create(count + other.count, Math.max(maxValue, other.maxValue));
         }
     }
 }
