@@ -90,7 +90,7 @@ public class QueryMessage extends Message.Request
     }
 
     @Override
-    public Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         CQLStatement statement = null;
         try
