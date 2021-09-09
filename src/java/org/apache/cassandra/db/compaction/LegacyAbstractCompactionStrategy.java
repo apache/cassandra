@@ -35,7 +35,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -49,7 +48,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
 {
     protected LegacyAbstractCompactionStrategy(CompactionStrategyFactory factory, Map<String, String> options)
     {
-        super(factory, new BackgroundCompactions(factory.getCfs()), options);
+        super(factory, new BackgroundCompactions(factory.getRealm()), options);
         assert factory != null;
     }
 
@@ -85,7 +84,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
                     return ImmutableList.of();
                 }
 
-                LifecycleTransaction transaction = dataTracker.tryModify(compaction.getSelected().sstables, OperationType.COMPACTION);
+                LifecycleTransaction transaction = realm.tryModify(compaction.getSelected().sstables, OperationType.COMPACTION);
                 if (transaction != null)
                 {
                     backgroundCompactions.setSubmitted(this, transaction.opId(), compaction);
@@ -108,7 +107,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
 
         protected AbstractCompactionTask createCompactionTask(final int gcBefore, LifecycleTransaction txn, CompactionAggregate compaction)
         {
-            return new CompactionTask(cfs, txn, gcBefore, false, this);
+            return new CompactionTask(realm, txn, gcBefore, false, this);
         }
 
         /**
@@ -140,10 +139,10 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
         @SuppressWarnings("resource")
         public Collection<AbstractCompactionTask> getNextBackgroundTasks(int gcBefore)
         {
-            List<SSTableReader> previousCandidate = null;
+            List<CompactionSSTable> previousCandidate = null;
             while (true)
             {
-                List<SSTableReader> latestBucket = getNextBackgroundSSTables(gcBefore);
+                List<CompactionSSTable> latestBucket = getNextBackgroundSSTables(gcBefore);
 
                 if (latestBucket.isEmpty())
                     return ImmutableList.of();
@@ -158,7 +157,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
                     return ImmutableList.of();
                 }
 
-                LifecycleTransaction modifier = dataTracker.tryModify(latestBucket, OperationType.COMPACTION);
+                LifecycleTransaction modifier = realm.tryModify(latestBucket, OperationType.COMPACTION);
                 if (modifier != null)
                     return ImmutableList.of(createCompactionTask(gcBefore, modifier, false, false));
 
@@ -173,8 +172,9 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
 
         /**
          * Select the next tables to compact. This method is typically synchronized.
+         * @return
          */
-        protected abstract List<SSTableReader> getNextBackgroundSSTables(final int gcBefore);
+        protected abstract List<CompactionSSTable> getNextBackgroundSSTables(final int gcBefore);
     }
 
     /**
@@ -182,34 +182,34 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
      *
      * Note that implementations must be able to handle duplicate notifications here (that removed are already gone and
      * added have already been added)
-     * */
-    public abstract void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added);
+     */
+    public abstract void replaceSSTables(Collection<CompactionSSTable> removed, Collection<CompactionSSTable> added);
 
     /**
      * Adds sstable, note that implementations must handle duplicate notifications here (added already being in the compaction strategy)
      */
-    abstract void addSSTable(SSTableReader added);
+    abstract void addSSTable(CompactionSSTable added);
 
     /**
      * Adds sstables, note that implementations must handle duplicate notifications here (added already being in the compaction strategy)
      */
-    public synchronized void addSSTables(Iterable<SSTableReader> added)
+    public synchronized void addSSTables(Iterable<CompactionSSTable> added)
     {
-        for (SSTableReader sstable : added)
+        for (CompactionSSTable sstable : added)
             addSSTable(sstable);
     }
 
     /**
      * Removes sstable from the strategy, implementations must be able to handle the sstable having already been removed.
      */
-    abstract void removeSSTable(SSTableReader sstable);
+    abstract void removeSSTable(CompactionSSTable sstable);
 
     /**
      * Removes sstables from the strategy, implementations must be able to handle the sstables having already been removed.
      */
-    public void removeSSTables(Iterable<SSTableReader> removed)
+    public void removeSSTables(Iterable<CompactionSSTable> removed)
     {
-        for (SSTableReader sstable : removed)
+        for (CompactionSSTable sstable : removed)
             removeSSTable(sstable);
     }
 
@@ -223,15 +223,15 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
      */
     abstract void removeDeadSSTables();
 
-    void removeDeadSSTables(Iterable<SSTableReader> sstables)
+    void removeDeadSSTables(Iterable<CompactionSSTable> sstables)
     {
         synchronized (sstables)
         {
             int removed = 0;
-            Set<SSTableReader> liveSet = cfs.getLiveSSTables();
-            for (Iterator<SSTableReader> it = sstables.iterator(); it.hasNext(); )
+            Set<? extends CompactionSSTable> liveSet = realm.getLiveSSTables();
+            for (Iterator<CompactionSSTable> it = sstables.iterator(); it.hasNext(); )
             {
-                SSTableReader sstable = it.next();
+                CompactionSSTable sstable = it.next();
                 if (!liveSet.contains(sstable))
                 {
                     it.remove();
@@ -251,27 +251,15 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
     }
 
     /**
-     * Called when the metadata has changed for an sstable - for example if the level changed
-     *
-     * Not called when repair status changes (which is also metadata), because this results in the
-     * sstable getting removed from the compaction strategy instance.
-     *
-     * This is only needed by the LCS manifest from what I could see.
-     */
-    void metadataChanged(StatsMetadata oldMetadata, SSTableReader sstable)
-    {
-    }
-
-    /**
      * Select a table for tombstone-removing compaction from the given set. Returns null if no table is suitable.
      */
     @Nullable
     CompactionAggregate makeTombstoneCompaction(int gcBefore,
-                                                Iterable<SSTableReader> candidates,
-                                                Function<Collection<SSTableReader>, SSTableReader> selector)
+                                                Iterable<CompactionSSTable> candidates,
+                                                Function<Collection<CompactionSSTable>, CompactionSSTable> selector)
     {
-        List<SSTableReader> sstablesWithTombstones = new ArrayList<>();
-        for (SSTableReader sstable : candidates)
+        List<CompactionSSTable> sstablesWithTombstones = new ArrayList<>();
+        for (CompactionSSTable sstable : candidates)
         {
             if (worthDroppingTombstones(sstable, gcBefore))
                 sstablesWithTombstones.add(sstable);
@@ -279,7 +267,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
         if (sstablesWithTombstones.isEmpty())
             return null;
 
-        final SSTableReader sstable = selector.apply(sstablesWithTombstones);
+        final CompactionSSTable sstable = selector.apply(sstablesWithTombstones);
         return CompactionAggregate.createForTombstones(sstable);
     }
 
@@ -291,9 +279,11 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
      * @param gcBefore time to drop tombstones
      * @return true if given sstable's tombstones are expected to be removed
      */
-    protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
+    protected boolean worthDroppingTombstones(CompactionSSTable sstable, int gcBefore)
     {
-        if (options.isDisableTombstoneCompactions() || CompactionController.NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
+        if (options.isDisableTombstoneCompactions()
+            || CompactionController.NEVER_PURGE_TOMBSTONES
+            || realm.getNeverPurgeTombstones())
             return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
@@ -309,33 +299,38 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
         if (options.isUncheckedTombstoneCompaction())
             return true;
 
-        Collection<SSTableReader> overlaps = cfs.getOverlappingLiveSSTables(Collections.singleton(sstable));
+        Set<? extends CompactionSSTable> overlaps = realm.getOverlappingLiveSSTables(Collections.singleton(sstable));
         if (overlaps.isEmpty())
         {
             // there is no overlap, tombstones are safely droppable
             return true;
         }
-        else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), overlaps, gcBefore).size() > 0)
+        else if (CompactionController.getFullyExpiredSSTables(realm, Collections.singleton(sstable), overlaps, gcBefore).size() > 0)
         {
             return true;
         }
         else
         {
+            if (!(sstable instanceof SSTableReader))
+                return false; // Correctly estimating percentage requires data that CompactionSSTable does not provide.
+
+            SSTableReader reader = (SSTableReader) sstable;
             // what percentage of columns do we expect to compact outside of overlap?
-            if (sstable.getIndexSummarySize() < 2)
+            if (reader.getIndexSummarySize() < 2)
             {
                 // we have too few samples to estimate correct percentage
                 return false;
             }
             // first, calculate estimated keys that do not overlap
-            long keys = sstable.estimatedKeys();
+            long keys = reader.estimatedKeys();
             Set<Range<Token>> ranges = new HashSet<Range<Token>>(overlaps.size());
-            for (SSTableReader overlap : overlaps)
-                ranges.add(new Range<>(overlap.first.getToken(), overlap.last.getToken()));
-            long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
+            for (CompactionSSTable overlap : overlaps)
+                ranges.add(new Range<>(overlap.getFirst().getToken(), overlap.getLast().getToken()));
+            long remainingKeys = keys - reader.estimatedKeysForRanges(ranges);
             // next, calculate what percentage of columns we have within those keys
-            long columns = sstable.getEstimatedCellPerPartitionCount().mean() * remainingKeys;
-            double remainingColumnsRatio = ((double) columns) / (sstable.getEstimatedCellPerPartitionCount().count() * sstable.getEstimatedCellPerPartitionCount().mean());
+            long columns = reader.getEstimatedCellPerPartitionCount().mean() * remainingKeys;
+            double remainingColumnsRatio = ((double) columns) / (reader.getEstimatedCellPerPartitionCount().count() *
+                                                                 reader.getEstimatedCellPerPartitionCount().mean());
 
             // return if we still expect to have droppable tombstones in rest of columns
             return remainingColumnsRatio * droppableRatio > options.getTombstoneThreshold();

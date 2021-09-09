@@ -303,11 +303,11 @@ public class CompactionStrategyManagerTest
         CompactionStrategyManager csm = new CompactionStrategyManager(strategyFactory, () -> boundaries, true);
         csm.reload(csm, cfs.metadata().params.compaction, CompactionStrategyContainer.ReloadReason.FULL);
 
-        List<GroupedSSTableContainer> grouped = csm.groupSSTables(Iterables.concat( transientRepairs, pendingRepair, repaired, unrepaired));
+        List<GroupedSSTableContainer<SSTableReader>> grouped = csm.groupSSTables(Iterables.concat( transientRepairs, pendingRepair, repaired, unrepaired));
 
         for (int x=0; x<grouped.size(); x++)
         {
-            GroupedSSTableContainer group = grouped.get(x);
+            GroupedSSTableContainer<SSTableReader> group = grouped.get(x);
             AbstractStrategyHolder holder = csm.getHolders().get(x);
             for (int y=0; y<numDir; y++)
             {

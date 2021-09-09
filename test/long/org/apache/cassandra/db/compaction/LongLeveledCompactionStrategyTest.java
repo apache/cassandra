@@ -114,18 +114,18 @@ public class LongLeveledCompactionStrategyTest
         int levels = manifest.getLevelCount();
         for (int level = 0; level < levels; level++)
         {
-            Set<SSTableReader> sstables = manifest.getLevel(level);
+            Set<CompactionSSTable> sstables = manifest.getLevel(level);
             // score check
-            assert (double) SSTableReader.getTotalBytes(sstables) / manifest.maxBytesForLevel(level, 1 * 1024 * 1024) < 1.00;
+            assert (double) CompactionSSTable.getTotalBytes(sstables) / manifest.maxBytesForLevel(level, 1 * 1024 * 1024) < 1.00;
             // overlap check for levels greater than 0
-            for (SSTableReader sstable : sstables)
+            for (CompactionSSTable sstable : sstables)
             {
                 // level check
                 assert level == sstable.getSSTableLevel();
 
                 if (level > 0)
                 {// overlap check for levels greater than 0
-                    Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable.first.getToken(), sstable.last.getToken(), sstables);
+                    Set<CompactionSSTable> overlaps = LeveledManifest.overlapping(sstable.getFirst().getToken(), sstable.getLast().getToken(), sstables);
                     assert overlaps.size() == 1 && overlaps.contains(sstable);
                 }
             }

@@ -27,6 +27,7 @@ import java.util.List;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
@@ -50,10 +51,10 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
         return new SSTableIntervalTree(buildIntervals(sstables));
     }
 
-    public static List<Interval<PartitionPosition, SSTableReader>> buildIntervals(Iterable<SSTableReader> sstables)
+    public static <S extends CompactionSSTable> List<Interval<PartitionPosition, S>> buildIntervals(Iterable<? extends S> sstables)
     {
-        List<Interval<PartitionPosition, SSTableReader>> intervals = new ArrayList<>(Iterables.size(sstables));
-        for (SSTableReader sstable : sstables)
+        List<Interval<PartitionPosition, S>> intervals = new ArrayList<>(Iterables.size(sstables));
+        for (S sstable : sstables)
             intervals.add(Interval.create(sstable.getFirst(), sstable.getLast(), sstable));
         return intervals;
     }

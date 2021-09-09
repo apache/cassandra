@@ -26,7 +26,6 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.utils.Pair;
 
@@ -34,12 +33,12 @@ public class CleanupTask
 {
     private static final Logger logger = LoggerFactory.getLogger(CleanupTask.class);
 
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final List<Pair<UUID, RepairFinishedCompactionTask>> tasks;
 
-    public CleanupTask(ColumnFamilyStore cfs, List<Pair<UUID, RepairFinishedCompactionTask>> tasks)
+    public CleanupTask(CompactionRealm realm, List<Pair<UUID, RepairFinishedCompactionTask>> tasks)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.tasks = tasks;
     }
 
@@ -71,7 +70,7 @@ public class CleanupTask
                 unsuccessful.add(session);
             }
         }
-        return new CleanupSummary(cfs, successful, unsuccessful);
+        return new CleanupSummary(realm, successful, unsuccessful);
     }
 
     public Throwable abort(Throwable accumulate)

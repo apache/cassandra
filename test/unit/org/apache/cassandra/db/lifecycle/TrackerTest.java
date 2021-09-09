@@ -367,10 +367,6 @@ public class TrackerTest
         tracker.notifyRenewed(memtable);
         Assert.assertEquals(memtable, ((MemtableRenewedNotification) listener.received.get(0)).renewed);
         listener.received.clear();
-        tracker.notifySSTableMetadataChanged(r1, r1.getSSTableMetadata());
-        Assert.assertEquals(((SSTableMetadataChanged)listener.received.get(0)).sstable, r1);
-        Assert.assertEquals(r1.getSSTableMetadata(), ((SSTableMetadataChanged)listener.received.get(0)).oldMetadata);
-        listener.received.clear();
         tracker.unsubscribe(listener);
         MockListener failListener = new MockListener(true);
         tracker.subscribe(failListener);

@@ -40,7 +40,6 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TasksSupplier;
@@ -57,12 +56,10 @@ import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.ScannerList;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
-import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -94,7 +91,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyManager.class);
     public final CompactionLogger compactionLogger;
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final boolean partitionSSTablesByTokenRange;
     private final Supplier<DiskBoundaries> boundariesSupplier;
 
@@ -139,8 +136,8 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     public CompactionStrategyManager(CompactionStrategyFactory strategyFactory)
     {
         this(strategyFactory,
-             () -> strategyFactory.getCfs().getDiskBoundaries(),
-             strategyFactory.getCfs().getPartitioner().splitter().isPresent());
+             () -> strategyFactory.getRealm().getDiskBoundaries(),
+             strategyFactory.getRealm().getPartitioner().splitter().isPresent());
     }
 
     @VisibleForTesting
@@ -150,7 +147,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     {
         AbstractStrategyHolder.DestinationRouter router = new AbstractStrategyHolder.DestinationRouter()
         {
-            public int getIndexForSSTable(SSTableReader sstable)
+            public int getIndexForSSTable(CompactionSSTable sstable)
             {
                 return compactionStrategyIndexFor(sstable);
             }
@@ -161,18 +158,18 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
             }
         };
 
-        cfs = strategyFactory.getCfs();
+        realm = strategyFactory.getRealm();
 
-        transientRepairs = new PendingRepairHolder(cfs, strategyFactory, router, true);
-        pendingRepairs = new PendingRepairHolder(cfs, strategyFactory, router, false);
-        repaired = new CompactionStrategyHolder(cfs, strategyFactory, router, true);
-        unrepaired = new CompactionStrategyHolder(cfs, strategyFactory, router, false);
+        transientRepairs = new PendingRepairHolder(realm, strategyFactory, router, true);
+        pendingRepairs = new PendingRepairHolder(realm, strategyFactory, router, false);
+        repaired = new CompactionStrategyHolder(realm, strategyFactory, router, true);
+        unrepaired = new CompactionStrategyHolder(realm, strategyFactory, router, false);
         holders = ImmutableList.of(transientRepairs, pendingRepairs, repaired, unrepaired);
 
         compactionLogger = strategyFactory.getCompactionLogger();
         this.boundariesSupplier = boundariesSupplier;
         this.partitionSSTablesByTokenRange = partitionSSTablesByTokenRange;
-        params = cfs.metadata().params.compaction;
+        params = realm.metadata().params.compaction;
         enabled = params.isEnabled();
     }
 
@@ -297,9 +294,9 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
         writeLock.lock();
         try
         {
-            for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
+            for (CompactionSSTable sstable : realm.getSSTables(SSTableSet.CANONICAL))
             {
-                if (sstable.openReason != SSTableReader.OpenReason.EARLY)
+                if (sstable.isSuitableForCompaction())
                     compactionStrategyFor(sstable).addSSTable(sstable);
             }
             holders.forEach(AbstractStrategyHolder::startup);
@@ -321,14 +318,14 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
      * @param sstable
      * @return the compaction strategy for the given sstable
      */
-    LegacyAbstractCompactionStrategy getCompactionStrategyFor(SSTableReader sstable)
+    LegacyAbstractCompactionStrategy getCompactionStrategyFor(CompactionSSTable sstable)
     {
         maybeReloadDiskBoundaries();
         return compactionStrategyFor(sstable);
     }
 
     @VisibleForTesting
-    LegacyAbstractCompactionStrategy compactionStrategyFor(SSTableReader sstable)
+    LegacyAbstractCompactionStrategy compactionStrategyFor(CompactionSSTable sstable)
     {
         // should not call maybeReloadDiskBoundaries because it may be called from within lock
         readLock.lock();
@@ -353,7 +350,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
      * @param sstable
      * @return
      */
-    int compactionStrategyIndexFor(SSTableReader sstable)
+    int compactionStrategyIndexFor(CompactionSSTable sstable)
     {
         // should not call maybeReloadDiskBoundaries because it may be called from within lock
         readLock.lock();
@@ -480,7 +477,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
         boolean enabledOnReload = CompactionStrategyFactory.enableCompactionOnReload(previous, compactionParams, reason);
 
         logger.debug("Recreating compaction strategy for {}.{}, reason: {}, params updated: {}, disk boundaries updated: {}, enabled: {}, params: {} -> {}, metadataParams: {}",
-                     cfs.getKeyspaceName(), cfs.getTableName(), reason, !compactionParams.equals(params), updateDiskBoundaries, enabledOnReload, params, compactionParams, metadataParams);
+                     realm.getKeyspaceName(), realm.getTableName(), reason, !compactionParams.equals(params), updateDiskBoundaries, enabledOnReload, params, compactionParams, metadataParams);
 
         if (updateDiskBoundaries)
             currentBoundaries = boundariesSupplier.get();
@@ -493,7 +490,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
 
         // full reload or switch from a strategy not managed by CompactionStrategyManager
         if (metadataParams == null || reason == ReloadReason.FULL)
-            metadataParams = cfs.metadata().params.compaction;
+            metadataParams = realm.metadata().params.compaction;
         else if (reason == ReloadReason.METADATA_CHANGE)
             // metadataParams are aligned with compactionParams. We do not access TableParams.COMPACTION to avoid racing with
             // concurrent ALTER TABLE metadata change.
@@ -594,13 +591,13 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     /**
      * Should only be called holding the readLock
      */
-    private void handleFlushNotification(Iterable<SSTableReader> added)
+    private void handleFlushNotification(Iterable<? extends CompactionSSTable> added)
     {
-        for (SSTableReader sstable : added)
+        for (CompactionSSTable sstable : added)
             compactionStrategyFor(sstable).addSSTable(sstable);
     }
 
-    private int getHolderIndex(SSTableReader sstable)
+    private int getHolderIndex(CompactionSSTable sstable)
     {
         for (int i = 0; i < holders.size(); i++)
         {
@@ -611,7 +608,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
         throw new IllegalStateException("No holder claimed " + sstable);
     }
 
-    private AbstractStrategyHolder getHolder(SSTableReader sstable)
+    private AbstractStrategyHolder getHolder(CompactionSSTable sstable)
     {
         for (AbstractStrategyHolder holder : holders)
         {
@@ -653,15 +650,16 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
      *
      * lives in matches the list index of the holder that's responsible for it
      */
-    public List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
+    public <S extends CompactionSSTable>
+    List<GroupedSSTableContainer<S>> groupSSTables(Iterable<? extends S> sstables)
     {
-        List<GroupedSSTableContainer> classified = new ArrayList<>(holders.size());
+        List<GroupedSSTableContainer<S>> classified = new ArrayList<>(holders.size());
         for (AbstractStrategyHolder holder : holders)
         {
             classified.add(holder.createGroupedSSTableContainer());
         }
 
-        for (SSTableReader sstable : sstables)
+        for (S sstable : sstables)
         {
             classified.get(getHolderIndex(sstable)).add(sstable);
         }
@@ -672,10 +670,10 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     /**
      * Should only be called holding the readLock
      */
-    private void handleListChangedNotification(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
+    private void handleListChangedNotification(Iterable<? extends CompactionSSTable> added, Iterable<? extends CompactionSSTable> removed)
     {
-        List<GroupedSSTableContainer> addedGroups = groupSSTables(added);
-        List<GroupedSSTableContainer> removedGroups = groupSSTables(removed);
+        List<GroupedSSTableContainer<CompactionSSTable>> addedGroups = groupSSTables(added);
+        List<GroupedSSTableContainer<CompactionSSTable>> removedGroups = groupSSTables(removed);
         for (int i=0; i<holders.size(); i++)
         {
             holders.get(i).replaceSSTables(removedGroups.get(i), addedGroups.get(i));
@@ -685,12 +683,12 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     /**
      * Should only be called holding the readLock
      */
-    private void handleRepairStatusChangedNotification(Iterable<SSTableReader> sstables)
+    private void handleRepairStatusChangedNotification(Iterable<? extends CompactionSSTable> sstables)
     {
-        List<GroupedSSTableContainer> groups = groupSSTables(sstables);
+        List<GroupedSSTableContainer<CompactionSSTable>> groups = groupSSTables(sstables);
         for (int i = 0; i < holders.size(); i++)
         {
-            GroupedSSTableContainer group = groups.get(i);
+            GroupedSSTableContainer<CompactionSSTable> group = groups.get(i);
 
             if (group.isEmpty())
                 continue;
@@ -711,16 +709,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     /**
      * Should only be called holding the readLock
      */
-    private void handleMetadataChangedNotification(SSTableReader sstable, StatsMetadata oldMetadata)
-    {
-        LegacyAbstractCompactionStrategy acs = getCompactionStrategyFor(sstable);
-        acs.metadataChanged(oldMetadata, sstable);
-    }
-
-    /**
-     * Should only be called holding the readLock
-     */
-    private void handleDeletingNotification(SSTableReader deleted)
+    private void handleDeletingNotification(CompactionSSTable deleted)
     {
         compactionStrategyFor(deleted).removeSSTable(deleted);
     }
@@ -751,11 +740,6 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
             else if (notification instanceof SSTableDeletingNotification)
             {
                 handleDeletingNotification(((SSTableDeletingNotification) notification).deleting);
-            }
-            else if (notification instanceof SSTableMetadataChanged)
-            {
-                SSTableMetadataChanged lcNotification = (SSTableMetadataChanged) notification;
-                handleMetadataChangedNotification(lcNotification.sstable, lcNotification.oldMetadata);
             }
         }
         finally
@@ -809,12 +793,12 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
         readLock.lock();
         try
         {
-            List<GroupedSSTableContainer> sstableGroups = groupSSTables(sstables);
+            List<GroupedSSTableContainer<SSTableReader>> sstableGroups = groupSSTables(sstables);
 
             for (int i = 0; i < holders.size(); i++)
             {
                 AbstractStrategyHolder holder = holders.get(i);
-                GroupedSSTableContainer group = sstableGroups.get(i);
+                GroupedSSTableContainer<SSTableReader> group = sstableGroups.get(i);
                 scanners.addAll(holder.getScanners(group, ranges));
             }
         }
@@ -852,7 +836,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     }
 
     @Override
-    public Set<SSTableReader> getSSTables()
+    public Set<CompactionSSTable> getSSTables()
     {
         return getStrategies().stream()
                               .flatMap(strategy -> strategy.getSSTables().stream())
@@ -860,7 +844,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     }
 
     @Override
-    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    public Collection<Collection<CompactionSSTable>> groupSSTablesForAntiCompaction(Collection<? extends CompactionSSTable> sstablesToGroup)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
@@ -896,24 +880,24 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
         }
     }
 
-    private void validateForCompaction(Iterable<SSTableReader> input)
+    private void validateForCompaction(Iterable<? extends CompactionSSTable> input)
     {
         readLock.lock();
         try
         {
-            SSTableReader firstSSTable = Iterables.getFirst(input, null);
+            CompactionSSTable firstSSTable = Iterables.getFirst(input, null);
             assert firstSSTable != null;
             boolean repaired = firstSSTable.isRepaired();
             int firstIndex = compactionStrategyIndexFor(firstSSTable);
             boolean isPending = firstSSTable.isPendingRepair();
-            UUID pendingRepair = firstSSTable.getSSTableMetadata().pendingRepair;
-            for (SSTableReader sstable : input)
+            UUID pendingRepair = firstSSTable.getPendingRepair();
+            for (CompactionSSTable sstable : input)
             {
                 if (sstable.isRepaired() != repaired)
                     throw new UnsupportedOperationException("You can't mix repaired and unrepaired data in a compaction");
                 if (firstIndex != compactionStrategyIndexFor(sstable))
                     throw new UnsupportedOperationException("You can't mix sstables from different directories in a compaction");
-                if (isPending && !pendingRepair.equals(sstable.getSSTableMetadata().pendingRepair))
+                if (isPending && !pendingRepair.equals(sstable.getPendingRepair()))
                     throw new UnsupportedOperationException("You can't compact sstables from different pending repair sessions");
             }
         }
@@ -930,7 +914,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
         // to make the repaired/unrepaired strategies mark their own sstables as compacting. Once the
         // sstables are marked the compactions are re-enabled
-        return cfs.runWithCompactionsDisabled(() -> {
+        return realm.runWithCompactionsDisabled(() -> {
             List<AbstractCompactionTask> tasks = new ArrayList<>();
             readLock.lock();
             try
@@ -958,14 +942,14 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
      * @return a list of compaction tasks corresponding to the sstables requested
      */
     @Override
-    public CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
+    public CompactionTasks getUserDefinedTasks(Collection<? extends CompactionSSTable> sstables, int gcBefore)
     {
         maybeReloadDiskBoundaries();
         List<AbstractCompactionTask> ret = new ArrayList<>();
         readLock.lock();
         try
         {
-            List<GroupedSSTableContainer> groupedSSTables = groupSSTables(sstables);
+            List<GroupedSSTableContainer<CompactionSSTable>> groupedSSTables = groupSSTables(sstables);
             for (int i = 0; i < holders.size(); i++)
             {
                 ret.addAll(holders.get(i).getUserDefinedTasks(groupedSSTables.get(i), gcBefore));

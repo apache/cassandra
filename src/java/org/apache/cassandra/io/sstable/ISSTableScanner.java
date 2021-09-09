@@ -41,7 +41,7 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
     Set<SSTableReader> getBackingSSTables();
     int level();
 
-    static void closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
+    static Throwable closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
     {
         for (ISSTableScanner scanner: scanners)
         {
@@ -65,7 +65,8 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
 
         if (throwable != null)
         {
-            Throwables.propagate(throwable);
+            throw Throwables.propagate(throwable);
         }
+        return null;
     }
 }

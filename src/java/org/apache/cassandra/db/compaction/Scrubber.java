@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class Scrubber implements Closeable
 {
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final SSTableReader sstable;
     private final LifecycleTransaction transaction;
     private final File destination;
@@ -74,26 +74,26 @@ public class Scrubber implements Closeable
     private static final Comparator<Partition> partitionComparator = Comparator.comparing(Partition::partitionKey);
     private final SortedSet<Partition> outOfOrder = new TreeSet<>(partitionComparator);
 
-    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData)
+    public Scrubber(CompactionRealm realm, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData)
     {
-        this(cfs, transaction, skipCorrupted, checkData, false);
+        this(realm, transaction, skipCorrupted, checkData, false);
     }
 
-    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData,
+    public Scrubber(CompactionRealm realm, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData,
                     boolean reinsertOverflowedTTLRows)
     {
-        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData, reinsertOverflowedTTLRows);
+        this(realm, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData, reinsertOverflowedTTLRows);
     }
 
     @SuppressWarnings("resource")
-    public Scrubber(ColumnFamilyStore cfs,
+    public Scrubber(CompactionRealm realm,
                     LifecycleTransaction transaction,
                     boolean skipCorrupted,
                     OutputHandler outputHandler,
                     boolean checkData,
                     boolean reinsertOverflowedTTLRows)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.transaction = transaction;
         this.sstable = transaction.onlyOne();
         this.outputHandler = outputHandler;
@@ -102,11 +102,11 @@ public class Scrubber implements Closeable
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
-        this.destination = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForSSTable(sstable));
-        this.isCommutative = cfs.metadata().isCounter();
+        this.destination = realm.getDirectories().getLocationForDisk(realm.getDiskBoundaries().getCorrectDiskForSSTable(sstable));
+        this.isCommutative = realm.metadata().isCounter();
 
         boolean hasIndexFile = sstable.hasIndex();
-        this.isIndex = cfs.isIndex();
+        this.isIndex = realm.metadata().isIndex();
         if (!hasIndexFile)
         {
             // if there's any corruption in the -Data.db then partitions can't be skipped over. but it's worth a shot.
@@ -114,7 +114,7 @@ public class Scrubber implements Closeable
         }
         this.checkData = checkData && !this.isIndex; //LocalByPartitionerType does not support validation
         this.expectedBloomFilterSize = Math.max(
-            cfs.metadata().params.minIndexInterval,
+        realm.metadata().params.minIndexInterval,
             hasIndexFile ? SSTableReader.getApproximateKeyCount(toScrub) : 0);
 
         this.fileAccessLock = new ReentrantReadWriteLock();
@@ -168,7 +168,7 @@ public class Scrubber implements Closeable
 
         try
         {
-            return cfs.metadata().partitionKeyType.getString(key.getKey());
+            return realm.metadata().partitionKeyType.getString(key.getKey());
         }
         catch (Exception e)
         {
@@ -180,13 +180,13 @@ public class Scrubber implements Closeable
     {
         List<SSTableReader> finished = new ArrayList<>();
         outputHandler.output(String.format("Scrubbing %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
-        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge);
+        try (SSTableRewriter writer = SSTableRewriter.construct(realm, transaction, false, sstable.maxDataAge);
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
         {
             assert !indexAvailable() || indexIterator.dataPosition() == 0 : indexIterator.dataPosition();
 
             StatsMetadata metadata = sstable.getSSTableMetadata();
-            writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction));
+            writer.switchWriter(CompactionManager.createWriter(realm, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction));
 
             DecoratedKey prevKey = null;
 
@@ -204,8 +204,8 @@ public class Scrubber implements Closeable
                 try
                 {
                     ByteBuffer raw = ByteBufferUtil.readWithShortLength(dataFile);
-                    if (!cfs.metadata.getLocal().isIndex())
-                        cfs.metadata.getLocal().partitionKeyType.validate(raw);
+                    if (!realm.metadataRef().getLocal().isIndex())
+                        realm.metadataRef().getLocal().partitionKeyType.validate(raw);
                     key = sstable.decorateKey(raw);
                 }
                 catch (Throwable th)
@@ -288,8 +288,8 @@ public class Scrubber implements Closeable
                         key = sstable.decorateKey(currentIndexKey);
                         try
                         {
-                            if (!cfs.metadata.getLocal().isIndex())
-                                cfs.metadata.getLocal().partitionKeyType.validate(key.getKey());
+                            if (!realm.metadataRef().getLocal().isIndex())
+                                realm.metadataRef().getLocal().partitionKeyType.validate(key.getKey());
                             dataFile.seek(rowStartFromIndex);
 
                             if (tryAppend(prevKey, key, writer))
@@ -335,7 +335,7 @@ public class Scrubber implements Closeable
                 // out of order partitions/rows, but no bad partition found - we can keep our repairedAt time
                 long repairedAt = badPartitions > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
                 SSTableReader newInOrderSstable;
-                try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction))
+                try (SSTableWriter inOrderWriter = CompactionManager.createWriter(realm, destination, expectedBloomFilterSize, repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction))
                 {
                     for (Partition partition : outOfOrder)
                         inOrderWriter.append(partition.unfilteredIterator());
@@ -381,7 +381,7 @@ public class Scrubber implements Closeable
         // that one row is out of order, it will stop returning them. The remaining rows will be sorted and added
         // to the outOfOrder set that will be later written to a new SSTable.
         OrderCheckerIterator sstableIterator = new OrderCheckerIterator(getIterator(key),
-                                                                        cfs.metadata().comparator);
+                                                                        realm.metadata().comparator);
 
         try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getPath()))
         {

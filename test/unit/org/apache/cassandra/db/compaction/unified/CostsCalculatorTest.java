@@ -27,6 +27,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.db.compaction.BackgroundCompactions;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -77,7 +78,7 @@ public class CostsCalculatorTest
         MockitoAnnotations.initMocks(this);
 
         when(executorService.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(fut);
-        when(strategy.getSSTables()).thenReturn(Sets.newHashSet(sstable));
+        when(strategy.getSSTables()).thenAnswer(invocation -> Sets.newHashSet(sstable));
         when(strategy.getMetadata()).thenReturn(metadata);
 
         when(sstable.onDiskLength()).thenReturn((long) PageAware.PAGE_SIZE);
@@ -167,8 +168,8 @@ public class CostsCalculatorTest
         when(environment.cacheMissRatio()).thenReturn(cacheMissRatio);
         when(environment.bloomFilterFpRatio()).thenReturn(bfprRatio);
         when(environment.sstablePartitionReadLatencyNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(readTimeMicros));
-        when(environment.flushLatencyPerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(writeTimeMicros));
-        when(environment.compactionLatencyPerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(writeTimeMicros));
+        when(environment.flushTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(writeTimeMicros));
+        when(environment.compactionTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(writeTimeMicros));
 
         CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor, readMultiplier, writeMultiplier);
         assertNotNull(cost);
@@ -212,8 +213,8 @@ public class CostsCalculatorTest
         when(environment.cacheMissRatio()).thenReturn(0.05);
         when(environment.bloomFilterFpRatio()).thenReturn(0.01);
         when(environment.sstablePartitionReadLatencyNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
-        when(environment.flushLatencyPerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
-        when(environment.compactionLatencyPerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
+        when(environment.flushTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
+        when(environment.compactionTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
 
         CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor, 1, 1);
         assertNotNull(cost);
@@ -240,8 +241,8 @@ public class CostsCalculatorTest
         when(environment.cacheMissRatio()).thenReturn(0.05);
         when(environment.bloomFilterFpRatio()).thenReturn(0.01);
         when(environment.sstablePartitionReadLatencyNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
-        when(environment.flushLatencyPerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
-        when(environment.compactionLatencyPerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
+        when(environment.flushTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
+        when(environment.compactionTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
 
         CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor, 1, 1);
         assertNotNull(cost);

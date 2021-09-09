@@ -587,7 +587,7 @@ public class CompactionsCQLTest extends CQLTester
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
         {
             lcs.removeSSTable(sstable);
-            sstable.mutateLevelAndReload(2);
+            sstable.mutateSSTableLevelAndReload(2);
             lcs.addSSTable(sstable);
         }
 
@@ -603,7 +603,7 @@ public class CompactionsCQLTest extends CQLTester
             if (sstable.getSSTableLevel() == 0)
             {
                 lcs.removeSSTable(sstable);
-                sstable.mutateLevelAndReload(1);
+                sstable.mutateSSTableLevelAndReload(1);
                 lcs.addSSTable(sstable);
             }
         }
@@ -637,12 +637,12 @@ public class CompactionsCQLTest extends CQLTester
         }
 
         @Override
-        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+        public CompactionAwareWriter getCompactionAwareWriter(CompactionRealm realm,
                                                               Directories directories,
                                                               LifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)
         {
-            return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, 1 << 20, 1)
+            return new MaxSSTableSizeWriter(realm, directories, txn, nonExpiredSSTables, 1 << 20, 1)
             {
                 int switchCount = 0;
                 public void switchCompactionWriter(Directories.DataDirectory directory)
