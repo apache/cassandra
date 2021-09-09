@@ -104,8 +104,7 @@ public class CoordinatorTrackWarnings
             // set map to an "ignore" map; dropping all mutations
             // this does not update the state as it is not known if .clear() will be called; so safter to leave state null
             map = IgnoreMap.get();
-        }
-        if (map == INIT)
+        } else if (map == INIT)
         {
             map = new HashMap<>();
             STATE.set(map);
