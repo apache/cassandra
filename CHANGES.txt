@@ -23,6 +23,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Remove all the state pollution between tests in SSTableReaderTest (CASSANDRA-16888)
  * Delay auth setup until after gossip has settled to avoid unavailables on startup (CASSANDRA-16783)
  * org.apache.cassandra.db.rows.ArrayCell#unsharedHeapSizeExcludingData includes data twice (CASSANDRA-16900)
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
