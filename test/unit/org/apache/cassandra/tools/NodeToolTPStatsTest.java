@@ -44,6 +44,7 @@ import org.assertj.core.api.Assertions;
 import org.yaml.snakeyaml.Yaml;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -68,6 +69,7 @@ public class NodeToolTPStatsTest extends CQLTester
     }
 
     @Test
+    @SuppressWarnings("SingleCharacterStringConcatenation")
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
@@ -151,18 +153,22 @@ public class NodeToolTPStatsTest extends CQLTester
     }
 
     @Test
-    public void testFromatArg() throws Throwable
+    public void testFormatArg()
     {
         Arrays.asList(Pair.of("-F", "json"), Pair.of("--format", "json")).forEach(arg -> {
             ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
-            assertTrue(isJSONString(tool.getStdout()));
+            String json = tool.getStdout();
+            assertThat(isJSONString(json)).isTrue();
+            assertThat(json).containsPattern("\"WaitLatencies\"\\s*:\\s*\\{\\s*\"");
             assertTrue(tool.getCleanedStderr().isEmpty());
             assertEquals(0, tool.getExitCode());
         });
 
         Arrays.asList( Pair.of("-F", "yaml"), Pair.of("--format", "yaml")).forEach(arg -> {
             ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
-            assertTrue(isYAMLString(tool.getStdout()));
+            String yaml = tool.getStdout();
+            assertThat(isYAMLString(yaml)).isTrue();
+            assertThat(yaml).containsPattern("WaitLatencies:\\s*[A-Z|_]+:\\s+-\\s");
             assertTrue(tool.getCleanedStderr().isEmpty());
             assertEquals(0, tool.getExitCode());
         });
