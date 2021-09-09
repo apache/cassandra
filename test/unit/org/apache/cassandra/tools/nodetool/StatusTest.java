@@ -22,9 +22,7 @@ import java.util.regex.Pattern;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -36,7 +34,6 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertThat;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class StatusTest extends CQLTester
 {
     private static final Pattern PATTERN = Pattern.compile("\\R");
