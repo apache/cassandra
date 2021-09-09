@@ -185,9 +185,14 @@ public final class SSLFactory
         logger.debug("Checking whether certificates have been updated for server {} and client {}",
                      serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
 
-        checkCertFilesForHotReloading(serverOpts, "server_encryption_options", true);
-        checkCertFilesForHotReloading(clientOpts, "client_encryption_options",
-                                      clientOpts != null ? clientOpts.require_client_auth : false);
+        if (serverOpts != null)
+        {
+            checkCertFilesForHotReloading(serverOpts, "server_encryption_options", true);
+        }
+        if (clientOpts != null)
+        {
+            checkCertFilesForHotReloading(clientOpts, "client_encryption_options", clientOpts.require_client_auth);
+        }
     }
 
     private static void checkCertFilesForHotReloading(EncryptionOptions options, String contextDescription,
@@ -195,7 +200,7 @@ public final class SSLFactory
     {
         try
         {
-            if (options != null && options.sslContextFactoryInstance.shouldReload())
+            if (options.sslContextFactoryInstance.shouldReload())
             {
                 logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
                             "connections.", options.getClass().getName());
