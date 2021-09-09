@@ -18,8 +18,15 @@
 
 package org.apache.cassandra.io.sstable;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
+import com.google.common.base.Throwables;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
 public class ScannerList implements AutoCloseable
@@ -70,5 +77,20 @@ public class ScannerList implements AutoCloseable
     public void close()
     {
         ISSTableScanner.closeAllAndPropagate(scanners, null);
+    }
+
+    public static ScannerList of(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
+    {
+        ArrayList<ISSTableScanner> scanners = new ArrayList<>();
+        try
+        {
+            for (SSTableReader sstable : sstables)
+                scanners.add(sstable.getScanner(ranges));
+            return new ScannerList(scanners);
+        }
+        catch (Throwable t)
+        {
+            throw Throwables.propagate(ISSTableScanner.closeAllAndPropagate(scanners, t));
+        }
     }
 }

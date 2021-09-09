@@ -76,6 +76,7 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
         return ByteBufferUtil.compareUnsigned(getKey(), other.getKey()) == 0; // we compare faster than BB.equals for array backed BB
     }
 
+    @Override
     public int compareTo(PartitionPosition pos)
     {
         if (this == pos)

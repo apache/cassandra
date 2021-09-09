@@ -25,12 +25,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
  * Arena selector, used by UnifiedCompactionStrategy to distribute SSTables to separate compaction arenas.
@@ -41,7 +38,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  * - implement compaction shards, subsections of the token space which compact separately for improved parallelism
  *   and compaction overheads.
  */
-public class ArenaSelector implements Comparator<SSTableReader>
+public class ArenaSelector implements Comparator<CompactionSSTable>
 {
     private final EquivClassSplitter[] classSplitters;
     final List<PartitionPosition> shardBoundaries;
@@ -74,7 +71,7 @@ public class ArenaSelector implements Comparator<SSTableReader>
     }
 
     @Override
-    public int compare(SSTableReader o1, SSTableReader o2)
+    public int compare(CompactionSSTable o1, CompactionSSTable o2)
     {
         int res = 0;
         for (int i = 0; res == 0 && i < classSplitters.length; i++)
@@ -82,7 +79,7 @@ public class ArenaSelector implements Comparator<SSTableReader>
         return res;
     }
 
-    public String name(SSTableReader t)
+    public String name(CompactionSSTable t)
     {
         return Arrays.stream(classSplitters)
                      .map(e -> e.name(t))
@@ -106,7 +103,7 @@ public class ArenaSelector implements Comparator<SSTableReader>
         return -pos - 1;
     }
 
-    public static int shardsSpanned(SSTableReader rdr, List<PartitionPosition> shardBoundaries)
+    public static int shardsSpanned(CompactionSSTable rdr, List<PartitionPosition> shardBoundaries)
     {
         if (shardBoundaries.size() <= 1)
             return 1;
@@ -117,26 +114,29 @@ public class ArenaSelector implements Comparator<SSTableReader>
         return shardFor(last, shardBoundaries) - startIdx + 1;
     }
 
-    public long shardAdjustedSize(SSTableReader rdr)
+    public long shardAdjustedSize(CompactionSSTable rdr)
     {
         return shardAdjustedSize(rdr, shardBoundaries);
     }
 
-    public static long shardAdjustedSize(SSTableReader rdr, List<PartitionPosition> shardBoundaries)
+    public static long shardAdjustedSize(CompactionSSTable rdr, List<PartitionPosition> shardBoundaries)
     {
         // This may need to duplicate the above to avoid the division in the happy path
         return rdr.onDiskLength() / shardsSpanned(rdr, shardBoundaries);
     }
 
-    public static Set<SSTableReader> sstablesFor(int boundaryIndex, List<PartitionPosition> shardBoundaries, Set<SSTableReader > sstables)
+    public static Set<CompactionSSTable> sstablesFor(int boundaryIndex,
+                                                     List<PartitionPosition> shardBoundaries,
+                                                     Set<? extends CompactionSSTable> sstables)
     {
         assert boundaryIndex < shardBoundaries.size();
         return sstables.stream()
-                       .filter(sstable -> shardFor(sstable.getFirst(), shardBoundaries) <= boundaryIndex && shardFor(sstable.getLast(), shardBoundaries) >= boundaryIndex)
+                       .filter(sstable -> shardFor(sstable.getFirst(), shardBoundaries) <= boundaryIndex &&
+                                          shardFor(sstable.getLast(), shardBoundaries) >= boundaryIndex)
                        .collect(Collectors.toSet());
     }
 
-    public int compareByShardAdjustedSize(SSTableReader a, SSTableReader b)
+    public int compareByShardAdjustedSize(CompactionSSTable a, CompactionSSTable b)
     {
         return Long.compare(shardAdjustedSize(a), shardAdjustedSize(b));
     }
@@ -145,13 +145,13 @@ public class ArenaSelector implements Comparator<SSTableReader>
      * An equivalence class is a function that compares two sstables and returns 0 when they fall in the same class.
      * For example, the repair status or disk index may define equivalence classes. See the concrete equivalence classes below.
      */
-    private interface EquivClassSplitter extends Comparator<SSTableReader> {
+    private interface EquivClassSplitter extends Comparator<CompactionSSTable> {
 
         @Override
-        int compare(SSTableReader a, SSTableReader b);
+        int compare(CompactionSSTable a, CompactionSSTable b);
 
         /** Return a name that describes the equivalence class */
-        String name(SSTableReader ssTableReader);
+        String name(CompactionSSTable ssTableReader);
     }
 
     /**
@@ -162,7 +162,7 @@ public class ArenaSelector implements Comparator<SSTableReader>
         public static final EquivClassSplitter INSTANCE = new RepairEquivClassSplitter();
 
         @Override
-        public int compare(SSTableReader a, SSTableReader b)
+        public int compare(CompactionSSTable a, CompactionSSTable b)
         {
             // This is the same as name(a).compareTo(name(b))
             int af = a.isRepaired() ? 1 : !a.isPendingRepair() ? 2 : 0;
@@ -173,7 +173,7 @@ public class ArenaSelector implements Comparator<SSTableReader>
         }
 
         @Override
-        public String name(SSTableReader ssTableReader)
+        public String name(CompactionSSTable ssTableReader)
         {
             if (ssTableReader.isRepaired())
                 return "repaired";
@@ -195,13 +195,13 @@ public class ArenaSelector implements Comparator<SSTableReader>
     private final class ShardEquivClassSplitter implements EquivClassSplitter
     {
         @Override
-        public int compare(SSTableReader a, SSTableReader b)
+        public int compare(CompactionSSTable a, CompactionSSTable b)
         {
             return Integer.compare(shardFor(a.getFirst()), shardFor(b.getFirst()));
         }
 
         @Override
-        public String name(SSTableReader ssTableReader)
+        public String name(CompactionSSTable ssTableReader)
         {
             return "shard_" + shardFor(ssTableReader.getFirst());
         }
@@ -213,13 +213,13 @@ public class ArenaSelector implements Comparator<SSTableReader>
     private final class DiskIndexEquivClassSplitter implements EquivClassSplitter
     {
         @Override
-        public int compare(SSTableReader a, SSTableReader b)
+        public int compare(CompactionSSTable a, CompactionSSTable b)
         {
             return Integer.compare(diskBoundaries.getDiskIndexFromKey(a), diskBoundaries.getDiskIndexFromKey(b));
         }
 
         @Override
-        public String name(SSTableReader ssTableReader)
+        public String name(CompactionSSTable ssTableReader)
         {
             return "disk_" + diskBoundaries.getDiskIndexFromKey(ssTableReader);
         }

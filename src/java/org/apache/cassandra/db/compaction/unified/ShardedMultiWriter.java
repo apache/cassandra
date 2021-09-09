@@ -24,10 +24,10 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
@@ -53,7 +53,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
 {
     protected final static Logger logger = LoggerFactory.getLogger(ShardedMultiWriter.class);
 
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final Descriptor descriptor;
     private final long keyCount;
     private final long repairedAt;
@@ -70,7 +70,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     private int currentBoundary;
     private int currentWriter;
 
-    public ShardedMultiWriter(ColumnFamilyStore cfs,
+    public ShardedMultiWriter(CompactionRealm realm,
                               Descriptor descriptor,
                               long keyCount,
                               long repairedAt,
@@ -83,7 +83,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                               long minSstableSizeInBytes,
                               List<PartitionPosition> boundaries)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.descriptor = descriptor;
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
@@ -96,7 +96,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         this.minSstableSizeInBytes = minSstableSizeInBytes;
         this.boundaries = boundaries;
         this.writers = new SSTableMultiWriter[boundaries.size()];
-        this.estimatedSSTables = (int) Math.max(1, Math.ceil(cfs.getFlushSizeOnDisk() / minSstableSizeInBytes));
+        this.estimatedSSTables = (int) Math.max(1, Math.ceil(realm.metrics().flushSizeOnDisk.get() / minSstableSizeInBytes));
 
         this.currentBoundary = 0;
         this.currentWriter = 0;
@@ -105,7 +105,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
 
     private SSTableMultiWriter createWriter()
     {
-        Descriptor newDesc = cfs.newSSTableDescriptor(descriptor.directory);
+        Descriptor newDesc = realm.newSSTableDescriptor(descriptor.directory);
         return createWriter(newDesc);
     }
 
@@ -116,7 +116,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                                                repairedAt,
                                                pendingRepair,
                                                isTransient,
-                                               cfs.metadata,
+                                               realm.metadataRef(),
                                                meta,
                                                header,
                                                indexGroups,
@@ -149,7 +149,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
             logger.debug("Switching writer at boundary {}/{} index {}/{}, with size {} for {}.{}",
                          key.getToken(), boundaries.get(currentBoundary-1), currentBoundary-1, currentWriter,
                          FBUtilities.prettyPrintMemory(writers[currentWriter].getBytesWritten()),
-                         cfs.getKeyspaceName(), cfs.getTableName());
+                         realm.getKeyspaceName(), realm.getTableName());
 
             writers[++currentWriter] = createWriter();
         }
@@ -231,7 +231,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     @Override
     public TableId getTableId()
     {
-        return cfs.metadata.id;
+        return realm.metadata().id;
     }
 
     @Override

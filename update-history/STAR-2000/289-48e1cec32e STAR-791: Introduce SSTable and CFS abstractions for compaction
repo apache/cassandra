@@ -1,0 +1,64 @@
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionController.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionController.java
+@@ -197,45 +197,8 @@
+             if (sstable.getMaxLocalDeletionTime() >= gcBefore)
+                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
+         }
+-<<<<<<<
+ 
+-        for (SSTableReader candidate : compacting)
+-        {
+-            if (candidate.getMaxLocalDeletionTime() < gcBefore)
+-                candidates.add(candidate);
+-            else
+-                minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
+-        }
+-
+-        for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
+-        {
+-            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+-                minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+-        }
+-
+-        // At this point, minTimestamp denotes the lowest timestamp of any relevant
+-        // SSTable or Memtable that contains a constructive value. candidates contains all the
+-        // candidates with no constructive values. The ones out of these that have
+-        // (getMaxTimestamp() < minTimestamp) serve no purpose anymore.
+-
+-        Iterator<SSTableReader> iterator = candidates.iterator();
+-        while (iterator.hasNext())
+-        {
+-            SSTableReader candidate = iterator.next();
+-            if (candidate.getMaxTimestamp() >= minTimestamp)
+-            {
+-                iterator.remove();
+-            }
+-            else
+-            {
+-               logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+-                        candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
+-            }
+-        }
+-        return new HashSet<>(candidates);
+-=======
+         return minTimestamp;
+->>>>>>>
+     }
+ 
+     public static
+@@ -280,15 +243,11 @@
+ 
+         for (Memtable memtable : memtables)
+         {
+-<<<<<<<
+-            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+-=======
+             if (memtable.getMinTimestamp() >= minTimestampSeen)
+                 continue;
+ 
+             Partition partition = memtable.getPartition(key);
+             if (partition != null)
+->>>>>>>
+             {
+                 Partition partition = memtable.getPartition(key);
+                 if (partition != null)

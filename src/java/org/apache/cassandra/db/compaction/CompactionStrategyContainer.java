@@ -22,7 +22,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.schema.CompactionParams;
 
@@ -184,7 +183,7 @@ public interface CompactionStrategyContainer extends CompactionStrategy, INotifi
     void repairSessionCompleted(UUID sessionID);
 
     /**
-     * The method is for CompactionStrategyManager to use with {@link org.apache.cassandra.db.ColumnFamilyStore#mutateRepaired}.
+     * The method is for CompactionStrategyManager to use with {@link CompactionRealm#mutateRepairedWithLock}.
      * UnifiedCompactionContainer does not need it.
      */
     ReentrantReadWriteLock.WriteLock getWriteLock();

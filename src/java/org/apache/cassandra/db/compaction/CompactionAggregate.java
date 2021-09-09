@@ -35,7 +35,6 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -56,7 +55,7 @@ public abstract class CompactionAggregate
     final Key key;
 
     /** The sstables in this aggregate, whether they are compaction candidates or not */
-    final Set<SSTableReader> sstables;
+    final Set<CompactionSSTable> sstables;
 
     /** The compaction that was selected for this aggregate when it was created. It is also part of {@link this#compactions}. */
     final CompactionPick selected;
@@ -64,7 +63,7 @@ public abstract class CompactionAggregate
     /** The compactions that are part of this aggregate, they could be pending or in progress. */
     final LinkedHashSet<CompactionPick> compactions;
 
-    CompactionAggregate(Key key, Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> pending)
+    CompactionAggregate(Key key, Iterable<? extends CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> pending)
     {
         if (sstables == null || selected == null || pending == null)
             throw new IllegalArgumentException("Arguments cannot be null");
@@ -192,8 +191,8 @@ public abstract class CompactionAggregate
             numCompactions++;
             numCandidateSSTables += compaction.sstables.size();
             numExpiredSSTables += compaction.expired.size();
-            tot += compaction.sstables.stream().mapToLong(SSTableReader::uncompressedLength).reduce(0L, Long::sum);
-            expiredTot += compaction.expired.stream().mapToLong(SSTableReader::uncompressedLength).reduce(0L, Long::sum);
+            tot += compaction.sstables.stream().mapToLong(CompactionSSTable::uncompressedLength).reduce(0L, Long::sum);
+            expiredTot += compaction.expired.stream().mapToLong(CompactionSSTable::uncompressedLength).reduce(0L, Long::sum);
             if (trackHotness)
                 hotness += compaction.hotness;
 
@@ -263,12 +262,12 @@ public abstract class CompactionAggregate
      *
      * @return a deep copy of this aggregate
      */
-    protected abstract CompactionAggregate clone(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> compactions);
+    protected abstract CompactionAggregate clone(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> compactions);
 
     /**
      * Add expired sstables to the selected compaction pick and return a new compaction aggregate.
      */
-    CompactionAggregate withExpired(Collection<SSTableReader> expired)
+    CompactionAggregate withExpired(Collection<CompactionSSTable> expired)
     {
        return clone(Iterables.concat(sstables, expired), selected.withExpiredSSTables(expired), compactions);
     }
@@ -278,8 +277,8 @@ public abstract class CompactionAggregate
      */
     public CompactionAggregate withAdditionalCompactions(Collection<CompactionPick> comps)
     {
-        List<SSTableReader> sstables = comps.stream().flatMap(comp -> comp.sstables.stream()).collect(Collectors.toList());
-        return clone(Iterables.concat(this.sstables, sstables), selected, Iterables.concat(compactions, comps));
+        List<CompactionSSTable> added = comps.stream().flatMap(comp -> comp.sstables.stream()).collect(Collectors.toList());
+        return clone(Iterables.concat(sstables, added), selected, Iterables.concat(compactions, comps));
     }
 
     /**
@@ -287,8 +286,8 @@ public abstract class CompactionAggregate
      */
     public CompactionAggregate withOnlyTheseCompactions(Collection<CompactionPick> comps)
     {
-        List<SSTableReader> sstables = comps.stream().flatMap(comp -> comp.sstables.stream()).collect(Collectors.toList());
-        return clone(sstables, CompactionPick.EMPTY, comps);
+        List<CompactionSSTable> retained = comps.stream().flatMap(comp -> comp.sstables.stream()).collect(Collectors.toList());
+        return clone(retained, CompactionPick.EMPTY, comps);
     }
 
     @Override
@@ -338,7 +337,7 @@ public abstract class CompactionAggregate
         /** The fanout size */
         final int fanout;
 
-        Leveled(Iterable<SSTableReader> sstables,
+        Leveled(Iterable<? extends CompactionSSTable> sstables,
                 CompactionPick selected,
                 Iterable<CompactionPick> compactions,
                 int level,
@@ -359,7 +358,7 @@ public abstract class CompactionAggregate
         }
 
         @Override
-        protected CompactionAggregate clone(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
+        protected CompactionAggregate clone(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
         {
             return new Leveled(sstables, selected, compactions, level, nextLevel, score, maxSSTableBytes, pendingCompactions, fanout);
         }
@@ -400,8 +399,8 @@ public abstract class CompactionAggregate
     /**
      * Create a level where we have a compaction candidate.
      */
-    static CompactionAggregate.Leveled createLeveled(Collection<SSTableReader> all,
-                                                     Collection<SSTableReader> candidates,
+    static CompactionAggregate.Leveled createLeveled(Collection<? extends CompactionSSTable> all,
+                                                     Collection<? extends CompactionSSTable> candidates,
                                                      int pendingCompactions,
                                                      long maxSSTableBytes,
                                                      int level,
@@ -423,7 +422,7 @@ public abstract class CompactionAggregate
     /**
      * Create a level when we only have estimated tasks.
      */
-    static CompactionAggregate.Leveled createLeveled(Collection<SSTableReader> all,
+    static CompactionAggregate.Leveled createLeveled(Collection<? extends CompactionSSTable> all,
                                                      int pendingCompactions,
                                                      long maxSSTableBytes,
                                                      int level,
@@ -444,7 +443,7 @@ public abstract class CompactionAggregate
     /**
      * Create a leveled aggregate when LCS is doing STCS on level 0
      */
-    static CompactionAggregate.Leveled createLeveledForSTCS(Collection<SSTableReader> all,
+    static CompactionAggregate.Leveled createLeveledForSTCS(Collection<? extends CompactionSSTable> all,
                                                             CompactionPick pick,
                                                             int pendingCompactions,
                                                             double score,
@@ -466,7 +465,7 @@ public abstract class CompactionAggregate
      */
     public static final class SizeTiered extends CompactionAggregate
     {
-        /** The total read hotness of the sstables in this tier, as defined by {@link SSTableReader#hotness()} */
+        /** The total read hotness of the sstables in this tier, as defined by {@link CompactionSSTable#hotness()} */
         final double hotness;
 
         /** The average on disk size in bytes of the sstables in this tier */
@@ -480,7 +479,7 @@ public abstract class CompactionAggregate
          * used to find compacting aggregates that are on the same tier. */
         final long maxSizeBytes;
 
-        SizeTiered(Iterable<SSTableReader> sstables,
+        SizeTiered(Iterable<? extends CompactionSSTable> sstables,
                    CompactionPick selected,
                    Iterable<CompactionPick> pending,
                    double hotness,
@@ -497,7 +496,7 @@ public abstract class CompactionAggregate
         }
 
         @Override
-        protected CompactionAggregate clone(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
+        protected CompactionAggregate clone(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
         {
             return new SizeTiered(sstables, selected, compactions, getTotHotness(sstables), getAvgSizeBytes(sstables), minSizeBytes, maxSizeBytes);
         }
@@ -560,7 +559,7 @@ public abstract class CompactionAggregate
         }
     }
 
-    static CompactionAggregate createSizeTiered(Collection<SSTableReader> all,
+    static CompactionAggregate createSizeTiered(Collection<? extends CompactionSSTable> all,
                                                 CompactionPick selected,
                                                 List<CompactionPick> pending,
                                                 double hotness,
@@ -579,14 +578,14 @@ public abstract class CompactionAggregate
         /** The timestamp of this aggregate */
         final long timestamp;
 
-        TimeTiered(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> pending, long timestamp)
+        TimeTiered(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> pending, long timestamp)
         {
             super(new Key(timestamp), sstables, selected, pending);
             this.timestamp = timestamp;
         }
 
         @Override
-        protected CompactionAggregate clone(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
+        protected CompactionAggregate clone(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
         {
             return new TimeTiered(sstables, selected, compactions, timestamp);
         }
@@ -605,12 +604,12 @@ public abstract class CompactionAggregate
         }
     }
 
-    static CompactionAggregate createTimeTiered(Collection<SSTableReader> sstables, long timestamp)
+    static CompactionAggregate createTimeTiered(Collection<CompactionSSTable> sstables, long timestamp)
     {
         return new TimeTiered(sstables, CompactionPick.create(timestamp, sstables), ImmutableList.of(), timestamp);
     }
 
-    static CompactionAggregate createTimeTiered(Collection<SSTableReader> sstables, CompactionPick selected, List<CompactionPick> pending, long timestamp)
+    static CompactionAggregate createTimeTiered(Collection<CompactionSSTable> sstables, CompactionPick selected, List<CompactionPick> pending, long timestamp)
     {
         return new TimeTiered(sstables, selected, pending, timestamp);
     }
@@ -623,7 +622,7 @@ public abstract class CompactionAggregate
         /** The bucket generated by the compaction strategy */
         private final UnifiedCompactionStrategy.Bucket bucket;
 
-        UnifiedAggregate(Iterable<SSTableReader> sstables,
+        UnifiedAggregate(Iterable<CompactionSSTable> sstables,
                          CompactionPick selected,
                          Iterable<CompactionPick> pending,
                          UnifiedCompactionStrategy.Shard shard,
@@ -656,7 +655,7 @@ public abstract class CompactionAggregate
         }
 
         @Override
-        protected CompactionAggregate clone(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
+        protected CompactionAggregate clone(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
         {
             return new UnifiedAggregate(sstables, selected, compactions, shard, bucket);
         }
@@ -700,7 +699,7 @@ public abstract class CompactionAggregate
         }
     }
 
-    static UnifiedAggregate createUnified(Collection<SSTableReader> sstables,
+    static UnifiedAggregate createUnified(Collection<CompactionSSTable> sstables,
                                           CompactionPick selected,
                                           Iterable<CompactionPick> pending,
                                           UnifiedCompactionStrategy.Shard shard,
@@ -714,13 +713,13 @@ public abstract class CompactionAggregate
     /** An aggregate that is created for a compaction issued only to drop tombstones */
     public static final class TombstoneAggregate extends CompactionAggregate
     {
-        TombstoneAggregate(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> pending)
+        TombstoneAggregate(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> pending)
         {
             super(new Key(-1), sstables, selected, pending);
         }
 
         @Override
-        protected CompactionAggregate clone(Iterable<SSTableReader> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
+        protected CompactionAggregate clone(Iterable<CompactionSSTable> sstables, CompactionPick selected, Iterable<CompactionPick> compactions)
         {
             return new TombstoneAggregate(sstables, selected, compactions);
         }
@@ -738,9 +737,9 @@ public abstract class CompactionAggregate
         }
     }
 
-    static CompactionAggregate createForTombstones(SSTableReader sstable)
+    static CompactionAggregate createForTombstones(CompactionSSTable sstable)
     {
-        List<SSTableReader> sstables = ImmutableList.of(sstable);
+        List<CompactionSSTable> sstables = ImmutableList.of(sstable);
         CompactionPick comp = CompactionPick.create(-1, sstables);
         return new TombstoneAggregate(sstables, comp, ImmutableList.of());
     }
@@ -847,11 +846,11 @@ public abstract class CompactionAggregate
      * @param sstables the sstables
      * @return average sstable size on disk or zero.
      */
-    static long getAvgSizeBytes(Iterable<SSTableReader> sstables)
+    static long getAvgSizeBytes(Iterable<? extends CompactionSSTable> sstables)
     {
         long ret = 0;
         long num = 0;
-        for (SSTableReader sstable : sstables)
+        for (CompactionSSTable sstable : sstables)
         {
             ret += sstable.onDiskLength();
             num++;
@@ -866,10 +865,10 @@ public abstract class CompactionAggregate
      * @param sstables the sstables
      * @return total sstable size on disk or zero.
      */
-    static long getTotSizeBytes(Iterable<SSTableReader> sstables)
+    static long getTotSizeBytes(Iterable<? extends CompactionSSTable> sstables)
     {
         long ret = 0;
-        for (SSTableReader sstable : sstables)
+        for (CompactionSSTable sstable : sstables)
             ret += sstable.onDiskLength();
 
         return ret;
@@ -881,10 +880,10 @@ public abstract class CompactionAggregate
      * @param sstables the sstables
      * @return total read hotness or zero.
      */
-    static double getTotHotness(Iterable<SSTableReader> sstables)
+    static double getTotHotness(Iterable<? extends CompactionSSTable> sstables)
     {
         double ret = 0;
-        for (SSTableReader sstable : sstables)
+        for (CompactionSSTable sstable : sstables)
             ret += sstable.hotness();
 
         return ret;

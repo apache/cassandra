@@ -28,5 +28,6 @@ public enum SSTableSet
     CANONICAL,
     // returns the live versions of all sstables, i.e. including partially written sstables
     LIVE,
+    // returns the non-compacting sstables, i.e. the difference between live and compacting ones
     NONCOMPACTING
 }

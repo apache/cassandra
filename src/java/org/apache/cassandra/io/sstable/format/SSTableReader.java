@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -45,14 +44,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collector;
-
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
-import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +73,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -107,7 +104,6 @@ import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.IndexSummaryBuilder;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -131,6 +127,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -206,7 +203,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  *
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
-public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>
+public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>, CompactionSSTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -225,22 +222,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
 
-    public static final Comparator<SSTableReader> maxTimestampDescending = (o1, o2) -> Long.compare(o2.getMaxTimestamp(), o1.getMaxTimestamp());
-    public static final Comparator<SSTableReader> maxTimestampAscending = (o1, o2) -> Long.compare(o1.getMaxTimestamp(), o2.getMaxTimestamp());
-
     public abstract boolean hasIndex();
 
     // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
     public static final class UniqueIdentifier {}
-
-    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
-
-    public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
-    public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();
-
-    public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
-
-    public static final Comparator<? super SSTableReader> sizeComparator = (o1, o2) -> Longs.compare(o1.onDiskLength(), o2.onDiskLength());
 
     /**
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an upper bound
@@ -780,23 +765,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         selfRef = new Ref<>(this, tidy);
     }
 
-    public static long getTotalBytes(Iterable<SSTableReader> sstables)
-    {
-        long sum = 0;
-        for (SSTableReader sstable : sstables)
-            sum += sstable.onDiskLength();
-        return sum;
-    }
-
-    public static long getTotalUncompressedBytes(Iterable<SSTableReader> sstables)
-    {
-        long sum = 0;
-        for (SSTableReader sstable : sstables)
-            sum += sstable.uncompressedLength();
-
-        return sum;
-    }
-
     public abstract PartitionIndexIterator allKeysIterator() throws IOException;
 
     /**
@@ -820,6 +788,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public String getFilename()
     {
         return dfile.path();
+    }
+
+    public Descriptor getDescriptor()
+    {
+        return descriptor;
     }
 
     public void setupOnline()
@@ -1502,6 +1475,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return keyCache != null && metadata().params.caching.cacheKeys();
     }
 
+    public boolean couldContain(DecoratedKey dk)
+    {
+        return !(bf instanceof AlwaysPresentFilter)
+               ? bf.isPresent(dk)
+               : checkEntryExists(dk, Operator.EQ, false);
+    }
+
     /**
      * Retrieves the position while updating the key cache and the stats.
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
@@ -1659,6 +1639,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public boolean isMarkedSuspect()
     {
         return isSuspect.get();
+    }
+
+    @Override
+    public boolean isSuitableForCompaction()
+    {
+        return !isMarkedSuspect() && openReason != SSTableReader.OpenReason.EARLY;
     }
 
     /**
@@ -2013,12 +1999,20 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * Mutate sstable level with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
      */
-    public void mutateLevelAndReload(int newLevel) throws IOException
+    public void mutateSSTableLevelAndReload(int newLevel) throws IOException
     {
-        synchronized (tidy.global)
+        try
         {
-            descriptor.getMetadataSerializer().mutateLevel(descriptor, newLevel);
-            reloadSSTableMetadata();
+            synchronized (tidy.global)
+            {
+                descriptor.getMetadataSerializer().mutateLevel(descriptor, newLevel);
+                reloadSSTableMetadata();
+            }
+        }
+        catch (IOException e)
+        {
+            markSuspect();
+            throw e;
         }
     }
 
@@ -2086,15 +2080,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public FileHandle getIndexFile()
     {
         return ifile;
-    }
-
-    /**
-     * @param component component to get timestamp.
-     * @return last modified time for given component. 0 if given component does not exist or IO error occurs.
-     */
-    public long getCreationTimeFor(Component component)
-    {
-        return new File(descriptor.filenameFor(component)).lastModified();
     }
 
     /**
@@ -2690,5 +2675,4 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             return true;
         }
     }
-
 }

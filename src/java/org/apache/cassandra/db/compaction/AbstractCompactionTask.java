@@ -26,7 +26,6 @@ import java.util.UUID;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.io.FSDiskFullWriteError;
@@ -40,7 +39,7 @@ import static com.google.common.base.Throwables.propagate;
 
 public abstract class AbstractCompactionTask extends WrappedRunnable
 {
-    protected final ColumnFamilyStore cfs;
+    protected final CompactionRealm realm;
     protected LifecycleTransaction transaction;
     protected boolean isUserDefined;
     protected OperationType compactionType;
@@ -48,12 +47,12 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     protected final List<CompactionObserver> compObservers;
 
     /**
-     * @param cfs
+     * @param realm
      * @param transaction the modifying managing the status of the sstables we're replacing
      */
-    public AbstractCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction)
+    protected AbstractCompactionTask(CompactionRealm realm, LifecycleTransaction transaction)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.transaction = transaction;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
@@ -145,7 +144,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         return Throwables.perform(err, () -> transaction.close());
     }
 
-    public abstract CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
+    public abstract CompactionAwareWriter getCompactionAwareWriter(CompactionRealm realm, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
 
     protected abstract int executeInternal();
 

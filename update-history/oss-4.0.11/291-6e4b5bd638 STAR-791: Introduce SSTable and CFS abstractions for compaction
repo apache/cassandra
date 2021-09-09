@@ -1,0 +1,73 @@
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionController.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionController.java
+@@ -102,11 +102,7 @@
+             closeDataFiles();
+     }
+ 
+-<<<<<<<
+     void closeDataFiles()
+-=======
+-    void refreshOverlaps()
+->>>>>>>
+     {
+         FileUtils.closeQuietly(openDataFiles.values());
+         openDataFiles.clear();
+@@ -253,12 +249,8 @@
+             Partition partition = memtable.getPartition(key);
+             if (partition != null)
+             {
+-                Partition partition = memtable.getPartition(key);
+-                if (partition != null)
+-                {
+-                    minTimestampSeen = Math.min(minTimestampSeen, partition.stats().minTimestamp);
+-                    hasTimestamp = true;
+-                }
++                minTimestampSeen = Math.min(minTimestampSeen, partition.stats().minTimestamp);
++                hasTimestamp = true;
+             }
+         }
+ 
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+@@ -158,7 +158,7 @@
+         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
+         {
+             // Try again w/o the largest one.
+-            SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
++            SSTableReader removedSSTable = getMaxSizeFile(nonExpiredSSTables);
+             logger.warn("insufficient space to compact all requested files. {}MB required, {} for compaction {} - removing largest SSTable: {}",
+                         (float) expectedSize / 1024 / 1024,
+                         StringUtils.join(transaction.originals(), ", "),
+@@ -166,10 +166,6 @@
+                         removedSSTable);
+             // Note that we have removed files that are still marked as compacting.
+             // This suboptimal but ok since the caller will unmark all the sstables at the end.
+-<<<<<<<
+-=======
+-            SSTableReader removedSSTable = getMaxSizeFile(nonExpiredSSTables);
+->>>>>>>
+             transaction.cancel(removedSSTable);
+             return true;
+         }
+@@ -252,7 +248,7 @@
+             {
+                 // The set of sstables has changed (one or more were excluded due to limited available disk space).
+                 // We need to recompute the overlaps between sstables.
+-                controller.refreshOverlaps();
++                controller.maybeRefreshOverlaps();
+             }
+ 
+             // sanity check: all sstables must belong to the same table
+@@ -687,11 +683,7 @@
+      *
+      * @return true if there is enough disk space to execute the complete compaction, false if some sstables are excluded.
+      */
+-<<<<<<<
+-    protected boolean buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables)
+-=======
+-    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<CompactionSSTable> fullyExpiredSSTables)
+->>>>>>>
++    protected boolean buildCompactionCandidatesForAvailableDiskSpace(final Set<CompactionSSTable> fullyExpiredSSTables)
+     {
+         if(!realm.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
+         {

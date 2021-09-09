@@ -695,7 +695,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         Set<SSTableReader> fullyContainedSSTables = findSSTablesToAnticompact(sstableIterator, normalizedRanges, sessionID);
 
-        cfs.metric.bytesMutatedAnticompaction.inc(SSTableReader.getTotalBytes(fullyContainedSSTables));
+        cfs.metric.bytesMutatedAnticompaction.inc(CompactionSSTable.getTotalBytes(fullyContainedSSTables));
         cfs.mutateRepaired(fullyContainedSSTables, UNREPAIRED_SSTABLE, sessionID, isTransient);
         // since we're just re-writing the sstable metdata for the fully contained sstables, we don't want
         // them obsoleted when the anti-compaction is complete. So they're removed from the transaction here
@@ -1380,7 +1380,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public static SSTableWriter createWriter(ColumnFamilyStore cfs,
+    public static SSTableWriter createWriter(CompactionRealm cfs,
                                              File compactionFileLocation,
                                              long expectedBloomFilterSize,
                                              long repairedAt,
@@ -1391,7 +1391,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         FileUtils.createDirectory(compactionFileLocation);
 
-        return SSTableWriter.create(cfs.metadata,
+        return SSTableWriter.create(cfs.metadataRef(),
                                     cfs.newSSTableDescriptor(compactionFileLocation),
                                     expectedBloomFilterSize,
                                     repairedAt,
@@ -1399,7 +1399,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     isTransient,
                                     sstable.getSSTableLevel(),
                                     sstable.header,
-                                    cfs.indexManager.listIndexGroups(),
+                                    cfs.getIndexManager().listIndexGroups(),
                                     txn);
     }
 
@@ -1468,14 +1468,14 @@ public class CompactionManager implements CompactionManagerMBean
         // repairedAt values for these, we still avoid anti-compacting already repaired sstables, as we currently don't
         // make use of any actual repairedAt value and splitting up sstables just for that is not worth it at this point.
         Set<SSTableReader> unrepairedSSTables = sstables.stream().filter((s) -> !s.isRepaired()).collect(Collectors.toSet());
-        cfs.metric.bytesAnticompacted.inc(SSTableReader.getTotalBytes(unrepairedSSTables));
-        Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategy().groupSSTablesForAntiCompaction(unrepairedSSTables);
+        cfs.metric.bytesAnticompacted.inc(CompactionSSTable.getTotalBytes(unrepairedSSTables));
+        Collection<Collection<CompactionSSTable>> groupedSSTables = cfs.getCompactionStrategy().groupSSTablesForAntiCompaction(unrepairedSSTables);
 
         // iterate over sstables to check if the full / transient / unrepaired ranges intersect them.
         int antiCompactedSSTableCount = 0;
-        for (Collection<SSTableReader> sstableGroup : groupedSSTables)
+        for (Collection<CompactionSSTable> sstableGroup : groupedSSTables)
         {
-            try (LifecycleTransaction groupTxn = txn.split(sstableGroup))
+            try (LifecycleTransaction groupTxn = txn.split(Collections2.transform(sstableGroup, SSTableReader.class::cast)))
             {
                 int antiCompacted = antiCompactGroup(cfs, ranges, groupTxn, pendingRepair, isCancelled);
                 antiCompactedSSTableCount += antiCompacted;

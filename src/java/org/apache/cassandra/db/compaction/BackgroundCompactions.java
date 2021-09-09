@@ -29,7 +29,6 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;
@@ -73,9 +72,9 @@ public class BackgroundCompactions
      */
     MovingAverage compactionRate = ExpMovingAverage.decayBy1000();
 
-    BackgroundCompactions(ColumnFamilyStore cfs)
+    BackgroundCompactions(CompactionRealm realm)
     {
-        this.metadata = cfs.metadata();
+        this.metadata = realm.metadata();
         this.aggregatesMap = new TreeMap<>();
         this.aggregates = ImmutableList.of();
     }

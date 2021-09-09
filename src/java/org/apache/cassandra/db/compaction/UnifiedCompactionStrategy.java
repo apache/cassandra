@@ -39,7 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
@@ -58,7 +57,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -88,7 +86,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Map<String, String> options)
     {
-        this(factory, backgroundCompactions, options, Controller.fromOptions(factory.getCfs(), options));
+        this(factory, backgroundCompactions, options, Controller.fromOptions(factory.getRealm(), options));
     }
 
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Controller controller)
@@ -105,7 +103,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, Controller controller)
     {
-        this(factory, new BackgroundCompactions(factory.getCfs()), new HashMap<>(), controller);
+        this(factory, new BackgroundCompactions(factory.getRealm()), new HashMap<>(), controller);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -114,9 +112,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    public Collection<Collection<CompactionSSTable>> groupSSTablesForAntiCompaction(Collection<? extends CompactionSSTable> sstablesToGroup)
     {
-        Collection<Collection<SSTableReader>> groups = new ArrayList<>();
+        Collection<Collection<CompactionSSTable>> groups = new ArrayList<>();
         for (Shard shard : getCompactionShards(sstablesToGroup))
         {
             groups.addAll(super.groupSSTablesForAntiCompaction(shard.sstables));
@@ -158,7 +156,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         Collection<AbstractCompactionTask> tasks = new ArrayList<>(compactionAggregates.size());
         for (CompactionAggregate aggregate : compactionAggregates)
         {
-            LifecycleTransaction transaction = dataTracker.tryModify(aggregate.getSelected().sstables, OperationType.COMPACTION);
+            LifecycleTransaction transaction = realm.tryModify(aggregate.getSelected().sstables, OperationType.COMPACTION);
             if (transaction != null)
             {
                 backgroundCompactions.setSubmitted(this, transaction.opId(), aggregate);
@@ -202,7 +200,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                   indexGroups,
                                                   lifecycleNewTracker);
 
-        return new ShardedMultiWriter(cfs,
+        return new ShardedMultiWriter(realm,
                                       descriptor,
                                       keyCount,
                                       repairedAt,
@@ -225,9 +223,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     private CompactionTask createCompactionTask(LifecycleTransaction transaction, int gcBefore)
     {
         if (controller.getNumShards() <= 1)
-            return new CompactionTask(cfs, transaction, gcBefore, false, this);
+            return new CompactionTask(realm, transaction, gcBefore, false, this);
 
-        return new UnifiedCompactionTask(cfs, this, transaction, gcBefore, controller.getMinSstableSizeBytes(), getShardBoundaries());
+        return new UnifiedCompactionTask(realm, this, transaction, gcBefore, controller.getMinSstableSizeBytes(), getShardBoundaries());
     }
 
     private void maybeUpdateSelector()
@@ -240,11 +238,11 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             if (arenaSelector != null && !arenaSelector.diskBoundaries.isOutOfDate())
                 return; // another thread beat us to the update
 
-            DiskBoundaries currentBoundaries = cfs.getDiskBoundaries();
+            DiskBoundaries currentBoundaries = realm.getDiskBoundaries();
             List<PartitionPosition> shardBoundaries = computeShardBoundaries(currentBoundaries.getLocalRanges(),
                                                                              currentBoundaries.getPositions(),
                                                                              controller.getNumShards(),
-                                                                             cfs.getPartitioner());
+                                                                             realm.getPartitioner());
             arenaSelector = new ArenaSelector(currentBoundaries, shardBoundaries);
             // Note: this can just as well be done without the synchronization (races would be benign, just doing some
             // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
@@ -282,7 +280,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                              .getPartitioner()
                                                              .equals(partitioner))
             localRanges = new SortedLocalRanges(StorageService.instance,
-                                                localRanges.getCfs(),
+                                                localRanges.getRealm(),
                                                 localRanges.getRingVersion(),
                                                 ImmutableList.of(new Splitter.WeightedRange(1.0,
                                                                                             new Range<>(partitioner.getMinimumToken(),
@@ -446,7 +444,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         for (Map.Entry<Shard, List<Bucket>> entry : getShardsWithBuckets().entrySet())
         {
             Shard shard = entry.getKey();
-            Set<SSTableReader> expired;
+            Set<CompactionSSTable> expired;
             if (expiredCheck)
             {
                 expired = shard.getExpiredSSTables(gcBefore, controller.getIgnoreOverlapsInExpirationCheck());
@@ -620,8 +618,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private int shardsSpanned(CompactionPick pick)
     {
-        DecoratedKey min = pick.sstables.stream().map(SSTableReader::getFirst).min(Ordering.natural()).get();
-        DecoratedKey max = pick.sstables.stream().map(SSTableReader::getLast).max(Ordering.natural()).get();
+        DecoratedKey min = pick.sstables.stream().map(CompactionSSTable::getFirst).min(Ordering.natural()).get();
+        DecoratedKey max = pick.sstables.stream().map(CompactionSSTable::getLast).max(Ordering.natural()).get();
         return arenaSelector.shardFor(max) - arenaSelector.shardFor(min) + 1;
     }
 
@@ -638,9 +636,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    public Set<SSTableReader> getSSTables()
+    public Set<? extends CompactionSSTable> getSSTables()
     {
-        return dataTracker.getLiveSSTables();
+        return realm.getLiveSSTables();
     }
 
     @VisibleForTesting
@@ -665,26 +663,20 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     Collection<Shard> getCompactionShards()
     {
-        return getCompactionShards(dataTracker.getLiveSSTables());
+        return getCompactionShards(realm.getLiveSSTables());
     }
 
-    Collection<Shard> getCompactionShards(Collection<SSTableReader> sstables)
+    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables)
     {
         final ArenaSelector arenaSelector = this.arenaSelector;
-        Map<SSTableReader, Shard> tables = new TreeMap<>(arenaSelector);
-        for (SSTableReader table : sstables)
-            if (isSuitableForCompaction(table))
-                tables.computeIfAbsent(table, t -> new Shard(arenaSelector, cfs))
+        Map<CompactionSSTable, Shard> tables = new TreeMap<>(arenaSelector);
+        Set<? extends CompactionSSTable> compacting = realm.getCompactingSSTables();
+        for (CompactionSSTable table : sstables)
+            if (table.isSuitableForCompaction() && !compacting.contains(table))
+                tables.computeIfAbsent(table, t -> new Shard(arenaSelector, realm))
                       .add(table);
 
         return tables.values();
-    }
-
-    private boolean isSuitableForCompaction(SSTableReader r)
-    {
-        return !r.isMarkedSuspect()
-               && r.openReason != SSTableReader.OpenReason.EARLY
-               && !dataTracker.getCompacting().contains(r);
     }
 
     /**
@@ -704,7 +696,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
             int index = 0;
             Bucket bucket = new Bucket(controller, index, 0);
-            for (SSTableReader candidate : shard.sstables)
+            for (CompactionSSTable candidate : shard.sstables)
             {
                 final long size = arenaSelector.shardAdjustedSize(candidate);
                 if (size < bucket.max)
@@ -744,7 +736,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 logger.trace("Shard {} has {} buckets", shard, buckets.size());
         }
 
-        logger.debug("Found {} shards with buckets for {}.{}", ret.size(), cfs.getKeyspaceName(), cfs.getTableName());
+        logger.debug("Found {} shards with buckets for {}.{}", ret.size(), realm.getKeyspaceName(), realm.getTableName());
         return ret;
     }
 
@@ -755,7 +747,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     public TableMetadata getMetadata()
     {
-        return cfs.metadata();
+        return realm.metadata();
     }
 
     /**
@@ -764,25 +756,25 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      */
     final static class Shard implements Comparable<Shard>
     {
-        final List<SSTableReader> sstables;
+        final List<CompactionSSTable> sstables;
         final ArenaSelector selector;
-        private final ColumnFamilyStore cfs;
+        private final CompactionRealm realm;
 
-        Shard(ArenaSelector selector, ColumnFamilyStore cfs)
+        Shard(ArenaSelector selector, CompactionRealm realm)
         {
-            this.cfs = cfs;
+            this.realm = realm;
             this.sstables = new ArrayList<>();
             this.selector = selector;
         }
 
-        void add(SSTableReader ssTableReader)
+        void add(CompactionSSTable ssTableReader)
         {
             sstables.add(ssTableReader);
         }
 
         public String name()
         {
-            SSTableReader t = sstables.get(0);
+            CompactionSSTable t = sstables.get(0);
             return selector.name(t);
         }
 
@@ -804,11 +796,11 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
          * @param ignoreOverlaps
          * @return expired SSTables
          */
-        Set<SSTableReader> getExpiredSSTables(int gcBefore, boolean ignoreOverlaps)
+        Set<CompactionSSTable> getExpiredSSTables(int gcBefore, boolean ignoreOverlaps)
         {
-            return CompactionController.getFullyExpiredSSTables(cfs,
+            return CompactionController.getFullyExpiredSSTables(realm,
                                                                 sstables,
-                                                                cfs.getOverlappingLiveSSTables(sstables),
+                                                                realm.getOverlappingLiveSSTables(sstables),
                                                                 gcBefore,
                                                                 ignoreOverlaps);
         }
@@ -825,7 +817,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      */
     static class Bucket
     {
-        final List<SSTableReader> sstables;
+        final List<CompactionSSTable> sstables;
         final int index;
         final double survivalFactor;
         final int scalingParameter; // scaling parameter used to calculate fanout and threshold
@@ -852,7 +844,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             this.max = (long) Math.floor(baseSize * fanout * controller.getSurvivalFactor());
         }
 
-        void add(SSTableReader sstable)
+        void add(CompactionSSTable sstable)
         {
             this.sstables.add(sstable);
             this.avg += (sstable.onDiskLength() - avg) / sstables.size();
@@ -862,7 +854,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         {
             // Always sort by timestamp, older sstables first. If only a subset of the tables is compacted, let it
             // be from a contiguous time span to aid whole-sstable expiration.
-            sstables.sort(Comparator.comparing(SSTableReader::getMaxTimestamp));
+            sstables.sort(Comparator.comparing(CompactionSSTable::getMaxTimestamp));
 
             if (logger.isTraceEnabled())
                 logger.trace("Bucket: {}", this);
@@ -872,12 +864,12 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
          * Return the compaction aggregate
          */
         CompactionAggregate.UnifiedAggregate getCompactionAggregate(Shard shard,
-                                                                    Set<SSTableReader> allExpiredSSTables,
+                                                                    Set<CompactionSSTable> allExpiredSSTables,
                                                                     Controller controller,
                                                                     long spaceAvailable)
         {
-            List<SSTableReader> expiredSet = Collections.emptyList();
-            List<SSTableReader> liveSet = sstables;
+            List<CompactionSSTable> expiredSet = Collections.emptyList();
+            List<CompactionSSTable> liveSet = sstables;
             if (!allExpiredSSTables.isEmpty())
             {
                 liveSet = new ArrayList<>();
@@ -938,6 +930,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 // distribution among levels and should result in more compactions running in parallel in a big data
                 // dump.
                 assert !pending.isEmpty();  // we only enter this if count > F: layoutCompactions must have selected something to run
+                // FIXME: This will break time order. We may choose the target level randomly, but within that it should be the first.
                 int index = controller.random().nextInt(pending.size());
                 selected = pending.remove(index);
             }
@@ -960,12 +953,12 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
          * @param liveSet empty list that is going to be filled up with SSTables that are not present in {@param allExpiredSSTables}
          * @param expiredSet empty list that is going to be filled up with SSTables that are present in {@param allExpiredSSTables}
          */
-        private static void bipartitionSSTables(List<SSTableReader> sstables,
-                                                Set<SSTableReader> allExpiredSSTables,
-                                                List<SSTableReader> liveSet,
-                                                List<SSTableReader> expiredSet)
+        private static void bipartitionSSTables(List<CompactionSSTable> sstables,
+                                                Set<CompactionSSTable> allExpiredSSTables,
+                                                List<CompactionSSTable> liveSet,
+                                                List<CompactionSSTable> expiredSet)
         {
-            for (SSTableReader sstable : sstables)
+            for (CompactionSSTable sstable : sstables)
             {
                 if (allExpiredSSTables.contains(sstable))
                     expiredSet.add(sstable);
@@ -974,7 +967,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             }
         }
 
-        private List<CompactionPick> layoutCompactions(Controller controller, List<SSTableReader> liveSet, int maxSSTablesToCompact)
+        private List<CompactionPick> layoutCompactions(Controller controller, List<CompactionSSTable> liveSet, int maxSSTablesToCompact)
         {
             List<CompactionPick> pending = new ArrayList<>();
             int pos = layoutCompactions(controller, liveSet, index + 1, fanout, maxSSTablesToCompact, pending);
@@ -1007,7 +1000,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
          *         than step
          */
         private int layoutCompactions(Controller controller,
-                                      List<SSTableReader> sstables,
+                                      List<CompactionSSTable> sstables,
                                       int level,
                                       int step,
                                       int maxSSTablesToCompact,

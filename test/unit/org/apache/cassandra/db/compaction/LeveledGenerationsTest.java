@@ -163,21 +163,21 @@ public class LeveledGenerationsTest extends CQLTester
         {}
     }
 
-    private void assertIter(Iterator<SSTableReader> iter, long first, long last, int expectedCount)
+    private void assertIter(Iterator<? extends CompactionSSTable> iter, long first, long last, int expectedCount)
     {
-        List<SSTableReader> drained = Lists.newArrayList(iter);
+        List<CompactionSSTable> drained = Lists.newArrayList(iter);
         assertEquals(expectedCount, drained.size());
-        assertEquals(dk(first).getToken(), first(drained).first.getToken());
-        assertEquals(dk(last).getToken(), last(drained).first.getToken()); // we sort by first token, so this is the first token of the last sstable in iter
+        assertEquals(dk(first).getToken(), first(drained).getFirst().getToken());
+        assertEquals(dk(last).getToken(), last(drained).getFirst().getToken()); // we sort by first token, so this is the first token of the last sstable in iter
     }
 
-    private SSTableReader last(Iterable<SSTableReader> iter)
+    private CompactionSSTable last(Iterable<CompactionSSTable> iter)
     {
         return Iterables.getLast(iter);
     }
-    private SSTableReader first(Iterable<SSTableReader> iter)
+    private CompactionSSTable first(Iterable<CompactionSSTable> iter)
     {
-        SSTableReader first = Iterables.getFirst(iter, null);
+        CompactionSSTable first = Iterables.getFirst(iter, null);
         if (first == null)
             throw new RuntimeException();
         return first;

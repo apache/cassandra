@@ -28,7 +28,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.dht.Range;
@@ -47,9 +46,9 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     private final List<PendingRepairManager> managers = new ArrayList<>();
     private final boolean isTransient;
 
-    public PendingRepairHolder(ColumnFamilyStore cfs, CompactionStrategyFactory strategyFactory, DestinationRouter router, boolean isTransient)
+    public PendingRepairHolder(CompactionRealm realm, CompactionStrategyFactory strategyFactory, DestinationRouter router, boolean isTransient)
     {
-        super(cfs, strategyFactory, router);
+        super(realm, strategyFactory, router);
         this.isTransient = isTransient;
     }
 
@@ -70,7 +69,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     {
         managers.clear();
         for (int i = 0; i < numTokenPartitions; i++)
-            managers.add(new PendingRepairManager(cfs, strategyFactory, params, isTransient));
+            managers.add(new PendingRepairManager(realm, strategyFactory, params, isTransient));
     }
 
     @Override
@@ -82,7 +81,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public LegacyAbstractCompactionStrategy getStrategyFor(SSTableReader sstable)
+    public LegacyAbstractCompactionStrategy getStrategyFor(CompactionSSTable sstable)
     {
         Preconditions.checkArgument(managesSSTable(sstable), "Attempting to get compaction strategy from wrong holder");
         return managers.get(router.getIndexForSSTable(sstable)).getOrCreate(sstable);
@@ -218,7 +217,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public List<ISSTableScanner> getScanners(GroupedSSTableContainer sstables, Collection<Range<Token>> ranges)
+    public List<ISSTableScanner> getScanners(GroupedSSTableContainer<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
         List<ISSTableScanner> scanners = new ArrayList<>(managers.size());
         for (int i = 0; i < managers.size(); i++)
@@ -265,7 +264,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public boolean containsSSTable(SSTableReader sstable)
+    public boolean containsSSTable(CompactionSSTable sstable)
     {
         return Iterables.any(managers, prm -> prm.containsSSTable(sstable));
     }

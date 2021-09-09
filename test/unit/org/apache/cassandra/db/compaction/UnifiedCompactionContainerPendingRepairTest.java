@@ -886,10 +886,10 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
             assertTrue(cs instanceof UnifiedCompactionStrategy);
 
             UnifiedCompactionStrategy ucs = ((UnifiedCompactionStrategy) cs);
-            Set<SSTableReader> ucsSstables = ucs.getSSTables()
-                                                .stream()
-                                                .filter(sst -> sst.equals(sstable))
-                                                .collect(Collectors.toSet());
+            Set<CompactionSSTable> ucsSstables = ucs.getSSTables()
+                                                    .stream()
+                                                    .filter(sst -> sst.equals(sstable))
+                                                    .collect(Collectors.toSet());
 
             assertEquals("Expecting strategy contains sstable.", expectedContainsSstable, ucsSstables.size() == 1);
 
@@ -903,7 +903,7 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
                                                         if (shard.sstables.isEmpty())
                                                             return false;
 
-                                                        SSTableReader shardSSTable = shard.sstables.get(0);
+                                                        SSTableReader shardSSTable = (SSTableReader) shard.sstables.get(0);
                                                         return shardSSTable.isRepaired() == expectedIsRepaired &&
                                                                shardSSTable.isTransient() == expectedIsTransient &&
                                                                shardSSTable.isPendingRepair() == expectedIsPending &&

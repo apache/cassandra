@@ -78,7 +78,7 @@ public interface CompactionStrategy extends CompactionObserver
     /**
      * @param gcBefore throw away tombstones older than this
      *
-     * @return a compaction task that should be run to compact this columnfamilystore
+     * @return a compaction task that should be run to compact this table
      * as much as possible.  Null if nothing to do.
      *
      * Is responsible for marking its sstables as compaction-pending.
@@ -96,7 +96,7 @@ public interface CompactionStrategy extends CompactionObserver
      * Is responsible for marking its sstables as compaction-pending.
      */
     @SuppressWarnings("resource")
-    CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore);
+    CompactionTasks getUserDefinedTasks(Collection<? extends CompactionSSTable> sstables, int gcBefore);
 
     /**
      * Get the estimated remaining compactions.
@@ -161,12 +161,14 @@ public interface CompactionStrategy extends CompactionObserver
     /**
      * Returns the sstables managed by the strategy
      */
-    Set<SSTableReader> getSSTables();
+    Set<? extends CompactionSSTable> getSSTables();
 
     /**
      * Group sstables that can be anti-compacted togetehr.
+     * @param sstablesToGroup
+     * @return
      */
-    Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup);
+    Collection<Collection<CompactionSSTable>> groupSSTablesForAntiCompaction(Collection<? extends CompactionSSTable> sstablesToGroup);
 
     /**
      * Create an sstable writer that is suitable for the strategy.

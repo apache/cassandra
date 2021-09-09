@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -108,14 +109,14 @@ public class DiskBoundaries
         this.isInvalid = true;
     }
 
-    public int getDiskIndexFromKey(SSTableReader sstable)
+    public int getDiskIndexFromKey(CompactionSSTable sstable)
     {
         if (positions == null)
         {
-            return getBoundariesFromSSTableDirectory(sstable.descriptor);
+            return getBoundariesFromSSTableDirectory(sstable.getDescriptor());
         }
 
-        int pos = Collections.binarySearch(positions, sstable.first);
+        int pos = Collections.binarySearch(positions, sstable.getFirst());
         assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
         return -pos - 1;
     }

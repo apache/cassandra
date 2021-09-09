@@ -39,6 +39,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledManifest;
@@ -256,18 +257,18 @@ public class StandaloneScrubber
         }
     }
 
-    private static void checkManifest(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+    private static void checkManifest(ColumnFamilyStore cfs, Collection<? extends CompactionSSTable> sstables)
     {
         if (cfs.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
             int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableBytes()) / (1024L * 1024L));
             int fanOut = cfs.getCompactionStrategy().getLevelFanoutSize();
             CompactionStrategyManager csm = (CompactionStrategyManager) cfs.getCompactionStrategyContainer();
-            for (AbstractStrategyHolder.GroupedSSTableContainer sstableGroup : csm.groupSSTables(sstables))
+            for (AbstractStrategyHolder.GroupedSSTableContainer<?> sstableGroup : csm.groupSSTables(sstables))
             {
                 for (int i = 0; i < sstableGroup.numGroups(); i++)
                 {
-                    List<SSTableReader> groupSSTables = new ArrayList<>(sstableGroup.getGroup(i));
+                    List<CompactionSSTable> groupSSTables = new ArrayList<>(sstableGroup.getGroup(i));
                     // creating the manifest makes sure the leveling is sane:
                     LeveledManifest.create(cfs, maxSizeInMB, fanOut, groupSSTables);
                 }

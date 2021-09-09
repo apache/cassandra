@@ -117,9 +117,9 @@ public class SizeTieredCompactionStrategyTest
 
         SizeTieredCompactionStrategyOptions stcsOptions = new SizeTieredCompactionStrategyOptions(2, bucketLow, bucketHigh);
         SizeTieredCompactionStrategy.SizeTieredBuckets sizeTieredBuckets = new SizeTieredCompactionStrategy.SizeTieredBuckets(sstables, stcsOptions, minThreshold, maxThreshold);
-        List<List<SSTableReader>> buckets = sizeTieredBuckets.buckets();
+        List<List<CompactionSSTable>> buckets = sizeTieredBuckets.buckets();
         assertEquals(3, buckets.size());
-        for (List<SSTableReader> bucket : buckets)
+        for (List<CompactionSSTable> bucket : buckets)
         {
             assertEquals(2, bucket.size());
         }
@@ -139,7 +139,7 @@ public class SizeTieredCompactionStrategyTest
         sizeTieredBuckets = new SizeTieredCompactionStrategy.SizeTieredBuckets(sstables, stcsOptions, minThreshold, maxThreshold);
         buckets = sizeTieredBuckets.buckets();
         assertEquals(2, buckets.size());
-        for (List<SSTableReader> bucket : buckets)
+        for (List<CompactionSSTable> bucket : buckets)
         {
             assertEquals(3, bucket.size());
         }
@@ -191,7 +191,7 @@ public class SizeTieredCompactionStrategyTest
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
         SizeTieredCompactionStrategy.SizeTieredBuckets sizeTieredBuckets = new SizeTieredCompactionStrategy.SizeTieredBuckets(sstrs.subList(0, 2), stcsOptions, 4, 32);
 
-        List<SSTableReader> interestingBucket = new ArrayList<>(CompactionAggregate.getSelected(sizeTieredBuckets.getAggregates()).sstables);
+        List<CompactionSSTable> interestingBucket = new ArrayList<>(CompactionAggregate.getSelected(sizeTieredBuckets.getAggregates()).sstables);
         assertTrue("nothing should be returned when all buckets are below the min threshold", interestingBucket.isEmpty());
 
         sstrs.get(0).overrideReadMeter(new RestorableMeter(100.0, 100.0));
@@ -470,13 +470,13 @@ public class SizeTieredCompactionStrategyTest
 
     private void compareBucketToCandidate(Collection<SSTableReader> bucket, CompactionPick candidate)
     {
-        List<SSTableReader> sortedBucket = new ArrayList<>(bucket);
-        List<SSTableReader> sortedCandidate = new ArrayList<>(candidate.sstables);
+        List<CompactionSSTable> sortedBucket = new ArrayList<>(bucket);
+        List<CompactionSSTable> sortedCandidate = new ArrayList<>(candidate.sstables);
 
         // Sort by hash code because sorting by hotness may not work if several sstables have the
         // same hotness and length on disk
-        Collections.sort(sortedBucket, Comparator.comparingLong(SSTableReader::hashCode));
-        Collections.sort(sortedCandidate, Comparator.comparingLong(SSTableReader::hashCode));
+        Collections.sort(sortedBucket, Comparator.comparingLong(CompactionSSTable::hashCode));
+        Collections.sort(sortedCandidate, Comparator.comparingLong(CompactionSSTable::hashCode));
 
         assertEquals(sortedBucket, sortedCandidate);
         assertEquals(getBucketHotness(bucket), candidate.hotness, 0.000001);

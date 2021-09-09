@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.util.function.LongPredicate;
 
+import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.CompactionParams;
 
@@ -28,29 +29,19 @@ import org.apache.cassandra.schema.CompactionParams;
  */
 public abstract class AbstractCompactionController implements AutoCloseable
 {
-    public final ColumnFamilyStore cfs;
+    public final CompactionRealm realm;
     public final int gcBefore;
     public final CompactionParams.TombstoneOption tombstoneOption;
 
-    public AbstractCompactionController(final ColumnFamilyStore cfs, final int gcBefore, CompactionParams.TombstoneOption tombstoneOption)
+    protected AbstractCompactionController(final CompactionRealm realm, final int gcBefore, CompactionParams.TombstoneOption tombstoneOption)
     {
-        assert cfs != null;
-        this.cfs = cfs;
+        assert realm != null;
+        this.realm = realm;
         this.gcBefore = gcBefore;
         this.tombstoneOption = tombstoneOption;
     }
 
     public abstract boolean compactingRepaired();
-
-    public String getKeyspace()
-    {
-        return cfs.keyspace.getName();
-    }
-
-    public String getColumnFamily()
-    {
-        return cfs.name;
-    }
 
     public Iterable<UnfilteredRowIterator> shadowSources(DecoratedKey key, boolean tombstoneOnly)
     {

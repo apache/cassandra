@@ -36,7 +36,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionRealm;
 
 public class CleanupSummary
 {
@@ -75,9 +75,9 @@ public class CleanupSummary
         this.unsuccessful = unsuccessful;
     }
 
-    public CleanupSummary(ColumnFamilyStore cfs, Set<UUID> successful, Set<UUID> unsuccessful)
+    public CleanupSummary(CompactionRealm cfs, Set<UUID> successful, Set<UUID> unsuccessful)
     {
-        this(cfs.keyspace.getName(), cfs.name, successful, unsuccessful);
+        this(cfs.getKeyspaceName(), cfs.getTableName(), successful, unsuccessful);
     }
 
     public static CleanupSummary add(CleanupSummary l, CleanupSummary r)
