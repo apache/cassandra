@@ -72,32 +72,27 @@ public class TrackWarnings
 
     public static class IntByteThreshold
     {
-        public volatile boolean enabled = false;
         public volatile int warn_threshold_kb = 0;
         public volatile int abort_threshold_kb = 0;
 
         public int getWarnThresholdKb()
         {
-            return !enabled ? 0 : warn_threshold_kb;
+            return warn_threshold_kb;
         }
 
         public void setWarnThresholdKb(int value)
         {
             warn_threshold_kb = Math.max(value, 0);
-            if (value > 0)
-                enabled = true;
         }
 
         public int getAbortThresholdKb()
         {
-            return !enabled ? 0 : abort_threshold_kb;
+            return abort_threshold_kb;
         }
 
         public void setAbortThresholdKb(int value)
         {
             abort_threshold_kb = Math.max(value, 0);
-            if (value > 0)
-                enabled = true;
         }
 
         public void validate(String prefix)
