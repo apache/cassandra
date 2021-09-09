@@ -17,6 +17,13 @@
  */
 package org.apache.cassandra.service.reads.trackwarnings;
 
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 public class TrackWarningsSnapshot
 {
     private static final TrackWarningsSnapshot EMPTY = new TrackWarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY);
@@ -90,30 +97,40 @@ public class TrackWarningsSnapshot
 
     public static final class Counter
     {
-        private static final Counter EMPTY = new Counter(0, 0);
+        private static final Counter EMPTY = new Counter(ImmutableSet.of(), 0);
 
-        public final int count;
+        public final ImmutableSet<InetAddressAndPort> instances;
         public final long maxValue;
 
-        private Counter(int count, long maxValue)
+        private Counter(ImmutableSet<InetAddressAndPort> instances, long maxValue)
         {
-            this.count = count;
+            this.instances = instances;
             this.maxValue = maxValue;
         }
 
-        public static Counter create(int count, long maxValue)
+        public static Counter create(Set<InetAddressAndPort> instances, AtomicLong maxValue)
         {
-            // if count=0 and maxValue != 0... this shouldn't happen but not expliclty blocking it
-            if (count == maxValue && count == 0)
+            ImmutableSet<InetAddressAndPort> copy = ImmutableSet.copyOf(instances);
+            // if instances is empty ignore value
+            // writes and reads are concurrent (write = networking callback, read = coordinator thread), so there is
+            // an edge case where instances is empty and maxValue > 0; this is caused by the fact we update value first before count
+            // we write: value then instance
+            // we read: instance then value
+            if (copy.isEmpty())
                 return EMPTY;
-            return new Counter(count, maxValue);
+            return new Counter(copy, maxValue.get());
         }
 
         public Counter merge(Counter other)
         {
             if (other == EMPTY)
                 return this;
-            return Counter.create(count + other.count, Math.max(maxValue, other.maxValue));
+            ImmutableSet<InetAddressAndPort> copy = ImmutableSet.<InetAddressAndPort>builder()
+                                                    .addAll(instances)
+                                                    .addAll(other.instances)
+                                                    .build();
+            // since other is NOT empty, then output can not be empty; so skip create method
+            return new Counter(copy, Math.max(maxValue, other.maxValue));
         }
     }
 }

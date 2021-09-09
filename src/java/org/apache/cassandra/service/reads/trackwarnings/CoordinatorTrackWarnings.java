@@ -136,9 +136,9 @@ public class CoordinatorTrackWarnings
 
     private static void trackAborts(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
     {
-        if (counter.aborts.count > 0)
+        if (!counter.aborts.instances.isEmpty())
         {
-            String msg = toString.apply(counter.aborts.count, counter.aborts.maxValue, cql);
+            String msg = toString.apply(counter.aborts.instances.size(), counter.aborts.maxValue, cql);
             ClientWarn.instance.warn(msg + " with " + loggableTokens);
             logger.warn(msg);
             metric.mark();
@@ -147,9 +147,9 @@ public class CoordinatorTrackWarnings
 
     private static void trackWarnings(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
     {
-        if (counter.warnings.count > 0)
+        if (!counter.warnings.instances.isEmpty())
         {
-            String msg = toString.apply(counter.warnings.count, counter.warnings.maxValue, cql);
+            String msg = toString.apply(counter.warnings.instances.size(), counter.warnings.maxValue, cql);
             ClientWarn.instance.warn(msg + " with " + loggableTokens);
             logger.warn(msg);
             metric.mark();
