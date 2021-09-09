@@ -1459,7 +1459,7 @@ enable_drop_compact_storage: false
 #track_warnings:
 #	# Scheduled to enable in 4.2
 #	enabled: false
-#	# When client_track_warnings_enabled: true, this tracks the materialized size of a query on the
+#	# When track_warnings.enabled: true, this tracks the materialized size of a query on the
 #	# coordinator. If coordinator_large_read.warn_threshold_kb is greater than 0, this will emit a warning
 #	# to clients with details on what query triggered this as well as the size of the result set; if
 #	# coordinator_large_read.abort_threshold_kb is greater than 0, this will abort the query after it
@@ -1467,12 +1467,12 @@ enable_drop_compact_storage: false
 #	coordinator_large_read:
 #		warn_threshold_kb: 0
 #		abort_threshold_kb: 0
-#	# When client_track_warnings_enabled: true, this tracks the size of the local read (as defined by
+#	# When track_warnings.enabled: true, this tracks the size of the local read (as defined by
 #	# heap size), and will warn/abort based off these thresholds; 0 disables these checks.
 #	local_read_size:
 #		warn_threshold_kb: 0
 #		abort_threshold_kb: 0
-#	# When client_track_warnings_enabled: true, this tracks the expected memory size of the RowIndexEntry
+#	# When track_warnings.enabled: true, this tracks the expected memory size of the RowIndexEntry
 #	# and will warn/abort based off these thresholds; 0 disables these checks.
 #	row_index_size:
 #		warn_threshold_kb: 0
