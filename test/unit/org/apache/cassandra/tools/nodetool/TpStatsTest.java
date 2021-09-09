@@ -141,18 +141,22 @@ public class TpStatsTest extends CQLTester
     }
 
     @Test
-    public void testFromatArg()
+    public void testFormatArg()
     {
         Arrays.asList(Pair.of("-F", "json"), Pair.of("--format", "json")).forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
             tool.assertOnCleanExit();
-            assertThat(isJSONString(tool.getStdout())).isTrue();
+            String json = tool.getStdout();
+            assertThat(isJSONString(json)).isTrue();
+            assertThat(json).containsPattern("\"WaitLatencies\"\\s*:\\s*\\{\\s*\"");
         });
 
         Arrays.asList( Pair.of("-F", "yaml"), Pair.of("--format", "yaml")).forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
             tool.assertOnCleanExit();
-            assertThat(isYAMLString(tool.getStdout())).isTrue();
+            String yaml = tool.getStdout();
+            assertThat(isYAMLString(yaml)).isTrue();
+            assertThat(yaml).containsPattern("WaitLatencies:\\s*[A-Z|_]+:\\s+-\\s");
         });
     }
 

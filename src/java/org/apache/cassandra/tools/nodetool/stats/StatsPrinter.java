@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
+import java.io.IOException;
 import java.io.PrintStream;
 
-import org.json.simple.JSONObject;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -39,9 +40,17 @@ public interface StatsPrinter<T extends StatsHolder>
         @Override
         public void print(T data, PrintStream out)
         {
-            JSONObject json = new JSONObject();
-            json.putAll(data.convert2Map());
-            out.println(json.toString());
+            ObjectMapper mapper = new ObjectMapper();
+            try
+            {
+                String json = mapper.writerWithDefaultPrettyPrinter()
+                                    .writeValueAsString(data.convert2Map());
+                out.println(json);
+            }
+            catch (IOException e)
+            {
+                out.println(e);
+            }
         }
     }
 
