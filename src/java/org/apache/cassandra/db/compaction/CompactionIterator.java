@@ -104,7 +104,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
         op = createOperation();
 
         UnfilteredPartitionIterator merged = scanners.isEmpty()
-                                           ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
+                                           ? EmptyIterators.unfilteredPartition(controller.realm.metadata())
                                            : UnfilteredPartitionIterators.merge(scanners, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
         merged = Transformation.apply(merged, new Purger(controller, nowInSec));
@@ -119,7 +119,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
             @Override
             public OperationProgress getProgress()
             {
-                return new AbstractTableOperation.OperationProgress(controller.cfs.metadata(), type, bytesRead(), totalBytes, compactionId, sstables);
+                return new AbstractTableOperation.OperationProgress(controller.realm.metadata(), type, bytesRead(), totalBytes, compactionId, sstables);
             }
 
             @Override
@@ -143,7 +143,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
 
     public TableMetadata metadata()
     {
-        return controller.cfs.metadata();
+        return controller.realm.metadata();
     }
 
     long bytesRead()
@@ -252,7 +252,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
 
     private CompactionTransaction getIndexTransaction(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
     {
-        if (type != OperationType.COMPACTION || !controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION))
+        if (type != OperationType.COMPACTION || !controller.realm.getIndexManager().handles(IndexTransaction.Type.COMPACTION))
             return null;
 
         Columns statics = Columns.NONE;
@@ -278,7 +278,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
         // * Indexer::commit
         // A new OpOrder.Group is opened in an ARM block wrapping the commits
         // TODO: this should probably be done asynchronously and batched.
-        return controller.cfs.indexManager.newCompactionTransaction(partitionKey, regularAndStaticColumns, versions.size(), nowInSec);
+        return controller.realm.getIndexManager().newCompactionTransaction(partitionKey, regularAndStaticColumns, versions.size(), nowInSec);
     }
 
     private void updateBytesRead()
@@ -334,8 +334,8 @@ public class CompactionIterator implements UnfilteredPartitionIterator
         private Purger(AbstractCompactionController controller, int nowInSec)
         {
             super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE,
-                  controller.cfs.onlyPurgeRepairedTombstones(),
-                  controller.cfs.metadata.get().enforceStrictLiveness());
+                  controller.realm.onlyPurgeRepairedTombstones(),
+                  controller.realm.metadata().enforceStrictLiveness());
             this.controller = controller;
         }
 
@@ -343,7 +343,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
         protected void onEmptyPartitionPostPurge(DecoratedKey key)
         {
             if (type == OperationType.COMPACTION)
-                controller.cfs.invalidateCachedPartition(key);
+                controller.realm.invalidateCachedPartition(key);
         }
 
         @Override

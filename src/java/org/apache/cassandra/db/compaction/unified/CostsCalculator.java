@@ -26,8 +26,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -124,7 +124,7 @@ public class CostsCalculator
             bytesInsertedPerPeriod.update(env.bytesInserted());
 
             numSSTables.update(strategy.getSSTables().size());
-            spaceUsed.update(strategy.getSSTables().stream().map(SSTableReader::onDiskLength).reduce(0L, Long::sum));
+            spaceUsed.update(strategy.getSSTables().stream().map(CompactionSSTable::onDiskLength).reduce(0L, Long::sum));
         }
         catch (Throwable err)
         {
@@ -184,14 +184,14 @@ public class CostsCalculator
 
     private double getFlushCost(double bytesWritten)
     {
-        return ((bytesWritten / (1 << 10)) * env.flushLatencyPerKbInNanos()) / (double) TimeUnit.MILLISECONDS.toNanos(1);
+        return ((bytesWritten / (1 << 10)) * env.flushTimePerKbInNanos()) / (double) TimeUnit.MILLISECONDS.toNanos(1);
     }
 
     private double getCompactionCost(double bytesWritten)
     {
         // So, the compaction latency will depend on the size of the sstables, so in the correct solution each level
         // should pass its output size and we should measure latency in MB or something like that
-        return ((bytesWritten / (1 << 10)) * env.compactionLatencyPerKbInNanos()) / (double)  TimeUnit.MILLISECONDS.toNanos(1);
+        return ((bytesWritten / (1 << 10)) * env.compactionTimePerKbInNanos()) / (double)  TimeUnit.MILLISECONDS.toNanos(1);
     }
 
     /**

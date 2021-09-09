@@ -26,6 +26,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -171,9 +172,10 @@ public class View
     }
 
 
-    public Iterable<? extends SSTableReader> getNoncompacting(Iterable<? extends SSTableReader> candidates)
+    public <S extends CompactionSSTable>
+    Iterable<S> getNoncompacting(Iterable<S> candidates)
     {
-        return filter(candidates, (Predicate<SSTableReader>) sstable -> !compacting.contains(sstable));
+        return filter(candidates, sstable -> !compacting.contains(sstable));
     }
 
     public boolean isEmpty()

@@ -28,7 +28,6 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -46,13 +45,13 @@ public class RepairFinishedCompactionTask extends AbstractCompactionTask
     private final long repairedAt;
     private final boolean isTransient;
 
-    public RepairFinishedCompactionTask(ColumnFamilyStore cfs,
+    public RepairFinishedCompactionTask(CompactionRealm realm,
                                         LifecycleTransaction transaction,
                                         UUID sessionID,
                                         long repairedAt,
                                         boolean isTransient)
     {
-        super(cfs, transaction);
+        super(realm, transaction);
         this.sessionID = sessionID;
         this.repairedAt = repairedAt;
         this.isTransient = isTransient;
@@ -79,13 +78,11 @@ public class RepairFinishedCompactionTask extends AbstractCompactionTask
             else
             {
                 logger.info("Moving {} from pending to repaired with repaired at = {} and session id = {}", transaction.originals(), repairedAt, sessionID);
-                CompactionStrategyContainer compactionStrategyContainer = cfs.getCompactionStrategyContainer();
-                cfs.mutateRepaired(compactionStrategyContainer.getWriteLock(),
-                                   transaction.originals(),
-                                   repairedAt,
-                                   ActiveRepairService.NO_PENDING_REPAIR,
-                                   false);
-                compactionStrategyContainer.repairSessionCompleted(sessionID);
+                realm.mutateRepairedWithLock(transaction.originals(),
+                                             repairedAt,
+                                             ActiveRepairService.NO_PENDING_REPAIR,
+                                             false);
+                realm.repairSessionCompleted(sessionID);
             }
             completed = true;
         }
@@ -104,12 +101,12 @@ public class RepairFinishedCompactionTask extends AbstractCompactionTask
             }
             if (completed)
             {
-                cfs.getCompactionStrategyContainer().repairSessionCompleted(sessionID);
+                realm.repairSessionCompleted(sessionID);
             }
         }
     }
 
-    public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
+    public CompactionAwareWriter getCompactionAwareWriter(CompactionRealm realm, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
         throw new UnsupportedOperationException();
     }

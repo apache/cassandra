@@ -582,14 +582,14 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
         }
 
         @Override
-        public double compactionLatencyPerKbInNanos()
+        public double compactionTimePerKbInNanos()
         {
             // this is slightly incorrect, we would need to measure the size of compacted sstables
             return TimeUnit.MICROSECONDS.toNanos(compactionTimeMicros);
         }
 
         @Override
-        public double flushLatencyPerKbInNanos()
+        public double flushTimePerKbInNanos()
         {
             return TimeUnit.MICROSECONDS.toNanos(flushTimeMicros);
         }
@@ -613,8 +613,8 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
         {
             return String.format("Read latency: %d us / partition, flush latency: %d us / KiB, compaction latency: %d us / KiB, bfpr: %f, measured WA: %.2f, flush size %s",
                                  TimeUnit.NANOSECONDS.toMicros((long) sstablePartitionReadLatencyNanos()),
-                                 TimeUnit.NANOSECONDS.toMicros((long) flushLatencyPerKbInNanos()),
-                                 TimeUnit.NANOSECONDS.toMicros((long) compactionLatencyPerKbInNanos()),
+                                 TimeUnit.NANOSECONDS.toMicros((long) flushTimePerKbInNanos()),
+                                 TimeUnit.NANOSECONDS.toMicros((long) compactionTimePerKbInNanos()),
                                  bloomFilterFpRatio(),
                                  WA(),
                                  FBUtilities.prettyPrintMemory((long)flushSize()));

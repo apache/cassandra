@@ -28,7 +28,6 @@ import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.dht.Range;
@@ -73,17 +72,17 @@ public abstract class AbstractStrategyHolder
 
     public static interface DestinationRouter
     {
-        int getIndexForSSTable(SSTableReader sstable);
+        int getIndexForSSTable(CompactionSSTable sstable);
         int getIndexForSSTableDirectory(Descriptor descriptor);
     }
 
     /**
      * Maps sstables to their token partition bucket
      */
-    public static class GroupedSSTableContainer
+    public static class GroupedSSTableContainer<S extends CompactionSSTable>
     {
         private final AbstractStrategyHolder holder;
-        private final Set<SSTableReader>[] groups;
+        private final Set<S>[] groups;
 
         private GroupedSSTableContainer(AbstractStrategyHolder holder)
         {
@@ -92,7 +91,7 @@ public abstract class AbstractStrategyHolder
             groups = new Set[holder.numTokenPartitions];
         }
 
-        void add(SSTableReader sstable)
+        void add(S sstable)
         {
             Preconditions.checkArgument(holder.managesSSTable(sstable), "this strategy holder doesn't manage %s", sstable);
             int idx = holder.router.getIndexForSSTable(sstable);
@@ -107,10 +106,10 @@ public abstract class AbstractStrategyHolder
             return groups.length;
         }
 
-        public Set<SSTableReader> getGroup(int i)
+        public Set<S> getGroup(int i)
         {
             Preconditions.checkArgument(i >= 0 && i < groups.length);
-            Set<SSTableReader> group = groups[i];
+            Set<S> group = groups[i];
             return group != null ? group : Collections.emptySet();
         }
 
@@ -128,14 +127,14 @@ public abstract class AbstractStrategyHolder
         }
     }
 
-    protected final ColumnFamilyStore cfs;
+    protected final CompactionRealm realm;
     protected final CompactionStrategyFactory strategyFactory;
     final DestinationRouter router;
     private int numTokenPartitions = -1;
 
-    AbstractStrategyHolder(ColumnFamilyStore cfs, CompactionStrategyFactory strategyFactory, DestinationRouter router)
+    AbstractStrategyHolder(CompactionRealm realm, CompactionStrategyFactory strategyFactory, DestinationRouter router)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.strategyFactory = strategyFactory;
         this.router = router;
     }
@@ -162,12 +161,12 @@ public abstract class AbstractStrategyHolder
      */
     public abstract boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair, boolean isTransient);
 
-    public boolean managesSSTable(SSTableReader sstable)
+    public boolean managesSSTable(CompactionSSTable sstable)
     {
         return managesRepairedGroup(sstable.isRepaired(), sstable.isPendingRepair(), sstable.isTransient());
     }
 
-    public abstract LegacyAbstractCompactionStrategy getStrategyFor(SSTableReader sstable);
+    public abstract LegacyAbstractCompactionStrategy getStrategyFor(CompactionSSTable sstable);
 
     public abstract Iterable<LegacyAbstractCompactionStrategy> allStrategies();
 
@@ -175,20 +174,20 @@ public abstract class AbstractStrategyHolder
 
     public abstract Collection<AbstractCompactionTask> getMaximalTasks(int gcBefore, boolean splitOutput);
 
-    public abstract Collection<AbstractCompactionTask> getUserDefinedTasks(GroupedSSTableContainer sstables, int gcBefore);
+    public abstract Collection<AbstractCompactionTask> getUserDefinedTasks(GroupedSSTableContainer<CompactionSSTable> sstables, int gcBefore);
 
-    public GroupedSSTableContainer createGroupedSSTableContainer()
+    public <S extends CompactionSSTable> GroupedSSTableContainer<S> createGroupedSSTableContainer()
     {
-        return new GroupedSSTableContainer(this);
+        return new GroupedSSTableContainer<>(this);
     }
 
-    public abstract void addSSTables(GroupedSSTableContainer sstables);
+    public abstract void addSSTables(GroupedSSTableContainer<CompactionSSTable> sstables);
 
-    public abstract void removeSSTables(GroupedSSTableContainer sstables);
+    public abstract void removeSSTables(GroupedSSTableContainer<CompactionSSTable> sstables);
 
-    public abstract void replaceSSTables(GroupedSSTableContainer removed, GroupedSSTableContainer added);
+    public abstract void replaceSSTables(GroupedSSTableContainer<CompactionSSTable> removed, GroupedSSTableContainer<CompactionSSTable> added);
 
-    public abstract List<ISSTableScanner> getScanners(GroupedSSTableContainer sstables, Collection<Range<Token>> ranges);
+    public abstract List<ISSTableScanner> getScanners(GroupedSSTableContainer<SSTableReader> sstables, Collection<Range<Token>> ranges);
 
 
     public abstract SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,
@@ -201,5 +200,5 @@ public abstract class AbstractStrategyHolder
                                                                 Collection<Index.Group> indexGroups,
                                                                 LifecycleNewTracker lifecycleNewTracker);
 
-    public abstract boolean containsSSTable(SSTableReader sstable);
+    public abstract boolean containsSSTable(CompactionSSTable sstable);
 }

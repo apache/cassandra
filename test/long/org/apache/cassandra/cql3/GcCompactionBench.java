@@ -42,6 +42,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.utils.FBUtilities;
@@ -230,7 +231,7 @@ public class GcCompactionBench extends CQLTester
         int startRowDeletions = countRowDeletions(cfs);
         int startTableCount = cfs.getLiveSSTables().size();
         int startTableMaxLevel = cfs.getLiveSSTables().stream().mapToInt(SSTableReader::getSSTableLevel).max().orElseGet(() -> 0);
-        long startSize = SSTableReader.getTotalBytes(cfs.getLiveSSTables());
+        long startSize = CompactionSSTable.getTotalBytes(cfs.getLiveSSTables());
         System.out.println();
 
         String hashesBefore = getHashes();
@@ -244,7 +245,7 @@ public class GcCompactionBench extends CQLTester
         int endRowDeletions = countRowDeletions(cfs);
         int endTableCount = cfs.getLiveSSTables().size();
         int endTableMaxLevel = cfs.getLiveSSTables().stream().mapToInt(SSTableReader::getSSTableLevel).max().orElseGet(() -> 0);
-        long endSize = SSTableReader.getTotalBytes(cfs.getLiveSSTables());
+        long endSize = CompactionSSTable.getTotalBytes(cfs.getLiveSSTables());
 
         System.out.println(cfs.getCompactionParametersJson());
         System.out.println(String.format("%s compactions completed in %.3fs",

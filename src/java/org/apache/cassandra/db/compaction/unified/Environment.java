@@ -63,12 +63,12 @@ public interface Environment
     /**
      * @return the mean compaction time per 1 Kb of input, in nano seconds
      */
-    double compactionLatencyPerKbInNanos();
+    double compactionTimePerKbInNanos();
 
     /**
      * @return the mean flush latency per 1 Kb of input, in nano seconds
      */
-    double flushLatencyPerKbInNanos();
+    double flushTimePerKbInNanos();
 
     /**
      * @return the write amplification (bytes flushed + bytes compacted / bytes flushed).

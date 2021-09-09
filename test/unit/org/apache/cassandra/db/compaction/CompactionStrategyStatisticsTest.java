@@ -71,8 +71,8 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
     {
         super.setUp();
 
-        when(cfs.getMinimumCompactionThreshold()).thenReturn(minCompactionThreshold);
-        when(cfs.getMaximumCompactionThreshold()).thenReturn(maxCompactionThreshold);
+        when(realm.getMinimumCompactionThreshold()).thenReturn(minCompactionThreshold);
+        when(realm.getMaximumCompactionThreshold()).thenReturn(maxCompactionThreshold);
     }
 
     /**
@@ -382,8 +382,14 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
      */
     private static Set<SSTableReader> overlapping(SSTableReader sstable, List<SSTableReader> candidates)
     {
-        Map<SSTableReader, Bounds<Token>> candidatesWithBounds = LeveledManifest.genBounds(candidates);
-        return Sets.union(Collections.singleton(sstable), LeveledManifest.overlappingWithBounds(sstable, candidatesWithBounds));
+        Map<CompactionSSTable, Bounds<Token>> candidatesWithBounds = LeveledManifest.genBounds(candidates);
+        Set<CompactionSSTable> overlapping = LeveledManifest.overlappingWithBounds(sstable,
+                                                                                   candidatesWithBounds);
+        Set<SSTableReader> overlappingReaders = new HashSet<>();
+        overlappingReaders.add(sstable);
+        for (CompactionSSTable s : overlapping)
+            overlappingReaders.add((SSTableReader) s);
+        return overlappingReaders;
     }
 
     /**
@@ -551,13 +557,13 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
         // Add the tables to the strategy and the data tracker
         addSSTablesToStrategy(strategy, sstables);
 
-        List<SSTableReader> sstablesForCompaction = compactions.stream().flatMap(Collection::stream).collect(Collectors.toList());
+        List<CompactionSSTable> sstablesForCompaction = compactions.stream().flatMap(Collection::stream).collect(Collectors.toList());
 
         int numSSTables = sstablesForCompaction.size();
         long totLength = totUncompressedLength(sstablesForCompaction);
         double totHotness = totHotness(sstablesForCompaction);
 
-        Set<SSTableReader> compacting = new HashSet<>();
+        Set<CompactionSSTable> compacting = new HashSet<>();
         List<Pair<Set<SSTableReader>, UUID>> submittedCompactions = new ArrayList<>(compactions.size());
 
         long totRead = 0;

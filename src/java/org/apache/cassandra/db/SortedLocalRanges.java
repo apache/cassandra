@@ -17,7 +17,6 @@
 package org.apache.cassandra.db;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,8 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
@@ -45,17 +46,17 @@ public class SortedLocalRanges
     private static final Logger logger = LoggerFactory.getLogger(SortedLocalRanges.class);
 
     private final StorageService storageService;
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final long ringVersion;
     private final List<Splitter.WeightedRange> ranges;
     private final Map<Integer, List<PartitionPosition>> splits;
 
     private volatile boolean valid;
 
-    public SortedLocalRanges(StorageService storageService, ColumnFamilyStore cfs, long ringVersion, List<Splitter.WeightedRange> ranges)
+    public SortedLocalRanges(StorageService storageService, CompactionRealm realm, long ringVersion, List<Splitter.WeightedRange> ranges)
     {
         this.storageService = storageService;
-        this.cfs = cfs;
+        this.realm = realm;
         this.ringVersion = ringVersion;
 
         List<Splitter.WeightedRange> sortedRanges = new ArrayList<>(ranges.size());
@@ -130,9 +131,9 @@ public class SortedLocalRanges
     }
 
     @VisibleForTesting
-    public static SortedLocalRanges forTesting(ColumnFamilyStore cfs, List<Splitter.WeightedRange> ranges)
+    public static SortedLocalRanges forTesting(CompactionRealm realm, List<Splitter.WeightedRange> ranges)
     {
-        return new SortedLocalRanges(null, cfs, 0, ranges);
+        return new SortedLocalRanges(null, realm, 0, ranges);
     }
 
     /**
@@ -172,21 +173,21 @@ public class SortedLocalRanges
 
     private List<PartitionPosition> doSplit(int numParts)
     {
-        Splitter splitter = cfs.getPartitioner().splitter().orElse(null);
+        Splitter splitter = realm.getPartitioner().splitter().orElse(null);
 
         List<Token> boundaries;
         if (splitter == null)
         {
-            logger.debug("Could not split local ranges into {} parts for {}.{} (no splitter)", numParts, cfs.getKeyspaceName(), cfs.getTableName());
+            logger.debug("Could not split local ranges into {} parts for {}.{} (no splitter)", numParts, realm.getKeyspaceName(), realm.getTableName());
             boundaries = ranges.stream().map(Splitter.WeightedRange::right).collect(Collectors.toList());
         }
         else
         {
-            logger.debug("Splitting local ranges into {} parts for {}.{}", numParts, cfs.getKeyspaceName(), cfs.getTableName());
+            logger.debug("Splitting local ranges into {} parts for {}.{}", numParts, realm.getKeyspaceName(), realm.getTableName());
             boundaries = splitter.splitOwnedRanges(numParts, ranges, Splitter.SplitType.ALWAYS_SPLIT).boundaries;
         }
 
-        logger.debug("Boundaries for {}.{}: {} ({} splits)", cfs.getKeyspaceName(), cfs.getTableName(), boundaries, boundaries.size());
+        logger.debug("Boundaries for {}.{}: {} ({} splits)", realm.getKeyspaceName(), realm.getTableName(), boundaries, boundaries.size());
         return boundaries.stream().map(Token::maxKeyBound).collect(Collectors.toList());
     }
 
@@ -213,7 +214,7 @@ public class SortedLocalRanges
         if (ringVersion != that.ringVersion)
             return false;
 
-        if (!cfs.equals(that.cfs))
+        if (!realm.equals(that.realm))
             return false;
 
         return ranges.equals(that.ranges);
@@ -221,7 +222,7 @@ public class SortedLocalRanges
 
     public int hashCode()
     {
-        int result = cfs.hashCode();
+        int result = realm.hashCode();
         result = 31 * result + Long.hashCode(ringVersion);
         result = 31 * result + ranges.hashCode();
         return result;
@@ -230,13 +231,13 @@ public class SortedLocalRanges
     public String toString()
     {
         return "LocalRanges{" +
-               "table=" + cfs.getKeyspaceName() + "." + cfs.getTableName() +
+               "table=" + realm.getKeyspaceName() + "." + realm.getTableName() +
                ", ring version=" + ringVersion +
                ", num ranges=" + ranges.size() + '}';
     }
 
-    public ColumnFamilyStore getCfs()
+    public CompactionRealm getRealm()
     {
-        return cfs;
+        return realm;
     }
 }

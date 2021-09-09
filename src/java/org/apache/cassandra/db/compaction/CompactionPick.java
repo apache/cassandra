@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
  * A set of sstables that were picked for compaction along with some other relevant properties.
@@ -45,10 +44,10 @@ class CompactionPick
     final long parent;
 
     /** The sstables to be compacted */
-    final ImmutableSet<SSTableReader> sstables;
+    final ImmutableSet<CompactionSSTable> sstables;
 
     /** Only expired sstables */
-    final ImmutableSet<SSTableReader> expired;
+    final ImmutableSet<CompactionSSTable> expired;
 
     /** The sum of all the sstable hotness scores */
     final double hotness;
@@ -72,8 +71,8 @@ class CompactionPick
     volatile boolean completed;
 
     private CompactionPick(long parent,
-                           Collection<SSTableReader> compacting,
-                           Collection<SSTableReader> expired,
+                           Collection<? extends CompactionSSTable> compacting,
+                           Collection<? extends CompactionSSTable> expired,
                            double hotness,
                            long avgSizeInBytes,
                            long totSizeInBytes)
@@ -89,9 +88,9 @@ class CompactionPick
     /**
      * Create a pending compaction candidate calculating hotness and avg size.
      */
-    static CompactionPick create(long parent, Collection<SSTableReader> sstables, Collection<SSTableReader> expired)
+    static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables, Collection<? extends CompactionSSTable> expired)
     {
-        Collection<SSTableReader> nonExpiring = sstables.stream().filter(sstable -> !expired.contains(sstable)).collect(Collectors.toList());
+        Collection<CompactionSSTable> nonExpiring = sstables.stream().filter(sstable -> !expired.contains(sstable)).collect(Collectors.toList());
         return create(parent,
                       sstables,
                       expired,
@@ -100,7 +99,7 @@ class CompactionPick
                       CompactionAggregate.getTotSizeBytes(nonExpiring));
     }
 
-    static CompactionPick create(long parent, Collection<SSTableReader> sstables)
+    static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables)
     {
         return create(parent, sstables, Collections.emptyList());
     }
@@ -108,7 +107,7 @@ class CompactionPick
     /**
      * Create a pending compaction candidate calculating avg size.
      */
-    static CompactionPick create(long parent, Collection<SSTableReader> sstables, double hotness)
+    static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables, double hotness)
     {
         return create(parent, sstables, Collections.emptyList(), hotness, CompactionAggregate.getAvgSizeBytes(sstables), CompactionAggregate.getTotSizeBytes(sstables));
     }
@@ -116,7 +115,7 @@ class CompactionPick
     /**
      * Create a pending compaction candidate with the given parameters.
      */
-    static CompactionPick create(long parent, Collection<SSTableReader> sstables, Collection<SSTableReader> expired, double hotness, long avgSizeInBytes, long totSizeInBytes)
+    static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables, Collection<? extends CompactionSSTable> expired, double hotness, long avgSizeInBytes, long totSizeInBytes)
     {
         return new CompactionPick(parent, sstables, expired, hotness, avgSizeInBytes, totSizeInBytes);
     }
@@ -183,13 +182,13 @@ class CompactionPick
      *
      * @param expired the sstables to add
      */
-    CompactionPick withExpiredSSTables(Collection<SSTableReader> expired)
+    CompactionPick withExpiredSSTables(Collection<CompactionSSTable> expired)
     {
-        ImmutableSet<SSTableReader> newSSTables = ImmutableSet.<SSTableReader>builder()
+        ImmutableSet<CompactionSSTable> newSSTables = ImmutableSet.<CompactionSSTable>builder()
                                                               .addAll(this.sstables)
                                                               .addAll(expired)
                                                               .build();
-        ImmutableSet<SSTableReader> newExpired = ImmutableSet.<SSTableReader>builder()
+        ImmutableSet<CompactionSSTable> newExpired = ImmutableSet.<CompactionSSTable>builder()
                                                              .addAll(this.expired)
                                                              .addAll(expired)
                                                              .build();

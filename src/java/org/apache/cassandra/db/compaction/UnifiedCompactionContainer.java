@@ -27,7 +27,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -115,7 +114,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
         // by the new UCS to remove inherited ongoing compactions when they complete.
         // We might want to revisit this issue later to improve UX.
         else
-            backgroundCompactions = new BackgroundCompactions(strategyFactory.getCfs());
+            backgroundCompactions = new BackgroundCompactions(strategyFactory.getRealm());
         CompactionParams metadataParams = createMetadataParams(previous, compactionParams, reason);
 
         if (previous != null)
@@ -184,7 +183,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     }
 
     /**
-     * UCC does not need to use this method with {@link ColumnFamilyStore#mutateRepaired}
+     * UCC does not need to use this method with {@link CompactionRealm#mutateRepairedWithLock}
      * @return null
      */
     @Override
@@ -236,7 +235,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     }
 
     @Override
-    public CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
+    public CompactionTasks getUserDefinedTasks(Collection<? extends CompactionSSTable> sstables, int gcBefore)
     {
         return strategy.getUserDefinedTasks(sstables, gcBefore);
     }
@@ -296,13 +295,13 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     }
 
     @Override
-    public Set<SSTableReader> getSSTables()
+    public Set<? extends CompactionSSTable> getSSTables()
     {
         return strategy.getSSTables();
     }
 
     @Override
-    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    public Collection<Collection<CompactionSSTable>> groupSSTablesForAntiCompaction(Collection<? extends CompactionSSTable> sstablesToGroup)
     {
         return strategy.groupSSTablesForAntiCompaction(sstablesToGroup);
     }

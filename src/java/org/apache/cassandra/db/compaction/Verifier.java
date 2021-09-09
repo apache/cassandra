@@ -71,7 +71,7 @@ import java.util.function.LongPredicate;
 
 public class Verifier implements Closeable
 {
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final SSTableReader sstable;
 
     private final CompactionController controller;
@@ -93,18 +93,18 @@ public class Verifier implements Closeable
     private final OutputHandler outputHandler;
     private FileDigestValidator validator;
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline, Options options)
+    public Verifier(CompactionRealm realm, SSTableReader sstable, boolean isOffline, Options options)
     {
-        this(cfs, sstable, new OutputHandler.LogOutput(), isOffline, options);
+        this(realm, sstable, new OutputHandler.LogOutput(), isOffline, options);
     }
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
+    public Verifier(CompactionRealm realm, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.sstable = sstable;
         this.outputHandler = outputHandler;
 
-        this.controller = new VerifyController(cfs);
+        this.controller = new VerifyController(realm);
 
         this.fileAccessLock = new ReentrantReadWriteLock();
         this.dataFile = isOffline
@@ -183,12 +183,12 @@ public class Verifier implements Closeable
             markAndThrow(t);
         }
 
-        if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner))
+        if (options.checkOwnsTokens && !isOffline && !(realm.getPartitioner() instanceof LocalPartitioner))
         {
             outputHandler.debug("Checking that all tokens are owned by the current node");
             try (KeyIterator iter = KeyIterator.forSSTable(sstable))
             {
-                List<Range<Token>> ownedRanges = Range.normalize(tokenLookup.apply(cfs.metadata.keyspace));
+                List<Range<Token>> ownedRanges = Range.normalize(tokenLookup.apply(realm.metadataRef().keyspace));
                 if (ownedRanges.isEmpty())
                     return;
                 RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
@@ -245,7 +245,8 @@ public class Verifier implements Closeable
             if (indexIterator.dataPosition() != 0)
                 markAndThrow(new RuntimeException("First row position from index != 0: " + indexIterator.dataPosition()));
 
-            List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
+            List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(
+            realm.metadata().keyspace));
             RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
             DecoratedKey prevKey = null;
 
@@ -269,7 +270,7 @@ public class Verifier implements Closeable
                     // check for null key below
                 }
 
-                if (options.checkOwnsTokens && ownedRanges.size() > 0 && !(cfs.getPartitioner() instanceof LocalPartitioner))
+                if (options.checkOwnsTokens && !ownedRanges.isEmpty() && !(realm.getPartitioner() instanceof LocalPartitioner))
                 {
                     try
                     {
@@ -424,13 +425,13 @@ public class Verifier implements Closeable
     private void deserializeIndexSummary(SSTableReader sstable) throws IOException
     {
         File file = new File(sstable.descriptor.filenameFor(Component.SUMMARY));
-        TableMetadata metadata = cfs.metadata();
+        TableMetadata metadata = realm.metadata();
         try (DataInputStream iStream = new DataInputStream(Files.newInputStream(file.toPath())))
         {
             try (IndexSummary indexSummary = IndexSummary.serializer.deserialize(iStream,
-                                                               cfs.getPartitioner(),
-                                                               metadata.params.minIndexInterval,
-                                                               metadata.params.maxIndexInterval))
+                                                                                 realm.getPartitioner(),
+                                                                                 metadata.params.minIndexInterval,
+                                                                                 metadata.params.maxIndexInterval))
             {
                 ByteBufferUtil.readWithLength(iStream);
                 ByteBufferUtil.readWithLength(iStream);
@@ -480,8 +481,7 @@ public class Verifier implements Closeable
         {
             try
             {
-                sstable.mutateRepairedAndReload(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
-                cfs.getTracker().notifySSTableRepairedStatusChanged(ImmutableList.of(sstable));
+                realm.mutateRepairedWithLock(ImmutableList.of(sstable), ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
             }
             catch(IOException ioe)
             {
@@ -545,7 +545,7 @@ public class Verifier implements Closeable
 
     private static class VerifyController extends CompactionController
     {
-        public VerifyController(ColumnFamilyStore cfs)
+        public VerifyController(CompactionRealm cfs)
         {
             super(cfs, Integer.MAX_VALUE);
         }
