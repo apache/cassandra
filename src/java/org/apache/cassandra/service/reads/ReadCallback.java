@@ -93,39 +93,15 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
     }
 
-    public class WarningContext
+    private static class WarningContext
     {
         final WarnAbortCounter tombstones = new WarnAbortCounter();
         final WarnAbortCounter localReadSize = new WarnAbortCounter();
         final WarnAbortCounter rowIndexTooLarge = new WarnAbortCounter();
 
-        // cache to generate the CQL string once
-        private String cql;
-        private String cql()
-        {
-            if (cql == null)
-                cql = command.toCQLString();
-            return cql;
-        }
-
         private TrackWarningsSnapshot snapshot()
         {
             return TrackWarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
-        }
-
-        void mayAbort(TrackWarningsSnapshot snapshot, int received)
-        {
-            if (!snapshot.tombstones.aborts.instances.isEmpty())
-                throw new TombstoneAbortException(snapshot.tombstones.aborts.instances.size(), snapshot.tombstones.aborts.maxValue, cql(), resolver.isDataPresent(),
-                                                  replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
-
-            if (!snapshot.localReadSize.aborts.instances.isEmpty())
-                throw new ReadSizeAbortException(localReadSizeAbortMessage(snapshot.localReadSize.aborts.instances.size(), snapshot.localReadSize.aborts.maxValue, cql()),
-                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
-
-            if (!snapshot.rowIndexTooLarge.aborts.instances.isEmpty())
-                throw new ReadSizeAbortException(rowIndexSizeAbortMessage(snapshot.rowIndexTooLarge.aborts.instances.size(), snapshot.rowIndexTooLarge.aborts.maxValue, cql()),
-                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
         }
     }
 
@@ -249,8 +225,32 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             logger.debug("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
         }
 
-        if (warnings != null)
-            warnings.mayAbort(snapshot, received);
+        if (snapshot != null)
+        {
+            // cache cql queries to lower overhead
+            Supplier<String> cql = new Supplier<String>()
+            {
+                private String cql;
+                @Override
+                public String get()
+                {
+                    if (cql == null)
+                        cql = command.toCQLString();
+                    return cql;
+                }
+            };
+            if (!snapshot.tombstones.aborts.instances.isEmpty())
+                throw new TombstoneAbortException(snapshot.tombstones.aborts.instances.size(), snapshot.tombstones.aborts.maxValue, cql.get(), resolver.isDataPresent(),
+                                                  replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
+
+            if (!snapshot.localReadSize.aborts.instances.isEmpty())
+                throw new ReadSizeAbortException(localReadSizeAbortMessage(snapshot.localReadSize.aborts.instances.size(), snapshot.localReadSize.aborts.maxValue, cql.get()),
+                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
+
+            if (!snapshot.rowIndexTooLarge.aborts.instances.isEmpty())
+                throw new ReadSizeAbortException(rowIndexSizeAbortMessage(snapshot.rowIndexTooLarge.aborts.instances.size(), snapshot.rowIndexTooLarge.aborts.maxValue, cql.get()),
+                                                 replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
+        }
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
