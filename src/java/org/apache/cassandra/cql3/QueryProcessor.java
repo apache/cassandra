@@ -336,12 +336,19 @@ public class QueryProcessor implements QueryHandler
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
     throws RequestExecutionException
     {
-        Prepared prepared = prepareInternal(query);
-        ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), System.nanoTime());
-        if (result instanceof ResultMessage.Rows)
-            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
-        else
-            return null;
+        try
+        {
+            Prepared prepared = prepareInternal(query);
+            ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), System.nanoTime());
+            if (result instanceof ResultMessage.Rows)
+                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+            else
+                return null;
+        }
+        catch (RequestValidationException e)
+        {
+            throw new RuntimeException("Error validating " + query, e);
+        }
     }
 
     public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)
