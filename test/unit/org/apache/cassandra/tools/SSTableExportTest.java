@@ -24,12 +24,10 @@ import java.util.Map;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
@@ -43,7 +41,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@RunWith(OrderedJUnit4ClassRunner.class) // tests calling assertSchemaNotLoaded should be the first ones
 public class SSTableExportTest extends OfflineToolUtils
 {
     private static final ObjectMapper mapper = new ObjectMapper();
@@ -246,7 +243,6 @@ public class SSTableExportTest extends OfflineToolUtils
      * {@code false} if the test shoudln't load the schema in any case. Note that a test not loading the schema can
      * still end with the schema loaded if a previous test already loaded it, so we should always run first the tests
      * that don't load the schema, and then the ones that may or may not load it. We also need to use the
-     * {@link OrderedJUnit4ClassRunner} runner to guarantee the desired run order.
      */
     private void assertPostTestEnv(boolean maybeLoadsSchema)
     {

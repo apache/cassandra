@@ -23,16 +23,13 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.cache.ICache;
 import org.apache.cassandra.cache.InstrumentingCache;
 
 import static org.junit.Assert.assertEquals;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class CacheMetricsTest
 {
     private static final long capacity = 65536;
