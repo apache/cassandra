@@ -247,7 +247,7 @@ public class SelectStatement implements CQLStatement
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
-        if (options.isClientTrackWarningsEnabled())
+        if (options.isTrackWarningsEnabled())
             query.trackWarnings();
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
@@ -815,14 +815,14 @@ public class SelectStatement implements CQLStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isClientTrackWarningsEnabled())
+        if (!options.isTrackWarningsEnabled())
             return;
         ColumnFamilyStore store = cfs();
         if (store != null)
             store.metric.coordinatorReadSize.update(result.getSize());
-        if (result.shouldWarn(options.getClientLargeReadWarnThresholdKb()))
+        if (result.shouldWarn(options.getCoordinatorReadSizeWarnThresholdKB()))
         {
-            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getClientLargeReadWarnThresholdKb());
+            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getCoordinatorReadSizeWarnThresholdKB());
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
             logger.warn("{} with query {}", msg, asCQL(options));
             if (store != null)
@@ -832,11 +832,11 @@ public class SelectStatement implements CQLStatement
 
     private void maybeFail(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isClientTrackWarningsEnabled())
+        if (!options.isTrackWarningsEnabled())
             return;
-        if (result.shouldReject(options.getClientLargeReadAbortThresholdKB()))
+        if (result.shouldReject(options.getCoordinatorReadSizeAbortThresholdKB()))
         {
-            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, options.getClientLargeReadAbortThresholdKB());
+            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, options.getCoordinatorReadSizeAbortThresholdKB());
             String clientMsg = msg + " with " + loggableTokens(options);
             ClientWarn.instance.warn(clientMsg);
             logger.warn("{} with query {}", msg, asCQL(options));
