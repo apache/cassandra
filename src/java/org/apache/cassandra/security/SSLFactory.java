@@ -185,38 +185,27 @@ public final class SSLFactory
         logger.debug("Checking whether certificates have been updated for server {} and client {}",
                      serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
 
-        checkCertFilesForHotReloading(serverOpts);
-        checkCertFilesForHotReloading(clientOpts);
+        checkCertFilesForHotReloading(serverOpts, "server_encryption_options", true);
+        checkCertFilesForHotReloading(clientOpts, "client_encryption_options",
+                                      clientOpts != null ? clientOpts.require_client_auth : false);
     }
 
-    private static void checkCertFilesForHotReloading(EncryptionOptions options)
+    private static void checkCertFilesForHotReloading(EncryptionOptions options, String contextDescription,
+                                                      boolean verifyPeerCertificate)
     {
         try
         {
             if (options != null && options.sslContextFactoryInstance.shouldReload())
             {
-                validateAndRefreshSslContextCache(options);
+                logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
+                            "connections.", options.getClass().getName());
+                validateSslContext(contextDescription, options, verifyPeerCertificate, false);
+                clearSslContextCache(options);
             }
         }
         catch(Exception e)
         {
             logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files.", e);
-        }
-    }
-
-    private static void validateAndRefreshSslContextCache(EncryptionOptions options) throws IOException
-    {
-        if (options != null)
-        {
-            boolean isServerOptions = options instanceof EncryptionOptions.ServerEncryptionOptions;
-
-            if (isServerOptions)
-            {
-                validateSslContext("server_encryption_options", options, true, false);
-            } else {
-                validateSslContext("client_encryption_options", options, options.require_client_auth, false);
-            }
-            clearSslContextCache(options);
         }
     }
 
