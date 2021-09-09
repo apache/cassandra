@@ -688,7 +688,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
-        applyReadWarningValidations(conf);
+        applyTrackWarningsValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -868,7 +868,7 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    static void applyReadWarningValidations(Config config)
+    static void applyTrackWarningsValidations(Config config)
     {
         config.track_warnings.validate("track_warnings");
     }

@@ -602,7 +602,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.coordinator_read_size.warn_threshold_kb = -2;
         conf.track_warnings.coordinator_read_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
         Assertions.assertThat(conf.track_warnings.coordinator_read_size.warn_threshold_kb).isEqualTo(0);
         Assertions.assertThat(conf.track_warnings.coordinator_read_size.abort_threshold_kb).isEqualTo(0);
     }
@@ -613,7 +613,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
         conf.track_warnings.coordinator_read_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.coordinator_read_size");
     }
@@ -624,7 +624,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
         conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     @Test
@@ -633,7 +633,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
         conf.track_warnings.coordinator_read_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     @Test
@@ -642,7 +642,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.coordinator_read_size.warn_threshold_kb = 0;
         conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     // local read
@@ -652,7 +652,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.local_read_size.warn_threshold_kb = -2;
         conf.track_warnings.local_read_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
         Assertions.assertThat(conf.track_warnings.local_read_size.warn_threshold_kb).isEqualTo(0);
         Assertions.assertThat(conf.track_warnings.local_read_size.abort_threshold_kb).isEqualTo(0);
     }
@@ -663,7 +663,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.local_read_size.warn_threshold_kb = 2;
         conf.track_warnings.local_read_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.local_read_size");
     }
@@ -674,7 +674,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.local_read_size.warn_threshold_kb = 2;
         conf.track_warnings.local_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     @Test
@@ -683,7 +683,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.local_read_size.warn_threshold_kb = 2;
         conf.track_warnings.local_read_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     @Test
@@ -692,7 +692,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.local_read_size.warn_threshold_kb = 0;
         conf.track_warnings.local_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     // row index entry
@@ -702,7 +702,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.row_index_size.warn_threshold_kb = -2;
         conf.track_warnings.row_index_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
         Assertions.assertThat(conf.track_warnings.row_index_size.warn_threshold_kb).isEqualTo(0);
         Assertions.assertThat(conf.track_warnings.row_index_size.abort_threshold_kb).isEqualTo(0);
     }
@@ -713,7 +713,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.row_index_size.warn_threshold_kb = 2;
         conf.track_warnings.row_index_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadWarningValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.row_index_size");
     }
@@ -724,7 +724,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.row_index_size.warn_threshold_kb = 2;
         conf.track_warnings.row_index_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     @Test
@@ -733,7 +733,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.row_index_size.warn_threshold_kb = 2;
         conf.track_warnings.row_index_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 
     @Test
@@ -742,6 +742,6 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.track_warnings.row_index_size.warn_threshold_kb = 0;
         conf.track_warnings.row_index_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyReadWarningValidations(conf);
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
     }
 }
