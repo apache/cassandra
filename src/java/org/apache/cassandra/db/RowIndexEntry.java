@@ -352,7 +352,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         private void checkSize(int entries, int bytes)
         {
             ReadCommand command = ReadCommand.getCommand();
-            if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getClientTrackWarningsEnabled())
+            if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getTrackWarningsEnabled())
                 return;
 
             int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKb() * 1024;

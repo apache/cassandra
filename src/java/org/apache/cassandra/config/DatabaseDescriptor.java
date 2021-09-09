@@ -3461,12 +3461,12 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
-    public static boolean getClientTrackWarningsEnabled()
+    public static boolean getTrackWarningsEnabled()
     {
         return conf.track_warnings.enabled;
     }
 
-    public static void setClientTrackWarningsEnabled(boolean value)
+    public static void setTrackWarningsEnabled(boolean value)
     {
         conf.track_warnings.enabled = value;
     }

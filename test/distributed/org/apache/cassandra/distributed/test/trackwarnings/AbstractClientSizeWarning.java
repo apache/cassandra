@@ -292,7 +292,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
 
     protected static void enable(boolean value)
     {
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setClientTrackWarningsEnabled(value)));
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setTrackWarningsEnabled(value)));
     }
 
     protected static ByteBuffer bytes(int size)

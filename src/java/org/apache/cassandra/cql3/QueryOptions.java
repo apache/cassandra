@@ -252,7 +252,7 @@ public abstract class QueryOptions
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
             if (!DatabaseDescriptor.isDaemonInitialized())
                 return DisabledTrackWarnings.INSTANCE;
-            boolean enabled = DatabaseDescriptor.getClientTrackWarningsEnabled();
+            boolean enabled = DatabaseDescriptor.getTrackWarningsEnabled();
             if (!enabled)
                 return DisabledTrackWarnings.INSTANCE;
             long coordinatorLargeReadWarnThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();

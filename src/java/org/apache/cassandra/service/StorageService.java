@@ -6130,13 +6130,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public boolean getTrackWarningsEnabled()
     {
-        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+        return DatabaseDescriptor.getTrackWarningsEnabled();
     }
 
     @Override
     public void setTrackWarningsEnabled(boolean value)
     {
-        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
+        DatabaseDescriptor.setTrackWarningsEnabled(value);
         logger.info("updated track_warnings.enabled to {}", value);
     }
 
