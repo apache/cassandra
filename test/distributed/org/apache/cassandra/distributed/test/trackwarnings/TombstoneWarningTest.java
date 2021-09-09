@@ -51,6 +51,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
 import org.assertj.core.api.Assertions;
 
 public class TombstoneWarningTest extends TestBaseImpl
@@ -196,6 +197,7 @@ public class TombstoneWarningTest extends TestBaseImpl
         enable(true);
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
+            CoordinatorTrackWarnings.init();
             try
             {
                 QueryProcessor.execute(cql, org.apache.cassandra.db.ConsistencyLevel.ALL, QueryState.forInternalCalls());
@@ -207,6 +209,7 @@ public class TombstoneWarningTest extends TestBaseImpl
                 Assert.assertEquals(TOMBSTONE_FAIL + 1, e.tombstones);
                 // expected, client transport returns an error message and includes client warnings
             }
+            CoordinatorTrackWarnings.done();
             return ClientWarn.instance.getWarnings();
         }).call();
         Assertions.assertThat(Iterables.getOnlyElement(warnings))

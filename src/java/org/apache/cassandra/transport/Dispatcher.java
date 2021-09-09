@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -87,6 +88,9 @@ public class Dispatcher
         long queryStartNanoTime = System.nanoTime();
         if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
             ClientWarn.instance.captureWarnings();
+        // even if ClientWarn is disabled, still setup CoordinatorTrackWarnings, as this will populate metrics and
+        // emit logs on the server; the warnings will just be ignored and not sent to the client
+        CoordinatorTrackWarnings.init();
 
         if (backpressure == Overload.REQUESTS)
         {
@@ -110,6 +114,7 @@ public class Dispatcher
         Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
         connection.requests.inc();
         Message.Response response = request.execute(qstate, queryStartNanoTime);
+        CoordinatorTrackWarnings.done();
         response.setStreamId(request.getStreamId());
         response.setWarnings(ClientWarn.instance.getWarnings());
         response.attach(connection);
