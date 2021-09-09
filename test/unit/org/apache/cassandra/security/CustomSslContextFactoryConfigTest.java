@@ -57,6 +57,9 @@ public class CustomSslContextFactoryConfigTest
         Assert.assertEquals("value1", config.client_encryption_options.ssl_context_factory.parameters.get("key1"));
         Assert.assertEquals("value2", config.client_encryption_options.ssl_context_factory.parameters.get("key2"));
         Assert.assertEquals("value3", config.client_encryption_options.ssl_context_factory.parameters.get("key3"));
+        DummySslContextFactoryImpl dummySslContextFactory =
+        (DummySslContextFactoryImpl)config.client_encryption_options.sslContextFactoryInstance;
+        Assert.assertEquals("dummy-keystore",dummySslContextFactory.getStringValueFor("keystore"));
     }
 
     @Test

@@ -31,7 +31,10 @@ import io.netty.handler.ssl.SslContext;
  */
 public class DummySslContextFactoryImpl implements ISslContextFactory
 {
-    public DummySslContextFactoryImpl(Map<String,Object> parameters) {}
+    private Map<String,Object> parameters;
+    public DummySslContextFactoryImpl(Map<String,Object> parameters) {
+        this.parameters=parameters;
+    }
 
     @Override
     public SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException
@@ -68,5 +71,12 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     public List<String> getCipherSuites()
     {
         return null;
+    }
+
+    /*
+     * For testing only
+     */
+    public String getStringValueFor(String configKey) {
+        return parameters.containsKey(configKey) ? parameters.get(configKey).toString() : null;
     }
 }

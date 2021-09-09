@@ -66,6 +66,20 @@ public class EncryptionOptionsTest
                                                  expected,
                                                  String.format("optional=%s keystore=%s enabled=%s", optional, keystorePath, enabled));
         }
+
+        public static EncryptionOptionsTestCase of(Boolean optional, String keystorePath, Boolean enabled,
+                                                   Map<String,String> customSslContextFactoryParams,
+                                                   EncryptionOptions.TlsEncryptionPolicy expected)
+        {
+            return new EncryptionOptionsTestCase(new EncryptionOptions(new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
+                                                                                              customSslContextFactoryParams),
+                                                                       keystorePath, "dummypass",
+                                                                       "dummytruststore", "dummypass",
+                                                                       Collections.emptyList(), null, null, null, "JKS", false, false, enabled, optional)
+                                                 .applyConfig(),
+                                                 expected,
+                                                 String.format("optional=%s keystore=%s enabled=%s", optional, keystorePath, enabled));
+        }
     }
 
     static final String absentKeystore = "test/conf/missing-keystore-is-not-here";
@@ -180,5 +194,18 @@ public class EncryptionOptionsTest
         {
             Assert.assertSame(testCase.description, testCase.expected, testCase.encryptionOptions.tlsEncryptionPolicy());
         }
+    }
+
+    @Test(expected =  IllegalArgumentException.class)
+    public void testMisplacedConfigKey()
+    {
+        Map<String, String> customSslContextFactoryParams = new HashMap<>();
+
+        for(EncryptionOptions.ConfigKey configKey: EncryptionOptions.ConfigKey.values())
+        {
+            customSslContextFactoryParams.put(configKey.getKeyName(), "my-custom-value");
+        }
+
+        EncryptionOptionsTestCase.of(null, absentKeystore, true, customSslContextFactoryParams, ENCRYPTED);
     }
 }

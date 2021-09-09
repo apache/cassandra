@@ -19,9 +19,11 @@ package org.apache.cassandra.config;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -94,6 +96,45 @@ public class EncryptionOptions
      * to use this option instance.
      */
     public ISslContextFactory sslContextFactoryInstance;
+
+    public enum ConfigKey
+    {
+        KEYSTORE("keystore"),
+        KEYSTORE_PASSWORD("keystore_password"),
+        TRUSTSTORE("truststore"),
+        TRUSTSTORE_PASSWORD("truststore_password"),
+        CIPHER_SUITES("cipher_suites"),
+        PROTOCOL("protocol"),
+        ACCEPTED_PROTOCOLS("accepted_protocols"),
+        ALGORITHM("algorithm"),
+        STORE_TYPE("store_type"),
+        REQUIRE_CLIENT_AUTH("require_client_auth"),
+        REQUIRE_ENDPOINT_VERIFICATION("require_endpoint_verification"),
+        ENABLED("enabled"),
+        OPTIONAL("optional");
+
+        final String keyName;
+
+        ConfigKey(String keyName)
+        {
+            this.keyName=keyName;
+        }
+
+        String getKeyName()
+        {
+            return keyName;
+        }
+
+        static Set<String> asSet()
+        {
+            Set<String> valueSet = new HashSet<>();
+            ConfigKey[] values = values();
+            for(ConfigKey key: values) {
+                valueSet.add(key.getKeyName().toLowerCase());
+            }
+            return valueSet;
+        }
+    }
 
     public EncryptionOptions()
     {
@@ -187,39 +228,60 @@ public class EncryptionOptions
         return this;
     }
 
-    private void initializeSslContextFactory() {
-        Map<String,Object> sslContextFactoryParameters = new HashMap<>();
-        if ( ssl_context_factory.parameters != null ) {
+    /**
+     * Prepares the parameterized keys provided in the configuration for {@link ISslContextFactory} to be passed in
+     * as the constructor for its implementation.
+     *
+     * @throws IllegalArgumentException in case any pre-defined key, as per {@link ConfigKey}, for the encryption
+     * options is duplicated in the parameterized keys.
+     */
+    private void prepareSslContextFactoryParameterizedKeys(Map<String,Object> sslContextFactoryParameters)
+    {
+        if ( ssl_context_factory.parameters != null )
+        {
+            Set<String> configKeys = ConfigKey.asSet();
             for (Map.Entry<String, String> entry : ssl_context_factory.parameters.entrySet())
             {
+                if(configKeys.contains(entry.getKey().toLowerCase()))
+                {
+                    throw new IllegalArgumentException("SslContextFactory "+ssl_context_factory.class_name+" should " +
+                                                       "configure '"+entry.getKey()+"' as encryption_options instead of" +
+                                                       " parameterized keys");
+                }
                 sslContextFactoryParameters.put(entry.getKey(),entry.getValue());
             }
         }
+    }
+
+    private void initializeSslContextFactory() {
+        Map<String,Object> sslContextFactoryParameters = new HashMap<>();
+        prepareSslContextFactoryParameterizedKeys(sslContextFactoryParameters);
 
         /*
          * Copy all configs to the Map to pass it on to the ISslContextFactory's implementation
          */
-        putSslContextFactoryParameter(sslContextFactoryParameters, "keystore", this.keystore);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "keystore_password", this.keystore_password);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "truststore", this.truststore);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "truststore_password", this.truststore_password);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "cipher_suites", this.cipher_suites);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "protocol", this.protocol);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "accepted_protocols", this.accepted_protocols);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "algorithm", this.algorithm);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "store_type", this.store_type);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "require_client_auth", this.require_client_auth);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "require_endpoint_verification", this.require_endpoint_verification);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "enabled", this.enabled);
-        putSslContextFactoryParameter(sslContextFactoryParameters, "optional", this.optional);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.KEYSTORE, this.keystore);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.KEYSTORE_PASSWORD, this.keystore_password);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.TRUSTSTORE, this.truststore);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.TRUSTSTORE_PASSWORD, this.truststore_password);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.CIPHER_SUITES, this.cipher_suites);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.PROTOCOL, this.protocol);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ACCEPTED_PROTOCOLS, this.accepted_protocols);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ALGORITHM, this.algorithm);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.STORE_TYPE, this.store_type);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.REQUIRE_CLIENT_AUTH, this.require_client_auth);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.REQUIRE_ENDPOINT_VERIFICATION, this.require_endpoint_verification);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ENABLED, this.enabled);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.OPTIONAL, this.optional);
 
         sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
                                                                      sslContextFactoryParameters);
     }
 
-    private void putSslContextFactoryParameter(Map<String,Object> existingParameters, String key, Object value) {
+    private void putSslContextFactoryParameter(Map<String,Object> existingParameters, ConfigKey configKey,
+                                               Object value) {
         if ( value != null ) {
-            existingParameters.put(key, value);
+            existingParameters.put(configKey.getKeyName(), value);
         }
     }
 
