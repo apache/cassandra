@@ -399,77 +399,75 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         long startTimeNanos = System.nanoTime();
 
-        // Looks like searcher.search can throw so should wrap this in a try/finally
-        // but choose not to for the following reasons
-        // 1) makes diff larger
-        // 2) worst case we leak when a search fails; assumption is that reads are frequent, so another command will release
         COMMAND.set(this);
-
-        ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
-        Index index = getIndex(cfs);
-
-        Index.Searcher searcher = null;
-        if (index != null)
-        {
-            if (!cfs.indexManager.isIndexQueryable(index))
-                throw new IndexNotAvailableException(index);
-
-            searcher = index.searcherFor(this);
-            Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
-        }
-
-        UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
-        iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
-
         try
         {
-            iterator = withQuerySizeTracking(iterator);
-            iterator = withStateTracking(iterator);
-            iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
-            iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
+            ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
+            Index index = getIndex(cfs);
 
-            // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
-            // no point in checking it again.
-            RowFilter filter = (null == searcher) ? rowFilter() : index.getPostIndexQueryFilter(rowFilter());
-
-            /*
-             * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
-             * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
-             * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
-             * processing we do on it).
-             */
-            iterator = filter.filter(iterator, nowInSec());
-
-            // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
-            // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
-            // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
-            // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
-            if (executionController.isTrackingRepairedStatus())
+            Index.Searcher searcher = null;
+            if (index != null)
             {
-                DataLimits.Counter limit =
+                if (!cfs.indexManager.isIndexQueryable(index))
+                    throw new IndexNotAvailableException(index);
+
+                searcher = index.searcherFor(this);
+                Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
+            }
+
+            UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
+            iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
+
+            try
+            {
+                iterator = withQuerySizeTracking(iterator);
+                iterator = withStateTracking(iterator);
+                iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
+                iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
+
+                // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
+                // no point in checking it again.
+                RowFilter filter = (null == searcher) ? rowFilter() : index.getPostIndexQueryFilter(rowFilter());
+
+                /*
+                 * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
+                 * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
+                 * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
+                 * processing we do on it).
+                 */
+                iterator = filter.filter(iterator, nowInSec());
+
+                // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
+                // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
+                // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
+                // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
+                if (executionController.isTrackingRepairedStatus())
+                {
+                    DataLimits.Counter limit =
                     limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
-                iterator = limit.applyTo(iterator);
-                // ensure that a consistent amount of repaired data is read on each replica. This causes silent
-                // overreading from the repaired data set, up to limits(). The extra data is not visible to
-                // the caller, only iterated to produce the repaired data digest.
-                iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
-            }
-            else
-            {
-                iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
-            }
+                    iterator = limit.applyTo(iterator);
+                    // ensure that a consistent amount of repaired data is read on each replica. This causes silent
+                    // overreading from the repaired data set, up to limits(). The extra data is not visible to
+                    // the caller, only iterated to produce the repaired data digest.
+                    iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
+                }
+                else
+                {
+                    iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
+                }
 
-            // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
-            return RTBoundCloser.close(iterator);
-        }
-        catch (RuntimeException | Error e)
-        {
-            iterator.close();
-            throw e;
+                // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
+                return RTBoundCloser.close(iterator);
+            }
+            catch (RuntimeException | Error e)
+            {
+                iterator.close();
+                throw e;
+            }
         }
         finally
         {
-            COMMAND.remove();
+            COMMAND.set(null);
         }
     }
 
