@@ -44,11 +44,10 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
 import org.apache.cassandra.transport.ClientStat;
-import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -89,56 +88,42 @@ public class Coordinator implements ICoordinator
 
     private SimpleQueryResult executeInternal(String query, ConsistencyLevel consistencyLevelOrigin, Object[] boundValues)
     {
+        ClientState clientState = makeFakeClientState();
+        CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
         List<ByteBuffer> boundBBValues = new ArrayList<>();
         ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
         for (Object boundValue : boundValues)
             boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
-        // Start capturing warnings on this thread. Note that this will implicitly clear out any previous
+        prepared.validate(QueryState.forInternalCalls().getClientState());
+
+        // Start capturing warnings on this thread. Note that this will implicitly clear out any previous 
         // warnings as it sets a new State instance on the ThreadLocal.
         ClientWarn.instance.captureWarnings();
+        CoordinatorTrackWarnings.init();
+        ResultMessage res;
+        try
+        {
+            res = prepared.execute(QueryState.forInternalCalls(),
+                                   QueryOptions.create(toCassandraCL(consistencyLevel),
+                                                       boundBBValues,
+                                                       false,
+                                                       Integer.MAX_VALUE,
+                                                       null,
+                                                       null,
+                                                       ProtocolVersion.CURRENT,
+                                                       null),
+                                   System.nanoTime());
+        }
+        finally
+        {
+            CoordinatorTrackWarnings.done();
+        }
 
-        QueryOptions options = QueryOptions.create(toCassandraCL(consistencyLevel),
-                                                   boundBBValues,
-                                                   false,
-                                                   Integer.MAX_VALUE,
-                                                   null,
-                                                   null,
-                                                   ProtocolVersion.CURRENT,
-                                                   null);
-        Message.Response message = new QueryMessage(query, options)
-        .execute(QueryState.forInternalCalls(), System.nanoTime(), false);
         // Collect warnings reported during the query.
-        if (message != null)
-            message.setWarnings(ClientWarn.instance.getWarnings());
-        assert message instanceof ResultMessage : "query response is not a ResultMessage: " + message.getClass();
-        ResultMessage res = (ResultMessage) message;
+        if (res != null)
+            res.setWarnings(ClientWarn.instance.getWarnings());
 
-//        ClientState clientState = makeFakeClientState();
-//        CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
-//        List<ByteBuffer> boundBBValues = new ArrayList<>();
-//        ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
-//        for (Object boundValue : boundValues)
-//            boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
-//
-//        prepared.validate(QueryState.forInternalCalls().getClientState());
-//
-//
-//        ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-//                                             QueryOptions.create(toCassandraCL(consistencyLevel),
-//                                                                 boundBBValues,
-//                                                                 false,
-//                                                                 Integer.MAX_VALUE,
-//                                                                 null,
-//                                                                 null,
-//                                                                 ProtocolVersion.CURRENT,
-//                                                                 null),
-//                                             System.nanoTime());
-//
-//        // Collect warnings reported during the query.
-//        if (res != null)
-//            res.setWarnings(ClientWarn.instance.getWarnings());
-//
         return RowUtil.toQueryResult(res);
     }
 
