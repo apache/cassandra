@@ -39,7 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
@@ -73,13 +72,13 @@ public class CompactionTask extends AbstractCompactionTask
     @Nullable
     private final CompactionStrategy strategy;
 
-    public CompactionTask(ColumnFamilyStore cfs,
+    public CompactionTask(CompactionRealm realm,
                           LifecycleTransaction txn,
                           int gcBefore,
                           boolean keepOriginals,
                           @Nullable CompactionStrategy strategy)
     {
-        super(cfs, txn);
+        super(realm, txn);
         this.gcBefore = gcBefore;
         this.keepOriginals = keepOriginals;
         this.strategy = strategy;
@@ -93,22 +92,22 @@ public class CompactionTask extends AbstractCompactionTask
     /**
      * Create a compaction task without a compaction strategy, currently only called by tests.
      */
-    static AbstractCompactionTask forTesting(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore)
+    static AbstractCompactionTask forTesting(CompactionRealm realm, LifecycleTransaction txn, int gcBefore)
     {
-        return new CompactionTask(cfs, txn, gcBefore, false, null);
+        return new CompactionTask(realm, txn, gcBefore, false, null);
     }
 
     /**
      * Create a compaction task for deleted data collection.
      */
-    public static AbstractCompactionTask forGarbageCollection(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, CompactionParams.TombstoneOption tombstoneOption)
+    public static AbstractCompactionTask forGarbageCollection(CompactionRealm realm, LifecycleTransaction txn, int gcBefore, CompactionParams.TombstoneOption tombstoneOption)
     {
-        AbstractCompactionTask task = new CompactionTask(cfs, txn, gcBefore, false, null)
+        AbstractCompactionTask task = new CompactionTask(realm, txn, gcBefore, false, null)
         {
             @Override
             protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
             {
-                return new CompactionController(cfs, toCompact, gcBefore, null, tombstoneOption);
+                return new CompactionController(realm, toCompact, gcBefore, null, tombstoneOption);
             }
 
             @Override
@@ -134,6 +133,24 @@ public class CompactionTask extends AbstractCompactionTask
         return transaction.originals().size();
     }
 
+    /*
+     *  Find the maximum size file in the list .
+     */
+    private SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
+    {
+        long maxSize = 0L;
+        SSTableReader maxFile = null;
+        for (SSTableReader sstable : sstables)
+        {
+            if (sstable.onDiskLength() > maxSize)
+            {
+                maxSize = sstable.onDiskLength();
+                maxFile = sstable;
+            }
+        }
+        return maxFile;
+    }
+
     private boolean reduceScopeForLimitedSpace(Set<SSTableReader> nonExpiredSSTables, long expectedSize)
     {
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
@@ -145,7 +162,7 @@ public class CompactionTask extends AbstractCompactionTask
 
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
-            SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
+            SSTableReader removedSSTable = getMaxSizeFile(nonExpiredSSTables);
             transaction.cancel(removedSSTable);
             return true;
         }
@@ -168,10 +185,10 @@ public class CompactionTask extends AbstractCompactionTask
             return;
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            cfs.snapshotWithoutMemtable(System.currentTimeMillis() + "-compact-" + cfs.name);
+            realm.snapshotWithoutMemtable(System.currentTimeMillis() + "-compact-" + realm.getTableName());
 
         try (CompactionController controller = getCompactionController(transaction.originals());
-             CompactionOperation operation = new CompactionOperation(controller))
+             CompactionOperation operation = new CompactionOperation(controller, strategy))
         {
             operation.execute();
         }
@@ -186,8 +203,7 @@ public class CompactionTask extends AbstractCompactionTask
     public final class CompactionOperation implements AutoCloseable
     {
         private final CompactionController controller;
-        private final CompactionStrategy strategy;
-        private final Set<SSTableReader> fullyExpiredSSTables;
+        private final Set<CompactionSSTable> fullyExpiredSSTables;
         private final UUID taskId;
         private final RateLimiter limiter;
         private final long startNanos;
@@ -216,19 +232,18 @@ public class CompactionTask extends AbstractCompactionTask
          * <p/>
          * @param controller the compaction controller is needed by the scanners and compaction iterator to manage options
          */
-        private CompactionOperation(CompactionController controller)
+        private CompactionOperation(CompactionController controller, CompactionStrategy strategy)
         {
             this.controller = controller;
 
-            this.strategy = cfs.getCompactionStrategy();
             this.fullyExpiredSSTables = controller.getFullyExpiredSSTables();
             this.taskId = transaction.opId();
 
             // select SSTables to compact based on available disk space.
             buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
 
-            // sanity check: all sstables must belong to the same cfs
-            assert !Iterables.any(transaction.originals(), sstable -> !sstable.descriptor.cfname.equals(cfs.name));
+            // sanity check: all sstables must belong to the same table
+            assert !Iterables.any(transaction.originals(), sstable -> !sstable.descriptor.cfname.equals(realm.getTableName()));
 
             this.limiter = CompactionManager.instance.getRateLimiter();
             this.startNanos = System.nanoTime();
@@ -246,10 +261,11 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 // resources that need closing, must be created last in case of exceptions and released if there is an exception in the c.tor
                 this.sstableRefs = Refs.ref(actuallyCompact);
-                this.scanners = strategy.getScanners(actuallyCompact);
+                this.scanners = strategy != null ? strategy.getScanners(actuallyCompact)
+                                                 : ScannerList.of(actuallyCompact, null);
                 this.compactionIterator = new CompactionIterator(compactionType, scanners.scanners, controller, FBUtilities.nowInSeconds(), taskId);
                 this.op = compactionIterator.getOperation();
-                this.writer = getCompactionAwareWriter(cfs, dirs, transaction, actuallyCompact);
+                this.writer = getCompactionAwareWriter(realm, dirs, transaction, actuallyCompact);
                 this.obsCloseable = opObserver.onOperationStart(op);
 
                 compObservers.forEach(obs -> obs.onInProgress(progress));
@@ -291,7 +307,7 @@ public class CompactionTask extends AbstractCompactionTask
 
             long lastBytesScanned = 0;
 
-            if (!controller.cfs.getCompactionStrategyContainer().isActive())
+            if (!controller.realm.isCompactionActive())
                 throw new CompactionInterruptedException(op.getProgress());
 
             estimatedKeys = writer.estimatedKeys();
@@ -336,8 +352,8 @@ public class CompactionTask extends AbstractCompactionTask
                               "Try scrubbing the sstables by running\n" +
                               "\tnodetool scrub %s %s\n",
                               transaction.originals(),
-                              cfs.keyspace.getName(),
-                              cfs.getTableName()));
+                              realm.getKeyspaceName(),
+                              realm.getTableName()));
                 error.addSuppressed(e);
                 return error;
             }
@@ -361,7 +377,7 @@ public class CompactionTask extends AbstractCompactionTask
             else if (completed)
             {
                 // This code used to execute only if the compaction was successful so we preserve the existing behavior
-                updateCompactionHistory(taskId, cfs.keyspace.getName(), cfs.getTableName(), progress);
+                updateCompactionHistory(taskId, realm.getKeyspaceName(), realm.getTableName(), progress);
                 CompactionManager.instance.incrementRemovedExpiredSSTables(fullyExpiredSSTables.size());
                 if (transaction.originals().size() > 0 && actuallyCompact.size() == 0)
                     // this CompactionOperation only deleted fully expired SSTables without compacting anything
@@ -375,12 +391,16 @@ public class CompactionTask extends AbstractCompactionTask
                 {
                     traceLogCompactionSummaryInfo(totalKeysWritten, estimatedKeys, progress);
                 }
-                strategy.getCompactionLogger().compaction(startTime, transaction.originals(),  System.currentTimeMillis(), newSStables);
+                if (strategy != null)
+                    strategy.getCompactionLogger().compaction(startTime,
+                                                              transaction.originals(),
+                                                              System.currentTimeMillis(),
+                                                              newSStables);
 
                 // update the metrics
-                cfs.metric.incBytesCompacted(progress.adjustedInputDiskSize(),
-                                             progress.outputDiskSize(),
-                                             System.nanoTime() - startNanos);
+                realm.metrics().incBytesCompacted(progress.adjustedInputDiskSize(),
+                                                  progress.outputDiskSize(),
+                                                  System.nanoTime() - startNanos);
             }
 
             Throwables.maybeFail(err);
@@ -411,7 +431,7 @@ public class CompactionTask extends AbstractCompactionTask
             @Override
             public TableMetadata metadata()
             {
-                return cfs.metadata();
+                return realm.metadata();
             }
 
             /**
@@ -492,7 +512,7 @@ public class CompactionTask extends AbstractCompactionTask
             @Override
             public long inputDiskSize()
             {
-                return SSTableReader.getTotalBytes(actuallyCompact);
+                return CompactionSSTable.getTotalBytes(actuallyCompact);
             }
 
             @Override
@@ -510,7 +530,7 @@ public class CompactionTask extends AbstractCompactionTask
             @Override
             public long outputDiskSize()
             {
-                return SSTableReader.getTotalBytes(newSStables);
+                return CompactionSSTable.getTotalBytes(newSStables);
             }
 
             @Override
@@ -576,17 +596,17 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     @Override
-    public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+    public CompactionAwareWriter getCompactionAwareWriter(CompactionRealm realm,
                                                           Directories directories,
                                                           LifecycleTransaction transaction,
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
-        return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
+        return new DefaultCompactionWriter(realm, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
     }
 
     protected Directories getDirectories()
     {
-        return cfs.getDirectories();
+        return realm.getDirectories();
     }
 
     public static long getMinRepairedAt(Set<SSTableReader> actuallyCompact)
@@ -638,25 +658,25 @@ public class CompactionTask extends AbstractCompactionTask
      * there's enough space (in theory) to handle the compaction.  Does not take into account space that will be taken by
      * other compactions.
      */
-    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables)
+    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<CompactionSSTable> fullyExpiredSSTables)
     {
-        if(!cfs.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
+        if(!realm.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
             logger.info("Compaction space check is disabled");
             return; // try to compact all SSTables
         }
 
         final Set<SSTableReader> nonExpiredSSTables = Sets.difference(transaction.originals(), fullyExpiredSSTables);
-        CompactionStrategy strategy = cfs.getCompactionStrategy();
         int sstablesRemoved = 0;
 
         while(!nonExpiredSSTables.isEmpty())
         {
             // Only consider write size of non expired SSTables
-            long expectedWriteSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
-            long estimatedSSTables = Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes());
+            long expectedWriteSize = realm.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
+            long estimatedSSTables = strategy != null ? Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes())
+                                                      : 1;
 
-            if(cfs.getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize))
+            if(realm.getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize))
                 break;
 
             if (!reduceScopeForLimitedSpace(nonExpiredSSTables, expectedWriteSize))
@@ -698,7 +718,7 @@ public class CompactionTask extends AbstractCompactionTask
 
     protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
     {
-        return new CompactionController(cfs, toCompact, gcBefore);
+        return new CompactionController(realm, toCompact, gcBefore);
     }
 
     protected boolean partialCompactionsAcceptable()

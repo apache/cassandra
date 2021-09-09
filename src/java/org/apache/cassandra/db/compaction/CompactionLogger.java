@@ -171,25 +171,25 @@ public class CompactionLogger
     private JsonNode formatSSTables(CompactionStrategy strategy)
     {
         ArrayNode node = json.arrayNode();
-        for (SSTableReader sstable : strategy.getSSTables())
+        for (CompactionSSTable sstable : strategy.getSSTables())
             node.add(formatSSTable(sstable));
 
         return node;
     }
 
-    private JsonNode formatSSTable(SSTableReader sstable)
+    private JsonNode formatSSTable(CompactionSSTable sstable)
     {
         ObjectNode node = json.objectNode();
-        node.put("generation", sstable.descriptor.generation.asString());
-        node.put("version", sstable.descriptor.version.getVersion());
+        node.put("generation", sstable.getDescriptor().generation.asString());
+        node.put("version", sstable.getDescriptor().version.getVersion());
         node.put("size", sstable.onDiskLength());
 
         // The details are only relevant or available for some strategies, e.g. LCS or Date tiered but
         // it doesn't hurt to log them all the time in order to simplify things
         ObjectNode details = json.objectNode();
         details.put("level", sstable.getSSTableLevel());
-        details.put("min_token", sstable.first.getToken().toString());
-        details.put("max_token", sstable.last.getToken().toString());
+        details.put("min_token", sstable.getFirst().getToken().toString());
+        details.put("max_token", sstable.getLast().getToken().toString());
         details.put("min_timestamp", sstable.getMinTimestamp());
         details.put("max_timestamp", sstable.getMaxTimestamp());
 

@@ -33,13 +33,11 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
-import com.google.common.primitives.Ints;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -66,14 +64,14 @@ class LeveledGenerations
      * do allSSTables.get(instance_with_moved_starts) we will get the NORMAL sstable back, which we can then remove
      * from the TreeSet.
      */
-    private final Map<SSTableReader, SSTableReader> allSSTables = new HashMap<>();
-    private final Set<SSTableReader> l0 = new HashSet<>();
+    private final Map<CompactionSSTable, CompactionSSTable> allSSTables = new HashMap<>();
+    private final Set<CompactionSSTable> l0 = new HashSet<>();
     private static long lastOverlapCheck = System.nanoTime();
     // note that since l0 is broken out, levels[0] represents L1:
-    private final TreeSet<SSTableReader> [] levels = new TreeSet[MAX_LEVEL_COUNT - 1];
+    private final TreeSet<CompactionSSTable> [] levels = new TreeSet[MAX_LEVEL_COUNT - 1];
 
-    private static final Comparator<SSTableReader> nonL0Comparator = (o1, o2) -> {
-        int cmp = SSTableReader.firstKeyComparator.compare(o1, o2);
+    private static final Comparator<CompactionSSTable> nonL0Comparator = (o1, o2) -> {
+        int cmp = CompactionSSTable.firstKeyComparator.compare(o1, o2);
         if (cmp == 0)
             cmp = o1.getGeneration().compareTo(o2.getGeneration());
         return cmp;
@@ -85,7 +83,7 @@ class LeveledGenerations
             levels[i] = new TreeSet<>(nonL0Comparator);
     }
 
-    Set<SSTableReader> get(int level)
+    Set<CompactionSSTable> get(int level)
     {
         if (level > levelCount() - 1 || level < 0)
             throw new ArrayIndexOutOfBoundsException("Invalid generation " + level + " - maximum is " + (levelCount() - 1));
@@ -111,28 +109,13 @@ class LeveledGenerations
      *
      * todo: group sstables per level, add all if level is currently empty, improve startup speed
      */
-    void addAll(Iterable<SSTableReader> readers)
+    void addAll(Iterable<? extends CompactionSSTable> readers)
     {
         logDistribution();
-        for (SSTableReader sstable : readers)
+        for (CompactionSSTable sstable : readers)
         {
             assert sstable.getSSTableLevel() < levelCount() : "Invalid level " + sstable.getSSTableLevel() + " out of " + (levelCount() - 1);
-            int existingLevel = getLevelIfExists(sstable);
-            if (existingLevel != -1)
-            {
-                if (sstable.getSSTableLevel() != existingLevel)
-                {
-                    logger.error("SSTable {} on the wrong level in the manifest - {} instead of {} as recorded in the sstable metadata, removing from level {}", sstable, existingLevel, sstable.getSSTableLevel(), existingLevel);
-                    if (strictLCSChecksTest)
-                        throw new AssertionError("SSTable not in matching level in manifest: "+sstable + ": "+existingLevel+" != " + sstable.getSSTableLevel());
-                }
-                else
-                {
-                    logger.info("Manifest already contains {} in level {} - replacing instance", sstable, existingLevel);
-                }
-                get(existingLevel).remove(sstable);
-                allSSTables.remove(sstable);
-            }
+            removeIfExists(sstable);
 
             allSSTables.put(sstable, sstable);
             if (sstable.getSSTableLevel() == 0)
@@ -141,7 +124,7 @@ class LeveledGenerations
                 continue;
             }
 
-            TreeSet<SSTableReader> level = levels[sstable.getSSTableLevel() - 1];
+            TreeSet<CompactionSSTable> level = levels[sstable.getSSTableLevel() - 1];
             /*
             current level: |-----||----||----|        |---||---|
               new sstable:                      |--|
@@ -149,8 +132,8 @@ class LeveledGenerations
                                                         ^ after
                 overlap if before.last >= newsstable.first or after.first <= newsstable.last
              */
-            SSTableReader after = level.ceiling(sstable);
-            SSTableReader before = level.floor(sstable);
+            CompactionSSTable after = level.ceiling(sstable);
+            CompactionSSTable before = level.floor(sstable);
 
             if (before != null && before.getLast().compareTo(sstable.getFirst()) >= 0 ||
                 after != null && after.getFirst().compareTo(sstable.getLast()) <= 0)
@@ -170,45 +153,64 @@ class LeveledGenerations
      *
      * SSTable should not exist in the manifest
      */
-    private void sendToL0(SSTableReader sstable)
+    private void sendToL0(CompactionSSTable sstable)
     {
         try
         {
-            sstable.mutateLevelAndReload(0);
+            sstable.mutateSSTableLevelAndReload(0);
         }
         catch (IOException e)
         {
             // Adding it to L0 and marking suspect is probably the best we can do here - it won't create overlap
             // and we won't pick it for later compactions.
             logger.error("Failed mutating sstable metadata for {} - adding it to L0 to avoid overlap. Marking suspect", sstable, e);
-            sstable.markSuspect();
         }
         l0.add(sstable);
     }
 
     /**
-     * Tries to find the sstable in the levels without using the sstable-recorded level
+     * Tries to find the sstable in the levels without using the sstable-recorded level, and removes it if it does find
+     * it.
      *
      * Used to make sure we don't try to re-add an existing sstable
      */
-    private int getLevelIfExists(SSTableReader sstable)
+    private void removeIfExists(CompactionSSTable sstable)
     {
-        for (int i = 0; i < levelCount(); i++)
+        for (int level = 0; level < levelCount(); level++)
         {
-            if (get(i).contains(sstable))
-                return i;
+            if (get(level).contains(sstable))
+            {
+                if (sstable.getSSTableLevel() != level)
+                {
+                    logger.error("SSTable {} on the wrong level in the manifest - {} instead of {} as recorded in the sstable metadata, removing from level {}",
+                                 sstable,
+                                 level,
+                                 sstable.getSSTableLevel(),
+                                 level);
+                    if (strictLCSChecksTest)
+                        throw new AssertionError("SSTable not in matching level in manifest: " + sstable + ": " + level + " != " +
+                                                 sstable.getSSTableLevel());
+                }
+                else
+                {
+                    logger.info("Manifest already contains {} in level {} - replacing instance",
+                                sstable,
+                                level);
+                }
+                get(level).remove(sstable);
+                allSSTables.remove(sstable);
+            }
         }
-        return -1;
     }
 
-    int remove(Collection<SSTableReader> readers)
+    int remove(Collection<? extends CompactionSSTable> readers)
     {
         int minLevel = Integer.MAX_VALUE;
-        for (SSTableReader sstable : readers)
+        for (CompactionSSTable sstable : readers)
         {
             int level = sstable.getSSTableLevel();
             minLevel = Math.min(minLevel, level);
-            SSTableReader versionInManifest = allSSTables.get(sstable);
+            CompactionSSTable versionInManifest = allSSTables.get(sstable);
             if (versionInManifest != null)
             {
                 get(level).remove(versionInManifest);
@@ -226,11 +228,11 @@ class LeveledGenerations
         return counts;
     }
 
-    Set<SSTableReader> allSSTables()
+    Set<CompactionSSTable> allSSTables()
     {
-        ImmutableSet.Builder<SSTableReader> builder = ImmutableSet.builder();
+        ImmutableSet.Builder<CompactionSSTable> builder = ImmutableSet.builder();
         builder.addAll(l0);
-        for (Set<SSTableReader> sstables : levels)
+        for (Set<CompactionSSTable> sstables : levels)
             builder.addAll(sstables);
         return builder.build();
     }
@@ -239,21 +241,21 @@ class LeveledGenerations
      * given a level with sstables with first tokens [0, 10, 20, 30] and a lastCompactedSSTable with last = 15, we will
      * return an Iterator over [20, 30, 0, 10].
      */
-    Iterator<SSTableReader> wrappingIterator(int lvl, SSTableReader lastCompactedSSTable)
+    Iterator<CompactionSSTable> wrappingIterator(int lvl, CompactionSSTable lastCompactedSSTable)
     {
         assert lvl > 0; // only makes sense in L1+
-        TreeSet<SSTableReader> level = levels[lvl - 1];
+        TreeSet<CompactionSSTable> level = levels[lvl - 1];
         if (level.isEmpty())
             return Collections.emptyIterator();
         if (lastCompactedSSTable == null)
             return level.iterator();
 
-        PeekingIterator<SSTableReader> tail = Iterators.peekingIterator(level.tailSet(lastCompactedSSTable).iterator());
-        SSTableReader pivot = null;
+        PeekingIterator<CompactionSSTable> tail = Iterators.peekingIterator(level.tailSet(lastCompactedSSTable).iterator());
+        CompactionSSTable pivot = null;
         // then we need to make sure that the first token of the pivot is greater than the last token of the lastCompactedSSTable
         while (tail.hasNext())
         {
-            SSTableReader potentialPivot = tail.peek();
+            CompactionSSTable potentialPivot = tail.peek();
             if (potentialPivot.getFirst().compareTo(lastCompactedSSTable.getLast()) > 0)
             {
                 pivot = potentialPivot;
@@ -274,22 +276,22 @@ class LeveledGenerations
         {
             for (int i = 0; i < levelCount(); i++)
             {
-                Set<SSTableReader> level = get(i);
+                Set<CompactionSSTable> level = get(i);
                 if (!level.isEmpty())
                 {
                     logger.trace("L{} contains {} SSTables ({}) in {}",
                                  i,
                                  level.size(),
-                                 FBUtilities.prettyPrintMemory(SSTableReader.getTotalBytes(level)),
+                                 FBUtilities.prettyPrintMemory(CompactionSSTable.getTotalBytes(level)),
                                  this);
                 }
             }
         }
     }
 
-    Set<SSTableReader>[] snapshot()
+    Set<CompactionSSTable>[] snapshot()
     {
-        Set<SSTableReader> [] levelsCopy = new Set[levelCount()];
+        Set<CompactionSSTable> [] levelsCopy = new Set[levelCount()];
         for (int i = 0; i < levelCount(); i++)
             levelsCopy[i] = ImmutableSet.copyOf(get(i));
         return levelsCopy;
@@ -308,8 +310,8 @@ class LeveledGenerations
         lastOverlapCheck = System.nanoTime();
         for (int i = 1; i < levelCount(); i++)
         {
-            SSTableReader prev = null;
-            for (SSTableReader sstable : get(i))
+            CompactionSSTable prev = null;
+            for (CompactionSSTable sstable : get(i))
             {
                 // no overlap:
                 assert prev == null || prev.getLast().compareTo(sstable.getFirst()) < 0;
@@ -325,9 +327,9 @@ class LeveledGenerations
         }
     }
 
-    void newLevel(SSTableReader sstable, int oldLevel)
+    void newLevel(CompactionSSTable sstable, int oldLevel)
     {
-        SSTableReader versionInManifest = allSSTables.remove(sstable);
+        CompactionSSTable versionInManifest = allSSTables.remove(sstable);
         boolean removed = false;
         if (versionInManifest != null)
             removed = get(oldLevel).remove(versionInManifest);

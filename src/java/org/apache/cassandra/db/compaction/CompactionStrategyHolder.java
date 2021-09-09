@@ -26,7 +26,6 @@ import java.util.UUID;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.dht.Range;
@@ -45,9 +44,9 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     private final List<LegacyAbstractCompactionStrategy> strategies = new ArrayList<>();
     private final boolean isRepaired;
 
-    public CompactionStrategyHolder(ColumnFamilyStore cfs, CompactionStrategyFactory strategyFactory, DestinationRouter router, boolean isRepaired)
+    public CompactionStrategyHolder(CompactionRealm realm, CompactionStrategyFactory strategyFactory, DestinationRouter router, boolean isRepaired)
     {
-        super(cfs, strategyFactory, router);
+        super(realm, strategyFactory, router);
         this.isRepaired = isRepaired;
     }
 
@@ -88,7 +87,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public LegacyAbstractCompactionStrategy getStrategyFor(SSTableReader sstable)
+    public LegacyAbstractCompactionStrategy getStrategyFor(CompactionSSTable sstable)
     {
         Preconditions.checkArgument(managesSSTable(sstable), "Attempting to get compaction strategy from wrong holder");
         return strategies.get(router.getIndexForSSTable(sstable));
@@ -122,7 +121,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public Collection<AbstractCompactionTask> getUserDefinedTasks(GroupedSSTableContainer sstables, int gcBefore)
+    public Collection<AbstractCompactionTask> getUserDefinedTasks(GroupedSSTableContainer<CompactionSSTable> sstables, int gcBefore)
     {
         List<AbstractCompactionTask> tasks = new ArrayList<>(strategies.size());
         for (int i = 0; i < strategies.size(); i++)
@@ -136,7 +135,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public void addSSTables(GroupedSSTableContainer sstables)
+    public void addSSTables(GroupedSSTableContainer<CompactionSSTable> sstables)
     {
         Preconditions.checkArgument(sstables.numGroups() == strategies.size());
         for (int i = 0; i < strategies.size(); i++)
@@ -147,7 +146,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public void removeSSTables(GroupedSSTableContainer sstables)
+    public void removeSSTables(GroupedSSTableContainer<CompactionSSTable> sstables)
     {
         Preconditions.checkArgument(sstables.numGroups() == strategies.size());
         for (int i = 0; i < strategies.size(); i++)
@@ -158,7 +157,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public void replaceSSTables(GroupedSSTableContainer removed, GroupedSSTableContainer added)
+    public void replaceSSTables(GroupedSSTableContainer<CompactionSSTable> removed, GroupedSSTableContainer<CompactionSSTable> added)
     {
         Preconditions.checkArgument(removed.numGroups() == strategies.size());
         Preconditions.checkArgument(added.numGroups() == strategies.size());
@@ -181,7 +180,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
 
     @Override
     @SuppressWarnings("resource")
-    public List<ISSTableScanner> getScanners(GroupedSSTableContainer sstables, Collection<Range<Token>> ranges)
+    public List<ISSTableScanner> getScanners(GroupedSSTableContainer<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
         List<ISSTableScanner> scanners = new ArrayList<>(strategies.size());
         for (int i = 0; i < strategies.size(); i++)
@@ -194,13 +193,13 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
         return scanners;
     }
 
-    Collection<Collection<SSTableReader>> groupForAnticompaction(Iterable<SSTableReader> sstables)
+    Collection<Collection<CompactionSSTable>> groupForAnticompaction(Iterable<? extends CompactionSSTable> sstables)
     {
         Preconditions.checkState(!isRepaired);
-        GroupedSSTableContainer group = createGroupedSSTableContainer();
+        GroupedSSTableContainer<CompactionSSTable> group = this.createGroupedSSTableContainer();
         sstables.forEach(group::add);
 
-        Collection<Collection<SSTableReader>> anticompactionGroups = new ArrayList<>();
+        Collection<Collection<CompactionSSTable>> anticompactionGroups = new ArrayList<>();
         for (int i = 0; i < strategies.size(); i++)
         {
             if (group.isGroupEmpty(i))
@@ -249,7 +248,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public boolean containsSSTable(SSTableReader sstable)
+    public boolean containsSSTable(CompactionSSTable sstable)
     {
         return Iterables.any(strategies, acs -> acs.getSSTables().contains(sstable));
     }

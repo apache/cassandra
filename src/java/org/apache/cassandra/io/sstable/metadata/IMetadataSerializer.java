@@ -67,7 +67,7 @@ public interface IMetadataSerializer
      * Mutate SSTable Metadata
      *
      * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
-     * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
+     * {@link SSTableReader#mutateSSTableLevelAndReload} instead on live sstable.
      *
      * @param descriptor SSTable descriptor
      * @param description on changed attributions
@@ -80,7 +80,7 @@ public interface IMetadataSerializer
      * Mutate SSTable level
      *
      * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
-     * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
+     * {@link SSTableReader#mutateSSTableLevelAndReload} instead on live sstable.
      *
      * @param descriptor SSTable descriptor
      * @param newLevel new SSTable level
@@ -92,7 +92,7 @@ public interface IMetadataSerializer
      * Mutate the repairedAt time, pendingRepair ID, and transient status.
      *
      * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
-     * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
+     * {@link SSTableReader#mutateSSTableLevelAndReload} instead on live sstable.
      */
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException;
 

@@ -48,7 +48,17 @@ import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.compaction.AbstractTableOperation;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionRealm;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
+import org.apache.cassandra.db.compaction.CompactionStrategy;
+import org.apache.cassandra.db.compaction.CompactionStrategyContainer;
+import org.apache.cassandra.db.compaction.CompactionStrategyFactory;
+import org.apache.cassandra.db.compaction.CompactionStrategyManager;
+import org.apache.cassandra.db.compaction.CompactionStrategyOptions;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.memtable.Flushing;
@@ -104,7 +114,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 import static org.apache.cassandra.utils.Throwables.perform;
 
-public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
+public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner, CompactionRealm
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
@@ -307,7 +317,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      */
     private void reloadCompactionStrategy(CompactionParams compactionParams, CompactionStrategyContainer.ReloadReason reason)
     {
+        CompactionStrategyContainer previous = strategyContainer;
         strategyContainer = strategyFactory.reload(strategyContainer, compactionParams, reason);
+        if (strategyContainer != previous)
+        {
+            getTracker().subscribe(strategyContainer);
+            if (previous != null)
+                getTracker().unsubscribe(previous);
+        }
     }
 
     public static Runnable getBackgroundCompactionTaskSubmitter()
@@ -436,6 +453,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         this.strategyContainer = strategyFactory.reload(null,
                                                         metadata.get().params.compaction,
                                                         CompactionStrategyContainer.ReloadReason.FULL);
+        getTracker().subscribe(strategyContainer);
 
         // create the private ColumnFamilyStores for the secondary column indexes
         indexManager = new SecondaryIndexManager(this);
@@ -517,6 +535,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public TableMetadata metadata()
     {
         return metadata.get();
+    }
+
+    public TableMetadataRef metadataRef()
+    {
+        return metadata;
+    }
+
+    public TableMetrics metrics()
+    {
+        return metric;
     }
 
     public Directories getDirectories()
@@ -1291,6 +1319,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                    cfs -> cfs.getTracker().getView().getCurrentMemtable());
     }
 
+    public SecondaryIndexManager getIndexManager()
+    {
+        return indexManager;
+    }
+
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Keyspace.switchLock
@@ -1365,7 +1398,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @return sstables whose key range overlaps with that of the given sstables, not including itself.
      * (The given sstables may or may not overlap with each other.)
      */
-    public Collection<SSTableReader> getOverlappingLiveSSTables(Iterable<SSTableReader> sstables)
+    public Set<SSTableReader> getOverlappingLiveSSTables(Iterable<? extends CompactionSSTable> sstables)
     {
         logger.trace("Checking for sstables overlapping {}", sstables);
 
@@ -1376,8 +1409,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         View view = data.getView();
 
-        List<SSTableReader> sortedByFirst = Lists.newArrayList(sstables);
-        Collections.sort(sortedByFirst, (o1, o2) -> o1.first.compareTo(o2.first));
+        List<CompactionSSTable> sortedByFirst = Lists.newArrayList(sstables);
+        Collections.sort(sortedByFirst, CompactionSSTable.firstKeyComparator);
 
         List<AbstractBounds<PartitionPosition>> bounds = new ArrayList<>();
         DecoratedKey first = null, last = null;
@@ -1390,35 +1423,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         only query the tree 2 times, for these intervals;
         [         ]    [          ]
          */
-        for (SSTableReader sstable : sortedByFirst)
+        for (CompactionSSTable sstable : sortedByFirst)
         {
             if (first == null)
             {
-                first = sstable.first;
-                last = sstable.last;
+                first = sstable.getFirst();
+                last = sstable.getLast();
             }
             else
             {
-                if (sstable.first.compareTo(last) <= 0) // we do overlap
+                if (sstable.getFirst().compareTo(last) <= 0) // we do overlap
                 {
-                    if (sstable.last.compareTo(last) > 0)
-                        last = sstable.last;
+                    if (sstable.getLast().compareTo(last) > 0)
+                        last = sstable.getLast();
                 }
                 else
                 {
                     bounds.add(AbstractBounds.bounds(first, true, last, true));
-                    first = sstable.first;
-                    last = sstable.last;
+                    first = sstable.getFirst();
+                    last = sstable.getLast();
                 }
             }
         }
         bounds.add(AbstractBounds.bounds(first, true, last, true));
-        Set<SSTableReader> results = new HashSet<>();
+        Set<SSTableReader> overlaps = new HashSet<>();
 
         for (AbstractBounds<PartitionPosition> bound : bounds)
-            Iterables.addAll(results, view.liveSSTablesInBounds(bound.left, bound.right));
+            Iterables.addAll(overlaps, view.liveSSTablesInBounds(bound.left, bound.right));
 
-        return Sets.difference(results, ImmutableSet.copyOf(sstables));
+        for (CompactionSSTable sstable : sstables)
+            overlaps.remove(sstable);
+        return overlaps;
     }
 
     /**
@@ -1428,7 +1463,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         while (true)
         {
-            Iterable<SSTableReader> overlapped = getOverlappingLiveSSTables(sstables);
+            Set<SSTableReader> overlapped = getOverlappingLiveSSTables(sstables);
             Refs<SSTableReader> refs = Refs.tryRef(overlapped);
             if (refs != null)
                 return refs;
@@ -1473,7 +1508,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         if (operation != OperationType.CLEANUP || isIndex())
         {
-            return SSTableReader.getTotalBytes(sstables);
+            return CompactionSSTable.getTotalBytes(sstables);
         }
 
         // cleanup size estimation only counts bytes for keys local to this node
@@ -1491,24 +1526,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             expectedFileSize *= compressionRatio;
 
         return expectedFileSize;
-    }
-
-    /*
-     *  Find the maximum size file in the list .
-     */
-    public SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
-    {
-        long maxSize = 0L;
-        SSTableReader maxFile = null;
-        for (SSTableReader sstable : sstables)
-        {
-            if (sstable.onDiskLength() > maxSize)
-            {
-                maxSize = sstable.onDiskLength();
-                maxFile = sstable;
-            }
-        }
-        return maxFile;
     }
 
     public CompactionManager.AllSSTableOpStatus forceCleanup(int jobs) throws ExecutionException, InterruptedException
@@ -1626,7 +1643,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return data.getNoncompacting();
     }
 
-    public Iterable<? extends SSTableReader> getNoncompactingSSTables(Iterable<? extends SSTableReader> candidates)
+    public <S extends CompactionSSTable> Iterable<S> getNoncompactingSSTables(Iterable<S> candidates)
     {
         return data.getNoncompacting(candidates);
     }
@@ -1634,6 +1651,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public Set<SSTableReader> getCompactingSSTables()
     {
         return data.getCompacting();
+    }
+
+    public Iterable<Memtable> getAllMemtables()
+    {
+        return data.getView().getAllMemtables();
     }
 
     public Map<UUID, PendingStat> getPendingRepairStats()
@@ -2733,6 +2755,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     // End JMX get/set.
 
+    public boolean isCompactionActive()
+    {
+        return getCompactionStrategyContainer().isActive();
+    }
+
+    public long getMaxSSTableBytes()
+    {
+        return getCompactionStrategy().getMaxSSTableBytes();
+    }
+
     public int getMeanEstimatedCellPerPartitionCount()
     {
         long sum = 0;
@@ -2757,21 +2789,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             count += n;
         }
         return count > 0 ? sum * 1.0 / count : 0;
-    }
-
-    public double sstablePartitionReadLatency()
-    {
-        return metric == null ? 0 : metric.sstablePartitionReadLatency.get();
-    }
-
-    public double getCompactionTimePerKb()
-    {
-        return metric == null ? 0 : metric.compactionTimePerKb.get();
-    }
-
-    public double getFlushTimePerKb()
-    {
-        return metric == null ? 0 : metric.flushTimePerKb.get();
     }
 
     public int getMeanRowCount()
@@ -2840,11 +2857,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return bloomFilterTracker.getRecentTrueNegativeRate();
     }
 
-    public double bloomFilterFpRatio()
-    {
-        return metric == null ? 0 : metric.bloomFilterFalseRatio.getValue();
-    }
-
     public long getReadRequests()
     {
         return metric == null ? 0 : metric.readRequests.getCount();
@@ -2853,27 +2865,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public long getBytesInserted()
     {
         return metric == null ? 0 : metric.bytesInserted.getCount();
-    }
-
-    /**
-     * @return the write amplification (bytes flushed + bytes compacted / bytes flushed).
-     */
-    public double getWA()
-    {
-        if (metric == null)
-            return 0;
-
-        double bytesCompacted = metric.compactionBytesWritten.getCount();
-        double bytesFlushed = metric.bytesFlushed.getCount();
-        return bytesFlushed <= 0 ? 0 : (bytesFlushed + bytesCompacted) / bytesFlushed;
-    }
-
-    public double getFlushSizeOnDisk()
-    {
-        if (metric == null)
-            return 0;
-
-        return metric.flushSizeOnDisk.get();
     }
 
     /** true if this CFS contains secondary index data */
@@ -3263,6 +3254,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    public int mutateRepairedWithLock(Collection<SSTableReader> sstables, long repairedAt, UUID pendingRepair, boolean isTransient) throws IOException
+    {
+        return mutateRepaired(getCompactionStrategyContainer().getWriteLock(), sstables, repairedAt, pendingRepair, isTransient);
+    }
+
+    public void repairSessionCompleted(UUID sessionID)
+    {
+        getCompactionStrategyContainer().repairSessionCompleted(sessionID);
+    }
+
     public boolean hasPendingRepairSSTables(UUID sessionID)
     {
         return Iterables.any(data.getLiveSSTables(), pendingRepairPredicate(sessionID));
@@ -3278,8 +3279,79 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return sstable -> sstable.getPendingRepair() != null && sessionID.equals(sstable.getPendingRepair());
     }
 
-    public static Predicate<SSTableReader> nonSuspectAndNotInPredicate(Set<SSTableReader> compacting)
+    public LifecycleTransaction tryModify(Iterable<? extends CompactionSSTable> ssTableReaders, OperationType operationType)
     {
-        return sstable -> !sstable.isMarkedSuspect() && !compacting.contains(sstable);
+        return data.tryModify(Iterables.transform(ssTableReaders, SSTableReader.class::cast), operationType);
+    }
+
+    public CompactionRealm.OverlapTracker getOverlapTracker(Iterable<SSTableReader> sources)
+    {
+        return new OverlapTracker(sources);
+    }
+
+    class OverlapTracker implements CompactionRealm.OverlapTracker
+    {
+        final Iterable<SSTableReader> compacting;
+        private Refs<SSTableReader> overlappingSSTables;
+        private OverlapIterator<PartitionPosition, SSTableReader> overlapIterator;
+
+        OverlapTracker(Iterable<SSTableReader> compacting)
+        {
+            this.compacting = compacting;
+            collectOverlaps();
+        }
+
+        public Collection<? extends CompactionSSTable> overlaps()
+        {
+            return overlappingSSTables;
+        }
+
+        public Collection<? extends CompactionSSTable> overlaps(DecoratedKey key)
+        {
+            overlapIterator.update(key);
+            return overlapIterator.overlaps();
+        }
+
+        public <V> Iterable<V> openSelectedOverlappingSSTables(DecoratedKey key,
+                                                               Predicate<CompactionSSTable> filter,
+                                                               Function<SSTableReader, V> transformation)
+        {
+            overlapIterator.update(key);
+
+            Iterable<SSTableReader> overlaps = overlapIterator.overlaps();
+            Iterable<V> transformed = Iterables.transform(overlaps, sstable -> filter.apply(sstable)
+                                                                               ? transformation.apply(sstable)
+                                                                               : null);
+            return Iterables.filter(transformed, Predicates.notNull());
+        }
+
+        public void close()
+        {
+            overlapIterator = null;
+            overlappingSSTables.release();
+        }
+
+        public boolean maybeRefresh()
+        {
+            for (CompactionSSTable reader : overlappingSSTables)
+            {
+                if (reader.isMarkedCompacted())
+                {
+                    close();
+                    collectOverlaps();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void collectOverlaps()
+        {
+            if (compacting == null)
+                overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
+            else
+                overlappingSSTables = getAndReferenceOverlappingLiveSSTables(compacting);
+            this.overlapIterator = new OverlapIterator<>(SSTableIntervalTree.buildIntervals(overlappingSSTables));
+        }
     }
 }

@@ -199,8 +199,8 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
-        TreeMap<Long, List<SSTableReader>> buckets = new TreeMap<>(Long::compare);
-        List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
+        TreeMap<Long, List<CompactionSSTable>> buckets = new TreeMap<>(Long::compare);
+        List<CompactionSSTable> sstrs = new ArrayList<>(cfs.getLiveSSTables());
 
         // We'll put 3 sstables into the newest bucket
         for (int i = 0; i < 3; i++)

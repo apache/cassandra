@@ -37,7 +37,6 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -60,7 +59,7 @@ class PendingRepairManager
 {
     private static final Logger logger = LoggerFactory.getLogger(PendingRepairManager.class);
 
-    private final ColumnFamilyStore cfs;
+    private final CompactionRealm realm;
     private final CompactionStrategyFactory strategyFactory;
     private final CompactionParams params;
     private final boolean isTransient;
@@ -77,9 +76,9 @@ class PendingRepairManager
         }
     }
 
-    PendingRepairManager(ColumnFamilyStore cfs, CompactionStrategyFactory strategyFactory, CompactionParams params, boolean isTransient)
+    PendingRepairManager(CompactionRealm realm, CompactionStrategyFactory strategyFactory, CompactionParams params, boolean isTransient)
     {
-        this.cfs = cfs;
+        this.realm = realm;
         this.strategyFactory = strategyFactory;
         this.params = params;
         this.isTransient = isTransient;
@@ -95,7 +94,7 @@ class PendingRepairManager
         return strategies.get(id);
     }
 
-    LegacyAbstractCompactionStrategy get(SSTableReader sstable)
+    LegacyAbstractCompactionStrategy get(CompactionSSTable sstable)
     {
         assert sstable.isPendingRepair();
         return get(sstable.getPendingRepair());
@@ -114,7 +113,7 @@ class PendingRepairManager
 
                 if (strategy == null)
                 {
-                    logger.debug("Creating {}.{} compaction strategy for pending repair: {}", cfs.metadata.keyspace, cfs.metadata.name, id);
+                    logger.debug("Creating {}.{} compaction strategy for pending repair: {}", realm.getKeyspaceName(), realm.getTableName(), id);
                     strategy = strategyFactory.createLegacyStrategy(params);
                     strategies = mapBuilder().putAll(strategies).put(id, strategy).build();
                 }
@@ -131,7 +130,7 @@ class PendingRepairManager
         }
     }
 
-    LegacyAbstractCompactionStrategy getOrCreate(SSTableReader sstable)
+    LegacyAbstractCompactionStrategy getOrCreate(CompactionSSTable sstable)
     {
         return getOrCreate(sstable.getPendingRepair());
     }
@@ -141,11 +140,11 @@ class PendingRepairManager
         if (!strategies.containsKey(sessionID) || !strategies.get(sessionID).getSSTables().isEmpty())
             return;
 
-        logger.debug("Removing compaction strategy for pending repair {} on  {}.{}", sessionID, cfs.metadata.keyspace, cfs.metadata.name);
+        logger.debug("Removing compaction strategy for pending repair {} on  {}.{}", sessionID, realm.getKeyspaceName(), realm.getTableName());
         strategies = ImmutableMap.copyOf(Maps.filterKeys(strategies, k -> !k.equals(sessionID)));
     }
 
-    synchronized void removeSSTable(SSTableReader sstable)
+    synchronized void removeSSTable(CompactionSSTable sstable)
     {
         for (Map.Entry<UUID, LegacyAbstractCompactionStrategy> entry : strategies.entrySet())
         {
@@ -154,32 +153,32 @@ class PendingRepairManager
         }
     }
 
-    void removeSSTables(Iterable<SSTableReader> removed)
+    void removeSSTables(Iterable<CompactionSSTable> removed)
     {
-        for (SSTableReader sstable : removed)
+        for (CompactionSSTable sstable : removed)
             removeSSTable(sstable);
     }
 
-    synchronized void addSSTable(SSTableReader sstable)
+    synchronized void addSSTable(CompactionSSTable sstable)
     {
         Preconditions.checkArgument(sstable.isTransient() == isTransient);
         getOrCreate(sstable).addSSTable(sstable);
     }
 
-    void addSSTables(Iterable<SSTableReader> added)
+    void addSSTables(Iterable<? extends CompactionSSTable> added)
     {
-        for (SSTableReader sstable : added)
+        for (CompactionSSTable sstable : added)
             addSSTable(sstable);
     }
 
-    synchronized void replaceSSTables(Set<SSTableReader> removed, Set<SSTableReader> added)
+    synchronized void replaceSSTables(Set<CompactionSSTable> removed, Set<CompactionSSTable> added)
     {
         if (removed.isEmpty() && added.isEmpty())
             return;
 
         // left=removed, right=added
-        Map<UUID, Pair<Set<SSTableReader>, Set<SSTableReader>>> groups = new HashMap<>();
-        for (SSTableReader sstable : removed)
+        Map<UUID, Pair<Set<CompactionSSTable>, Set<CompactionSSTable>>> groups = new HashMap<>();
+        for (CompactionSSTable sstable : removed)
         {
             UUID sessionID = sstable.getPendingRepair();
             if (!groups.containsKey(sessionID))
@@ -189,7 +188,7 @@ class PendingRepairManager
             groups.get(sessionID).left.add(sstable);
         }
 
-        for (SSTableReader sstable : added)
+        for (CompactionSSTable sstable : added)
         {
             UUID sessionID = sstable.getPendingRepair();
             if (!groups.containsKey(sessionID))
@@ -199,11 +198,11 @@ class PendingRepairManager
             groups.get(sessionID).right.add(sstable);
         }
 
-        for (Map.Entry<UUID, Pair<Set<SSTableReader>, Set<SSTableReader>>> entry : groups.entrySet())
+        for (Map.Entry<UUID, Pair<Set<CompactionSSTable>, Set<CompactionSSTable>>> entry : groups.entrySet())
         {
             LegacyAbstractCompactionStrategy strategy = getOrCreate(entry.getKey());
-            Set<SSTableReader> groupRemoved = entry.getValue().left;
-            Set<SSTableReader> groupAdded = entry.getValue().right;
+            Set<CompactionSSTable> groupRemoved = entry.getValue().left;
+            Set<CompactionSSTable> groupAdded = entry.getValue().right;
 
             if (!groupRemoved.isEmpty())
                 strategy.replaceSSTables(groupRemoved, groupAdded);
@@ -266,10 +265,10 @@ class PendingRepairManager
         LegacyAbstractCompactionStrategy compactionStrategy = get(sessionID);
         if (compactionStrategy == null)
             return null;
-        Set<SSTableReader> sstables = compactionStrategy.getSSTables();
+        Set<? extends CompactionSSTable> sstables = compactionStrategy.getSSTables();
         long repairedAt = ActiveRepairService.instance.consistent.local.getFinalSessionRepairedAt(sessionID);
-        LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
-        return txn == null ? null : new RepairFinishedCompactionTask(cfs, txn, sessionID, repairedAt, isTransient);
+        LifecycleTransaction txn = realm.tryModify(sstables, OperationType.COMPACTION);
+        return txn == null ? null : new RepairFinishedCompactionTask(realm, txn, sessionID, repairedAt, isTransient);
     }
 
     public CleanupTask releaseSessionData(Collection<UUID> sessionIDs)
@@ -282,7 +281,7 @@ class PendingRepairManager
                 tasks.add(Pair.create(session, getRepairFinishedCompactionTask(session)));
             }
         }
-        return new CleanupTask(cfs, tasks);
+        return new CleanupTask(realm, tasks);
     }
 
     synchronized int getNumPendingRepairFinishedTasks()
@@ -417,7 +416,7 @@ class PendingRepairManager
         return strategies.containsKey(sessionID);
     }
 
-    boolean containsSSTable(SSTableReader sstable)
+    boolean containsSSTable(CompactionSSTable sstable)
     {
         if (!sstable.isPendingRepair())
             return false;
@@ -426,9 +425,9 @@ class PendingRepairManager
         return strategy != null && strategy.getSSTables().contains(sstable);
     }
 
-    public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
+    public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<CompactionSSTable> sstables, int gcBefore)
     {
-        Map<UUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
+        Map<UUID, List<CompactionSSTable>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getPendingRepair()));
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTasks(g.getValue(), gcBefore)).flatMap(Collection::stream).collect(Collectors.toList());
     }
 }
