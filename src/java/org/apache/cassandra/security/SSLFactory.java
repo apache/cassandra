@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -166,6 +165,7 @@ public final class SSLFactory
     static SslContext createNettySslContext(EncryptionOptions options, boolean verifyPeerCertificate,
                                             SocketType socketType, CipherSuiteFilter cipherFilter) throws IOException
     {
+        setSslContextCachePurger(options);
         return options.sslContextFactoryInstance.createNettySslContext(verifyPeerCertificate, socketType,
                                                                        cipherFilter);
     }
@@ -193,6 +193,24 @@ public final class SSLFactory
         {
             checkCertFilesForHotReloading(clientOpts, "client_encryption_options", clientOpts.require_client_auth);
         }
+    }
+
+    private static void setSslContextCachePurger(EncryptionOptions options)
+    {
+        options.sslContextFactoryInstance.setNettySslContextCachePurger(new INettySslContextCachePurger()
+        {
+            @Override
+            public void purge()
+            {
+                clearSslContextCache(options);
+            }
+
+            @Override
+            public int cacheSize()
+            {
+                return cachedSslContexts.size();
+            }
+        });
     }
 
     private static void checkCertFilesForHotReloading(EncryptionOptions options, String contextDescription,

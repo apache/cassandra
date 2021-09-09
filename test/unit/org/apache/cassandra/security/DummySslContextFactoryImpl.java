@@ -25,6 +25,7 @@ import javax.net.ssl.SSLException;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 
 /**
  * TEST ONLY Class. DON'T use it for anything else.
@@ -32,6 +33,8 @@ import io.netty.handler.ssl.SslContext;
 public class DummySslContextFactoryImpl implements ISslContextFactory
 {
     private Map<String,Object> parameters;
+    private INettySslContextCachePurger sslContextCachePurger;
+
     public DummySslContextFactoryImpl(Map<String,Object> parameters) {
         this.parameters=parameters;
     }
@@ -46,7 +49,11 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
-        return null;
+        /*
+         * NOTE: For testing simplification we are ONLY building context for the client socket here regardless of the
+         * socketType argument.
+         */
+        return SslContextBuilder.forClient().build();
     }
 
     @Override
@@ -71,6 +78,15 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     public List<String> getCipherSuites()
     {
         return null;
+    }
+
+    @Override
+    public void setNettySslContextCachePurger(INettySslContextCachePurger sslContextCachePurger) {
+        this.sslContextCachePurger = sslContextCachePurger;
+    }
+
+    public INettySslContextCachePurger getNettySslContextCachePurger() {
+        return sslContextCachePurger;
     }
 
     /*

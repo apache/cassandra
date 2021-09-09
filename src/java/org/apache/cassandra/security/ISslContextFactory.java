@@ -109,6 +109,15 @@ public interface ISslContextFactory
     List<String> getCipherSuites();
 
     /**
+     * Sets the reference to the cache purger for the Netty's SslContext cache mainted by Cassandra.
+     * Implementation can call this to purge the cache in some special scenario to invalidate it. Purging the cache
+     * will reinforce Netty's SslContext recreation upon a new connection. Purging operation is thread safe.
+     * @param sslContextCachePurger
+     */
+    default void setNettySslContextCachePurger(INettySslContextCachePurger sslContextCachePurger) {
+    }
+
+    /**
      * Indicates if the process holds the inbound/listening (Server) end of the socket or the outbound side (Client).
      */
     enum SocketType {
