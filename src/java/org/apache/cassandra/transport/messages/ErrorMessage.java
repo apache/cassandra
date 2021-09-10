@@ -149,7 +149,7 @@ public class ErrorMessage extends Message.Response
                     String fKeyspace = CBUtil.readString(body);
                     String fName = CBUtil.readString(body);
                     List<String> argTypes = CBUtil.readStringList(body);
-                    te = new FunctionExecutionException(new FunctionName(fKeyspace, fName), argTypes, msg);
+                    te = FunctionExecutionException.create(new FunctionName(fKeyspace, fName), argTypes, msg);
                     break;
                 case UNPREPARED:
                     {
