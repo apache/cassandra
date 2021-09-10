@@ -66,13 +66,13 @@ public class StatsKeyspace
     {
         return readCount > 0
                ? totalReadTime / readCount / 1000
-               : Double.NaN;
+               : 0;
     }
 
     public double writeLatency()
     {
         return writeCount > 0
                ? totalWriteTime / writeCount / 1000
-               : Double.NaN;
+               : 0;
     }
 }
