@@ -32,6 +32,9 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+
 /**
  * An abstract virtual table implementation that builds the resultset on demand and allows fine-grained source
  * modification via INSERT/UPDATE, DELETE and TRUNCATE operations.
@@ -62,8 +65,7 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
                      {
                         row.forEach(columnData ->
                         {
-                            if (columnData.column().isComplex())
-                                throw new InvalidRequestException("Complex type columns are not supported by table " + metadata);
+                            checkFalse(columnData.column().isComplex(), "Complex type columns are not supported by table " + metadata);
 
                             Cell<?> cell = (Cell<?>) columnData;
                             String columnName = extractColumnName(cell);
@@ -190,8 +192,9 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
         Comparable<?>[] clusteringColumnValues = new Comparable<?>[clusteringColumns.size()];
         for (int i = 0; i < clusteringColumnValues.length; i++)
         {
-            // VTs do not support UDTs, so casting is safe here because clustering columns of simple types are always comparable
-            clusteringColumnValues[i] = (Comparable<?>) metadata.clusteringColumns().get(i).type.compose(clusteringColumns.bufferAt(i));
+            Object clusteringColumnValue = metadata.clusteringColumns().get(i).type.compose(clusteringColumns.bufferAt(i));
+            checkTrue(clusteringColumnValue instanceof Comparable, "Non-comparable types are not supported as clustering columns by table " + metadata);
+            clusteringColumnValues[i] = (Comparable<?>) clusteringColumnValue;
         }
         return clusteringColumnValues;
     }
