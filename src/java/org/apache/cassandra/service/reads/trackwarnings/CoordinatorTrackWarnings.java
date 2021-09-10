@@ -87,14 +87,14 @@ public class CoordinatorTrackWarnings
 
             String cql = command.toCQLString();
             String loggableTokens = command.loggableTokens();
-            trackAborts(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
-            trackWarnings(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
+            recordAborts(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
+            recordWarnings(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
 
-            trackAborts(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
-            trackWarnings(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
+            recordAborts(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
+            recordWarnings(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
 
-            trackAborts(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
-            trackWarnings(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
+            recordAborts(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
+            recordWarnings(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
         });
 
         // reset the state to block from double publishing
@@ -148,7 +148,7 @@ public class CoordinatorTrackWarnings
         String apply(int count, long value, String cql);
     }
 
-    private static void trackAborts(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
+    private static void recordAborts(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
     {
         if (!counter.aborts.instances.isEmpty())
         {
@@ -159,7 +159,7 @@ public class CoordinatorTrackWarnings
         }
     }
 
-    private static void trackWarnings(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
+    private static void recordWarnings(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
     {
         if (!counter.warnings.instances.isEmpty())
         {
