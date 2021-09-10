@@ -141,13 +141,16 @@ public class Dispatcher
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
+            CoordinatorTrackWarnings.done();
             Predicate<Throwable> handler = ExceptionHandlers.getUnexpectedExceptionHandler(channel, true);
             ErrorMessage error = ErrorMessage.fromException(t, handler);
             error.setStreamId(request.getStreamId());
+            error.setWarnings(ClientWarn.instance.getWarnings());
             toFlush = forFlusher.toFlushItem(channel, request, error);
         }
         finally
         {
+            CoordinatorTrackWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
         flush(toFlush);

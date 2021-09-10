@@ -57,6 +57,12 @@ public class CoordinatorTrackWarnings
         STATE.set(INIT);
     }
 
+    public static void reset()
+    {
+        logger.trace("CoordinatorTrackWarnings.reset()");
+        STATE.remove();
+    }
+
     public static void update(ReadCommand cmd, TrackWarningsSnapshot snapshot)
     {
         logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
@@ -91,7 +97,8 @@ public class CoordinatorTrackWarnings
             trackWarnings(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
         });
 
-        STATE.set(null);
+        // reset the state to block from double publishing
+        clearState();
     }
 
     private static Map<ReadCommand, TrackWarningsSnapshot> mutable()
@@ -102,7 +109,7 @@ public class CoordinatorTrackWarnings
             if (ENABLE_DEFENSIVE_CHECKS)
                 throw new AssertionError("CoordinatorTrackWarnings.mutable calling without calling .init() first");
             // set map to an "ignore" map; dropping all mutations
-            // this does not update the state as it is not known if .clear() will be called; so safter to leave state null
+            // since init was not called, it isn't clear that the state will be cleaned up, so avoid populating
             map = IgnoreMap.get();
         } else if (map == INIT)
         {
@@ -119,11 +126,19 @@ public class CoordinatorTrackWarnings
         {
             if (ENABLE_DEFENSIVE_CHECKS)
                 throw new AssertionError("CoordinatorTrackWarnings.readonly calling without calling .init() first");
-            // set map to an "ignore" map; dropping all mutations
-            // this does not update the state as it is not known if .clear() will be called; so safter to leave state null
-            map = IgnoreMap.get();
+            // since init was not called, it isn't clear that the state will be cleaned up, so avoid populating
+            map = Collections.emptyMap();
         }
         return map;
+    }
+
+    private static void clearState()
+    {
+        Map<ReadCommand, TrackWarningsSnapshot> map = STATE.get();
+        if (map == null || map == INIT)
+            return;
+        // map is mutable, so set to INIT
+        STATE.set(INIT);
     }
 
     // utility interface to let callers use static functions
