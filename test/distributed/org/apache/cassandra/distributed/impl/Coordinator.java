@@ -98,10 +98,9 @@ public class Coordinator implements ICoordinator
         // warnings as it sets a new State instance on the ThreadLocal.
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
-        ResultMessage res;
         try
         {
-            res = prepared.execute(QueryState.forInternalCalls(),
+            ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
                                    QueryOptions.create(toCassandraCL(consistencyLevel),
                                                        boundBBValues,
                                                        false,
@@ -111,17 +110,23 @@ public class Coordinator implements ICoordinator
                                                        ProtocolVersion.CURRENT,
                                                        null),
                                    System.nanoTime());
+            // Collect warnings reported during the query.
+            CoordinatorWarnings.done();
+            if (res != null)
+                res.setWarnings(ClientWarn.instance.getWarnings());
+
+            return RowUtil.toQueryResult(res);
+        }
+        catch (Exception | Error e)
+        {
+            CoordinatorWarnings.done();
+            throw e;
         }
         finally
         {
-            CoordinatorWarnings.done();
+            CoordinatorWarnings.reset();
+            ClientWarn.instance.resetWarnings();
         }
-
-        // Collect warnings reported during the query.
-        if (res != null)
-            res.setWarnings(ClientWarn.instance.getWarnings());
-
-        return RowUtil.toQueryResult(res);
     }
 
     public Object[][] executeWithTracing(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)

@@ -224,13 +224,27 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return sync(() -> {
             ClientWarn.instance.captureWarnings();
             CoordinatorWarnings.init();
-            QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
-            ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
-                                                                     QueryProcessor.makeInternalOptions(prepared.statement, args));
-            CoordinatorWarnings.done();
-            if (result != null)
-                result.setWarnings(ClientWarn.instance.getWarnings());
-            return RowUtil.toQueryResult(result);
+            try
+            {
+                QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
+                ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
+                                                           QueryProcessor.makeInternalOptions(prepared.statement, args));
+                CoordinatorWarnings.done();
+
+                if (result != null)
+                    result.setWarnings(ClientWarn.instance.getWarnings());
+                return RowUtil.toQueryResult(result);
+            }
+            catch (Exception | Error e)
+            {
+                CoordinatorWarnings.done();
+                throw e;
+            }
+            finally
+            {
+                CoordinatorWarnings.reset();
+                ClientWarn.instance.resetWarnings();
+            }
         }).call();
     }
 
