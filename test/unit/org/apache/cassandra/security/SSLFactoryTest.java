@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.handler.ssl.JdkSslContext;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.OpenSslContext;
 import io.netty.handler.ssl.SslContext;
@@ -278,38 +279,5 @@ public class SSLFactoryTest
         );
 
         Assert.assertNotEquals(cacheKey1, cacheKey2);
-    }
-
-    @Test
-    public void testSslContextCachePurging() throws IOException {
-
-        Map<String,String> parameters1 = new HashMap<>();
-        parameters1.put("key1", "value11");
-        parameters1.put("key2", "value12");
-        EncryptionOptions encryptionOptions =
-        new EncryptionOptions()
-        .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
-        .withProtocol("TLSv1.1");
-
-        DummySslContextFactoryImpl sslContextFactoryImpl =
-        (DummySslContextFactoryImpl) encryptionOptions.sslContextFactoryInstance;
-
-        Assert.assertNull("For JSSE SSLContext no CachePurger expected", sslContextFactoryImpl.getNettySslContextCachePurger());
-        SSLFactory.createSSLContext(encryptionOptions, false);
-        Assert.assertNull(sslContextFactoryImpl.getNettySslContextCachePurger());
-
-        // For Netty's SslContext the cache is expected to build hence the CachePurger expected
-        SSLFactory.getOrCreateSslContext(encryptionOptions, false, ISslContextFactory.SocketType.CLIENT);
-        SSLFactory.getOrCreateSslContext(encryptionOptions, true, ISslContextFactory.SocketType.SERVER);
-
-        Assert.assertEquals("We expect the cache size of 2 (1 for client and 1 for server socket type)",2,
-                            sslContextFactoryImpl.getNettySslContextCachePurger().cacheSize());
-        sslContextFactoryImpl.getNettySslContextCachePurger().purge();
-        Assert.assertEquals("After cache purging we expect the cache size to be 0",0,
-                            sslContextFactoryImpl.getNettySslContextCachePurger().cacheSize());
-
-        SSLFactory.getOrCreateSslContext(encryptionOptions, false, ISslContextFactory.SocketType.CLIENT);
-        Assert.assertEquals("We expect the cache size of 1 for client socket type",1,
-                            sslContextFactoryImpl.getNettySslContextCachePurger().cacheSize());
     }
 }
