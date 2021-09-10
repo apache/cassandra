@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -29,11 +29,12 @@ import org.apache.cassandra.serializers.TimeSerializer;
 
 public class TimeTypeTest extends CQLTester
 {
+    @SuppressWarnings({ "PointlessArithmeticExpression", "WrapperTypeMayBePrimitive" })
     @Test
     public void testComparison()
     {
         Long t1 = TimeSerializer.timeStringToLong("01:00:00.123456789");
-        Long t2 = new Long((1L * 60L * 60L * 1000L * 1000L * 1000L) + 123456789);
+        Long t2 = 1L * 60L * 60L * 1000L * 1000L * 1000L + 123456789L;
         ByteBuffer b1 = TimeSerializer.instance.serialize(t1);
         ByteBuffer b2 = TimeSerializer.instance.serialize(t2);
         assert TimeType.instance.compare(b1, b2) == 0 : "Failed == comparison";
@@ -41,7 +42,7 @@ public class TimeTypeTest extends CQLTester
         b2 = TimeSerializer.instance.serialize(123456789L);
         assert TimeType.instance.compare(b1, b2) > 0 : "Failed > comparison";
 
-        t2 = new Long(2L * 60L * 60L * 1000L * 1000L * 1000L + 123456789);
+        t2 = 2L * 60L * 60L * 1000L * 1000L * 1000L + 123456789L;
         b2 = TimeSerializer.instance.serialize(t2);
         assert TimeType.instance.compare(b1, b2) < 0 : "Failed < comparison";
 
