@@ -66,15 +66,15 @@ public class DiagnosticEventMemoryStoreTest
         assertEquals(3, res.size());
 
         Map.Entry<Long, DiagnosticEvent> entry = res.pollFirstEntry();
-        assertEquals(new Long(1), entry.getKey());
+        assertEquals(Long.valueOf(1), entry.getKey());
         assertSame(e1, entry.getValue());
 
         entry = res.pollFirstEntry();
-        assertEquals(new Long(2), entry.getKey());
+        assertEquals(Long.valueOf(2), entry.getKey());
         assertSame(e2, entry.getValue());
 
         entry = res.pollFirstEntry();
-        assertEquals(new Long(3), entry.getKey());
+        assertEquals(Long.valueOf(3), entry.getKey());
         assertSame(e3, entry.getValue());
     }
 
@@ -95,11 +95,11 @@ public class DiagnosticEventMemoryStoreTest
         assertEquals(2, res.size());
 
         Map.Entry<Long, DiagnosticEvent> entry = res.pollFirstEntry();
-        assertEquals(new Long(1), entry.getKey());
+        assertEquals(Long.valueOf(1), entry.getKey());
         assertSame(e1, entry.getValue());
 
         entry = res.pollLastEntry();
-        assertEquals(new Long(2), entry.getKey());
+        assertEquals(Long.valueOf(2), entry.getKey());
         assertSame(e2, entry.getValue());
     }
 
@@ -122,11 +122,11 @@ public class DiagnosticEventMemoryStoreTest
         assertEquals(2, res.size());
 
         Map.Entry<Long, DiagnosticEvent> entry = res.pollFirstEntry();
-        assertEquals(new Long(2), entry.getKey());
+        assertEquals(Long.valueOf(2), entry.getKey());
         assertSame(e2, entry.getValue());
 
         entry = res.pollLastEntry();
-        assertEquals(new Long(3), entry.getKey());
+        assertEquals(Long.valueOf(3), entry.getKey());
         assertSame(e3, entry.getValue());
     }
 
@@ -151,11 +151,11 @@ public class DiagnosticEventMemoryStoreTest
         assertEquals(2, res.size());
 
         Map.Entry<Long, DiagnosticEvent> entry = res.pollFirstEntry();
-        assertEquals(new Long(4), entry.getKey());
+        assertEquals(Long.valueOf(4), entry.getKey());
         assertSame(e2, entry.getValue());
 
         entry = res.pollFirstEntry();
-        assertEquals(new Long(5), entry.getKey());
+        assertEquals(Long.valueOf(5), entry.getKey());
         assertSame(e3, entry.getValue());
 
         store.store(new TestEvent1()); // 7
@@ -164,7 +164,7 @@ public class DiagnosticEventMemoryStoreTest
 
         res = store.scan(4L, 2);
         assertEquals(2, res.size());
-        assertEquals(new Long(7), res.pollFirstEntry().getKey());
-        assertEquals(new Long(8), res.pollLastEntry().getKey());
+        assertEquals(Long.valueOf(7), res.pollFirstEntry().getKey());
+        assertEquals(Long.valueOf(8), res.pollLastEntry().getKey());
     }
 }

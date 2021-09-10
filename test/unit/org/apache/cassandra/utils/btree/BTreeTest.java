@@ -34,7 +34,7 @@ public class BTreeTest
     {
         System.setProperty("cassandra.btree.branchshift", "2");
         for (int i = 0 ; i < ints.length ; i++)
-            ints[i] = new Integer(i);
+            ints[i] = Integer.valueOf(i);
     }
 
     static final UpdateFunction<Integer, Integer> updateF = new UpdateFunction<Integer, Integer>()

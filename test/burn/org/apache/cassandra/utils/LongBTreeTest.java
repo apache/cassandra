@@ -190,7 +190,7 @@ public class LongBTreeTest
                             {
                                 Map<Integer, Integer> update = new LinkedHashMap<>();
                                 for (Integer i : selection.testKeys)
-                                    update.put(i, new Integer(i));
+                                    update.put(i, Integer.valueOf(i));
 
                                 CountingFunction function = new CountingFunction((x) -> x);
                                 Object[] original = selection.testAsSet.tree();
@@ -210,7 +210,7 @@ public class LongBTreeTest
                             {
                                 Map<Integer, Integer> update = new LinkedHashMap<>();
                                 for (Integer i : selection.testKeys)
-                                    update.put(i, new Integer(i));
+                                    update.put(i, Integer.valueOf(i));
 
                                 CountingFunction function = new CountingFunction((x) -> update.getOrDefault(x, x));
                                 Object[] original = selection.testAsSet.tree();
@@ -230,7 +230,7 @@ public class LongBTreeTest
                             {
                                 Map<Integer, Integer> update = new LinkedHashMap<>();
                                 for (Integer i : selection.testKeys)
-                                    update.put(i, new Integer(i));
+                                    update.put(i, Integer.valueOf(i));
 
                                 CountingFunction function = new CountingFunction(update::get);
                                 Object[] original = selection.testAsSet.tree();
@@ -249,7 +249,7 @@ public class LongBTreeTest
                             {
                                 Map<Integer, Integer> update = new LinkedHashMap<>();
                                 for (Integer i : selection.testKeys)
-                                    update.put(i, new Integer(i));
+                                    update.put(i, Integer.valueOf(i));
 
                                 CountingFunction function = new CountingFunction((x) -> update.containsKey(x) ? null : x);
                                 Object[] original = selection.testAsSet.tree();

@@ -393,7 +393,7 @@ public class CompactionAllocationTest
         Measurement measurement = createMeasurement();
         measurement.start();
         for (int i=0; i<numAlloc; i++)
-            new Integer(i);
+            Integer.valueOf(i);
 
         measurement.stop();
         logger.info(" ** {}", measurement.prettyBytes());
