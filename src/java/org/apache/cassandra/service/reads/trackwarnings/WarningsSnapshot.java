@@ -17,9 +17,11 @@
  */
 package org.apache.cassandra.service.reads.trackwarnings;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -28,13 +30,18 @@ public class WarningsSnapshot
 {
     private static final WarningsSnapshot EMPTY = new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY);
 
-    public final Warnings tombstones, localReadSize, rowIndexTooLarge;
+    public final Warnings tombstones, localReadSize, rowIndexTooSize;
 
-    private WarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
+    private WarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooSize)
     {
         this.tombstones = tombstones;
         this.localReadSize = localReadSize;
-        this.rowIndexTooLarge = rowIndexTooLarge;
+        this.rowIndexTooSize = rowIndexTooSize;
+    }
+
+    public static WarningsSnapshot empty()
+    {
+        return EMPTY;
     }
 
     public static WarningsSnapshot create(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
@@ -60,11 +67,37 @@ public class WarningsSnapshot
         return this == EMPTY;
     }
 
-    private WarningsSnapshot merge(WarningsSnapshot other)
+    @VisibleForTesting
+    WarningsSnapshot merge(WarningsSnapshot other)
     {
         if (other == null || other == EMPTY)
             return this;
-        return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooLarge.merge(other.rowIndexTooLarge));
+        return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooSize.merge(other.rowIndexTooSize));
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WarningsSnapshot that = (WarningsSnapshot) o;
+        return Objects.equals(tombstones, that.tombstones) && Objects.equals(localReadSize, that.localReadSize) && Objects.equals(rowIndexTooSize, that.rowIndexTooSize);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(tombstones, localReadSize, rowIndexTooSize);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "(" +
+               "tombstones=" + tombstones +
+               ", localReadSize=" + localReadSize +
+               ", rowIndexTooLarge=" + rowIndexTooSize +
+               ')';
     }
 
     public static final class Warnings
@@ -93,6 +126,30 @@ public class WarningsSnapshot
                 return this;
             return Warnings.create(warnings.merge(other.warnings), aborts.merge(other.aborts));
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Warnings warnings1 = (Warnings) o;
+            return Objects.equals(warnings, warnings1.warnings) && Objects.equals(aborts, warnings1.aborts);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(warnings, aborts);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "(" +
+                   "warnings=" + warnings +
+                   ", aborts=" + aborts +
+                   ')';
+        }
     }
 
     public static final class Counter
@@ -102,10 +159,17 @@ public class WarningsSnapshot
         public final ImmutableSet<InetAddressAndPort> instances;
         public final long maxValue;
 
-        private Counter(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        @VisibleForTesting
+        Counter(ImmutableSet<InetAddressAndPort> instances, long maxValue)
         {
             this.instances = instances;
             this.maxValue = maxValue;
+        }
+
+        @VisibleForTesting
+        static Counter empty()
+        {
+            return EMPTY;
         }
 
         public static Counter create(Set<InetAddressAndPort> instances, AtomicLong maxValue)
@@ -131,6 +195,115 @@ public class WarningsSnapshot
                                                     .build();
             // since other is NOT empty, then output can not be empty; so skip create method
             return new Counter(copy, Math.max(maxValue, other.maxValue));
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Counter counter = (Counter) o;
+            return maxValue == counter.maxValue && Objects.equals(instances, counter.instances);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(instances, maxValue);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "(" + instances + ", " + maxValue + ')';
+        }
+    }
+
+    static Builder builder()
+    {
+        return new Builder();
+    }
+
+    @VisibleForTesting
+    public static final class Builder
+    {
+        private WarningsSnapshot snapshot = empty();
+
+        public Builder tombstonesWarning(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        {
+            return tombstonesWarning(new Counter(Objects.requireNonNull(instances), maxValue));
+        }
+
+        public Builder tombstonesWarning(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY));
+            return this;
+        }
+
+        public Builder tombstonesAbort(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        {
+            return tombstonesAbort(new Counter(Objects.requireNonNull(instances), maxValue));
+        }
+
+        public Builder tombstonesAbort(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY));
+            return this;
+        }
+
+        public Builder localReadSizeWarning(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        {
+            return localReadSizeWarning(new Counter(Objects.requireNonNull(instances), maxValue));
+        }
+
+        public Builder localReadSizeWarning(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY));
+            return this;
+        }
+
+        public Builder localReadSizeAbort(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        {
+            return localReadSizeAbort(new Counter(Objects.requireNonNull(instances), maxValue));
+        }
+
+        public Builder localReadSizeAbort(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY));
+            return this;
+        }
+
+        public Builder rowIndexSizeWarning(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        {
+            return rowIndexSizeWarning(new Counter(Objects.requireNonNull(instances), maxValue));
+        }
+
+        public Builder rowIndexSizeWarning(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY)));
+            return this;
+        }
+
+        public Builder rowIndexSizeAbort(ImmutableSet<InetAddressAndPort> instances, long maxValue)
+        {
+            return rowIndexSizeAbort(new Counter(Objects.requireNonNull(instances), maxValue));
+        }
+
+        public Builder rowIndexSizeAbort(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter)));
+            return this;
+        }
+
+        public WarningsSnapshot build()
+        {
+            return snapshot;
         }
     }
 }

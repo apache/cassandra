@@ -250,8 +250,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                 throw new ReadSizeAbortException(localReadSizeAbortMessage(snapshot.localReadSize.aborts.instances.size(), snapshot.localReadSize.aborts.maxValue, cql.get()),
                                                  replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
 
-            if (!snapshot.rowIndexTooLarge.aborts.instances.isEmpty())
-                throw new ReadSizeAbortException(rowIndexSizeAbortMessage(snapshot.rowIndexTooLarge.aborts.instances.size(), snapshot.rowIndexTooLarge.aborts.maxValue, cql.get()),
+            if (!snapshot.rowIndexTooSize.aborts.instances.isEmpty())
+                throw new ReadSizeAbortException(rowIndexSizeAbortMessage(snapshot.rowIndexTooSize.aborts.instances.size(), snapshot.rowIndexTooSize.aborts.maxValue, cql.get()),
                                                  replicaPlan.get().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
         }
 

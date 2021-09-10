@@ -93,8 +93,8 @@ public class CoordinatorWarnings
             recordAborts(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
             recordWarnings(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
 
-            recordAborts(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
-            recordWarnings(merged.rowIndexTooLarge, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
+            recordAborts(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
+            recordWarnings(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
         });
 
         // reset the state to block from double publishing
