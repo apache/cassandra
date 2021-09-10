@@ -1,4 +1,5 @@
 4.0.2
+ * Fix missed wait latencies in the output of `nodetool tpstats -F` (CASSANDRA-16938)
  * Remove all the state pollution between tests in SSTableReaderTest (CASSANDRA-16888)
  * Delay auth setup until after gossip has settled to avoid unavailables on startup (CASSANDRA-16783)
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
