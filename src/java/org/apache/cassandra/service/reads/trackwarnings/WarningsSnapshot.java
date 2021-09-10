@@ -24,33 +24,33 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class TrackWarningsSnapshot
+public class WarningsSnapshot
 {
-    private static final TrackWarningsSnapshot EMPTY = new TrackWarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY);
+    private static final WarningsSnapshot EMPTY = new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY);
 
     public final Warnings tombstones, localReadSize, rowIndexTooLarge;
 
-    private TrackWarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
+    private WarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
     {
         this.tombstones = tombstones;
         this.localReadSize = localReadSize;
         this.rowIndexTooLarge = rowIndexTooLarge;
     }
 
-    public static TrackWarningsSnapshot create(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
+    public static WarningsSnapshot create(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
     {
         if (tombstones == localReadSize && tombstones == rowIndexTooLarge && tombstones == Warnings.EMPTY)
             return EMPTY;
-        return new TrackWarningsSnapshot(tombstones, localReadSize, rowIndexTooLarge);
+        return new WarningsSnapshot(tombstones, localReadSize, rowIndexTooLarge);
     }
 
-    public static TrackWarningsSnapshot merge(TrackWarningsSnapshot... values)
+    public static WarningsSnapshot merge(WarningsSnapshot... values)
     {
         if (values == null || values.length == 0)
             return null;
 
-        TrackWarningsSnapshot accum = EMPTY;
-        for (TrackWarningsSnapshot a : values)
+        WarningsSnapshot accum = EMPTY;
+        for (WarningsSnapshot a : values)
             accum = accum.merge(a);
         return accum == EMPTY ? null : accum;
     }
@@ -60,11 +60,11 @@ public class TrackWarningsSnapshot
         return this == EMPTY;
     }
 
-    private TrackWarningsSnapshot merge(TrackWarningsSnapshot other)
+    private WarningsSnapshot merge(WarningsSnapshot other)
     {
         if (other == null || other == EMPTY)
             return this;
-        return TrackWarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooLarge.merge(other.rowIndexTooLarge));
+        return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooLarge.merge(other.rowIndexTooLarge));
     }
 
     public static final class Warnings

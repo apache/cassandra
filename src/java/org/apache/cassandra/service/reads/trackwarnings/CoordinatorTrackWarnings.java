@@ -40,8 +40,8 @@ public class CoordinatorTrackWarnings
     private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.track_warnings.coordinator.devensive_checks_enabled");
 
     // when .init() is called set the STATE to be INIT; this is to lazy allocate the map only when warnings are generated
-    private static final Map<ReadCommand, TrackWarningsSnapshot> INIT = Collections.emptyMap();
-    private static final FastThreadLocal<Map<ReadCommand, TrackWarningsSnapshot>> STATE = new FastThreadLocal<>();
+    private static final Map<ReadCommand, WarningsSnapshot> INIT = Collections.emptyMap();
+    private static final FastThreadLocal<Map<ReadCommand, WarningsSnapshot>> STATE = new FastThreadLocal<>();
 
     private CoordinatorTrackWarnings() {}
 
@@ -63,12 +63,12 @@ public class CoordinatorTrackWarnings
         STATE.remove();
     }
 
-    public static void update(ReadCommand cmd, TrackWarningsSnapshot snapshot)
+    public static void update(ReadCommand cmd, WarningsSnapshot snapshot)
     {
         logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
-        Map<ReadCommand, TrackWarningsSnapshot> map = mutable();
-        TrackWarningsSnapshot previous = map.get(cmd);
-        TrackWarningsSnapshot update = TrackWarningsSnapshot.merge(previous, snapshot);
+        Map<ReadCommand, WarningsSnapshot> map = mutable();
+        WarningsSnapshot previous = map.get(cmd);
+        WarningsSnapshot update = WarningsSnapshot.merge(previous, snapshot);
         if (update == null) // null happens when the merge had null input or EMPTY input... remove the command from the map
             map.remove(cmd);
         else
@@ -77,7 +77,7 @@ public class CoordinatorTrackWarnings
 
     public static void done()
     {
-        Map<ReadCommand, TrackWarningsSnapshot> map = readonly();
+        Map<ReadCommand, WarningsSnapshot> map = readonly();
         logger.trace("CoordinatorTrackWarnings.done() with state {}", map);
         map.forEach((command, merged) -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
@@ -101,9 +101,9 @@ public class CoordinatorTrackWarnings
         clearState();
     }
 
-    private static Map<ReadCommand, TrackWarningsSnapshot> mutable()
+    private static Map<ReadCommand, WarningsSnapshot> mutable()
     {
-        Map<ReadCommand, TrackWarningsSnapshot> map = STATE.get();
+        Map<ReadCommand, WarningsSnapshot> map = STATE.get();
         if (map == null)
         {
             if (ENABLE_DEFENSIVE_CHECKS)
@@ -119,9 +119,9 @@ public class CoordinatorTrackWarnings
         return map;
     }
 
-    private static Map<ReadCommand, TrackWarningsSnapshot> readonly()
+    private static Map<ReadCommand, WarningsSnapshot> readonly()
     {
-        Map<ReadCommand, TrackWarningsSnapshot> map = STATE.get();
+        Map<ReadCommand, WarningsSnapshot> map = STATE.get();
         if (map == null)
         {
             if (ENABLE_DEFENSIVE_CHECKS)
@@ -134,7 +134,7 @@ public class CoordinatorTrackWarnings
 
     private static void clearState()
     {
-        Map<ReadCommand, TrackWarningsSnapshot> map = STATE.get();
+        Map<ReadCommand, WarningsSnapshot> map = STATE.get();
         if (map == null || map == INIT)
             return;
         // map is mutable, so set to INIT
@@ -148,7 +148,7 @@ public class CoordinatorTrackWarnings
         String apply(int count, long value, String cql);
     }
 
-    private static void recordAborts(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
+    private static void recordAborts(WarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
     {
         if (!counter.aborts.instances.isEmpty())
         {
@@ -159,7 +159,7 @@ public class CoordinatorTrackWarnings
         }
     }
 
-    private static void recordWarnings(TrackWarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
+    private static void recordWarnings(WarningsSnapshot.Warnings counter, String cql, String loggableTokens, TableMetrics.TableMeter metric, ToString toString)
     {
         if (!counter.warnings.instances.isEmpty())
         {

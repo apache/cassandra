@@ -51,7 +51,7 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
-import org.apache.cassandra.service.reads.trackwarnings.TrackWarningsSnapshot;
+import org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -87,9 +87,9 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             aborts.add(from);
         }
 
-        TrackWarningsSnapshot.Warnings snapshot()
+        WarningsSnapshot.Warnings snapshot()
         {
-            return TrackWarningsSnapshot.Warnings.create(TrackWarningsSnapshot.Counter.create(warnings, maxWarningValue), TrackWarningsSnapshot.Counter.create(aborts, maxAbortsValue));
+            return WarningsSnapshot.Warnings.create(WarningsSnapshot.Counter.create(warnings, maxWarningValue), WarningsSnapshot.Counter.create(aborts, maxAbortsValue));
         }
     }
 
@@ -99,9 +99,9 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         final WarnAbortCounter localReadSize = new WarnAbortCounter();
         final WarnAbortCounter rowIndexTooLarge = new WarnAbortCounter();
 
-        private TrackWarningsSnapshot snapshot()
+        private WarningsSnapshot snapshot()
         {
-            return TrackWarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
+            return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
         }
     }
 
@@ -204,7 +204,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
         WarningContext warnings = warningContext;
         // save the snapshot so abort state is not changed between now and when mayAbort gets called
-        TrackWarningsSnapshot snapshot = null;
+        WarningsSnapshot snapshot = null;
         if (warnings != null)
         {
             snapshot = warnings.snapshot();
