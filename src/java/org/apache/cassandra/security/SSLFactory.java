@@ -214,6 +214,18 @@ public final class SSLFactory
         }
     }
 
+    /**
+     * This clears the cache of Netty's SslContext objects for Client and Server sockets. This is made publically
+     * available so that any {@link ISslContextFactory}'s implementation can call this to handle any special scenario
+     * to invalidate the SslContext cache.
+     * This should be used with caution since the purpose of this cache is save costly creation of Netty's SslContext
+     * objects and this essentially results in re-creating it.
+     */
+    public static void clearSslContextCache()
+    {
+        cachedSslContexts.clear();
+    }
+
     private static void clearSslContextCache(EncryptionOptions options)
     {
         cachedSslContexts.forEachKey(1, cacheKey -> {
