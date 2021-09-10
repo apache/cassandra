@@ -170,7 +170,7 @@ public class WarningsSnapshotTest
             builder.rowIndexSizeAbort(counter.generate(rs));
             return builder.build();
         };
-        return gen.describedAs(WarningsSnapshot::toString);
+        return gen.assuming(WarningsSnapshot::isDefined).describedAs(WarningsSnapshot::toString);
     }
 
     private static Gen<Counter> counter()

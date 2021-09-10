@@ -67,6 +67,11 @@ public class WarningsSnapshot
         return this == EMPTY;
     }
 
+    public boolean isDefined()
+    {
+        return this != EMPTY;
+    }
+
     @VisibleForTesting
     WarningsSnapshot merge(WarningsSnapshot other)
     {
