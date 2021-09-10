@@ -50,7 +50,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -212,7 +212,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             // network thread creates the WarningContext to update metrics, but we are actively reading and see it is empty
             // this is likely to happen when a timeout happens or from a speculative response
             if (!snapshot.isEmpty())
-                CoordinatorTrackWarnings.update(command, snapshot);
+                CoordinatorWarnings.update(command, snapshot);
         }
         if (signaled && !failed)
             return;

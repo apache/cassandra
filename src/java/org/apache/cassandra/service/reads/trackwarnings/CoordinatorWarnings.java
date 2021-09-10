@@ -34,16 +34,16 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.reads.ReadCallback;
 
-public class CoordinatorTrackWarnings
+public class CoordinatorWarnings
 {
-    private static final Logger logger = LoggerFactory.getLogger(CoordinatorTrackWarnings.class);
-    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.track_warnings.coordinator.devensive_checks_enabled");
+    private static final Logger logger = LoggerFactory.getLogger(CoordinatorWarnings.class);
+    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.track_warnings.coordinator.defensive_checks_enabled");
 
     // when .init() is called set the STATE to be INIT; this is to lazy allocate the map only when warnings are generated
     private static final Map<ReadCommand, WarningsSnapshot> INIT = Collections.emptyMap();
     private static final FastThreadLocal<Map<ReadCommand, WarningsSnapshot>> STATE = new FastThreadLocal<>();
 
-    private CoordinatorTrackWarnings() {}
+    private CoordinatorWarnings() {}
 
     public static void init()
     {

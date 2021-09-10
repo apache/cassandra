@@ -115,7 +115,7 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
-import org.apache.cassandra.service.reads.trackwarnings.CoordinatorTrackWarnings;
+import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
@@ -223,11 +223,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         return sync(() -> {
             ClientWarn.instance.captureWarnings();
-            CoordinatorTrackWarnings.init();
+            CoordinatorWarnings.init();
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
                                                                      QueryProcessor.makeInternalOptions(prepared.statement, args));
-            CoordinatorTrackWarnings.done();
+            CoordinatorWarnings.done();
             if (result != null)
                 result.setWarnings(ClientWarn.instance.getWarnings());
             return RowUtil.toQueryResult(result);
