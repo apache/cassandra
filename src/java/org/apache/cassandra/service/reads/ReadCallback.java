@@ -208,8 +208,9 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (warnings != null)
         {
             snapshot = warnings.snapshot();
-            // this is possible due to race condition
+            // this is possible due to a race condition between waiting and responding
             // network thread creates the WarningContext to update metrics, but we are actively reading and see it is empty
+            // this is likely to happen when a timeout happens or from a speculative response
             if (!snapshot.isEmpty())
                 CoordinatorTrackWarnings.update(command, snapshot);
         }
