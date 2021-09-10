@@ -210,6 +210,7 @@ public class TombstoneWarningTest extends TestBaseImpl
                 // expected, client transport returns an error message and includes client warnings
             }
             CoordinatorWarnings.done();
+            CoordinatorWarnings.reset();
             return ClientWarn.instance.getWarnings();
         }).call();
         Assertions.assertThat(Iterables.getOnlyElement(warnings))
