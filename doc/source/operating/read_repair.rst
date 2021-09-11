@@ -62,7 +62,7 @@ To illustrate read repair with an example, consider that a client sends a read r
 
 Figure 1. Client sends read request to a 5-node Cluster
 
-Three nodes host replicas for the requested data as illustrated in Figure 2. With a read consistency level of ``TWO`` two replica nodes must return a response for the read request to be considered successful. If the node the client sends request to hosts a replica of the data requested only one other replica node needs to be sent a read request to. But if the receiving node does not host a replica for the requested data the node becomes a coordinator node and forwards the read request to a node that hosts a replica. A direct read request is forwarded to the fastest node (as determined by dynamic snitch) as shown in Figure 2. A direct read request is a full read and returns the requested data.
+Three nodes host replicas for the requested data as illustrated in Figure 2. With a read consistency level of ``TWO`` two replica nodes must return a response for the read request to be considered successful. If the node the client sends request to hosts a replica of the data requested, only one other replica node needs to be sent a read request to. But if the receiving node does not host a replica for the requested data, the node becomes a coordinator node and forwards the read request to a node that hosts a replica. A direct read request is forwarded to the fastest node (as determined by dynamic snitch) as shown in Figure 2. A direct read request is a full read and returns the requested data.
 
 .. figure:: Figure_2_read_repair.jpg
 
