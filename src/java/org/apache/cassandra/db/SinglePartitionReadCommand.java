@@ -893,6 +893,7 @@ public class SinglePartitionReadCommand extends ReadCommand
 
             long currentMaxTs = sstable.getMaxTimestamp();
             filter = reduceFilter(filter, result, currentMaxTs);
+
             if (filter == null)
                 break;
 
@@ -1047,10 +1048,21 @@ public class SinglePartitionReadCommand extends ReadCommand
      */
     private boolean isRowComplete(Row row, Columns requestedColumns, long sstableTimestamp)
     {
+        // Static rows do not have row deletion or primary key liveness info
+        if (!row.isStatic())
+        {
+            // If the row has been delete or is part of a range deletion we know that we have enough information and can
+            // stop at this point.
+            // Note that deleted rows in compact table (non static) do not have a row deletion. Instead there single column
+            // cell is deleted. By consequence this check will not work for those but the row will appears as complete later on
+            // in the method.
+            if (!row.deletion().isLive() && row.deletion().time().deletes(sstableTimestamp))
+                return true;
 
-        // Note that compact tables will always have an empty primary key liveness info.
-        if (metadata().isCQLTable() && (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp))
-            return false;
+            // Note that compact tables will always have an empty primary key liveness info.
+            if (metadata().isCQLTable() && (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp))
+                return false;
+        }
 
         for (ColumnDefinition column : requestedColumns)
         {
