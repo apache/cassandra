@@ -570,7 +570,7 @@ public class SSTablesIteratedTest extends CQLTester
         execute("DELETE FROM %s WHERE pk = 1 AND ck = 1");
         flush();
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND ck = 1", 2);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND ck = 1", 1);
     }
 
     @Test
@@ -584,7 +584,7 @@ public class SSTablesIteratedTest extends CQLTester
         execute("DELETE FROM %s WHERE a=? AND b=?", 1, 1);
         flush();
 
-        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 2);
+        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 1);
     }
 
     @Test
@@ -715,10 +715,10 @@ public class SSTablesIteratedTest extends CQLTester
         execute("DELETE FROM %s WHERE a=? AND b=?", 1, 1);
         flush();
 
-        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 2);
+        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 1);
 
         execute("ALTER TABLE %s DROP COMPACT STORAGE");
-        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 2);
+        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 1);
     }
 
     @Test
@@ -737,10 +737,10 @@ public class SSTablesIteratedTest extends CQLTester
         execute("DELETE FROM %s WHERE a=? AND b=?", 1, 1);
         flush();
 
-        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 3);
+        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 1);
 
         execute("ALTER TABLE %s DROP COMPACT STORAGE");
-        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 3);
+        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 1);
     }
 
     @Test
@@ -763,7 +763,12 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 1);
 
         execute("ALTER TABLE %s DROP COMPACT STORAGE");
-        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 3);
+
+        // For non static compact tables, row deletions are done through deletion of the compact column (d in this case).
+        // Once converted into non compact table as the row does not have a primary key liveness the code does not
+        // have enough to allow the logic to stop at the first SSTable and has to read the second one where it find
+        // the range deletion.
+        executeAndCheck("SELECT * FROM %s WHERE a=1 AND b=1 AND c=1", 2);
     }
 
     @Test
@@ -1205,21 +1210,21 @@ public class SSTablesIteratedTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 3003 SET v1 = ? WHERE pk = ? AND c = ?", 3, 4, 1);
         flush();
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3);
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 3);
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 1", 3);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 1);
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 1);
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 1", 1);
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 3, row(2, 1, 3, null));
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 2 AND c = 1", 3, row(3, null));
-        executeAndCheck("SELECT v2 FROM %s WHERE pk = 2 AND c = 1", 3, row((Integer) null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 2, row(2, 1, 3, null));
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 2 AND c = 1", 2, row(3, null));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 2 AND c = 1", 2, row((Integer) null));
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 3);
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 3 AND c = 1", 3);
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 3 AND c = 1", 3);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 1);
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 3 AND c = 1", 1);
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 3 AND c = 1", 1);
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 4 AND c = 1", 3, row(4, 1, 3, null));
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 4 AND c = 1", 3, row(3, null));
-        executeAndCheck("SELECT v2 FROM %s WHERE pk = 4 AND c = 1", 3, row((Integer) null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 4 AND c = 1", 2, row(4, 1, 3, null));
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 4 AND c = 1", 2, row(3, null));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 4 AND c = 1", 2, row((Integer) null));
     }
 
     @Test
@@ -1243,21 +1248,21 @@ public class SSTablesIteratedTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 3003 SET v1 = ? WHERE pk = ? AND c = ?", 3, 4, 1);
         flush();
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3);
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 3);
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 1", 3);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 1);
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 1);
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 1", 1);
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 3, row(2, 1, 3, null));
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 2 AND c = 1", 3, row(3, null));
-        executeAndCheck("SELECT v2 FROM %s WHERE pk = 2 AND c = 1", 3, row((Integer) null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 2, row(2, 1, 3, null));
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 2 AND c = 1", 2, row(3, null));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 2 AND c = 1", 2, row((Integer) null));
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 3);
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 3 AND c = 1", 3);
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 3 AND c = 1", 3);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 1);
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 3 AND c = 1", 1);
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 3 AND c = 1", 1);
 
-        executeAndCheck("SELECT * FROM %s WHERE pk = 4 AND c = 1", 3, row(4, 1, 3, null));
-        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 4 AND c = 1", 3, row(3, null));
-        executeAndCheck("SELECT v2 FROM %s WHERE pk = 4 AND c = 1", 3, row((Integer) null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 4 AND c = 1", 2, row(4, 1, 3, null));
+        executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 4 AND c = 1", 2, row(3, null));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 4 AND c = 1", 2, row((Integer) null));
     }
 
     @Test
@@ -1476,5 +1481,126 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT pk, s1 FROM %s WHERE pk = 1", 3, row(1, 3));
         executeAndCheck("SELECT DISTINCT pk, s1 FROM %s WHERE pk = 1", 3, row(1, 3));
         executeAndCheck("SELECT s1 FROM %s WHERE pk = 1", 3, row(3));
+    }
+
+    @Test
+    public void testNonCompactTableWithStaticColumnAndRowDeletion() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
+
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?) USING TIMESTAMP 1000", 1, 1, 1, 1);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP 1001", 2, 2);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1002", 3, 1, 1);
+        flush();
+        execute("UPDATE %s USING TIMESTAMP 2000 SET v = ? WHERE pk = ? AND c = ?", 2, 1, 1);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 2001", 2, 1, 2);
+        execute("DELETE FROM %s USING TIMESTAMP 2001 WHERE pk = ? AND c = ?", 3, 1);
+        flush();
+        execute("DELETE FROM %s USING TIMESTAMP 3000 WHERE pk = ? AND c = ?", 1, 1);
+        execute("DELETE FROM %s USING TIMESTAMP 3001 WHERE pk = ? AND c = ?", 2, 1);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP 3002", 3, 3);
+        flush();
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1", 3, row(1, null, 1, null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 1);
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2", 3, row(2, null, 2, null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 3);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 1);
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3", 3, row(3, null, 3, null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 2);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 1", 2);
+    }
+
+    @Test
+    public void testNonCompactTableWithStaticColumnAndRangeDeletion() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
+
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?) USING TIMESTAMP 1000", 1, 1, 1, 1);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP 1001", 2, 2);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1002", 3, 1, 1);
+        flush();
+        execute("UPDATE %s USING TIMESTAMP 2000 SET v = ? WHERE pk = ? AND c = ?", 2, 1, 1);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 2001", 2, 1, 2);
+        execute("DELETE FROM %s USING TIMESTAMP 2001 WHERE pk = ? AND c >= ?", 3, 0);
+        flush();
+        execute("DELETE FROM %s USING TIMESTAMP 3000 WHERE pk = ? AND c > ?", 1, 0);
+        execute("DELETE FROM %s USING TIMESTAMP 3001 WHERE pk = ? AND c > ?", 2, 0);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP 3002", 3, 3);
+        flush();
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1", 3, row(1, null, 1, null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 1);
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2", 3, row(2, null, 2, null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 3);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 1);
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3", 3, row(3, null, 3, null));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 2);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 1", 2);
+    }
+
+    @Test
+    public void testNonCompactTableWithStaticColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
+
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?) USING TIMESTAMP 1000", 1, 1, 1, 1);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1001", 2, 1, 1);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1002", 3, 1, 1);
+        flush();
+        execute("UPDATE %s USING TIMESTAMP 2000 SET v = ? WHERE pk = ? AND c = ?", 2, 1, 1);
+        execute("UPDATE %s USING TIMESTAMP 2001 SET v = ? WHERE pk = ? AND c = ?", 2, 2, 1);
+        execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 2002", 3, 1, 2);
+        flush();
+        execute("UPDATE %s USING TIMESTAMP 3000 SET s = ? WHERE pk = ?", 2, 1);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP 3001", 2, 1);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?) USING TIMESTAMP 3002", 3, 1, 1, 3);
+        flush();
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1", 3, row(1, 1, 2, 2));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 1, 2, 2));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 3, row(2));
+        executeAndCheck("SELECT s FROM %s WHERE pk = 1", 3, row(2));
+        executeAndCheck("SELECT DISTINCT s FROM %s WHERE pk = 1", 3, row(2));
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2", 3, row(2, 1, 1, 2));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 3, row(2, 1, 1, 2));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 3, row(2));
+        executeAndCheck("SELECT s FROM %s WHERE pk = 2", 3, row(1));
+        executeAndCheck("SELECT DISTINCT s FROM %s WHERE pk = 2", 3, row(1));
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3", 3, row(3, 1, 1, 3));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3 AND c = 1", 1, row(3, 1, 1, 3));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 1", 1, row(3));
+        executeAndCheck("SELECT s FROM %s WHERE pk = 3", 3, row(1));
+        executeAndCheck("SELECT DISTINCT s FROM %s WHERE pk = 3", 3, row(1));
+    }
+
+    @Test
+    public void testCompactStaticTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1000", 1, 1);
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1001", 2, 1);
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1002", 3, 1);
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1002", 4, 1);
+        flush();
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 2000", 1, 2);
+        execute("UPDATE %s USING TIMESTAMP 2001 SET v = ? WHERE pk = ?", 2, 2);
+        execute("DELETE FROM %s USING TIMESTAMP 2002 WHERE pk = ?", 3);
+        execute("DELETE v FROM %s USING TIMESTAMP 2003 WHERE pk = ?", 4);
+        flush();
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1", 1, row(1, 2));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2", 1, row(2, 2));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3", 1);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 4", 1);
     }
 }
