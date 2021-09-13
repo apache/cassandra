@@ -26,6 +26,10 @@ import javax.crypto.Cipher;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.commitlog.EncryptedFileSegmentInputStream.ChunkProvider;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.*;
 import org.apache.cassandra.io.FSReadError;
@@ -46,6 +50,11 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.SyncSegment>
 {
+    public static final String ALLOW_IGNORE_SYNC_CRC = Config.PROPERTY_PREFIX + "commitlog.allow_ignore_sync_crc";
+    private static volatile boolean allowSkipSyncMarkerCrc = Boolean.getBoolean(ALLOW_IGNORE_SYNC_CRC);
+
+    private static final Logger logger = LoggerFactory.getLogger(CommitLogSegmentReader.class);
+    
     private final CommitLogReadHandler handler;
     private final CommitLogDescriptor descriptor;
     private final RandomAccessReader reader;
@@ -74,6 +83,11 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             segmenter = new CompressedSegmenter(descriptor, reader);
         else
             segmenter = new NoOpSegmenter(reader);
+    }
+    
+    public static void setAllowSkipSyncMarkerCrc(boolean allow)
+    {
+        allowSkipSyncMarkerCrc = allow;
     }
 
     public Iterator<SyncSegment> iterator()
@@ -151,8 +165,23 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
         updateChecksumInt(crc, (int) reader.getPosition());
         final int end = reader.readInt();
         long filecrc = reader.readInt() & 0xffffffffL;
+
         if (crc.getValue() != filecrc)
         {
+            // The next marker position and CRC value are not written atomically, so it is possible for the latter to 
+            // still be zero after the former has been finalized, even though the mutations that follow it are valid.
+            // When there is no compression or encryption enabled, we can ignore a sync marker CRC mismatch and defer 
+            // to the per-mutation CRCs, which may be preferable to preventing startup altogether.
+            if (allowSkipSyncMarkerCrc
+                && descriptor.compression == null && !descriptor.getEncryptionContext().isEnabled()
+                && filecrc == 0 && end != 0)
+            {
+                logger.warn("Skipping sync marker CRC check at position {} (end={}, calculated crc={}) of commit log {}." +
+                            "Using per-mutation CRC checks to ensure correctness...",
+                            offset, end, crc.getValue(), reader.getPath());
+                return end;
+            }
+
             if (end != 0 || filecrc != 0)
             {
                 String msg = String.format("Encountered bad header at position %d of commit log %s, with invalid CRC. " +

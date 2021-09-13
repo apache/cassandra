@@ -78,7 +78,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         assert column.isComplex() == (path != null);
         if (path != null)
         {
-            assert path.size() == 1;
+            assert path.size() == 1 : String.format("Expected path size to be 1 but was not; %s", path);
             size += 4 + path.get(0).remaining();
         }
 

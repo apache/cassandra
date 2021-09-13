@@ -31,6 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -508,6 +509,37 @@ public class AlterTest extends CQLTester
         alterTable("alter table %s add v1 int");
     }
 
+    @Test(expected = InvalidRequestException.class)
+    public void testDropFixedAddVariable() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v varint");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropFixedCollectionAddVariableCollection() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v list<int>, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v list<varint>");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropSimpleAddComplex() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v set<text>, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v blob");
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void renameToEmptyTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c1 int, v int, PRIMARY KEY (k, c1))");
+        execute("ALTER TABLE %s RENAME c1 TO \"\"");
+    }
+
     @Test
     // tests CASSANDRA-9565
     public void testDoubleWith() throws Throwable
@@ -720,5 +752,16 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (k text, i int, PRIMARY KEY (k, i)) WITH COMPACT STORAGE");
 
         assertInvalidMessage("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.", "ALTER TABLE %s DROP COMPACT STORAGE");
+    }
+
+    /**
+     * Test for CASSANDRA-14564
+     */
+    @Test
+    public void testAlterByAddingColumnToCompactTableShouldFail() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        assertInvalidMessage("Cannot add new column to a COMPACT STORAGE table",
+                             "ALTER TABLE %s ADD column1 text");
     }
 }

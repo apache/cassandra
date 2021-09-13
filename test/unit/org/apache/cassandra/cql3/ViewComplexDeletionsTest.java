@@ -35,7 +35,9 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -498,5 +500,28 @@ public class ViewComplexDeletionsTest extends CQLTester
         ks.getColumnFamilyStore("mv").forceMajorCompaction();
         assertRows(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(1, 3, 4, 3L));
         assertRows(execute("SELECT v1, p, v2, WRITETIME(v2) from mv limit 1"), row(1, 3, 4, 3L));
+    }
+
+    @Test
+    public void testNoBatchlogCleanupForLocalMutations() throws Throwable
+    {
+        execute("USE " + keyspace());
+        executeNet(version, "USE " + keyspace());
+
+        createTable("CREATE TABLE %s (k1 int primary key, v1 int)");
+        createView("view1",
+                   "CREATE MATERIALIZED VIEW view1 AS SELECT * FROM %%s WHERE k1 IS NOT NULL AND v1 IS NOT NULL PRIMARY KEY (v1, k1)",
+                   version,
+                   this,
+                   views);
+
+        ColumnFamilyStore batchlog = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
+        batchlog.disableAutoCompaction();
+        batchlog.forceBlockingFlush();
+        int batchlogSSTables = batchlog.getLiveSSTables().size();
+
+        updateView("INSERT INTO %s(k1, v1) VALUES(1, 1)", version, this);
+        batchlog.forceBlockingFlush();
+        assertEquals(batchlogSSTables, batchlog.getLiveSSTables().size());
     }
 }

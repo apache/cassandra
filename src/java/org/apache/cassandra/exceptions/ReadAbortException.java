@@ -16,22 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.auth;
+package org.apache.cassandra.exceptions;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import java.util.Map;
 
-public class NetworkAuthCache extends AuthCache<RoleResource, DCPermissions>
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.locator.InetAddressAndPort;
+
+/**
+ * Special Read Failure which is caused by user query; implies a user request is not allowed and not that Cassandra had an issue.
+ */
+public abstract class ReadAbortException extends ReadFailureException
 {
-    public NetworkAuthCache(INetworkAuthorizer authorizer)
+    protected ReadAbortException(String msg, ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super("NetworkAuthCache",
-              DatabaseDescriptor::setRolesValidity,
-              DatabaseDescriptor::getRolesValidity,
-              DatabaseDescriptor::setRolesUpdateInterval,
-              DatabaseDescriptor::getRolesUpdateInterval,
-              DatabaseDescriptor::setRolesCacheMaxEntries,
-              DatabaseDescriptor::getRolesCacheMaxEntries,
-              authorizer::authorize,
-              () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+        super(msg, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
     }
 }

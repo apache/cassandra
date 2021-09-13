@@ -223,7 +223,7 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
-    public void testDescribeMaterializedView() throws Throwable
+    public void testDescribeVirtualTables() throws Throwable
     {
         assertRowsNet(executeDescribeNet("DESCRIBE ONLY KEYSPACE system_virtual_schema;"), 
                       row("system_virtual_schema",
@@ -508,6 +508,49 @@ public class DescribeStatementTest extends CQLTester
                           tableCreateStatement + "\n" +
                           dropStatement + "\n" +
                           addStatement));
+    }
+
+    @Test
+    public void testDescribeTableAndMaterializedViewWithClustringOrder() throws Throwable
+    {
+        String table = createTable("CREATE TABLE IF NOT EXISTS %s (pk1 int, pk2 int, ck1 int, ck2 int, reg1 int, reg2 list<int>, reg3 int, PRIMARY KEY ((pk1, pk2), ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);");
+
+        execute("CREATE MATERIALIZED VIEW IF NOT EXISTS " + KEYSPACE + ".mv AS SELECT * FROM " + KEYSPACE + "." + table
+                + " WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL PRIMARY KEY ((pk2, pk1), ck2, ck1)");
+
+        String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                      "    pk1 int,\n" +
+                                      "    pk2 int,\n" +
+                                      "    ck1 int,\n" +
+                                      "    ck2 int,\n" +
+                                      "    reg1 int,\n" +
+                                      "    reg3 int,\n" +
+                                      "    reg2 list<int>,\n" +
+                                      "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
+                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)\n" +
+                                      "    AND " + tableParametersCql();
+
+        String mvCreateStatement ="CREATE MATERIALIZED VIEW " + KEYSPACE + ".mv AS\n" +
+                                  "    SELECT *\n" +
+                                  "    FROM " + KEYSPACE + "." + table + "\n" +
+                                  "    WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL\n" +
+                                  "    PRIMARY KEY ((pk2, pk1), ck2, ck1)\n" +
+                                  " WITH CLUSTERING ORDER BY (ck2 DESC, ck1 ASC)\n" +
+                                  "    AND " + tableParametersCql();
+
+        try
+        {
+
+            assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table),
+                          row(KEYSPACE, "table", table, tableCreateStatement));
+
+            assertRowsNet(executeDescribeNet("DESCRIBE MATERIALIZED VIEW " + KEYSPACE + ".mv"),
+                          row(KEYSPACE, "materialized_view", "mv", mvCreateStatement));
+        }
+        finally
+        {
+            execute("DROP MATERIALIZED VIEW " + KEYSPACE + ".mv");
+        }
     }
 
     @Test
