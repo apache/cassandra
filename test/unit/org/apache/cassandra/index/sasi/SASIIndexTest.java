@@ -158,26 +158,30 @@ public class SASIIndexTest
         ColumnFamilyStore store = loadData(data, true);
         store.forceMajorCompaction();
 
+        Set<SSTableReader> ssTableReaders = store.getLiveSSTables();
+        Set<Component> sasiComponents = new HashSet<>();
+
+        for (Index index : store.indexManager.listIndexes())
+            if (index instanceof SASIIndex)
+                sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
+
+        Assert.assertFalse(sasiComponents.isEmpty());
+
         try
         {
-            Set<SSTableReader> ssTableReaders = store.getLiveSSTables();
-            Set<Component> sasiComponents = new HashSet<>();
-
-            for (Index index : store.indexManager.listIndexes())
-                if (index instanceof SASIIndex)
-                    sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
-
-            Assert.assertFalse(sasiComponents.isEmpty());
-
             store.snapshot(snapshotName);
-            JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName)));
+            FileReader reader = new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName));
+            JSONObject manifest = (JSONObject) new JSONParser().parse(reader);
             JSONArray files = (JSONArray) manifest.get("files");
 
             Assert.assertFalse(ssTableReaders.isEmpty());
             Assert.assertFalse(files.isEmpty());
             Assert.assertEquals(ssTableReaders.size(), files.size());
 
-            Map<Descriptor, Set<Component>> snapshotSSTables = store.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(snapshotName).list();
+            Map<Descriptor, Set<Component>> snapshotSSTables = store.getDirectories()
+                                                                    .sstableLister(Directories.OnTxnErr.IGNORE)
+                                                                    .snapshots(snapshotName)
+                                                                    .list();
 
             long indexSize = 0;
             long tableSize = 0;
