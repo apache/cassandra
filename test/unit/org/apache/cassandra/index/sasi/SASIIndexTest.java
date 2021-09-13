@@ -153,76 +153,69 @@ public class SASIIndexTest
         Random r = new Random();
 
         for (int i = 0; i < 100; i++)
-        {
             data.put(UUID.randomUUID().toString(), Pair.create(UUID.randomUUID().toString(), r.nextInt()));
-        }
 
         ColumnFamilyStore store = loadData(data, true);
         store.forceMajorCompaction();
 
         try
         {
-            // left holds table component sizes, right holds total size of index components (SI_*)
-            Pair<Long, Long> tableIndexSizes = takeSnapshotAndCheckComponents(store, snapshotName);
+            Set<SSTableReader> ssTableReaders = store.getLiveSSTables();
+            Set<Component> sasiComponents = new HashSet<>();
+
+            for (Index index : store.indexManager.listIndexes())
+                if (index instanceof SASIIndex)
+                    sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
+
+            Assert.assertFalse(sasiComponents.isEmpty());
+
+            store.snapshot(snapshotName);
+            JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName)));
+            JSONArray files = (JSONArray) manifest.get("files");
+
+            Assert.assertFalse(ssTableReaders.isEmpty());
+            Assert.assertFalse(files.isEmpty());
+            Assert.assertEquals(ssTableReaders.size(), files.size());
+
+            Map<Descriptor, Set<Component>> snapshotSSTables = store.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(snapshotName).list();
+
+            long indexSize = 0;
+            long tableSize = 0;
+
+            for (SSTableReader sstable : ssTableReaders)
+            {
+                File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
+                Descriptor snapshotSSTable = new Descriptor(snapshotDirectory,
+                                                            sstable.getKeyspaceName(),
+                                                            sstable.getColumnFamilyName(),
+                                                            sstable.descriptor.generation,
+                                                            sstable.descriptor.formatType);
+
+                Set<Component> components = snapshotSSTables.get(snapshotSSTable);
+
+                Assert.assertNotNull(components);
+                Assert.assertTrue(components.containsAll(sasiComponents));
+
+                for (Component c : components)
+                {
+                    Path componentPath = Paths.get(sstable.descriptor + "-" + c.name);
+                    long componentSize = Files.size(componentPath);
+                    if (c.name.contains("SI_"))
+                        indexSize += componentSize;
+                    else
+                        tableSize += componentSize;
+                }
+            }
+            
             Map<String, Pair<Long, Long>> details = store.getSnapshotDetails();
 
             // check that SASI components are included in the computation of snapshot size
-            Assert.assertEquals((long) details.get("sasi_test").right, tableIndexSizes.left + tableIndexSizes.right);
+            Assert.assertEquals((long) details.get(snapshotName).right, tableSize + indexSize);
         }
         finally
         {
-            store.clearSnapshot("sasi_test");
+            store.clearSnapshot(snapshotName);
         }
-    }
-
-    private Pair<Long, Long> takeSnapshotAndCheckComponents(ColumnFamilyStore cfs, String snapshotName) throws Throwable
-    {
-        Set<SSTableReader> ssTableReaders = cfs.getLiveSSTables();
-        Set<Component> sasiComponents = new HashSet<>();
-        for (Index index : cfs.indexManager.listIndexes())
-        {
-            if (index instanceof SASIIndex)
-                sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
-        }
-
-        cfs.snapshot(snapshotName);
-        JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(cfs.getDirectories().getSnapshotManifestFile(snapshotName)));
-        JSONArray files = (JSONArray) manifest.get("files");
-        Assert.assertEquals(ssTableReaders.size(), files.size());
-        Map<Descriptor, Set<Component>> snapshots = cfs.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(snapshotName).list();
-
-        long indexSize = 0;
-        long tableSize = 0;
-
-        for (SSTableReader sstable : ssTableReaders)
-        {
-
-            File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
-            Descriptor tmp = new Descriptor(snapshotDirectory,
-                                            sstable.getKeyspaceName(),
-                                            sstable.getColumnFamilyName(),
-                                            sstable.descriptor.generation,
-                                            sstable.descriptor.formatType);
-
-            Set<Component> components = snapshots.get(tmp);
-
-
-            Assert.assertNotNull(components);
-            Assert.assertTrue(components.containsAll(sasiComponents));
-
-            for (Component c : components)
-            {
-                Path p = Paths.get(sstable.descriptor + "-" + c.name);
-                long size = Files.size(p);
-                if (c.name.contains("SI_")) {
-                    indexSize += size;
-                } else {
-                    tableSize += size;
-                }
-            }
-        }
-
-        return Pair.create(tableSize, indexSize);
     }
 
     @Test
