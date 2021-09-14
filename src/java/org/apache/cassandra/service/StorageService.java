@@ -71,6 +71,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -1253,7 +1254,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (setUpSchema)
             {
                 Optional<Mutation> mutation = evolveSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION);
-                mutation.ifPresent(value -> FBUtilities.waitOnFuture(MigrationManager.announceWithoutPush(Collections.singleton(value))));
+                mutation.ifPresent(value -> FBUtilities.waitOnFuture(MigrationCoordinator.instance.announceWithoutPush(Collections.singleton(value))));
             }
 
             DatabaseDescriptor.getRoleManager().setup();
@@ -1288,7 +1289,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         evolveSystemKeyspace(             AuthKeyspace.metadata(),              AuthKeyspace.GENERATION).ifPresent(changes::add);
 
         if (!changes.isEmpty())
-            FBUtilities.waitOnFuture(MigrationManager.announceWithoutPush(changes));
+            FBUtilities.waitOnFuture(MigrationCoordinator.instance.announceWithoutPush(changes));
     }
 
     public boolean isJoined()
@@ -4395,8 +4396,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         List<Future<?>> futures = new ArrayList<>();
 
-        List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces() ;
-        for (String ksName : keyspaces)
+        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        for (String ksName : keyspaces.names())
         {
             if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksName))
                 continue;

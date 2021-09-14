@@ -148,7 +148,7 @@ public class MigrationManagerTest
         TableMetadata newCf = addTestTable("MadeUpKeyspace", "NewCF", "new cf");
         try
         {
-            MigrationManager.announceNewTable(newCf);
+            SchemaTestUtil.announceNewTable(newCf);
             throw new AssertionError("You shouldn't be able to do anything to a keyspace that doesn't exist.");
         }
         catch (ConfigurationException expected)
@@ -166,7 +166,7 @@ public class MigrationManagerTest
         TableMetadata cfm = addTestTable(original.name, tableName, "A New Table");
 
         assertFalse(Schema.instance.getKeyspaceMetadata(ksName).tables.get(cfm.name).isPresent());
-        MigrationManager.announceNewTable(cfm);
+        SchemaTestUtil.announceNewTable(cfm);
 
         assertTrue(Schema.instance.getKeyspaceMetadata(ksName).tables.get(cfm.name).isPresent());
         assertEquals(cfm, Schema.instance.getKeyspaceMetadata(ksName).tables.get(cfm.name).get());
@@ -205,7 +205,7 @@ public class MigrationManagerTest
         store.forceBlockingFlush();
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
-        MigrationManager.announceTableDrop(ks.name, cfm.name, false);
+        SchemaTestUtil.announceTableDrop(ks.name, cfm.name, false);
 
         assertFalse(Schema.instance.getKeyspaceMetadata(ks.name).tables.get(cfm.name).isPresent());
 
@@ -241,7 +241,7 @@ public class MigrationManagerTest
     {
         TableMetadata cfm = addTestTable("newkeyspace1", "newstandard1", "A new cf for a new ks");
         KeyspaceMetadata newKs = KeyspaceMetadata.create(cfm.keyspace, KeyspaceParams.simple(5), Tables.of(cfm));
-        MigrationManager.announceNewKeyspace(newKs);
+        SchemaTestUtil.announceNewKeyspace(newKs);
 
         assertNotNull(Schema.instance.getKeyspaceMetadata(cfm.keyspace));
         assertEquals(Schema.instance.getKeyspaceMetadata(cfm.keyspace), newKs);
@@ -272,7 +272,7 @@ public class MigrationManagerTest
                                                          KEYSPACE3, TABLE1),
                                            "dropKs", "col" + i, "anyvalue");
 
-        MigrationManager.announceKeyspaceDrop(ks.name);
+        SchemaTestUtil.announceKeyspaceDrop(ks.name);
 
         assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
     }
@@ -282,7 +282,7 @@ public class MigrationManagerTest
     {
         assertNull(Schema.instance.getKeyspaceMetadata(EMPTY_KEYSPACE));
         KeyspaceMetadata newKs = KeyspaceMetadata.create(EMPTY_KEYSPACE, KeyspaceParams.simple(5));
-        MigrationManager.announceNewKeyspace(newKs);
+        SchemaTestUtil.announceNewKeyspace(newKs);
         assertNotNull(Schema.instance.getKeyspaceMetadata(EMPTY_KEYSPACE));
 
         String tableName = "added_later";
@@ -292,7 +292,7 @@ public class MigrationManagerTest
         assertFalse(Schema.instance.getKeyspaceMetadata(newKs.name).tables.get(newCf.name).isPresent());
 
         //add the new CF to the empty space
-        MigrationManager.announceNewTable(newCf);
+        SchemaTestUtil.announceNewTable(newCf);
 
         assertTrue(Schema.instance.getKeyspaceMetadata(newKs.name).tables.get(newCf.name).isPresent());
         assertEquals(Schema.instance.getKeyspaceMetadata(newKs.name).tables.get(newCf.name).get(), newCf);
@@ -317,7 +317,7 @@ public class MigrationManagerTest
         TableMetadata cf = addTestTable("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
         KeyspaceMetadata oldKs = KeyspaceMetadata.create(cf.keyspace, KeyspaceParams.simple(5), Tables.of(cf));
 
-        MigrationManager.announceNewKeyspace(oldKs);
+        SchemaTestUtil.announceNewKeyspace(oldKs);
 
         assertNotNull(Schema.instance.getKeyspaceMetadata(cf.keyspace));
         assertEquals(Schema.instance.getKeyspaceMetadata(cf.keyspace), oldKs);
@@ -326,7 +326,7 @@ public class MigrationManagerTest
         KeyspaceMetadata newBadKs2 = KeyspaceMetadata.create(cf.keyspace + "trash", KeyspaceParams.simple(4));
         try
         {
-            MigrationManager.announceKeyspaceUpdate(newBadKs2);
+            SchemaTestUtil.announceKeyspaceUpdate(newBadKs2);
             throw new AssertionError("Should not have been able to update a KS with an invalid KS name.");
         }
         catch (ConfigurationException ex)
@@ -339,7 +339,7 @@ public class MigrationManagerTest
         replicationMap.put("replication_factor", "1");
 
         KeyspaceMetadata newKs = KeyspaceMetadata.create(cf.keyspace, KeyspaceParams.create(true, replicationMap));
-        MigrationManager.announceKeyspaceUpdate(newKs);
+        SchemaTestUtil.announceKeyspaceUpdate(newKs);
 
         KeyspaceMetadata newFetchedKs = Schema.instance.getKeyspaceMetadata(newKs.name);
         assertEquals(newFetchedKs.params.replication.klass, newKs.params.replication.klass);
@@ -471,7 +471,7 @@ public class MigrationManagerTest
                                      .get(indexName)
                                      .orElseThrow(throwAssert("Index not found"));
 
-        MigrationManager.announceTableUpdate(meta.unbuild().indexes(meta.indexes.without(existing.name)).build());
+        SchemaTestUtil.announceTableUpdate(meta.unbuild().indexes(meta.indexes.without(existing.name)).build());
 
         // check
         assertTrue(cfs.indexManager.listIndexes().isEmpty());
