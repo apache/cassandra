@@ -1196,7 +1196,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (setUpSchema)
             {
                 Optional<Mutation> mutation = evolveSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION);
-                mutation.ifPresent(value -> FBUtilities.waitOnFuture(MigrationManager.announceWithoutPush(Collections.singleton(value))));
+                mutation.ifPresent(value -> FBUtilities.waitOnFuture(MigrationCoordinator.instance.announceWithoutPush(Collections.singleton(value))));
             }
 
             DatabaseDescriptor.getRoleManager().setup();
@@ -1223,7 +1223,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         evolveSystemKeyspace(             AuthKeyspace.metadata(),              AuthKeyspace.GENERATION).ifPresent(changes::add);
 
         if (!changes.isEmpty())
-            FBUtilities.waitOnFuture(MigrationManager.announceWithoutPush(changes));
+            FBUtilities.waitOnFuture(MigrationCoordinator.instance.announceWithoutPush(changes));
     }
 
     public boolean isJoined()

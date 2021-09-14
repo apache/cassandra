@@ -37,6 +37,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -194,7 +195,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  * implemented in {@link org.apache.cassandra.db.virtual.InternodeInboundTable} and
  * {@link org.apache.cassandra.db.virtual.InternodeOutboundTable} respectively.
  */
-public final class MessagingService extends MessagingServiceMBeanImpl
+public class MessagingService extends MessagingServiceMBeanImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
@@ -264,7 +265,13 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     @VisibleForTesting
     MessagingService(boolean testOnly)
     {
-        super(testOnly);
+        this(testOnly, new EndpointMessagingVersions(), new MessagingMetrics());
+    }
+
+    @VisibleForTesting
+    MessagingService(boolean testOnly, EndpointMessagingVersions versions, MessagingMetrics metrics)
+    {
+        super(testOnly, versions, metrics);
         OutboundConnections.scheduleUnusedConnectionMonitoring(this, ScheduledExecutors.scheduledTasks, 1L, TimeUnit.HOURS);
     }
 

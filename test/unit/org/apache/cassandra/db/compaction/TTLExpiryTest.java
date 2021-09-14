@@ -31,6 +31,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -42,7 +43,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.tools.SSTableExpiredBlockers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -83,7 +83,7 @@ public class TTLExpiryTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
         String key = "ttl";
         new RowUpdateBuilder(cfs.metadata(), 1L, 1, key)
                     .add("col1", ByteBufferUtil.EMPTY_BYTE_BUFFER)
@@ -164,7 +164,7 @@ public class TTLExpiryTest
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
         // To reproduce #10944, we need our gcBefore to be equal to the locaDeletionTime. A gcGrace of 1 will (almost always) give us that.
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(force10944Bug ? 1 : 0).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(force10944Bug ? 1 : 0).build(), true);
         long timestamp = System.currentTimeMillis();
         String key = "ttl";
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
@@ -212,7 +212,7 @@ public class TTLExpiryTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
         long timestamp = System.currentTimeMillis();
         String key = "ttl";
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
@@ -262,7 +262,7 @@ public class TTLExpiryTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
 
         new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), "test")
                 .noRowMarker()

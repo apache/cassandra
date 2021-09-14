@@ -45,9 +45,9 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.util.concurrent.Futures;
@@ -66,9 +66,9 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
     {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
         SchemaLoader.loadSchema();
-        MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
-                                                                     KeyspaceParams.simpleTransient(1),
-                                                                     Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME).build())));
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
+                                                                   KeyspaceParams.simpleTransient(1),
+                                                                   Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME).build())));
     }
 
     @Test

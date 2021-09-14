@@ -45,8 +45,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -320,7 +320,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
 
         String key = "7810";
 
@@ -343,7 +343,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
 
         String key = "7808_1";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -363,7 +363,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
 
         String key = "7808_2";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -489,7 +489,7 @@ public class RangeTombstoneTest
                 current.unbuild()
                        .indexes(current.indexes.with(indexDef))
                        .build();
-            MigrationManager.announceTableUpdate(updated, true);
+            SchemaTestUtil.announceTableUpdate(updated, true);
         }
 
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
@@ -595,7 +595,7 @@ public class RangeTombstoneTest
                 current.unbuild()
                        .indexes(current.indexes.with(indexDef))
                        .build();
-            MigrationManager.announceTableUpdate(updated, true);
+            SchemaTestUtil.announceTableUpdate(updated, true);
         }
 
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
