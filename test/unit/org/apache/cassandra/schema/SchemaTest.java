@@ -55,8 +55,8 @@ public class SchemaTest
         try
         {
             // add a few.
-            MigrationManager.announceNewKeyspace(KeyspaceMetadata.create("ks0", KeyspaceParams.simple(3)));
-            MigrationManager.announceNewKeyspace(KeyspaceMetadata.create("ks1", KeyspaceParams.simple(3)));
+            SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create("ks0", KeyspaceParams.simple(3)));
+            SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create("ks1", KeyspaceParams.simple(3)));
 
             assertNotNull(SchemaManager.instance.getKeyspaceMetadata("ks0"));
             assertNotNull(SchemaManager.instance.getKeyspaceMetadata("ks1"));

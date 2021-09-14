@@ -68,7 +68,7 @@ import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.DefaultConnectionFactory;
@@ -247,7 +247,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
 
         // rewrite index summary file with new min/max index interval
         TableMetadata origin = store.metadata();
-        MigrationManager.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build(), true);
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstable, OperationType.INDEX_SUMMARY))
         {
@@ -257,7 +257,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         }
 
         // reset min/max index interval
-        MigrationManager.announceTableUpdate(origin, true);
+        SchemaTestUtil.announceTableUpdate(origin, true);
         return true;
     }
 
