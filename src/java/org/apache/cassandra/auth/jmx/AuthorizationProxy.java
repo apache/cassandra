@@ -489,6 +489,8 @@ public class AuthorizationProxy implements InvocationHandler
                   DatabaseDescriptor::getPermissionsUpdateInterval,
                   DatabaseDescriptor::setPermissionsCacheMaxEntries,
                   DatabaseDescriptor::getPermissionsCacheMaxEntries,
+                  DatabaseDescriptor::setPermissionsCacheActiveUpdate,
+                  DatabaseDescriptor::getPermissionsCacheActiveUpdate,
                   AuthorizationProxy::loadPermissions,
                   () -> true);
 

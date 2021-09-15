@@ -32,6 +32,8 @@ public class NetworkPermissionsCache extends AuthCache<RoleResource, DCPermissio
               DatabaseDescriptor::getRolesUpdateInterval,
               DatabaseDescriptor::setRolesCacheMaxEntries,
               DatabaseDescriptor::getRolesCacheMaxEntries,
+              DatabaseDescriptor::setRolesCacheActiveUpdate,
+              DatabaseDescriptor::getRolesCacheActiveUpdate,
               authorizer::authorize,
               () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
 

@@ -4974,6 +4974,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return operationMode == Mode.NORMAL;
     }
 
+    public boolean isDecommissioned()
+    {
+        return operationMode == Mode.DECOMMISSIONED;
+    }
+
     public String getDrainProgress()
     {
         return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);

@@ -59,12 +59,15 @@ public class Config
     public volatile int permissions_validity_in_ms = 2000;
     public volatile int permissions_cache_max_entries = 1000;
     public volatile int permissions_update_interval_in_ms = -1;
+    public volatile boolean permissions_cache_active_update = false;
     public volatile int roles_validity_in_ms = 2000;
     public volatile int roles_cache_max_entries = 1000;
     public volatile int roles_update_interval_in_ms = -1;
+    public volatile boolean roles_cache_active_update = false;
     public volatile int credentials_validity_in_ms = 2000;
     public volatile int credentials_cache_max_entries = 1000;
     public volatile int credentials_update_interval_in_ms = -1;
+    public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
