@@ -1,7 +1,0 @@
-== disableauditlog
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/disableauditlog.txt[]
-----

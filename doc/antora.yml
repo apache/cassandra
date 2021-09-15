@@ -1,6 +1,6 @@
 name: Cassandra
-version: '4.0'
-display_version: '4.0'
+version: 'trunk'
+display_version: 'trunk'
 asciidoc:
   attributes:
     cass_url: 'http://cassandra.apache.org/'

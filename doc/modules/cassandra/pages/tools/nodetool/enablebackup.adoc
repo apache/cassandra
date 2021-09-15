@@ -1,7 +1,0 @@
-== enablebackup
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/enablebackup.txt[]
-----

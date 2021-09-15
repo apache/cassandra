@@ -1,7 +1,0 @@
-== scrub
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/scrub.txt[]
-----

@@ -1,7 +1,0 @@
-== rangekeysample
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/rangekeysample.txt[]
-----

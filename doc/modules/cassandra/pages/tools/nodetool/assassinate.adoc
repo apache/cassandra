@@ -1,7 +1,0 @@
-== assassinate
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/assassinate.txt[]
-----

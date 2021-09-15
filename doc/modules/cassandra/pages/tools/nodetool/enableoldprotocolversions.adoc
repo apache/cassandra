@@ -1,7 +1,0 @@
-== enableoldprotocolversions
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/enableoldprotocolversions.txt[]
-----

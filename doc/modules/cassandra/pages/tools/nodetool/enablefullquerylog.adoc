@@ -1,7 +1,0 @@
-== enablefullquerylog
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/enablefullquerylog.txt[]
-----

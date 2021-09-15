@@ -1,7 +1,0 @@
-== statusbinary
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/statusbinary.txt[]
-----
