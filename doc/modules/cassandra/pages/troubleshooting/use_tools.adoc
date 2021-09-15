@@ -208,7 +208,7 @@ when it syncs the commit log. This typically enters into the very high
 percentiles of write latency.
 
 Note that to get detailed latency breakdowns you will need a more
-advanced tool such as `bcc-tools <use-bcc-tools>`.
+advanced tool such as xref:use_tools.adoc#bcc-tools[`bcc-tools`].
 
 === OS page Cache Usage
 

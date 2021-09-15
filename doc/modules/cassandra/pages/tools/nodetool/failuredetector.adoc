@@ -1,7 +1,0 @@
-== failuredetector
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/failuredetector.txt[]
-----

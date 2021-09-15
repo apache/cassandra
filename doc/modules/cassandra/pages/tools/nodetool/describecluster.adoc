@@ -1,7 +1,0 @@
-== describecluster
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/describecluster.txt[]
-----

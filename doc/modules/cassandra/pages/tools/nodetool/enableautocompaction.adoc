@@ -1,7 +1,0 @@
-== enableautocompaction
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/enableautocompaction.txt[]
-----

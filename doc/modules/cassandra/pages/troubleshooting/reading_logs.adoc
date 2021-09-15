@@ -241,36 +241,6 @@ index b2c5b10..71b0a49 100644
  </configuration>
 ----
 
-=== Full Query Logger
-
-Cassandra 4.0 additionally ships with support for full query logging.
-This is a highly performant binary logging tool which captures Cassandra
-queries in real time, writes them (if possible) to a log file, and
-ensures the total size of the capture does not exceed a particular
-limit. FQL is enabled with `nodetool` and the logs are read with the
-provided `bin/fqltool` utility:
-
-[source, bash]
-----
-$ mkdir /var/tmp/fql_logs
-$ nodetool enablefullquerylog --path /var/tmp/fql_logs
-
-# ... do some querying
-
-$ bin/fqltool dump /var/tmp/fql_logs/20180705-00.cq4 | tail
-Query time: 1530750927224
-Query: SELECT * FROM system_virtual_schema.columns WHERE keyspace_name =
-'system_views' AND table_name = 'sstable_tasks';
-Values:
-
-Type: single
-Protocol version: 4
-Query time: 1530750934072
-Query: select * from keyspace1.standard1 ;
-Values:
-
-$ nodetool disablefullquerylog
-----
 
 Note that if you want more information than this tool provides, there
 are other live capture options available such as

@@ -1,7 +1,0 @@
-== enablehintsfordc
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/enablehintsfordc.txt[]
-----
