@@ -34,6 +34,8 @@ public class RolesCache extends AuthCache<RoleResource, Set<Role>> implements Ro
               DatabaseDescriptor::getRolesUpdateInterval,
               DatabaseDescriptor::setRolesCacheMaxEntries,
               DatabaseDescriptor::getRolesCacheMaxEntries,
+              DatabaseDescriptor::setRolesCacheActiveUpdate,
+              DatabaseDescriptor::getRolesCacheActiveUpdate,
               roleManager::getRoleDetails,
               enableCache);
     }
