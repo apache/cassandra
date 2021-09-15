@@ -66,7 +66,7 @@ public class CassandraNetworkAuthorizerTest
                                new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer());
-
+        AuthCacheService.initializeAndRegisterCaches();
         setupSuperUser();
     }
 

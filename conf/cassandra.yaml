@@ -976,10 +976,10 @@ sstable_preemptive_open_interval_in_mb: 50
 #      failures.
 #   2) operations that use too much CPU/read too much data (leading to memory build
 #      up) by putting a limit to how long an operation will execute.
-# For this reason, you should avoid putting these settings too high. In other words, 
-# if you are timing out requests because of underlying resource constraints then 
-# increasing the timeout will just cause more problems. Of course putting them too 
-# low is equally ill-advised since clients could get timeouts even for successful 
+# For this reason, you should avoid putting these settings too high. In other words,
+# if you are timing out requests because of underlying resource constraints then
+# increasing the timeout will just cause more problems. Of course putting them too
+# low is equally ill-advised since clients could get timeouts even for successful
 # operations just because the timeout setting is too tight.
 
 # How long the coordinator should wait for read operations to complete.
@@ -1525,6 +1525,10 @@ report_unconfirmed_repaired_data_mismatches: false
 # configure the read and write consistency levels for modifications to auth tables
 # auth_read_consistency_level: LOCAL_QUORUM
 # auth_write_consistency_level: EACH_QUORUM
+
+# Delays on auth resolution can lead to a thundering herd problem on reconnects; this option will enable
+# warming of auth caches prior to node completing startup. See CASSANDRA-16958
+# auth_cache_warming_enabled: false
 
 #########################
 # EXPERIMENTAL FEATURES #

@@ -20,8 +20,10 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -30,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -56,7 +59,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * PasswordAuthenticator requires the use of CassandraRoleManager
  * for storage and retrieval of encrypted passwords.
  */
-public class PasswordAuthenticator implements IAuthenticator
+public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoader<String, String>
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordAuthenticator.class);
 
@@ -73,12 +76,37 @@ public class PasswordAuthenticator implements IAuthenticator
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
 
-    private CredentialsCache cache;
+    private final CredentialsCache cache;
+
+    public PasswordAuthenticator()
+    {
+        cache = new CredentialsCache(this);
+        AuthCacheService.instance.register(cache);
+    }
 
     // No anonymous access.
     public boolean requireAuthentication()
     {
         return true;
+    }
+
+    @Override
+    public Supplier<Map<String, String>> bulkLoader()
+    {
+        return () ->
+        {
+            Map<String, String> entries = new HashMap<>();
+
+            logger.info("Pre-warming credentials cache from roles table");
+            UntypedResultSet results = process("SELECT role, salted_hash FROM system_auth.roles", CassandraAuthorizer.authReadConsistencyLevel());
+            results.forEach(row -> {
+                if (row.has("salted_hash"))
+                {
+                    entries.put(row.getString("role"), row.getString("salted_hash"));
+                }
+            });
+            return entries;
+        };
     }
 
     public CredentialsCache getCredentialsCache()
@@ -98,6 +126,15 @@ public class PasswordAuthenticator implements IAuthenticator
             logger.warn("Error: invalid password hash encountered, rejecting user", e);
             return false;
         }
+    }
+
+    /**
+     * This is exposed so we can override the consistency level for tests that are single node
+     */
+    @VisibleForTesting
+    UntypedResultSet process(String query, ConsistencyLevel cl)
+    {
+        return QueryProcessor.process(query, cl);
     }
 
     private AuthenticatedUser authenticate(String username, String password) throws AuthenticationException
@@ -181,8 +218,6 @@ public class PasswordAuthenticator implements IAuthenticator
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.ROLES);
         authenticateStatement = prepare(query);
-
-        cache = new CredentialsCache(this);
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
@@ -290,6 +325,7 @@ public class PasswordAuthenticator implements IAuthenticator
                   DatabaseDescriptor::setCredentialsCacheActiveUpdate,
                   DatabaseDescriptor::getCredentialsCacheActiveUpdate,
                   authenticator::queryHashedPassword,
+                  authenticator.bulkLoader(),
                   () -> true,
                   (k,v) -> NO_SUCH_CREDENTIAL == v); // use a known object as a sentinel value. CacheRefresher will
                                                      // invalidate the key if the sentinel is loaded during a refresh

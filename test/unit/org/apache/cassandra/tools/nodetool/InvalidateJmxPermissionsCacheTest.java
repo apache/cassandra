@@ -24,6 +24,7 @@ import javax.security.auth.Subject;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraPrincipal;
@@ -61,6 +62,8 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_A);
         authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_B);
+
+        AuthCacheService.initializeAndRegisterCaches();
 
         startJMXServer();
     }

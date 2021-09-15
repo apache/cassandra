@@ -54,6 +54,9 @@ public class RolesTest
         for (RoleResource role : ALL_ROLES)
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role, new RoleOptions());
         grantRolesTo(roleManager, ROLE_A, ROLE_B, ROLE_C);
+
+        roleManager.setup();
+        AuthCacheService.initializeAndRegisterCaches();
     }
 
     @Test
