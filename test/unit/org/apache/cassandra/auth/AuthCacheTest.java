@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 
@@ -44,24 +49,18 @@ public class AuthCacheTest
     @Test
     public void testCacheLoaderIsCalledOnFirst()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
-        int result = authCache.get("10");
-
-        assertEquals(10, result);
+        TestCache authCache = newCache();
+        assertEquals(10, (int)authCache.get("10"));
         assertEquals(1, loadCounter);
     }
 
     @Test
     public void testCacheLoaderIsNotCalledOnSecond()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = newCache();
         authCache.get("10");
         assertEquals(1, loadCounter);
-
-        int result = authCache.get("10");
-
-        assertEquals(10, result);
+        assertEquals(10, (int)authCache.get("10"));
         assertEquals(1, loadCounter);
     }
 
@@ -69,12 +68,9 @@ public class AuthCacheTest
     public void testCacheLoaderIsAlwaysCalledWhenDisabled()
     {
         isCacheEnabled = false;
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache authCache = newCache();
         authCache.get("10");
-        int result = authCache.get("10");
-
-        assertEquals(10, result);
+        assertEquals(10, (int)authCache.get("10"));
         assertEquals(2, loadCounter);
     }
 
@@ -82,45 +78,42 @@ public class AuthCacheTest
     public void testCacheLoaderIsAlwaysCalledWhenValidityIsZero()
     {
         setValidity(0);
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache authCache = newCache();
         authCache.get("10");
-        int result = authCache.get("10");
-
-        assertEquals(10, result);
+        assertEquals(10, (int)authCache.get("10"));
         assertEquals(2, loadCounter);
     }
 
     @Test
     public void testCacheLoaderIsCalledAfterFullInvalidate()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = newCache();
         authCache.get("10");
-
-        authCache.invalidate();
-        int result = authCache.get("10");
-
-        assertEquals(10, result);
+        authCache.get("11");
         assertEquals(2, loadCounter);
+        authCache.invalidate();
+        assertEquals(10, (int)authCache.get("10"));
+        assertEquals(11, (int)authCache.get("11"));
+        assertEquals(4, loadCounter);
     }
 
     @Test
     public void testCacheLoaderIsCalledAfterInvalidateKey()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = newCache();
         authCache.get("10");
-
-        authCache.invalidate("10");
-        int result = authCache.get("10");
-
-        assertEquals(10, result);
+        authCache.get("11"); // second key that should not be invalidated
         assertEquals(2, loadCounter);
+        authCache.invalidate("10");
+        assertEquals(10, (int)authCache.get("10"));
+        assertEquals(11, (int)authCache.get("11"));
+        assertEquals(3, loadCounter);
     }
 
     @Test
     public void testCacheLoaderIsCalledAfterReset()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = newCache();
         authCache.get("10");
 
         authCache.cache = null;
@@ -134,7 +127,7 @@ public class AuthCacheTest
     public void testThatZeroValidityTurnOffCaching()
     {
         setValidity(0);
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = newCache();
         authCache.get("10");
         int result = authCache.get("10");
 
@@ -147,8 +140,7 @@ public class AuthCacheTest
     public void testThatRaisingValidityTurnOnCaching()
     {
         setValidity(0);
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache authCache = newCache();
         authCache.setValidity(2000);
         authCache.cache = authCache.initCache(null);
 
@@ -159,8 +151,7 @@ public class AuthCacheTest
     public void testDisableCache()
     {
         isCacheEnabled = false;
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache authCache = newCache();
         assertNull(authCache.cache);
     }
 
@@ -168,8 +159,7 @@ public class AuthCacheTest
     public void testDynamicallyEnableCache()
     {
         isCacheEnabled = false;
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache authCache = newCache();
         isCacheEnabled = true;
         authCache.cache = authCache.initCache(null);
 
@@ -179,8 +169,7 @@ public class AuthCacheTest
     @Test
     public void testDefaultPolicies()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache authCache = newCache();
         assertTrue(authCache.cache.policy().expireAfterWrite().isPresent());
         assertTrue(authCache.cache.policy().refreshAfterWrite().isPresent());
         assertTrue(authCache.cache.policy().eviction().isPresent());
@@ -189,8 +178,7 @@ public class AuthCacheTest
     @Test(expected = UnavailableException.class)
     public void testCassandraExceptionPassThroughWhenCacheEnabled()
     {
-        TestCache<String, Integer> cache = new TestCache<>(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); }, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache cache = newCache(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); });
         cache.get("expect-exception");
     }
 
@@ -198,8 +186,7 @@ public class AuthCacheTest
     public void testCassandraExceptionPassThroughWhenCacheDisable()
     {
         isCacheEnabled = false;
-        TestCache<String, Integer> cache = new TestCache<>(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); }, this::setValidity, () -> validity, () -> isCacheEnabled);
-
+        TestCache cache = newCache(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); });
         cache.get("expect-exception");
     }
 
@@ -207,7 +194,7 @@ public class AuthCacheTest
     public void testCassandraExceptionPassThroughWhenCacheRefreshed() throws InterruptedException
     {
         setValidity(50);
-        TestCache<String, Integer> cache = new TestCache<>(this::countingLoaderWithException, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache cache = new TestCache(this::countingLoaderWithException, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
         cache.get("10");
 
         // wait until the cached record expires
@@ -226,11 +213,80 @@ public class AuthCacheTest
         }
     }
 
+@Test
+    public void warmCacheUsingEntryProvider()
+    {
+        AtomicBoolean provided = new AtomicBoolean(false);
+        Supplier<Map<String, Integer>> bulkLoader = () -> {
+            provided.set(true);
+            return Collections.singletonMap("0", 0);
+        };
+        TestCache cache = newCache(bulkLoader);
+        cache.warm();
+        assertEquals(1, cache.getEstimatedSize());
+        assertEquals(0, (int)cache.get("0")); // warmed entry
+        assertEquals(0, loadCounter);
+        assertEquals(10, (int)cache.get("10")); // cold entry
+        assertEquals(1, loadCounter);
+        assertTrue(provided.get());
+    }
+
+    @Test
+    public void warmCacheIsSafeIfCachingIsDisabled()
+    {
+        isCacheEnabled = false;
+        TestCache cache = newCache(() -> Collections.singletonMap("0", 0));
+        cache.warm();
+        assertEquals(0, cache.getEstimatedSize());
+    }
+
+    @Test
+    public void providerSuppliesMoreEntriesThanCapacity()
+    {
+        final int maxEntries = 10;
+        Supplier<Map<String, Integer>> bulkLoader = () -> {
+            Map<String, Integer> entries = new HashMap<>();
+            for (int i = 0; i < maxEntries * 2; i++)
+                entries.put(Integer.toString(i), i);
+            return entries;
+        };
+        TestCache cache = new TestCache(this::countingLoader,
+                                        bulkLoader,
+                                        this::setValidity,
+                                        () -> validity,
+                                        () -> isCacheEnabled);
+        cache.warm();
+        cache.cleanup(); // Force the cleanup task rather than waiting for it to be scheduled to get accurate count
+        assertEquals(maxEntries, cache.getEstimatedSize());
+    }
+
+    @Test
+    public void handleProviderErrorDuringWarming()
+    {
+        System.setProperty(AuthCache.CACHE_LOAD_RETRIES_PROPERTY, "3");
+        System.setProperty(AuthCache.CACHE_LOAD_RETRY_INTERVAL_PROPERTY, "0");
+        final AtomicInteger attempts = new AtomicInteger(0);
+
+        Supplier<Map<String, Integer>> bulkLoader = () -> {
+            if (attempts.incrementAndGet() < 3)
+                throw new RuntimeException("BOOM");
+
+            return Collections.singletonMap("0", 99);
+        };
+
+        TestCache cache = newCache(bulkLoader);
+        cache.warm();
+        assertEquals(1, cache.getEstimatedSize());
+        assertEquals(99, (int)cache.get("0"));
+        // We should have made 3 attempts to get the initial entries
+        assertEquals(3, attempts.get());
+    }
+
     @Test
     public void testCacheLoaderIsNotCalledOnGetAllWhenCacheIsDisabled()
     {
         isCacheEnabled = false;
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
         authCache.get("10");
         Map<String, Integer> result = authCache.getAll();
 
@@ -243,7 +299,7 @@ public class AuthCacheTest
     @Test
     public void testCacheLoaderIsNotCalledOnGetAllWhenCacheIsEmpty()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
 
         Map<String, Integer> result = authCache.getAll();
 
@@ -254,7 +310,7 @@ public class AuthCacheTest
     @Test
     public void testCacheLoaderIsNotCalledOnGetAllWhenCacheIsNotEmpty()
     {
-        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
         authCache.get("10");
         Map<String, Integer> result = authCache.getAll();
 
@@ -284,23 +340,65 @@ public class AuthCacheTest
         return loadedValue;
     }
 
-    private static class TestCache<K, V> extends AuthCache<K, V>
+    private Map<String, Integer> emptyBulkLoader()
+    {
+        return Collections.emptyMap();
+    }
+
+    private TestCache newCache()
+    {
+        return new TestCache(this::countingLoader,
+                             this::emptyBulkLoader,
+                             this::setValidity,
+                             () -> validity,
+                             () -> isCacheEnabled);
+    }
+
+    private TestCache newCache(Function<String, Integer> loadFunction)
+    {
+        return new TestCache(loadFunction,
+                             this::emptyBulkLoader,
+                             this::setValidity,
+                             () -> validity,
+                             () -> isCacheEnabled);
+    }
+
+    private TestCache newCache(Supplier<Map<String, Integer>> bulkLoader)
+    {
+        return new TestCache(this::countingLoader,
+                             bulkLoader,
+                             this::setValidity,
+                             () -> validity,
+                             () -> isCacheEnabled);
+    }
+
+    private static class TestCache extends AuthCache<String, Integer>
     {
         private static int nameCounter = 0; // Allow us to create many instances of cache with same name prefix
 
-        TestCache(Function<K, V> loadFunction, IntConsumer setValidityDelegate, IntSupplier getValidityDelegate, BooleanSupplier cacheEnabledDelegate)
+        TestCache(Function<String, Integer> loadFunction,
+                  Supplier<Map<String, Integer>> bulkLoadFunction,
+                  IntConsumer setValidityDelegate,
+                  IntSupplier getValidityDelegate,
+                  BooleanSupplier cacheEnabledDelegate)
         {
             super("TestCache" + nameCounter++,
                   setValidityDelegate,
                   getValidityDelegate,
-                  (updateInterval) -> {},
-                  () -> 1000,
-                  (maxEntries) -> {},
-                  () -> 10,
-                  (updateActiveUpdate) -> {},
-                  () -> false,
+                  (updateInterval) -> {},               // set update interval
+                  () -> 1000,                           // get update interval
+                  (maxEntries) -> {},                   // set max entries
+                  () -> 10,                             // get max entries
+                  (updateActiveUpdate) -> {},           // set active update enabled
+                  () -> false,                          // get active update enabled
                   loadFunction,
+                  bulkLoadFunction,
                   cacheEnabledDelegate);
+        }
+
+        void cleanup()
+        {
+            cache.cleanUp();
         }
     }
 }

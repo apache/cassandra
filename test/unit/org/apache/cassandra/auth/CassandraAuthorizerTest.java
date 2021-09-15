@@ -35,6 +35,7 @@ public class CassandraAuthorizerTest extends CQLTester
     @BeforeClass
     public static void setupClass()
     {
+        System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();

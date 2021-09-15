@@ -35,8 +35,19 @@ public class Roles
 
     private static final Role NO_ROLE = new Role("", false, false, Collections.emptyMap(), Collections.emptySet());
 
-    public static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(),
-            () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+    public static RolesCache cache;
+
+    /** Use {@link AuthCacheService#initializeAndRegisterCaches} rather than calling this directly */
+    public static void init()
+    {
+        if (cache != null)
+        {
+            cache.unregisterMBean();
+            AuthCacheService.instance.unregister(cache);
+        }
+        cache = new RolesCache(DatabaseDescriptor.getRoleManager(), () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+        AuthCacheService.instance.register(cache);
+    }
 
     /**
      * Identify all roles granted to the supplied Role, including both directly granted
@@ -66,6 +77,15 @@ public class Roles
     public static Set<Role> getRoleDetails(RoleResource primaryRole)
     {
         return cache.getRoles(primaryRole);
+    }
+
+    /**
+     * Enumerate all the roles in the system, preferably these will be fetched from the cache, which in turn
+     * may have been warmed during startup.
+     */
+    public static Set<RoleResource> getAllRoles()
+    {
+        return cache.getAllRoles();
     }
 
     /**

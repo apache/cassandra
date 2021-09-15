@@ -37,7 +37,8 @@ public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResourc
               DatabaseDescriptor::setPermissionsCacheActiveUpdate,
               DatabaseDescriptor::getPermissionsCacheActiveUpdate,
               (p) -> authorizer.authorize(p.left, p.right),
-              () -> DatabaseDescriptor.getAuthorizer().requireAuthorization());
+              authorizer.bulkLoader(),
+              authorizer::requireAuthorization);
     }
 
     public Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)

@@ -24,19 +24,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.cassandra.auth.*;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.auth.AuthTestUtils;
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.DataResource;
-import org.apache.cassandra.auth.FunctionResource;
-import org.apache.cassandra.auth.IResource;
-import org.apache.cassandra.auth.JMXResource;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -62,6 +55,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
 
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
+        AuthCacheService.initializeAndRegisterCaches();
 
         List<IResource> resources = Arrays.asList(
                 DataResource.root(),

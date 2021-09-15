@@ -18,10 +18,18 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -31,7 +39,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -40,6 +47,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CassandraNetworkAuthorizer implements INetworkAuthorizer
 {
+    private static final Logger logger = LoggerFactory.getLogger(CassandraNetworkAuthorizer.class);
     private SelectStatement authorizeUserStatement = null;
 
     public void setup()
@@ -56,10 +64,13 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
         return statement.execute(forInternalCalls(), options, nanoTime());
     }
 
+    /**
+     * This is exposed so we can override the consistency level for tests that are single node
+     */
     @VisibleForTesting
-    void process(String query)
+    UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
-        QueryProcessor.process(query, CassandraAuthorizer.authWriteConsistencyLevel());
+        return QueryProcessor.process(query, cl);
     }
 
     private Set<String> getAuthorizedDcs(String name)
@@ -138,7 +149,7 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
                                      getSetString(permissions),
                                      role.getName());
 
-        process(query);
+        process(query, CassandraAuthorizer.authWriteConsistencyLevel());
     }
 
     public void drop(RoleResource role)
@@ -148,11 +159,36 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
                                      AuthKeyspace.NETWORK_PERMISSIONS,
                                      role.getName());
 
-        process(query);
+        process(query, CassandraAuthorizer.authWriteConsistencyLevel());
     }
 
     public void validateConfiguration() throws ConfigurationException
     {
         // noop
+    }
+
+    @Override
+    public Supplier<Map<RoleResource, DCPermissions>> bulkLoader()
+    {
+        return () -> {
+            logger.info("Pre-warming datacenter permissions cache from network_permissions table");
+            Map<RoleResource, DCPermissions> entries = new HashMap<>();
+            UntypedResultSet rows = process(String.format("SELECT role, dcs FROM %s.%s",
+                                                          SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                          AuthKeyspace.NETWORK_PERMISSIONS),
+                                            CassandraAuthorizer.authReadConsistencyLevel());
+
+            for (UntypedResultSet.Row row : rows)
+            {
+                RoleResource role = RoleResource.role(row.getString("role"));
+                DCPermissions.Builder builder = new DCPermissions.Builder();
+                Set<String> dcs = row.getFrozenSet("dcs", UTF8Type.instance);
+                for (String dc : dcs)
+                    builder.add(dc);
+                entries.put(role, builder.build());
+            }
+
+            return entries;
+        };
     }
 }

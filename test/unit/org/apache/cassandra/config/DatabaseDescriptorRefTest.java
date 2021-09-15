@@ -61,6 +61,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.audit.BinLogAuditLogger",
     "org.apache.cassandra.audit.IAuditLogger",
     "org.apache.cassandra.auth.AllowAllInternodeAuthenticator",
+    "org.apache.cassandra.auth.AuthCache$BulkLoader",
+    "org.apache.cassandra.auth.Cacheable",
     "org.apache.cassandra.auth.IInternodeAuthenticator",
     "org.apache.cassandra.auth.IAuthenticator",
     "org.apache.cassandra.auth.IAuthorizer",
