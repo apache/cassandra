@@ -1,5 +1,5 @@
 4.1
- * Allow reverse iteration of resources during permissions checking (CASSANDRA-17016)
+<<<<<<< HEAD
  * Add soft/hard limits to local reads to protect against reading too much data in a single query (CASSANDRA-16896)
  * Avoid token cache invalidation for removing a non-member node (CASSANDRA-15290)
  * Allow configuration of consistency levels on auth operations (CASSANDRA-12988)
@@ -7,6 +7,9 @@
  * Upgrade Caffeine to 2.9.2 (CASSANDRA-15153)
  * Allow DELETE and TRUNCATE to work on Virtual Tables if the implementation allows it (CASSANDRA-16806)
  * Include SASI components to snapshots (CASSANDRA-15134)
+=======
+ * Allow reverse iteration of resources during permissions checking (CASSANDRA-????)
+>>>>>>> dee75ade2e (Allow reverse iteration order during resource permissions checking)
  * Fix missed wait latencies in the output of `nodetool tpstats -F` (CASSANDRA-16938)
  * Reduce native transport max frame size to 16MB (CASSANDRA-16886)
  * Add support for filtering using IN restrictions (CASSANDRA-14344)

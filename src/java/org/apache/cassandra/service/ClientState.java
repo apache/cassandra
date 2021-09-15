@@ -22,6 +22,8 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -425,9 +427,22 @@ public class ClientState
 
     private void ensurePermissionOnResourceChain(Permission perm, IResource resource)
     {
-        for (IResource r : Resources.chain(resource))
-            if (authorize(r).contains(perm))
-                return;
+        if (DatabaseDescriptor.getAuthFromRoot())
+        {
+            // Check for the required permission in reverse hierarchical order, from broadest to most specific
+            List<IResource> chain = (List<IResource>) Resources.chain(resource);
+            ListIterator<IResource> resources = chain.listIterator(chain.size());
+            while (resources.hasPrevious())
+                if (authorize(resources.previous()).contains(perm))
+                    return;
+        }
+        else
+        {
+            for (IResource r : Resources.chain(resource))
+                if (authorize(r).contains(perm))
+                    return;
+
+        }
 
         throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
                                                       user.getName(),

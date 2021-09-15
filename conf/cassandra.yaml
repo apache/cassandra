@@ -143,6 +143,13 @@ role_manager: CassandraRoleManager
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer: AllowAllNetworkAuthorizer
 
+# Depending on the auth strategy of the cluster, it can be beneficial to iterate
+# from root to table (root -> ks -> table) instead of table to root (table -> ks -> root).
+# As the auth entries are whitelisting, once a permission is found you know it to be
+# valid. We default to false as the legacy behavior is to query at the table level then
+# move back up to the root. See CASSANDRA-17016 for details.
+# traverse_auth_from_root = false
+
 # Validity period for roles cache (fetching granted roles can be an expensive
 # operation depending on the role manager, CassandraRoleManager is one example)
 # Granted roles are cached for authenticated sessions in AuthenticatedUser and

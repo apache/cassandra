@@ -143,6 +143,8 @@ public class Config
     public boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
+    public boolean traverse_auth_from_root = false;
+
     /*
      * RPC address and interface refer to the address/interface used for the native protocol used to communicate with
      * clients. It's still called RPC in some places even though Thrift RPC is gone. If you see references to native

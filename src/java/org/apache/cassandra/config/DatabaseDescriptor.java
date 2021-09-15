@@ -1274,6 +1274,16 @@ public class DatabaseDescriptor
         DatabaseDescriptor.networkAuthorizer = networkAuthorizer;
     }
 
+    public static void setAuthFromRoot(boolean fromRoot)
+    {
+        conf.traverse_auth_from_root = fromRoot;
+    }
+
+    public static boolean getAuthFromRoot()
+    {
+        return conf.traverse_auth_from_root;
+    }
+
     public static IRoleManager getRoleManager()
     {
         return roleManager;
