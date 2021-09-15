@@ -7,6 +7,8 @@
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)
 Merged from 3.0:
+ * Catch UnsatisfiedLinkError in WindowsTimer (CASSANDRA-16085)
+ * Avoid removing batch when it's not created during view replication (CASSANDRA-16175)
  * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
  * Fix materialized view schema backup as table (CASSANDRA-12734)
  * Avoid signaling DigestResolver until the minimum number of responses are guaranteed to be visible (CASSANDRA-16883)
