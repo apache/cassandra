@@ -37,4 +37,6 @@ public interface AuthCacheMBean
     public boolean getActiveUpdate();
 
     public void setActiveUpdate(boolean update);
+
+    public long getEstimatedSize();
 }

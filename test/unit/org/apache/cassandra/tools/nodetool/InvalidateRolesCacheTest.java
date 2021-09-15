@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IRoleManager;
@@ -44,6 +45,7 @@ public class InvalidateRolesCacheTest extends CQLTester
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
+        AuthCacheService.initializeAndRegisterCaches();
 
         startJMXServer();
     }

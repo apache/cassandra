@@ -1,4 +1,5 @@
 4.1
+ * Prewarm role and credential caches to avoid timeouts at startup (CASSANDRA-16958)
  * Make capacity/validity/updateinterval/activeupdate for Auth Caches configurable via nodetool (CASSANDRA-17063)
  * Added startup check for read_ahead_kb setting (CASSANDRA-16436)
  * Avoid unecessary array allocations and initializations when performing query checks (CASSANDRA-17209)

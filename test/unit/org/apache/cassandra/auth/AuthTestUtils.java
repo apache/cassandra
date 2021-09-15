@@ -107,9 +107,9 @@ public class AuthTestUtils
         }
 
         @Override
-        void process(String query)
+        UntypedResultSet process(String query, ConsistencyLevel cl)
         {
-            QueryProcessor.executeInternal(query);
+            return QueryProcessor.executeInternal(query);
         }
     }
 
@@ -119,6 +119,12 @@ public class AuthTestUtils
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        @Override
+        UntypedResultSet process(String query, ConsistencyLevel cl)
+        {
+            return QueryProcessor.executeInternal(query);
         }
     }
 

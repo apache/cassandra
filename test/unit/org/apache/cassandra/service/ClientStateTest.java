@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
@@ -54,7 +55,10 @@ public class ClientStateTest
         SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
                                     KeyspaceParams.simple(1),
                                     Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
+
+        AuthCacheService.initializeAndRegisterCaches();
     }
+
     @AfterClass
     public static void afterClass()
     {

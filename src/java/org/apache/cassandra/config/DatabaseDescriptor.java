@@ -3692,6 +3692,11 @@ public class DatabaseDescriptor
         conf.denylist_max_keys_total = value;
     }
 
+    public static boolean getAuthCacheWarmingEnabled()
+    {
+        return conf.auth_cache_warming_enabled;
+    }
+
     public static SubnetGroups getClientErrorReportingExclusions()
     {
         return conf.client_error_reporting_exclusions;
