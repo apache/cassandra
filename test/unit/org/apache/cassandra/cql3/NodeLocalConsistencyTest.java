@@ -21,12 +21,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.metrics.ClientRequestsMetrics;
+import org.apache.cassandra.metrics.ClientRequestsMetricsProvider;
 
 import static org.apache.cassandra.db.ConsistencyLevel.NODE_LOCAL;
-import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
-import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsForLevel;
-import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
-import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetricsForLevel;
 import static org.junit.Assert.assertEquals;
 
 public class NodeLocalConsistencyTest extends CQLTester
@@ -40,15 +38,16 @@ public class NodeLocalConsistencyTest extends CQLTester
     @Test
     public void testModify()
     {
+        ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(null);
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key));");
 
-        long beforeLevel  = writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long beforeGlobal = writeMetrics.latency.getCount();
+        long beforeLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
+        long beforeGlobal = metrics.writeMetrics.latency.getCount();
 
         QueryProcessor.process(formatQuery("INSERT INTO %s (key, val) VALUES ('key', 0);"), NODE_LOCAL);
 
-        long afterLevel  = writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long afterGlobal = writeMetrics.latency.getCount();
+        long afterLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
+        long afterGlobal = metrics.writeMetrics.latency.getCount();
 
         assertEquals(1, afterLevel - beforeLevel);
         assertEquals(1, afterGlobal - beforeGlobal);
@@ -57,15 +56,16 @@ public class NodeLocalConsistencyTest extends CQLTester
     @Test
     public void testBatch()
     {
+        ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(null);
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key));");
 
-        long beforeLevel  = writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long beforeGlobal = writeMetrics.latency.getCount();
+        long beforeLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
+        long beforeGlobal = metrics.writeMetrics.latency.getCount();
 
         QueryProcessor.process(formatQuery("BEGIN BATCH INSERT INTO %s (key, val) VALUES ('key', 0); APPLY BATCH;"), NODE_LOCAL);
 
-        long afterLevel  = writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long afterGlobal = writeMetrics.latency.getCount();
+        long afterLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
+        long afterGlobal = metrics.writeMetrics.latency.getCount();
 
         assertEquals(1, afterLevel - beforeLevel);
         assertEquals(1, afterGlobal - beforeGlobal);
@@ -74,15 +74,16 @@ public class NodeLocalConsistencyTest extends CQLTester
     @Test
     public void testSelect()
     {
+        ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(null);
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key));");
 
-        long beforeLevel  = readMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long beforeGlobal = readMetrics.latency.getCount();
+        long beforeLevel  = metrics.readMetricsForLevel(NODE_LOCAL).latency.getCount();
+        long beforeGlobal = metrics.readMetrics.latency.getCount();
 
         QueryProcessor.process(formatQuery("SELECT * FROM %s;"), NODE_LOCAL);
 
-        long afterLevel  = readMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long afterGlobal = readMetrics.latency.getCount();
+        long afterLevel  = metrics.readMetricsForLevel(NODE_LOCAL).latency.getCount();
+        long afterGlobal = metrics.readMetrics.latency.getCount();
 
         assertEquals(1, afterLevel - beforeLevel);
         assertEquals(1, afterGlobal - beforeGlobal);

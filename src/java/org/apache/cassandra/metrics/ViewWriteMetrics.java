@@ -30,14 +30,15 @@ public class ViewWriteMetrics extends ClientRequestMetrics
     public final Counter viewReplicasSuccess;
     // time between when mutation is applied to local memtable to when CL.ONE is achieved on MV
     public final Timer viewWriteLatency;
+    public final Gauge<Long> viewPendingMutations;
 
-    public ViewWriteMetrics(String scope)
+    public ViewWriteMetrics(String scope, String namePrefix)
     {
-        super(scope);
-        viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
-        viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));
-        viewWriteLatency = Metrics.timer(factory.createMetricName("ViewWriteLatency"));
-        Metrics.register(factory.createMetricName("ViewPendingMutations"), new Gauge<Long>()
+        super(scope, namePrefix);
+        viewReplicasAttempted = Metrics.counter(factory.createMetricName(namePrefix + "ViewReplicasAttempted"));
+        viewReplicasSuccess = Metrics.counter(factory.createMetricName(namePrefix + "ViewReplicasSuccess"));
+        viewWriteLatency = Metrics.timer(factory.createMetricName(namePrefix + "ViewWriteLatency"));
+        viewPendingMutations = Metrics.register(factory.createMetricName(namePrefix + "ViewPendingMutations"), new Gauge<Long>()
                 {
                     public Long getValue()
                     {
@@ -49,9 +50,9 @@ public class ViewWriteMetrics extends ClientRequestMetrics
     public void release()
     {
         super.release();
-        Metrics.remove(factory.createMetricName("ViewReplicasAttempted"));
-        Metrics.remove(factory.createMetricName("ViewReplicasSuccess"));
-        Metrics.remove(factory.createMetricName("ViewWriteLatency"));
-        Metrics.remove(factory.createMetricName("ViewPendingMutations"));
+        Metrics.remove(factory.createMetricName(namePrefix + "ViewReplicasAttempted"));
+        Metrics.remove(factory.createMetricName(namePrefix + "ViewReplicasSuccess"));
+        Metrics.remove(factory.createMetricName(namePrefix + "ViewWriteLatency"));
+        Metrics.remove(factory.createMetricName(namePrefix + "ViewPendingMutations"));
     }
 }
