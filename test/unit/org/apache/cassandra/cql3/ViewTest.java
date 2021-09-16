@@ -1380,16 +1380,23 @@ public class ViewTest extends CQLTester
                     "c int, " +
                     "val int) WITH default_time_to_live = 60");
 
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
         createView("mv_ttl2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
 
         // Must NOT include "default_time_to_live" on alter Materialized View
         try
         {
-            executeNet(protocolVersion, "ALTER MATERIALIZED VIEW %s WITH default_time_to_live = 30");
+            executeNet(protocolVersion, "ALTER MATERIALIZED VIEW " + keyspace() + ".mv_ttl2 WITH default_time_to_live = 30");
             fail("Should fail if TTL is provided while altering materialized view");
         }
         catch (Exception e)
         {
+            // Make sure the message is clear. See CASSANDRA-16960
+            assertEquals("Forbidden default_time_to_live detected for a materialized view. Data in a materialized view always expire at the same time than the corresponding "
+                         + "data in the parent table. default_time_to_live must be set to zero, see CASSANDRA-12868 for more information",
+                         e.getMessage());
         }
     }
 
