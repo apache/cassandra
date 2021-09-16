@@ -1177,8 +1177,8 @@ public class Directories
 
     public static class SnapshotSizeDetails
     {
-        final long sizeOnDiskBytes;
-        final long dataSizeBytes;
+        public final long sizeOnDiskBytes;
+        public final long dataSizeBytes;
 
         private SnapshotSizeDetails(long sizeOnDiskBytes, long dataSizeBytes)
         {

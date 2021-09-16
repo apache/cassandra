@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.util.EnumSet;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 
 /**
@@ -70,7 +71,8 @@ public class Component
             this.repr = repr;
         }
 
-        static Type fromRepresentation(String repr)
+        @VisibleForTesting
+        public static Type fromRepresentation(String repr)
         {
             for (Type type : TYPES)
             {
