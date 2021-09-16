@@ -1,4 +1,5 @@
 4.1
+ * Include SASI components to snapshots (CASSANDRA-15134)
  * Fix missed wait latencies in the output of `nodetool tpstats -F` (CASSANDRA-16938)
  * Reduce native transport max frame size to 16MB (CASSANDRA-16886)
  * Add support for filtering using IN restrictions (CASSANDRA-14344)
