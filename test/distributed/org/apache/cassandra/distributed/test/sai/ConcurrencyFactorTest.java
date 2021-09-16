@@ -28,7 +28,8 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.service.reads.range.RangeCommandIterator;
+import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
+import org.apache.cassandra.metrics.CoordinatorClientRequestMetricsProvider;
 
 import static junit.framework.TestCase.assertEquals;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -41,6 +42,8 @@ public class ConcurrencyFactorTest extends TestBaseImpl
     private static final int nodes = 3;
 
     private org.apache.cassandra.distributed.Cluster cluster;
+
+    ClientRangeRequestMetrics rangeMetrics = CoordinatorClientRequestMetricsProvider.instance.metrics(KEYSPACE).rangeMetrics;
 
     @Before
     public void init() throws IOException
@@ -126,11 +129,11 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
     private int getRangeReadCount()
     {
-        return cluster.get(1).callOnInstance(() -> Math.toIntExact(RangeCommandIterator.rangeMetrics.roundTrips.getCount()));
+        return cluster.get(1).callOnInstance(() -> Math.toIntExact(rangeMetrics.roundTrips.getCount()));
     }
 
     private int getMaxRoundTrips()
     {
-        return cluster.get(1).callOnInstance(() -> Math.toIntExact(RangeCommandIterator.rangeMetrics.roundTrips.getSnapshot().getMax()));
+        return cluster.get(1).callOnInstance(() -> Math.toIntExact(rangeMetrics.roundTrips.getSnapshot().getMax()));
     }
 }
