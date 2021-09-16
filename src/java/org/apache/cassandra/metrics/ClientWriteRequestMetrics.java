@@ -33,15 +33,15 @@ public class ClientWriteRequestMetrics extends ClientRequestMetrics
      */
     public final Histogram mutationSize;
 
-    public ClientWriteRequestMetrics(String scope)
+    public ClientWriteRequestMetrics(String scope, String namePrefix)
     {
-        super(scope);
-        mutationSize = Metrics.histogram(factory.createMetricName("MutationSizeHistogram"), false);
+        super(scope, namePrefix);
+        mutationSize = Metrics.histogram(factory.createMetricName(namePrefix + "MutationSizeHistogram"), false);
     }
 
     public void release()
     {
         super.release();
-        Metrics.remove(factory.createMetricName("MutationSizeHistogram"));
+        Metrics.remove(factory.createMetricName(namePrefix + "MutationSizeHistogram"));
     }
 }

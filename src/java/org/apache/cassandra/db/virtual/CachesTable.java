@@ -21,6 +21,7 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CacheMetrics;
+import org.apache.cassandra.metrics.ChunkCacheMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 
@@ -65,6 +66,19 @@ final class CachesTable extends AbstractVirtualTable
               .column(HIT_RATIO, metrics.hitRate.getValue())
               .column(RECENT_REQUEST_RATE_PER_SECOND, (long) metrics.requests.getFifteenMinuteRate())
               .column(RECENT_HIT_RATE_PER_SECOND, (long) metrics.hits.getFifteenMinuteRate());
+    }
+
+    private void addRow(SimpleDataSet result, String name, ChunkCacheMetrics metrics)
+    {
+        result.row(name)
+              .column(CAPACITY_BYTES, metrics.capacity())
+              .column(SIZE_BYTES, metrics.size())
+              .column(ENTRY_COUNT, metrics.entries())
+              .column(REQUEST_COUNT, metrics.requests())
+              .column(HIT_COUNT, metrics.hits())
+              .column(HIT_RATIO, metrics.hitRate())
+              .column(RECENT_REQUEST_RATE_PER_SECOND, metrics.requestsFifteenMinuteRate())
+              .column(RECENT_HIT_RATE_PER_SECOND, metrics.hitsFifteenMinuteRate());
     }
 
     public DataSet data()

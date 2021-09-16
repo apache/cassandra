@@ -25,10 +25,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.service.reads.range.RangeCommandIterator;
+import org.apache.cassandra.metrics.ClientRequestsMetrics;
+import org.apache.cassandra.metrics.ClientRequestsMetricsProvider;
 
 import static junit.framework.TestCase.assertEquals;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -41,6 +43,28 @@ public class ConcurrencyFactorTest extends TestBaseImpl
     private static final int nodes = 3;
 
     private org.apache.cassandra.distributed.Cluster cluster;
+
+    static
+    {
+        CassandraRelevantProperties.CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.setString(OverridableClientRequestsMetricsProvider.class.getName());
+    }
+
+    public static class OverridableClientRequestsMetricsProvider implements ClientRequestsMetricsProvider
+    {
+        static volatile ClientRequestsMetrics metrics = new ClientRequestsMetrics("");
+
+        @Override
+        public ClientRequestsMetrics metrics(String keyspace)
+        {
+            return metrics;
+        }
+
+        public static void reset()
+        {
+            metrics.release();
+            metrics = new ClientRequestsMetrics("");
+        }
+    }
 
     @Before
     public void init() throws IOException
@@ -70,7 +94,7 @@ public class ConcurrencyFactorTest extends TestBaseImpl
         int i = 0;
         for (long val = startVal; val <= endVal; val += increment)
         {
-            fakeState = String.format("%c%c", (char)(rnd.nextInt(26) + 'A'), (char)(rnd.nextInt(26) + 'A'));
+            fakeState = String.format("%c%c", (char) (rnd.nextInt(26) + 'A'), (char) (rnd.nextInt(26) + 'A'));
             rowData = String.format("'%s', %s", fakeState, val);
             cluster.coordinator(1).execute(String.format(template, KEYSPACE, SAI_TABLE, i++, rowData), ConsistencyLevel.LOCAL_ONE);
         }
@@ -93,44 +117,42 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
         // we expect to use StorageProxy#RangeCommandIterator and the hit count to increase
         String query = String.format("SELECT state FROM %s.%s WHERE gdp > ? AND gdp < ? LIMIT 20", KEYSPACE, SAI_TABLE);
-        int prevHistCount = getRangeReadCount();
-        runAndValidate(prevHistCount, 1, query, 3_000_000_000L, 7_000_000_000L);
+        runAndValidate(1, 1, query, 3_000_000_000L, 7_000_000_000L);
 
         // partition-restricted query
         // we don't expect to use StorageProxy#RangeCommandIterator so previous hit count remains the same
         query = String.format("SELECT state FROM %s.%s WHERE pk = ?", KEYSPACE, SAI_TABLE);
-        runAndValidate(prevHistCount, 1, query, 0);
+        runAndValidate(0, 0, query, 0);
 
         // token-restricted query
         // we expect StorageProxy#RangeCommandIterator to be used so reset previous hit count
         query = String.format("SELECT * FROM %s.%s WHERE token(pk) > 0", KEYSPACE, SAI_TABLE);
-        prevHistCount = getRangeReadCount();
-        runAndValidate(prevHistCount, 1, query);
+        runAndValidate(1, 1, query);
 
         // token-restricted query and index
         // we expect StorageProxy#RangeCommandIterator to be used so reset previous hit count
         query = String.format("SELECT * FROM %s.%s WHERE token(pk) > 0 AND gdp > ?", KEYSPACE, SAI_TABLE);
-        prevHistCount = getRangeReadCount();
-        runAndValidate(prevHistCount, 1, query, 3_000_000_000L);
+        runAndValidate(1, 1, query, 3_000_000_000L);
     }
 
     /*
         Run the given query, check the hit count, check the max round trips.
      */
-    private void runAndValidate(int prevHistCount, int maxRoundTrips, String query, Object... bondValues)
+    private void runAndValidate(int expectedCount, int expectedMax, String query, Object... bondValues)
     {
+        cluster.get(1).runOnInstance(OverridableClientRequestsMetricsProvider::reset);
         cluster.coordinator(1).execute(query, ConsistencyLevel.ALL, bondValues);
-        assertEquals(prevHistCount + 1,  getRangeReadCount());
-        assertEquals(maxRoundTrips, getMaxRoundTrips());
+        assertEquals(expectedCount, getRangeReadCount());
+        assertEquals(expectedMax, getMaxRoundTrips());
     }
 
     private int getRangeReadCount()
     {
-        return cluster.get(1).callOnInstance(() -> Math.toIntExact(RangeCommandIterator.rangeMetrics.roundTrips.getCount()));
+        return cluster.get(1).callOnInstance(() -> Math.toIntExact(ClientRequestsMetricsProvider.instance.metrics(KEYSPACE).rangeMetrics.roundTrips.getCount()));
     }
 
     private int getMaxRoundTrips()
     {
-        return cluster.get(1).callOnInstance(() -> Math.toIntExact(RangeCommandIterator.rangeMetrics.roundTrips.getSnapshot().getMax()));
+        return cluster.get(1).callOnInstance(() -> Math.toIntExact(ClientRequestsMetricsProvider.instance.metrics(KEYSPACE).rangeMetrics.roundTrips.getSnapshot().getMax()));
     }
 }

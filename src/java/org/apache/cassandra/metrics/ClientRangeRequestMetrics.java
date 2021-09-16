@@ -33,15 +33,15 @@ public class ClientRangeRequestMetrics extends ClientRequestMetrics
      */
     public final Histogram roundTrips;
 
-    public ClientRangeRequestMetrics(String scope)
+    public ClientRangeRequestMetrics(String scope, String namePrefix)
     {
-        super(scope);
-        roundTrips = Metrics.histogram(factory.createMetricName("RoundTripsPerReadHistogram"), false);
+        super(scope, namePrefix);
+        roundTrips = Metrics.histogram(factory.createMetricName(namePrefix + "RoundTripsPerReadHistogram"), false);
     }
 
     public void release()
     {
         super.release();
-        Metrics.remove(factory.createMetricName("RoundTripsPerReadHistogram"));
+        Metrics.remove(factory.createMetricName(namePrefix + "RoundTripsPerReadHistogram"));
     }
 }
