@@ -32,20 +32,20 @@ public class ClientRequestMetrics extends LatencyMetrics
     public final Meter unavailables;
     public final Meter failures;
 
-    public ClientRequestMetrics(String scope)
+    public ClientRequestMetrics(String scope, String namePrefix)
     {
-        super("ClientRequest", scope);
+        super("ClientRequest", namePrefix, scope);
 
-        timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
-        unavailables = Metrics.meter(factory.createMetricName("Unavailables"));
-        failures = Metrics.meter(factory.createMetricName("Failures"));
+        timeouts = Metrics.meter(factory.createMetricName(namePrefix + "Timeouts"));
+        unavailables = Metrics.meter(factory.createMetricName(namePrefix + "Unavailables"));
+        failures = Metrics.meter(factory.createMetricName(namePrefix + "Failures"));
     }
 
     public void release()
     {
         super.release();
-        Metrics.remove(factory.createMetricName("Timeouts"));
-        Metrics.remove(factory.createMetricName("Unavailables"));
-        Metrics.remove(factory.createMetricName("Failures"));
+        Metrics.remove(factory.createMetricName(namePrefix + "Timeouts"));
+        Metrics.remove(factory.createMetricName(namePrefix + "Unavailables"));
+        Metrics.remove(factory.createMetricName(namePrefix + "Failures"));
     }
 }

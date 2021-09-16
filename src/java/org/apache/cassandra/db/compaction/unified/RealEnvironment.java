@@ -48,7 +48,7 @@ class RealEnvironment implements Environment
     @Override
     public double cacheMissRatio()
     {
-        double hitRate = ChunkCache.instance.metrics.hitRate.getValue();
+        double hitRate = ChunkCache.instance.metrics.hitRate();
         if (Double.isNaN(hitRate))
             return 1; // if the cache is not yet initialized then assume all requests are a cache miss
 

@@ -212,7 +212,13 @@ public enum CassandraRelevantProperties
     CUSTOM_TMD_PROVIDER_PROPERTY("cassandra.custom_token_metadata_provider_class"),
 
     /** Which class to use for failure detection */
-    CUSTOM_FAILURE_DETECTOR_PROPERTY("cassandra.custom_failure_detector_class");
+    CUSTOM_FAILURE_DETECTOR_PROPERTY("cassandra.custom_failure_detector_class"),
+
+    /** Set this property to true in order to switch to micrometer metrics */
+    USE_MICROMETER("cassandra.use_micrometer_metrics", "false"),
+
+    /** Which class to use for coordinator client request metrics */
+    CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY("cassandra.custom_client_request_metrics_provider_class");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

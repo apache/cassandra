@@ -30,19 +30,20 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
     public final Counter unfinishedCommit;
     public final Meter unknownResult;
 
-    public CASClientRequestMetrics(String scope)
+    public CASClientRequestMetrics(String scope, String namePrefix)
     {
-        super(scope);
-        contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
-        unfinishedCommit = Metrics.counter(factory.createMetricName("UnfinishedCommit"));
-        unknownResult = Metrics.meter(factory.createMetricName("UnknownResult"));
+        super(scope, namePrefix);
+
+        contention = Metrics.histogram(factory.createMetricName(namePrefix + "ContentionHistogram"), false);
+        unfinishedCommit = Metrics.counter(factory.createMetricName(namePrefix + "UnfinishedCommit"));
+        unknownResult = Metrics.meter(factory.createMetricName(namePrefix + "UnknownResult"));
     }
 
     public void release()
     {
         super.release();
-        Metrics.remove(factory.createMetricName("ContentionHistogram"));
-        Metrics.remove(factory.createMetricName("UnfinishedCommit"));
-        Metrics.remove(factory.createMetricName("UnknownResult"));
+        Metrics.remove(factory.createMetricName(namePrefix + "ContentionHistogram"));
+        Metrics.remove(factory.createMetricName(namePrefix + "UnfinishedCommit"));
+        Metrics.remove(factory.createMetricName(namePrefix + "UnknownResult"));
     }
 }

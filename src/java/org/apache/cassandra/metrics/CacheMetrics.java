@@ -66,26 +66,34 @@ public class CacheMetrics
     {
         factory = new DefaultNameFactory("Cache", type);
 
-        capacity = Metrics.register(factory.createMetricName("Capacity"), cache::capacity);
-        size = Metrics.register(factory.createMetricName("Size"), cache::weightedSize);
-        entries = Metrics.register(factory.createMetricName("Entries"), cache::size);
+        capacity = registerGauge("Capacity", cache::capacity);
+        size = registerGauge("Size", cache::weightedSize);
+        entries = registerGauge("Entries", cache::size);
 
-        hits = Metrics.meter(factory.createMetricName("Hits"));
-        misses = Metrics.meter(factory.createMetricName("Misses"));
-        requests = Metrics.meter(factory.createMetricName("Requests"));
+        requests = registerMeter("Requests");
 
-        hitRate =
-            Metrics.register(factory.createMetricName("HitRate"),
-                             ratioGauge(hits::getCount, requests::getCount));
-        oneMinuteHitRate =
-            Metrics.register(factory.createMetricName("OneMinuteHitRate"),
-                             ratioGauge(hits::getOneMinuteRate, requests::getOneMinuteRate));
-        fiveMinuteHitRate =
-            Metrics.register(factory.createMetricName("FiveMinuteHitRate"),
-                             ratioGauge(hits::getFiveMinuteRate, requests::getFiveMinuteRate));
-        fifteenMinuteHitRate =
-            Metrics.register(factory.createMetricName("FifteenMinuteHitRate"),
-                             ratioGauge(hits::getFifteenMinuteRate, requests::getFifteenMinuteRate));
+        hits = registerMeter("Hits");
+        misses = registerMeter("Misses");
+
+        hitRate = registerGauge("HitRate", ratioGauge(hits::getCount, requests::getCount));
+        oneMinuteHitRate = registerGauge("OneMinuteHitRate", ratioGauge(hits::getOneMinuteRate, requests::getOneMinuteRate));
+        fiveMinuteHitRate = registerGauge("FiveMinuteHitRate", ratioGauge(hits::getFiveMinuteRate, requests::getFiveMinuteRate));
+        fifteenMinuteHitRate = registerGauge("FifteenMinuteHitRate", ratioGauge(hits::getFifteenMinuteRate, requests::getFifteenMinuteRate));
+    }
+
+    protected final <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
+    {
+        return Metrics.register(factory.createMetricName(name), gauge);
+    }
+
+    protected final Meter registerMeter(String name)
+    {
+        return Metrics.meter(factory.createMetricName(name));
+    }
+
+    protected final Timer registerTimer(String name)
+    {
+        return Metrics.timer(factory.createMetricName(name));
     }
 
     @VisibleForTesting
