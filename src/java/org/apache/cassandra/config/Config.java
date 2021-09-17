@@ -361,10 +361,15 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public volatile long client_large_read_warn_threshold_kb = 0;
+    public volatile long client_large_read_abort_threshold_kb = 0;
+
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     public volatile Long index_summary_capacity_in_mb;
     public volatile int index_summary_resize_interval_in_minutes = 60;
+
+    public volatile boolean client_track_warnings_enabled = false; // should set to true in 4.2
 
     public int gc_log_threshold_in_ms = 200;
     public int gc_warn_threshold_in_ms = 1000;
@@ -531,6 +536,24 @@ public class Config
     // threads during tool usage mode. See CASSANDRA-12988 and DatabaseDescriptorRefTest for details
     public volatile String auth_read_consistency_level = "LOCAL_QUORUM";
     public volatile String auth_write_consistency_level = "EACH_QUORUM";
+
+    public volatile Boolean enable_partition_denylist = false;
+
+    public volatile Boolean enable_denylist_writes = true;
+
+    public volatile Boolean enable_denylist_reads = true;
+
+    public volatile Boolean enable_denylist_range_reads = false;
+
+    public int denylist_refresh_period_seconds = 86400;
+
+    public int denylist_initial_load_retry_seconds = 5;
+
+    public int max_denylist_keys_per_table = 1000;
+
+    public int max_denylist_keys_total = 10000;
+
+    public ConsistencyLevel denylist_consistency_level = ConsistencyLevel.QUORUM;
 
     /**
      * The intial capacity for creating RangeTombstoneList.

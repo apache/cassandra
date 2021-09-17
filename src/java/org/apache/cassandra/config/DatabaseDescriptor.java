@@ -3471,6 +3471,86 @@ public class DatabaseDescriptor
         conf.consecutive_message_errors_threshold = value;
     }
 
+    public static boolean enablePartitionDenylist()
+    {
+        return conf.enable_partition_denylist;
+    }
+
+    public static void setEnablePartitionDenylist(boolean enabled)
+    {
+        conf.enable_partition_denylist = enabled;
+    }
+
+    public static boolean enableDenylistWrites()
+    {
+        return conf.enable_denylist_writes;
+    }
+
+    public static void setEnableDenylistWrites(boolean enabled)
+    {
+        conf.enable_denylist_writes = enabled;
+    }
+
+    public static boolean enableDenylistReads()
+    {
+        return conf.enable_denylist_reads;
+    }
+
+    public static void setEnableDenylistReads(boolean enabled)
+    {
+        conf.enable_denylist_reads = enabled;
+    }
+
+    public static boolean enableDenylistRangeReads()
+    {
+        return conf.enable_denylist_range_reads;
+    }
+
+    public static void setEnableDenylistRangeReads(boolean enabled)
+    {
+        conf.enable_denylist_range_reads = enabled;
+    }
+
+    public static int getDenylistRefreshPeriodSeconds()
+    {
+        return conf.denylist_refresh_period_seconds;
+    }
+
+    public static void setdenyDenylistRefreshPeriodSeconds(int period)
+    {
+        conf.denylist_refresh_period_seconds = period;
+    }
+
+    public static int getDenylistInitialLoadRetrySeconds()
+    {
+        return conf.denylist_initial_load_retry_seconds;
+    }
+
+    public static void setdenyDenylistInitialLoadRetrySeconds(int seconds)
+    {
+        conf.denylist_initial_load_retry_seconds = seconds;
+    }
+
+    public static int maxdenyDenylistKeysPerTable()
+    {
+        return conf.max_denylist_keys_per_table;
+    }
+
+    public static int maxdenyDenylistKeysTotal()
+    {
+        return conf.max_denylist_keys_total;
+    }
+
+    public static ConsistencyLevel denylistConsistencyLevel()
+    {
+        return conf.denylist_consistency_level;
+    }
+
+    public static void setDenylistConsistencyLevel(ConsistencyLevel cl)
+    {
+        conf.denylist_consistency_level = cl;
+    }
+
     public static SubnetGroups getClientErrorReportingExclusions()
     {
         return conf.client_error_reporting_exclusions;
