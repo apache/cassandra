@@ -56,9 +56,9 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         AuthTestUtils.LocalCassandraAuthorizer authorizer = new AuthTestUtils.LocalCassandraAuthorizer();
         SchemaLoader.setupAuth(roleManager,
-                new AuthTestUtils.LocalPasswordAuthenticator(),
-                authorizer,
-                new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+                               new AuthTestUtils.LocalPasswordAuthenticator(),
+                               authorizer,
+                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
 
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
@@ -66,6 +66,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         List<IResource> resources = Arrays.asList(
                 DataResource.root(),
                 DataResource.keyspace(KEYSPACE),
+                DataResource.allTables(KEYSPACE),
                 DataResource.table(KEYSPACE, "t1"),
                 RoleResource.root(),
                 RoleResource.role("role_x"),
@@ -104,10 +105,10 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                         "                [(-u <username> | --username <username>)] invalidatepermissionscache\n" +
                         "                [--all-functions] [--all-keyspaces] [--all-mbeans] [--all-roles]\n" +
-                        "                [--function <function>]\n" +
+                        "                [--all-tables] [--function <function>]\n" +
                         "                [--functions-in-keyspace <functions-in-keyspace>]\n" +
                         "                [--keyspace <keyspace>] [--mbean <mbean>] [--role <role>]\n" +
-                        "                [--table <table>] [--] [<user>]\n" +
+                        "                [--table <table>] [--] [<role>]\n" +
                         "\n" +
                         "OPTIONS\n" +
                         "        --all-functions\n" +
@@ -121,6 +122,9 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "\n" +
                         "        --all-roles\n" +
                         "            Invalidate permissions for 'ALL ROLES'\n" +
+                        "\n" +
+                        "        --all-tables\n" +
+                        "            Invalidate permissions for 'ALL TABLES'\n" +
                         "\n" +
                         "        --function <function>\n" +
                         "            Function to invalidate permissions for (you must specify\n" +
@@ -166,8 +170,9 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "            list of argument, (useful when arguments might be mistaken for\n" +
                         "            command-line options\n" +
                         "\n" +
-                        "        [<user>]\n" +
-                        "            A specific user for whom permissions need to be invalidated\n" +
+                        "        [<role>]\n" +
+                        "            A role for which permissions to specified resources need to be\n" +
+                        "            invalidated\n" +
                         "\n" +
                         "\n";
         assertThat(tool.getStdout()).isEqualTo(help);
@@ -179,28 +184,40 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "--all-keyspaces");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
-                .isEqualTo(wrapByDefaultNodetoolMessage("No options allowed without a <user> being specified"));
+                .isEqualTo(wrapByDefaultNodetoolMessage("No resource options allowed without a <role> being specified"));
         assertThat(tool.getStderr()).isEmpty();
 
-        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--invalid-option");
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
-                .isEqualTo(wrapByDefaultNodetoolMessage("A single <user> is only supported / you have a typo in the options spelling"));
+                .isEqualTo(wrapByDefaultNodetoolMessage("No resource options specified"));
         assertThat(tool.getStderr()).isEmpty();
 
-        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--table", "t1");
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--invalid-option");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("A single <role> is only supported / you have a typo in the resource options spelling"));
+        assertThat(tool.getStderr()).isEmpty();
+
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--all-tables");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("--all-tables option should be passed along with --keyspace option"));
+        assertThat(tool.getStderr()).isEmpty();
+
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--table", "t1");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("--table option should be passed along with --keyspace option"));
         assertThat(tool.getStderr()).isEmpty();
 
-        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--function", "f[Int32Type]");
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--function", "f[Int32Type]");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("--function option should be passed along with --functions-in-keyspace option"));
         assertThat(tool.getStderr()).isEmpty();
 
-        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--functions-in-keyspace",
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--functions-in-keyspace",
                 KEYSPACE, "--function", "f[x]");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
@@ -213,6 +230,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
     {
         assertInvalidation(DataResource.root(), Collections.singletonList("--all-keyspaces"));
         assertInvalidation(DataResource.keyspace(KEYSPACE), Arrays.asList("--keyspace", KEYSPACE));
+        assertInvalidation(DataResource.allTables(KEYSPACE), Arrays.asList("--keyspace", KEYSPACE, "--all-tables"));
         assertInvalidation(DataResource.table(KEYSPACE, "t1"),
                 Arrays.asList("--keyspace", KEYSPACE, "--table", "t1"));
         assertInvalidation(RoleResource.root(), Collections.singletonList("--all-roles"));
@@ -273,7 +291,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
     }
 
     @Test
-    public void testInvalidatePermissionsForAllUsers()
+    public void testInvalidatePermissionsForAllRoles()
     {
         DataResource rootDataResource = DataResource.root();
         Set<Permission> dataPermissions = rootDataResource.applicablePermissions();

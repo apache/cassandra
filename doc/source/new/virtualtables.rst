@@ -17,8 +17,7 @@
 Virtual Tables
 --------------
 
-Apache Cassandra 4.0 implements virtual tables (`CASSANDRA-7622
-<https://issues.apache.org/jira/browse/CASSANDRA-7622>`_).
+Virtual tables are supported starting from version 4.0.
 
 Definition
 ^^^^^^^^^^
@@ -92,52 +91,69 @@ Virtual tables in a virtual keyspace may be listed with ``DESC TABLES``.  The ``
 
  cqlsh> USE system_views;
  cqlsh:system_views> DESC TABLES;
- coordinator_scans   clients             tombstones_scanned  internode_inbound
- disk_usage          sstable_tasks       live_scanned        caches
- local_writes        max_partition_size  local_reads
- coordinator_writes  internode_outbound  thread_pools
- local_scans         coordinator_reads   settings
+ caches                     internode_outbound              roles_cache_keys
+ clients                    jmx_permissions_cache_keys      rows_per_read
+ coordinator_read_latency   local_read_latency              settings
+ coordinator_scan_latency   local_scan_latency              sstable_tasks
+ coordinator_write_latency  local_write_latency             system_properties
+ credentials_cache_keys     max_partition_size              thread_pools
+ disk_usage                 network_permissions_cache_keys  tombstones_per_read
+ internode_inbound          permissions_cache_keys
 
 Some of the salient virtual tables in ``system_views`` virtual keyspace are described in Table 1.
 
 Table 1 : Virtual Tables in system_views
 
-+------------------+---------------------------------------------------+
-|Virtual Table     | Description                                       |
-+------------------+---------------------------------------------------+
-| clients          |Lists information about all connected clients.     |
-+------------------+---------------------------------------------------+
-| disk_usage       |Disk usage including disk_space, keyspace_name,    |
-|                  |and table_name by system keyspaces.                |
-+------------------+---------------------------------------------------+
-| local_writes     |A table metric for local writes                    |
-|                  |including count, keyspace_name,                    |
-|                  |max, median, per_second, and                       |
-|                  |table_name.                                        |
-+------------------+---------------------------------------------------+
-| caches           |Displays the general cache information including   |
-|                  |cache name, capacity_bytes, entry_count, hit_count,|
-|                  |hit_ratio double, recent_hit_rate_per_second,      |
-|                  |recent_request_rate_per_second, request_count, and |
-|                  |size_bytes.                                        |
-+------------------+---------------------------------------------------+
-| local_reads      |A table metric for  local reads information.       |
-+------------------+---------------------------------------------------+
-| sstable_tasks    |Lists currently running tasks such as compactions  |
-|                  |and upgrades on SSTables.                          |
-+------------------+---------------------------------------------------+
-|internode_inbound |Lists information about the inbound                |
-|                  |internode messaging.                               |
-+------------------+---------------------------------------------------+
-| thread_pools     |Lists metrics for each thread pool.                |
-+------------------+---------------------------------------------------+
-| settings         |Displays configuration settings in cassandra.yaml. |
-+------------------+---------------------------------------------------+
-|max_partition_size|A table metric for maximum partition size.         |
-+------------------+---------------------------------------------------+
-|internode_outbound|Information about the outbound internode messaging.|
-|                  |                                                   |
-+------------------+---------------------------------------------------+
++------------------------------+---------------------------------------------------+
+|Virtual Table                 | Description                                       |
++------------------------------+---------------------------------------------------+
+| clients                      |Lists information about all connected clients.     |
++------------------------------+---------------------------------------------------+
+| disk_usage                   |Disk usage including disk_space, keyspace_name,    |
+|                              |and table_name by system keyspaces.                |
++------------------------------+---------------------------------------------------+
+| local_writes                 |A table metric for local writes                    |
+|                              |including count, keyspace_name,                    |
+|                              |max, median, per_second, and                       |
+|                              |table_name.                                        |
++------------------------------+---------------------------------------------------+
+| caches                       |Displays the general cache information including   |
+|                              |cache name, capacity_bytes, entry_count, hit_count,|
+|                              |hit_ratio double, recent_hit_rate_per_second,      |
+|                              |recent_request_rate_per_second, request_count, and |
+|                              |size_bytes.                                        |
++------------------------------+---------------------------------------------------+
+| local_reads                  |A table metric for  local reads information.       |
++------------------------------+---------------------------------------------------+
+| sstable_tasks                |Lists currently running tasks such as compactions  |
+|                              |and upgrades on SSTables.                          |
++------------------------------+---------------------------------------------------+
+| internode_inbound            |Lists information about the inbound internode      |
+|                              |messaging.                                         |
++------------------------------+---------------------------------------------------+
+| thread_pools                 |Lists metrics for each thread pool.                |
++------------------------------+---------------------------------------------------+
+| settings                     |Displays configuration settings in cassandra.yaml. |
++------------------------------+---------------------------------------------------+
+| max_partition_size           |A table metric for maximum partition size.         |
++------------------------------+---------------------------------------------------+
+| internode_outbound           |Information about the outbound internode messaging.|
++------------------------------+---------------------------------------------------+
+| credentials_cache_keys       |Displays credentials cache keys. Supports DELETE   |
+|                              |and TRUNCATE operations.                           |
++------------------------------+---------------------------------------------------+
+| jmx_permissions_cache_keys   |Displays JMX permissions cache keys. Supports      |
+|                              |DELETE and TRUNCATE operations.                    |
++------------------------------+---------------------------------------------------+
+|network_permissions_cache_keys|Displays netwrok permissions cache keys. Supports  |
+|                              |DELETE and TRUNCATE operations.                    |
++------------------------------+---------------------------------------------------+
+| permissions_cache_keys       |Displays permissions cache keys. Supports DELETE   |
+|                              |and TRUNCATE operations.                           |
++------------------------------+---------------------------------------------------+
+| roles_cache_keys             |Displays roles cache keys. Supports DELETE and     |
+|                              |TRUNCATE operations.                               |
++------------------------------+---------------------------------------------------+
 
 We shall discuss some of the virtual tables in more detail next.
 
@@ -187,7 +203,7 @@ The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed 
 
 Caches Virtual Table
 ********************
-The ``caches`` virtual table lists information about the  caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details:
+The ``caches`` virtual table lists information about the caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details:
 
 ::
 
@@ -306,6 +322,57 @@ As another example, to find how much time is remaining for SSTable tasks, use th
 
   SELECT total - progress AS remaining
   FROM system_views.sstable_tasks;
+
+Auth Caches Keys Virtual Tables
+****************************
+
+Every authentication cache has a separate virtual table associated. The virtual tables show the keys stored in caches
+and additionally support DELETE and TRUNCATE operations. In fact these operations just invalidate data in caches, no
+data is actually deleted from real tables.
+
+The tables show the following information:
+
+::
+
+  cqlsh:system_views> select * from credentials_cache_keys;
+   role
+  ------
+    bob
+  (1 rows)
+
+::
+
+  cqlsh:system_views> select * from jmx_permissions_cache_keys;
+   role
+  ------
+    bob
+  (1 rows)
+
+::
+
+  cqlsh:system_views> select * from network_permissions_cache_keys;
+   role
+  ------
+    bob
+  (1 rows)
+
+::
+
+  cqlsh:system_views> select * from permissions_cache_keys;
+   role | resource
+  ------+-------------
+    bob | roles/alice
+    bob |    data/ks1
+  (2 rows)
+
+::
+
+  cqlsh:system_views> select * from roles_cache_keys;
+   role
+  ------
+    bob
+  (1 rows)
+
 
 Other Virtual Tables
 ********************

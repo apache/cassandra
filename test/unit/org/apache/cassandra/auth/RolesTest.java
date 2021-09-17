@@ -28,11 +28,13 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 
-import static org.apache.cassandra.auth.AuthTestUtils.*;
+import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C;
+import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
+import static org.apache.cassandra.auth.AuthTestUtils.grantRolesTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -43,14 +45,12 @@ public class RolesTest
     public static void setupClass()
     {
         SchemaLoader.prepareServer();
-        // create the system_auth keyspace so the IRoleManager can function as normal
-        SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
-                                    KeyspaceParams.simple(1),
-                                    Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
+        IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+        SchemaLoader.setupAuth(roleManager,
+                               new AuthTestUtils.LocalPasswordAuthenticator(),
+                               new AuthTestUtils.LocalCassandraAuthorizer(),
+                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
 
-        IRoleManager roleManager = new LocalCassandraRoleManager();
-        roleManager.setup();
-        Roles.initRolesCache(roleManager, () -> true);
         for (RoleResource role : ALL_ROLES)
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role, new RoleOptions());
         grantRolesTo(roleManager, ROLE_A, ROLE_B, ROLE_C);

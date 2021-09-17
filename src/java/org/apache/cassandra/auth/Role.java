@@ -34,7 +34,7 @@ public class Role
      * for IRoleManager implementations (in particular, CassandraRoleManager)
      */
 
-    public final RoleResource resource ;
+    public final RoleResource resource;
     public final boolean isSuper;
     public final boolean canLogin;
     public final Set<String> memberOf;

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -27,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.UnavailableException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -222,6 +224,43 @@ public class AuthCacheTest
             {
             }
         }
+    }
+
+    @Test
+    public void testCacheLoaderIsNotCalledOnGetAllWhenCacheIsDisabled()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        Map<String, Integer> result = authCache.getAll();
+
+        // even though the cache is disabled and nothing is cache we still use loadFunction on get operation, so
+        // its counter has been incremented
+        assertThat(result).isEmpty();
+        assertEquals(1, loadCounter);
+    }
+
+    @Test
+    public void testCacheLoaderIsNotCalledOnGetAllWhenCacheIsEmpty()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        Map<String, Integer> result = authCache.getAll();
+
+        assertThat(result).isEmpty();
+        assertEquals(0, loadCounter);
+    }
+
+    @Test
+    public void testCacheLoaderIsNotCalledOnGetAllWhenCacheIsNotEmpty()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        Map<String, Integer> result = authCache.getAll();
+
+        assertThat(result).hasSize(1);
+        assertThat(result).containsEntry("10", 10);
+        assertEquals(1, loadCounter);
     }
 
     private void setValidity(int validity)

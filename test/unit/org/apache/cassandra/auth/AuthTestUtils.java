@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 
 import java.util.concurrent.Callable;
 
+import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -118,6 +119,15 @@ public class AuthTestUtils
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+    }
+
+    public static class NoAuthSetupAuthorizationProxy extends AuthorizationProxy
+    {
+        public NoAuthSetupAuthorizationProxy()
+        {
+            super();
+            this.isAuthSetupComplete = () -> true;
         }
     }
 

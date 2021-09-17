@@ -104,7 +104,7 @@ public class AuthorizationProxy implements InvocationHandler
                                                                       "registerMBean",
                                                                       "unregisterMBean");
 
-    private static final JmxPermissionsCache permissionsCache = new JmxPermissionsCache();
+    public static final JmxPermissionsCache jmxPermissionsCache = new JmxPermissionsCache();
     private MBeanServer mbs;
 
     /*
@@ -118,7 +118,7 @@ public class AuthorizationProxy implements InvocationHandler
      the permissions from the local cache, which in turn loads them from the configured IAuthorizer
      but can be overridden for testing.
      */
-    protected Function<RoleResource, Set<PermissionDetails>> getPermissions = permissionsCache::get;
+    protected Function<RoleResource, Set<PermissionDetails>> getPermissions = jmxPermissionsCache::get;
 
     /*
      Used to decide whether authorization is enabled or not, usually this depends on the configured
@@ -477,7 +477,7 @@ public class AuthorizationProxy implements InvocationHandler
                                                  .collect(Collectors.toSet());
     }
 
-    private static final class JmxPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+    public static final class JmxPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
         implements JmxPermissionsCacheMBean
     {
         protected JmxPermissionsCache()

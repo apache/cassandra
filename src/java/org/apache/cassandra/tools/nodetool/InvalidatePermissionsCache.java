@@ -38,7 +38,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "invalidatepermissionscache", description = "Invalidate the permissions cache")
 public class InvalidatePermissionsCache extends NodeToolCmd
 {
-    @Arguments(usage = "[<user>]", description = "A specific user for whom permissions need to be invalidated")
+    @Arguments(usage = "[<role>]", description = "A role for which permissions to specified resources need to be invalidated")
     private List<String> args = new ArrayList<>();
 
     // Data Resources
@@ -51,6 +51,11 @@ public class InvalidatePermissionsCache extends NodeToolCmd
             name = {"--keyspace"},
             description = "Keyspace to invalidate permissions for")
     private String keyspace;
+
+    @Option(title = "all-tables",
+            name = {"--all-tables"},
+            description = "Invalidate permissions for 'ALL TABLES'")
+    private boolean allTables;
 
     @Option(title = "table",
             name = {"--table"},
@@ -105,28 +110,34 @@ public class InvalidatePermissionsCache extends NodeToolCmd
                     && !allRoles && StringUtils.isEmpty(role)
                     && !allFunctions && StringUtils.isEmpty(functionsInKeyspace) && StringUtils.isEmpty(function)
                     && !allMBeans && StringUtils.isEmpty(mBean),
-                    "No options allowed without a <user> being specified");
+                    "No resource options allowed without a <role> being specified");
 
             probe.invalidatePermissionsCache();
         }
         else
         {
             checkArgument(args.size() == 1,
-                    "A single <user> is only supported / you have a typo in the options spelling");
+                    "A single <role> is only supported / you have a typo in the resource options spelling");
             List<String> resourceNames = new ArrayList<>();
 
             // Data Resources
             if (allKeyspaces)
                 resourceNames.add(DataResource.root().getName());
 
+            if (allTables)
+                if (StringUtils.isNotEmpty(keyspace))
+                    resourceNames.add(DataResource.allTables(keyspace).getName());
+                else
+                    throw new IllegalArgumentException("--all-tables option should be passed along with --keyspace option");
+
             if (StringUtils.isNotEmpty(table))
                 if (StringUtils.isNotEmpty(keyspace))
                     resourceNames.add(DataResource.table(keyspace, table).getName());
                 else
                     throw new IllegalArgumentException("--table option should be passed along with --keyspace option");
-            else
-                if (StringUtils.isNotEmpty(keyspace))
-                    resourceNames.add(DataResource.keyspace(keyspace).getName());
+
+            if (StringUtils.isNotEmpty(keyspace) && !allTables && StringUtils.isEmpty(table))
+                resourceNames.add(DataResource.keyspace(keyspace).getName());
 
             // Roles Resources
             if (allRoles)
@@ -155,10 +166,13 @@ public class InvalidatePermissionsCache extends NodeToolCmd
             if (StringUtils.isNotEmpty(mBean))
                 resourceNames.add(JMXResource.mbean(mBean).getName());
 
-            String userName = args.get(0);
+            String roleName = args.get(0);
+
+            if (resourceNames.isEmpty())
+                throw new IllegalArgumentException("No resource options specified");
 
             for (String resourceName : resourceNames)
-                probe.invalidatePermissionsCache(userName, resourceName);
+                probe.invalidatePermissionsCache(roleName, resourceName);
         }
     }
 

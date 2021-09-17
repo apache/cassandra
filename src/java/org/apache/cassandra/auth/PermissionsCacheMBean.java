@@ -22,5 +22,5 @@ public interface PermissionsCacheMBean extends AuthCacheMBean
 {
     public static final String CACHE_NAME = "PermissionsCache";
 
-    public void invalidatePermissions(String userName, String resourceName);
+    public void invalidatePermissions(String roleName, String resourceName);
 }

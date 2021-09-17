@@ -20,10 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,26 +35,8 @@ public class Roles
 
     private static final Role NO_ROLE = new Role("", false, false, Collections.emptyMap(), Collections.emptySet());
 
-    private static RolesCache cache;
-    static
-    {
-        initRolesCache(DatabaseDescriptor.getRoleManager(),
-                       () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
-    }
-
-    @VisibleForTesting
-    public static void initRolesCache(IRoleManager roleManager, BooleanSupplier enableCache)
-    {
-        if (cache != null)
-            cache.unregisterMBean();
-        cache = new RolesCache(roleManager, enableCache);
-    }
-
-    @VisibleForTesting
-    public static void clearCache()
-    {
-        cache.invalidate();
-    }
+    public static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(),
+            () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
 
     /**
      * Identify all roles granted to the supplied Role, including both directly granted

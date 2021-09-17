@@ -69,6 +69,9 @@ New features
     - Added a new feature to allow denylisting (i.e. blocking read, write, or range read configurable) access to partition
       keys in configured keyspaces and tables. See doc/operating/denylisting_partitions.rst for details on using this new
       feature. Also see CASSANDRA-12106.
+    - Information about pending hints is now available through `nodetool listpendinghints` and `pending_hints` virtual
+      table.
+    - Added ability to invalidate auth caches through corresponding `nodetool` commands and virtual tables.
 
 Upgrading
 ---------
@@ -76,8 +79,6 @@ Upgrading
       confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
       for further details. You also need to regenerate passwords for users for who the password
       was created while the above property was set to be more than 30 otherwise they will not be able to log in.
-    - Information about pending hints is now available through `nodetool listpendinghints` and `pending_hints` virtual
-      table.
 
 Deprecation
 -----------
