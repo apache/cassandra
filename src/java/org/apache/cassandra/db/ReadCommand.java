@@ -652,13 +652,18 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
+    private boolean shouldTrackSize(long warnThresholdBytes, long abortThresholdBytes)
+    {
+        return trackWarnings
+               && !SchemaConstants.isSystemKeyspace(metadata().keyspace)
+               && !(warnThresholdBytes == 0 && abortThresholdBytes == 0);
+    }
+
     private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)
     {
-        if (!trackWarnings || SchemaConstants.isSystemKeyspace(metadata().keyspace)) // exclude internal keyspaces
-            return iterator;
         final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarnThresholdKb() * 1024;
         final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKb() * 1024;
-        if (warnThresholdBytes == 0 && abortThresholdBytes == 0)
+        if (!shouldTrackSize(warnThresholdBytes, abortThresholdBytes))
             return iterator;
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
         {
