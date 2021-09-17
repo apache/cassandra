@@ -98,11 +98,7 @@ public class WarningsSnapshot
     @Override
     public String toString()
     {
-        return "(" +
-               "tombstones=" + tombstones +
-               ", localReadSize=" + localReadSize +
-               ", rowIndexTooLarge=" + rowIndexTooSize +
-               ')';
+        return "(tombstones=" + tombstones + ", localReadSize=" + localReadSize + ", rowIndexTooLarge=" + rowIndexTooSize + ')';
     }
 
     public static final class Warnings
@@ -150,10 +146,7 @@ public class WarningsSnapshot
         @Override
         public String toString()
         {
-            return "(" +
-                   "warnings=" + warnings +
-                   ", aborts=" + aborts +
-                   ')';
+            return "(warnings=" + warnings + ", aborts=" + aborts + ')';
         }
     }
 
