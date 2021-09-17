@@ -87,14 +87,14 @@ public class CoordinatorWarnings
 
             String cql = command.toCQLString();
             String loggableTokens = command.loggableTokens();
-            recordAborts(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneAborts, ReadCallback::tombstoneAbortMessage);
-            recordWarnings(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneWarnings, ReadCallback::tombstoneWarnMessage);
+            recordAborts(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneAborts, WarningsSnapshot::tombstoneAbortMessage);
+            recordWarnings(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneWarnings, WarningsSnapshot::tombstoneWarnMessage);
 
-            recordAborts(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeAborts, ReadCallback::localReadSizeAbortMessage);
-            recordWarnings(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeWarnings, ReadCallback::localReadSizeWarnMessage);
+            recordAborts(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeAborts, WarningsSnapshot::localReadSizeAbortMessage);
+            recordWarnings(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeWarnings, WarningsSnapshot::localReadSizeWarnMessage);
 
-            recordAborts(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, ReadCallback::rowIndexSizeAbortMessage);
-            recordWarnings(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, ReadCallback::rowIndexSizeWarnMessage);
+            recordAborts(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, WarningsSnapshot::rowIndexSizeAbortMessage);
+            recordWarnings(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, WarningsSnapshot::rowIndexSizeWarnMessage);
         });
 
         // reset the state to block from double publishing

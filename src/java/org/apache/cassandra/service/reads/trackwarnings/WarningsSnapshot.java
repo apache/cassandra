@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.reads.trackwarnings;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,6 +25,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.exceptions.ReadSizeAbortException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class WarningsSnapshot
@@ -78,6 +84,57 @@ public class WarningsSnapshot
         if (other == null || other == EMPTY)
             return this;
         return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooSize.merge(other.rowIndexTooSize));
+    }
+
+    public void maybeAbort(ReadCommand command, ConsistencyLevel cl, int received, int blockFor, boolean isDataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    {
+        if (!tombstones.aborts.instances.isEmpty())
+            throw new TombstoneAbortException(tombstones.aborts.instances.size(), tombstones.aborts.maxValue, command.toCQLString(), isDataPresent,
+                                              cl, received, blockFor, failureReasonByEndpoint);
+
+        if (!localReadSize.aborts.instances.isEmpty())
+            throw new ReadSizeAbortException(localReadSizeAbortMessage(localReadSize.aborts.instances.size(), localReadSize.aborts.maxValue, command.toCQLString()),
+                                             cl, received, blockFor, isDataPresent, failureReasonByEndpoint);
+
+        if (!rowIndexTooSize.aborts.instances.isEmpty())
+            throw new ReadSizeAbortException(rowIndexSizeAbortMessage(rowIndexTooSize.aborts.instances.size(), rowIndexTooSize.aborts.maxValue, command.toCQLString()),
+                                             cl, received, blockFor, isDataPresent, failureReasonByEndpoint);
+    }
+
+    @VisibleForTesting
+    public static String tombstoneAbortMessage(int nodes, long tombstones, String cql)
+    {
+        return String.format("%s nodes scanned over %s tombstones and aborted the query %s (see tombstone_failure_threshold)", nodes, tombstones, cql);
+    }
+
+    @VisibleForTesting
+    public static String tombstoneWarnMessage(int nodes, long tombstones, String cql)
+    {
+        return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings for query %s  (see tombstone_warn_threshold)", nodes, tombstones, cql);
+    }
+
+    @VisibleForTesting
+    public static String localReadSizeAbortMessage(long nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes and aborted the query %s (see track_warnings.local_read_size.abort_threshold_kb)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String localReadSizeWarnMessage(int nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see track_warnings.local_read_size.warn_threshold_kb)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String rowIndexSizeAbortMessage(long nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see track_warnings.row_index_size.abort_threshold_kb)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String rowIndexSizeWarnMessage(int nodes, long bytes, String cql)
+    {
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see track_warnings.row_index_size.warn_threshold_kb)", nodes, bytes, cql);
     }
 
     @Override
