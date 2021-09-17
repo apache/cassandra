@@ -3471,6 +3471,104 @@ public class DatabaseDescriptor
         conf.consecutive_message_errors_threshold = value;
     }
 
+    public static boolean getEnablePartitionDenylist()
+    {
+        return conf.enable_partition_denylist;
+    }
+
+    public static void setEnablePartitionDenylist(boolean enabled)
+    {
+        conf.enable_partition_denylist = enabled;
+    }
+
+    public static boolean getEnableDenylistWrites()
+    {
+        return conf.enable_denylist_writes;
+    }
+
+    public static void setEnableDenylistWrites(boolean enabled)
+    {
+        conf.enable_denylist_writes = enabled;
+    }
+
+    public static boolean getEnableDenylistReads()
+    {
+        return conf.enable_denylist_reads;
+    }
+
+    public static void setEnableDenylistReads(boolean enabled)
+    {
+        conf.enable_denylist_reads = enabled;
+    }
+
+    public static boolean getEnableDenylistRangeReads()
+    {
+        return conf.enable_denylist_range_reads;
+    }
+
+    public static void setEnableDenylistRangeReads(boolean enabled)
+    {
+        conf.enable_denylist_range_reads = enabled;
+    }
+
+    public static int getDenylistRefreshSeconds()
+    {
+        return conf.denylist_refresh_seconds;
+    }
+
+    public static void setDenylistRefreshSeconds(int seconds)
+    {
+        if (seconds <= 0)
+            throw new IllegalArgumentException("denylist_refresh_seconds must be a positive integer.");
+        conf.denylist_refresh_seconds = seconds;
+    }
+
+    public static int getDenylistInitialLoadRetrySeconds()
+    {
+        return conf.denylist_initial_load_retry_seconds;
+    }
+
+    public static void setDenylistInitialLoadRetrySeconds(int seconds)
+    {
+        if (seconds <= 0)
+            throw new IllegalArgumentException("denylist_initial_load_retry_seconds must be a positive integer.");
+        conf.denylist_initial_load_retry_seconds = seconds;
+    }
+
+    public static ConsistencyLevel getDenylistConsistencyLevel()
+    {
+        return conf.denylist_consistency_level;
+    }
+
+    public static void setDenylistConsistencyLevel(ConsistencyLevel cl)
+    {
+        conf.denylist_consistency_level = cl;
+    }
+
+    public static int getDenylistMaxKeysPerTable()
+    {
+        return conf.denylist_max_keys_per_table;
+    }
+
+    public static void setDenylistMaxKeysPerTable(int value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("denylist_max_keys_per_table must be a positive integer.");
+        conf.denylist_max_keys_per_table = value;
+    }
+
+    public static int getDenylistMaxKeysTotal()
+    {
+        return conf.denylist_max_keys_total;
+    }
+
+    public static void setDenylistMaxKeysTotal(int value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("denylist_max_keys_total must be a positive integer.");
+        conf.denylist_max_keys_total = value;
+    }
+
     public static SubnetGroups getClientErrorReportingExclusions()
     {
         return conf.client_error_reporting_exclusions;

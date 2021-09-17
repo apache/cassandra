@@ -44,10 +44,6 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +51,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.RejectException;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
@@ -67,6 +63,7 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.WriteType;
@@ -79,12 +76,12 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.ViewUtils;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.IsBootstrappingException;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureException;
@@ -109,6 +106,7 @@ import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.CASClientWriteRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientWriteRequestMetrics;
+import org.apache.cassandra.metrics.DenylistMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.ViewWriteMetrics;
@@ -118,8 +116,10 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.PartitionDenylist;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
@@ -131,11 +131,13 @@ import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.collect.Iterables.concat;
@@ -180,10 +182,13 @@ public class StorageProxy implements StorageProxyMBean
     private static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
     private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
     private static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
+    private static final DenylistMetrics denylistMetrics = new DenylistMetrics();
 
     private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
     private static final boolean disableSerialReadLinearizability =
         Boolean.parseBoolean(System.getProperty(DISABLE_SERIAL_READ_LINEARIZABILITY_KEY, "false"));
+
+    private static final PartitionDenylist partitionDenylist = new PartitionDenylist();
 
     private StorageProxy()
     {
@@ -296,6 +301,13 @@ public class StorageProxy implements StorageProxyMBean
         try
         {
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
+
+            if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistWrites() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
+            {
+                denylistMetrics.incrementWritesRejected();
+                throw new InvalidRequestException(String.format("Unable to CAS write to denylisted partition [0x%s] in %s/%s",
+                                                                key.toString(), keyspaceName, cfName));
+            }
 
             Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () ->
             {
@@ -1056,6 +1068,25 @@ public class StorageProxy implements StorageProxyMBean
                                           long queryStartNanoTime)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
+        if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistWrites())
+        {
+            for (final IMutation mutation : mutations)
+            {
+                for (final TableId tid : mutation.getTableIds())
+                {
+                    if (!partitionDenylist.isKeyPermitted(tid, mutation.key().getKey()))
+                    {
+                        denylistMetrics.incrementWritesRejected();
+                        // While Schema.instance.getTableMetadata() can return a null value, in this case the isKeyPermitted
+                        // call above ensures that we cannot have a null associated tid at this point.
+                        final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
+                        throw new InvalidRequestException(String.format("Unable to write to denylisted partition [0x%s] in %s/%s",
+                                                                        mutation.key().toString(), tmd.keyspace, tmd.name));
+                    }
+                }
+            }
+        }
+
         Collection<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
 
         boolean updatesView = Keyspace.open(mutations.iterator().next().getKeyspaceName())
@@ -1739,6 +1770,19 @@ public class StorageProxy implements StorageProxyMBean
             throw new IsBootstrappingException();
         }
 
+        if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistReads())
+        {
+            for (SinglePartitionReadCommand command : group.queries)
+            {
+                if (!partitionDenylist.isKeyPermitted(command.metadata().id, command.partitionKey().getKey()))
+                {
+                    denylistMetrics.incrementReadsRejected();
+                    throw new InvalidRequestException(String.format("Unable to read denylisted partition [0x%s] in %s/%s",
+                                                                    command.partitionKey().toString(), command.metadata().keyspace, command.metadata().name));
+                }
+            }
+        }
+
         return consistencyLevel.isSerialConsistency()
              ? readWithPaxos(group, consistencyLevel, state, queryStartNanoTime)
              : readRegular(group, consistencyLevel, queryStartNanoTime);
@@ -2072,6 +2116,18 @@ public class StorageProxy implements StorageProxyMBean
                                                   ConsistencyLevel consistencyLevel,
                                                   long queryStartNanoTime)
     {
+        if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistRangeReads())
+        {
+            final int denylisted = partitionDenylist.getDeniedKeysInRangeCount(command.metadata().id, command.dataRange().keyRange());
+            if (denylisted > 0)
+            {
+                denylistMetrics.incrementRangeReadsRejected();
+                String tokens = command.loggableTokens();
+                throw new InvalidRequestException(String.format("Attempted to read a range containing %d denylisted keys in %s/%s." +
+                                                                " Range read: %s", denylisted, command.metadata().keyspace, command.metadata().name,
+                                                                tokens));
+            }
+        }
         return RangeCommands.partitions(command, consistencyLevel, queryStartNanoTime);
     }
 
@@ -2755,5 +2811,122 @@ public class StorageProxy implements StorageProxyMBean
     public void disableCheckForDuplicateRowsDuringCompaction()
     {
         DatabaseDescriptor.setCheckForDuplicateRowsDuringCompaction(false);
+    }
+
+    public void initialLoadPartitionDenylist()
+    {
+        partitionDenylist.initialLoad();
+    }
+
+    @Override
+    public void loadPartitionDenylist()
+    {
+        partitionDenylist.load();
+    }
+
+    @Override
+    public int getPartitionDenylistLoadAttempts()
+    {
+        return partitionDenylist.getLoadAttempts();
+    }
+
+    @Override
+    public int getPartitionDenylistLoadSuccesses()
+    {
+        return partitionDenylist.getLoadSuccesses();
+    }
+
+    @Override
+    public void setEnablePartitionDenylist(boolean enabled)
+    {
+        DatabaseDescriptor.setEnablePartitionDenylist(enabled);
+    }
+
+    @Override
+    public void setEnableDenylistWrites(boolean enabled)
+    {
+        DatabaseDescriptor.setEnableDenylistWrites(enabled);
+    }
+
+    @Override
+    public void setEnableDenylistReads(boolean enabled)
+    {
+        DatabaseDescriptor.setEnableDenylistReads(enabled);
+    }
+
+    @Override
+    public void setEnableDenylistRangeReads(boolean enabled)
+    {
+        DatabaseDescriptor.setEnableDenylistRangeReads(enabled);
+    }
+
+    @Override
+    public void setDenylistMaxKeysPerTable(int value)
+    {
+        DatabaseDescriptor.setDenylistMaxKeysPerTable(value);
+    }
+
+    @Override
+    public void setDenylistMaxKeysTotal(int value)
+    {
+        DatabaseDescriptor.setDenylistMaxKeysTotal(value);
+    }
+
+    /**
+     * Actively denies read and write access to the provided Partition Key
+     * @param keyspace Name of keyspace containing the PK you wish to deny access to
+     * @param table Name of table containing the PK you wish to deny access to
+     * @param partitionKeyAsString String representation of the PK you want to deny access to
+     * @return true if successfully added, false if failure
+     */
+    @Override
+    public boolean denylistKey(String keyspace, String table, String partitionKeyAsString)
+    {
+        if (!Schema.instance.getKeyspaces().contains(keyspace))
+            return false;
+
+        final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        if (cfs == null)
+            return false;
+
+        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
+        return partitionDenylist.addKeyToDenylist(keyspace, table, bytes);
+    }
+
+    /**
+     * Attempts to remove the provided pk from the ks + table deny list
+     * @param keyspace Keyspace containing the pk to remove the denylist entry for
+     * @param table Table containing the pk to remove denylist entry for
+     * @param partitionKeyAsString String representation of the PK you want to re-allow access to
+     * @return true if found and removed, false if not
+     */
+    @Override
+    public boolean removeDenylistKey(String keyspace, String table, String partitionKeyAsString)
+    {
+        if (!Schema.instance.getKeyspaces().contains(keyspace))
+            return false;
+
+        final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        if (cfs == null)
+            return false;
+
+        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
+        return partitionDenylist.removeKeyFromDenylist(keyspace, table, bytes);
+    }
+
+    /**
+     * A simple check for operators to determine what the denylisted value for a pk is on a node
+     */
+    public boolean isKeyDenylisted(String keyspace, String table, String partitionKeyAsString)
+    {
+        if (!Schema.instance.getKeyspaces().contains(keyspace))
+            return false;
+
+        final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        if (cfs == null)
+            return false;
+
+        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
+        return !partitionDenylist.isKeyPermitted(keyspace, table, bytes);
     }
 }

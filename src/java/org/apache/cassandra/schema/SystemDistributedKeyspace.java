@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.repair;
+package org.apache.cassandra.schema;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -49,14 +49,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
-import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
@@ -68,6 +62,8 @@ public final class SystemDistributedKeyspace
     private SystemDistributedKeyspace()
     {
     }
+
+    public static final String NAME = "system_distributed";
 
     private static final int DEFAULT_RF = CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF.getInt();
     private static final Logger logger = LoggerFactory.getLogger(SystemDistributedKeyspace.class);
@@ -83,14 +79,17 @@ public final class SystemDistributedKeyspace
      * gen 3: gc_grace_seconds raised from 0 to 10 days in CASSANDRA-12954 in 3.11.0
      * gen 4: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
      * gen 5: add ttl and TWCS to repair_history tables
+     * gen 6: add denylist table
      */
-    public static final long GENERATION = 5;
+    public static final long GENERATION = 6;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
     public static final String PARENT_REPAIR_HISTORY = "parent_repair_history";
 
     public static final String VIEW_BUILD_STATUS = "view_build_status";
+
+    public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
@@ -147,6 +146,16 @@ public final class SystemDistributedKeyspace
                      + "status text,"
                      + "PRIMARY KEY ((keyspace_name, view_name), host_id))").build();
 
+    public static final TableMetadata PartitionDenylistTable =
+    parse(PARTITION_DENYLIST_TABLE,
+          "Partition keys which have been denied access",
+          "CREATE TABLE %s ("
+          + "ks_name text,"
+          + "table_name text,"
+          + "key blob,"
+          + "PRIMARY KEY ((ks_name, table_name), key))")
+    .build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -156,7 +165,7 @@ public final class SystemDistributedKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus));
+        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable));
     }
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -214,8 +223,8 @@ public final class SystemDistributedKeyspace
 
     public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, CommonRange commonRange)
     {
-        //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
-        //due to schema differences
+        // Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
+        // due to schema differences
         boolean includeNewColumns = !Gossiper.instance.hasMajorVersion3Nodes();
 
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();

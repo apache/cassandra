@@ -1026,6 +1026,36 @@ slow_query_log_timeout_in_ms: 500
 # bound (for example a few nodes with big files).
 # streaming_connections_per_host: 1
 
+# Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
+# operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
+# enable_partition_denylist = false;
+
+# enable_denylist_writes = true;
+# enable_denylist_reads = true;
+# enable_denylist_range_reads = true;
+
+# The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
+# Note: this serves only as a fail-safe, as the usage pattern is expected to be "mutate state, refresh cache" on any
+# changes to the underlying denylist entries. See documentation for details.
+# denylist_refresh_seconds = 600;
+
+# In the event of errors on attempting to load the denylist cache, retry on this interval.
+# denylist_initial_load_retry_seconds = 5;
+
+# We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Nodes will warn above
+# this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering
+# ordering by partition key in case of overflow.
+# denylist_max_keys_per_table = 1000;
+
+# We cap the total number of denylisted keys allowed in the cluster to keep things from growing unbounded.
+# Nodes will warn on initial cache load that there are too many keys and be direct the operator to trim down excess
+# entries to within the configured limits.
+# denylist_max_keys_total = 10000;
+
+# Since the denylist in many ways serves to protect the health of the cluster from partitions operators have identified
+# as being in a bad state, we usually want more robustness than just CL.ONE on operations to/from these tables to
+# ensure that these safeguards are in place. That said, we allow users to configure this if they're so inclined.
+# denylist_consistency_level = ConsistencyLevel.QUORUM;
 
 # phi value that must be reached for a host to be marked down.
 # most users should never need to adjust this.

@@ -33,7 +33,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
