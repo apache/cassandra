@@ -42,6 +42,7 @@ public class Json
      */
     public static String quoteAsJsonString(String s)
     {
+        // In future should update to directly use `JsonStringEncoder.getInstance()` but for now:
         return new String(BufferRecyclers.getJsonStringEncoder().quoteAsString(s));
     }
 
