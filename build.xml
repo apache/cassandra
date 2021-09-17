@@ -626,7 +626,7 @@
           </dependency>
           <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
           <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
-          <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.3.5" />
+          <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.5.6" />
           <dependency groupId="org.jctools" artifactId="jctools-core" version="3.1.0"/>
           <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}"/>
           <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" scope="test"/>
