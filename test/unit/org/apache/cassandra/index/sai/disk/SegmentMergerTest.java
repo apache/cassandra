@@ -17,25 +17,23 @@
  */
 package org.apache.cassandra.index.sai.disk;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Iterables;
 import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -93,7 +91,7 @@ public class SegmentMergerTest extends SAITester
         // All we are interested in is that before the segment compaction there were more than 1 segment created
         assertTrue(SEGMENT_BUILD_COUNTER.get() > 1);
 
-        List<SegmentMetadata> segments = getSegments(indexName, 1);
+        List<SegmentMetadata> segments = getSegments(indexName);
 
         // Post-build the index only has 1 segment
         assertEquals(1, segments.size());
@@ -152,7 +150,7 @@ public class SegmentMergerTest extends SAITester
         // All we are interested in is that before the segment compaction there were more than 1 segment created
         assertTrue(SEGMENT_BUILD_COUNTER.get() > 1);
 
-        List<SegmentMetadata> segments = getSegments(indexName, 1);
+        List<SegmentMetadata> segments = getSegments(indexName);
 
         // Post-build the index only has 1 segment
         assertEquals(1, segments.size());
@@ -177,11 +175,11 @@ public class SegmentMergerTest extends SAITester
         expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
     }
 
-    private List<SegmentMetadata> getSegments(String indexName, int generation) throws Throwable
+    private List<SegmentMetadata> getSegments(String indexName) throws Throwable
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
-        Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), generation, SSTableFormat.Type.current());
+
+        Descriptor descriptor = Iterables.getOnlyElement(getCurrentColumnFamilyStore().getLiveSSTables()).descriptor;
         TableMetadata table = currentTableMetadata();
         assertTrue(IndexComponents.isGroupIndexComplete(descriptor));
         IndexMetadata index = table.indexes.get(indexName).get();

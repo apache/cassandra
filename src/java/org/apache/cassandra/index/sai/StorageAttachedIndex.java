@@ -158,7 +158,7 @@ public class StorageAttachedIndex implements Index
                                                        Collection<SSTableReader> sstablesToRebuild,
                                                        boolean isFullRebuild)
         {
-            NavigableMap<SSTableReader, Set<StorageAttachedIndex>> sstables = new TreeMap<>(Comparator.comparingInt(a -> a.descriptor.generation));
+            NavigableMap<SSTableReader, Set<StorageAttachedIndex>> sstables = new TreeMap<>(Comparator.comparing(a -> a.descriptor.generation));
             StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
 
             indexes.stream()
@@ -373,7 +373,7 @@ public class StorageAttachedIndex implements Index
 
         for (List<SSTableReader> group : groups)
         {
-            SortedMap<SSTableReader, Set<StorageAttachedIndex>> current = new TreeMap<>(Comparator.comparingLong(sstable -> sstable.descriptor.generation));
+            SortedMap<SSTableReader, Set<StorageAttachedIndex>> current = new TreeMap<>(Comparator.comparing(sstable -> sstable.descriptor.generation));
             group.forEach(sstable -> current.put(sstable, Collections.singleton(this)));
 
             futures.add(CompactionManager.instance.submitIndexBuild(new StorageAttachedIndexBuilder(indexGroup, current, false, true)));

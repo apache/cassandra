@@ -790,7 +790,7 @@ public class SSTableHeaderFixTest
         try
         {
 
-            Descriptor desc = new Descriptor(version, dir, "ks", "cf", generation, SSTableFormat.Type.BIG);
+            Descriptor desc = new Descriptor(version, dir, "ks", "cf", new SequenceBasedSSTableUniqueIdentifier(generation), SSTableFormat.Type.BIG);
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)

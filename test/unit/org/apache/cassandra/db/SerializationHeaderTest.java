@@ -33,6 +33,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -89,7 +90,7 @@ public class SerializationHeaderTest
         try
         {
             BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {
-                Descriptor descriptor = new Descriptor(BigFormat.latestVersion, dir, schema.keyspace, schema.name, generation.incrementAndGet(), SSTableFormat.Type.BIG);
+                Descriptor descriptor = new Descriptor(BigFormat.latestVersion, dir, schema.keyspace, schema.name, new SequenceBasedSSTableUniqueIdentifier(generation.incrementAndGet()), SSTableFormat.Type.BIG);
 
                 SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
                 try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);

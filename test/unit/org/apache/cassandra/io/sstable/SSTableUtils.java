@@ -70,7 +70,7 @@ public class SSTableUtils
     }
     */
 
-    public static File tempSSTableFile(String keyspaceName, String cfname, int generation) throws IOException
+    public static File tempSSTableFile(String keyspaceName, String cfname, SSTableUniqueIdentifier generation) throws IOException
     {
         File tempdir = FileUtils.createTempFile(keyspaceName, cfname);
         if(!tempdir.delete() || !tempdir.mkdir())
@@ -132,7 +132,7 @@ public class SSTableUtils
         private String cfname = CFNAME;
         private Descriptor dest = null;
         private boolean cleanup = true;
-        private int generation = 0;
+        private SSTableUniqueIdentifier generation;
 
         Context() {}
 
@@ -162,7 +162,7 @@ public class SSTableUtils
         /**
          * Sets the generation number for the generated SSTable. Ignored if "dest()" is set.
          */
-        public Context generation(int generation)
+        public Context generation(SSTableUniqueIdentifier generation)
         {
             this.generation = generation;
             return this;

@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -29,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.BootStrapper;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -121,7 +123,7 @@ public class DiskBoundaryManagerTest extends CQLTester
     {
         MockCFS(ColumnFamilyStore cfs, Directories dirs)
         {
-            super(cfs.keyspace, cfs.getTableName(), 0, cfs.metadata, dirs, false, false, true);
+            super(cfs.keyspace, cfs.getTableName(), SequenceBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty()), cfs.metadata, dirs, false, false, true);
         }
     }
 }

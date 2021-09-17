@@ -47,9 +47,11 @@ import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -127,6 +129,8 @@ public class IndexViewManagerTest extends SAITester
         Path tmpDir = Files.createTempDirectory("IndexViewManagerTest");
         store.disableAutoCompaction();
 
+        List<Descriptor> descriptors = new ArrayList<>();
+
         // create sstable 1 from flush
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
         execute("INSERT INTO %s(k, v) VALUES (2, 20)");
@@ -140,6 +144,7 @@ public class IndexViewManagerTest extends SAITester
         // save sstables 1 and 2 and create sstable 3 from compaction
         assertEquals(2, store.getLiveSSTables().size());
         store.getLiveSSTables().forEach(reader -> copySSTable(reader, tmpDir));
+        getCurrentColumnFamilyStore().getLiveSSTables().stream().map(t -> t.descriptor).forEach(descriptors::add);
         CompactionManager.instance.performMaximal(store, false);
 
         // create sstable 4 from flush
@@ -149,11 +154,13 @@ public class IndexViewManagerTest extends SAITester
 
         // save sstables 3 and 4
         store.getLiveSSTables().forEach(reader -> copySSTable(reader, tmpDir));
+        getCurrentColumnFamilyStore().getLiveSSTables().stream().map(t -> t.descriptor).forEach(descriptors::add);
 
-        List<SSTableReader> sstables = IntStream.rangeClosed(1, 4)
-                                                .mapToObj(i -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, i))
-                                                .map(desc -> desc.getFormat().getReaderFactory().open(desc))
-                                                .collect(Collectors.toList());
+        List<SSTableReader> sstables = descriptors.stream()
+                                                  .map(desc -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, desc.generation))
+                                                  .map(desc -> desc.getFormat().getReaderFactory().open(desc))
+                                                  .collect(Collectors.toList());
+        assertThat(sstables).hasSize(4);
 
         List<SSTableReader> none = Collections.emptyList();
         List<SSTableReader> initial = sstables.stream().limit(2).collect(Collectors.toList());

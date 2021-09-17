@@ -33,10 +33,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.googlecode.concurrenttrees.common.Iterables;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -450,14 +452,20 @@ public class ColumnFamilyStoreTest
         JSONArray files = (JSONArray) manifest.get("files");
 
         // Keyspace1-Indexed1 and the corresponding index
-        assert files.size() == 2;
+        assertThat(files).hasSize(2);
 
         // Snapshot of the secondary index is stored in the subfolder with the same file name
         String baseTableFile = (String) files.get(0);
         String indexTableFile = (String) files.get(1);
-        assert !baseTableFile.equals(indexTableFile);
-        assert Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile());
-        assert indexTableFile.endsWith(baseTableFile);
+        assertThat(baseTableFile).isNotEqualTo(indexTableFile);
+        assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile())).isTrue();
+
+        Set<String> originalFiles = new HashSet<>();
+        Iterables.toList(cfs.concatWithIndexes()).stream()
+                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.filenameFor(Component.DATA)))
+                 .forEach(originalFiles::add);
+        assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(indexTableFile))).isTrue();
+        assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(baseTableFile))).isTrue();
     }
 
     @Test

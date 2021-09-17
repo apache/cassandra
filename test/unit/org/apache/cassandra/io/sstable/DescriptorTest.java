@@ -84,12 +84,12 @@ public class DescriptorTest
 
     private void testFromFilenameFor(File dir)
     {
-        checkFromFilename(new Descriptor(dir, ksname, cfname, 1, SSTableFormat.Type.BIG));
+        checkFromFilename(new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableUniqueIdentifier(1), SSTableFormat.Type.BIG));
 
         // secondary index
         String idxName = "myidx";
         File idxDir = new File(dir.getAbsolutePath() + File.separator + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName);
-        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 4, SSTableFormat.Type.BIG));
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, new SequenceBasedSSTableUniqueIdentifier(4), SSTableFormat.Type.BIG));
     }
 
     private void checkFromFilename(Descriptor original)
@@ -112,8 +112,8 @@ public class DescriptorTest
     {
         // Descriptor should be equal when parent directory points to the same directory
         File dir = new File(".");
-        Descriptor desc1 = new Descriptor(dir, "ks", "cf", 1, SSTableFormat.Type.BIG);
-        Descriptor desc2 = new Descriptor(dir.getAbsoluteFile(), "ks", "cf", 1, SSTableFormat.Type.BIG);
+        Descriptor desc1 = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableUniqueIdentifier(1), SSTableFormat.Type.BIG);
+        Descriptor desc2 = new Descriptor(dir.getAbsoluteFile(), "ks", "cf", new SequenceBasedSSTableUniqueIdentifier(1), SSTableFormat.Type.BIG);
         assertEquals(desc1, desc2);
         assertEquals(desc1.hashCode(), desc2.hashCode());
     }

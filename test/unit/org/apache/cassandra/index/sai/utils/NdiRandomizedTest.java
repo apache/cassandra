@@ -35,6 +35,7 @@ import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
@@ -71,7 +72,7 @@ public class NdiRandomizedTest extends RandomizedTest
                                                               new Descriptor(temporaryFolder.newFolder(),
                                                                              randomSimpleString(5, 13),
                                                                              randomSimpleString(3, 17),
-                                                                             randomIntBetween(0, 128)),
+                                                                             new SequenceBasedSSTableUniqueIdentifier(randomIntBetween(0, 128))),
                                                               SequentialWriterOption.newBuilder()
                                                                                     .bufferSize(randomIntBetween(17, 1 << 13))
                                                                                     .bufferType(randomBoolean() ? BufferType.ON_HEAP : BufferType.OFF_HEAP)

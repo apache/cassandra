@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -353,7 +354,7 @@ public class ViewComplexDeletionsTest extends CQLTester
             ColumnFamilyStore cfs = ks.getColumnFamilyStore("mv");
             List<String> sstables = cfs.getLiveSSTables()
                                        .stream()
-                                       .sorted((s1, s2) -> s1.descriptor.generation - s2.descriptor.generation)
+                                       .sorted(Comparator.comparing(s -> s.descriptor.generation))
                                        .map(s -> s.getFilename())
                                        .collect(Collectors.toList());
             String dataFiles = String.join(",", Arrays.asList(sstables.get(1), sstables.get(3), sstables.get(4)));

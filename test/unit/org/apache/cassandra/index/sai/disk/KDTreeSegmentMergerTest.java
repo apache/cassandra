@@ -36,6 +36,7 @@ import org.apache.cassandra.index.sai.disk.v1.BKDReader;
 import org.apache.cassandra.index.sai.disk.v1.BKDTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.NumericIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
@@ -191,7 +192,7 @@ public class KDTreeSegmentMergerTest extends SAITester
 
         MergeOneDimPointValues merger = new MergeOneDimPointValues(segmentIterators, Integer.BYTES);
 
-        IndexComponents components = IndexComponents.create("test", new Descriptor(temporaryFolder.newFolder(), "test", "test", 20), null);
+        IndexComponents components = IndexComponents.create("test", new Descriptor(temporaryFolder.newFolder(), "test", "test", new SequenceBasedSSTableUniqueIdentifier(20)), null);
 
         try (NumericIndexWriter indexWriter = new NumericIndexWriter(components, Integer.BYTES, maxSegmentRowId, totalRows, IndexWriterConfig.defaultConfig("test"), false))
         {
@@ -228,7 +229,7 @@ public class KDTreeSegmentMergerTest extends SAITester
 
     private BKDReader createReader(BKDTreeRamBuffer buffer, int maxSegmentRowId, int generation) throws Throwable
     {
-        IndexComponents components = IndexComponents.create("test", new Descriptor(temporaryFolder.newFolder(), "test", "test", generation), null);
+        IndexComponents components = IndexComponents.create("test", new Descriptor(temporaryFolder.newFolder(), "test", "test", new SequenceBasedSSTableUniqueIdentifier(generation)), null);
 
         final NumericIndexWriter writer = new NumericIndexWriter(components, Integer.BYTES, maxSegmentRowId, buffer.numRows(), IndexWriterConfig.defaultConfig("test"), false);
 

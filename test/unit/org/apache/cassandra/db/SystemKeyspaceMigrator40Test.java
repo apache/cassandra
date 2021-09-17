@@ -22,9 +22,9 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,6 +36,8 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertEquals;
@@ -45,6 +47,9 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
     @Test
     public void testMigratePeers() throws Throwable
     {
+        String legacyTab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_PEERS);
+        String tab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PEERS_V2);
+
         String insert = String.format("INSERT INTO %s ("
                                       + "peer, "
                                       + "data_center, "
@@ -56,7 +61,7 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
                                       + "schema_version, "
                                       + "tokens) "
                                       + " values ( ?, ?, ? , ? , ?, ?, ?, ?, ?)",
-                                      SystemKeyspaceMigrator40.legacyPeersName);
+                                      legacyTab);
         UUID hostId = UUIDGen.getTimeUUID();
         UUID schemaVersion = UUIDGen.getTimeUUID();
         execute(insert,
@@ -68,10 +73,11 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
                 InetAddress.getByName("127.0.0.3"),
                 schemaVersion,
                 ImmutableSet.of("foobar"));
-        SystemKeyspaceMigrator40.migrate();
+
+        SystemKeyspaceMigrator40.migratePeers();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peersName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
             assertEquals(InetAddress.getByName("127.0.0.1"), row.getInetAddress("peer"));
@@ -90,15 +96,15 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
         assertEquals(1, rowCount);
 
         //Test nulls/missing don't prevent the row from propagating
-        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.legacyPeersName));
-        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.peersName));
+        execute(String.format("TRUNCATE %s", legacyTab));
+        execute(String.format("TRUNCATE %s", tab));
 
-        execute(String.format("INSERT INTO %s (peer) VALUES (?)", SystemKeyspaceMigrator40.legacyPeersName),
-                              InetAddress.getByName("127.0.0.1"));
-        SystemKeyspaceMigrator40.migrate();
+        execute(String.format("INSERT INTO %s (peer) VALUES (?)", legacyTab),
+                InetAddress.getByName("127.0.0.1"));
+        SystemKeyspaceMigrator40.migratePeers();
 
         rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peersName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
         }
@@ -108,19 +114,22 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
     @Test
     public void testMigratePeerEvents() throws Throwable
     {
+        String legacyTab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_PEER_EVENTS);
+        String tab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PEER_EVENTS_V2);
+
         String insert = String.format("INSERT INTO %s ("
                                       + "peer, "
                                       + "hints_dropped) "
                                       + " values ( ?, ? )",
-                                      SystemKeyspaceMigrator40.legacyPeerEventsName);
+                                      legacyTab);
         UUID uuid = UUIDGen.getTimeUUID();
         execute(insert,
                 InetAddress.getByName("127.0.0.1"),
                 ImmutableMap.of(uuid, 42));
-        SystemKeyspaceMigrator40.migrate();
+        SystemKeyspaceMigrator40.migratePeerEvents();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peerEventsName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
             assertEquals(InetAddress.getByName("127.0.0.1"), row.getInetAddress("peer"));
@@ -130,15 +139,15 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
         assertEquals(1, rowCount);
 
         //Test nulls/missing don't prevent the row from propagating
-        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.legacyPeerEventsName));
-        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.peerEventsName));
+        execute(String.format("TRUNCATE %s", legacyTab));
+        execute(String.format("TRUNCATE %s", tab));
 
-        execute(String.format("INSERT INTO %s (peer) VALUES (?)", SystemKeyspaceMigrator40.legacyPeerEventsName),
+        execute(String.format("INSERT INTO %s (peer) VALUES (?)", legacyTab),
                 InetAddress.getByName("127.0.0.1"));
-        SystemKeyspaceMigrator40.migrate();
+        SystemKeyspaceMigrator40.migratePeerEvents();
 
         rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peerEventsName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
         }
@@ -148,44 +157,47 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
     @Test
     public void testMigrateTransferredRanges() throws Throwable
     {
+        String legacyTab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_TRANSFERRED_RANGES);
+        String tab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.TRANSFERRED_RANGES_V2);
+
         String insert = String.format("INSERT INTO %s ("
                                       + "operation, "
                                       + "peer, "
                                       + "keyspace_name, "
                                       + "ranges) "
                                       + " values ( ?, ?, ?, ? )",
-                                      SystemKeyspaceMigrator40.legacyTransferredRangesName);
+                                      legacyTab);
         execute(insert,
                 "foo",
                 InetAddress.getByName("127.0.0.1"),
                 "bar",
-                ImmutableSet.of(ByteBuffer.wrap(new byte[] { 42 })));
-        SystemKeyspaceMigrator40.migrate();
+                ImmutableSet.of(ByteBuffer.wrap(new byte[]{ 42 })));
+        SystemKeyspaceMigrator40.migrateTransferredRanges();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.transferredRangesName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
             assertEquals("foo", row.getString("operation"));
             assertEquals(InetAddress.getByName("127.0.0.1"), row.getInetAddress("peer"));
             assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("peer_port"));
             assertEquals("bar", row.getString("keyspace_name"));
-            assertEquals(ImmutableSet.of(ByteBuffer.wrap(new byte[] { 42 })), row.getSet("ranges", BytesType.instance));
+            assertEquals(ImmutableSet.of(ByteBuffer.wrap(new byte[]{ 42 })), row.getSet("ranges", BytesType.instance));
         }
         assertEquals(1, rowCount);
 
         //Test nulls/missing don't prevent the row from propagating
-        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.legacyTransferredRangesName));
-        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.transferredRangesName));
+        execute(String.format("TRUNCATE %s", legacyTab));
+        execute(String.format("TRUNCATE %s", tab));
 
-        execute(String.format("INSERT INTO %s (operation, peer, keyspace_name) VALUES (?, ?, ?)", SystemKeyspaceMigrator40.legacyTransferredRangesName),
+        execute(String.format("INSERT INTO %s (operation, peer, keyspace_name) VALUES (?, ?, ?)", legacyTab),
                 "foo",
                 InetAddress.getByName("127.0.0.1"),
                 "bar");
-        SystemKeyspaceMigrator40.migrate();
+        SystemKeyspaceMigrator40.migrateTransferredRanges();
 
         rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.transferredRangesName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
         }
@@ -195,23 +207,61 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
     @Test
     public void testMigrateAvailableRanges() throws Throwable
     {
+        String legacyTab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_AVAILABLE_RANGES);
+        String tab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.AVAILABLE_RANGES_V2);
+
         Range<Token> testRange = new Range<>(DatabaseDescriptor.getPartitioner().getRandomToken(), DatabaseDescriptor.getPartitioner().getRandomToken());
         String insert = String.format("INSERT INTO %s ("
                                       + "keyspace_name, "
                                       + "ranges) "
                                       + " values ( ?, ? )",
-                                      SystemKeyspaceMigrator40.legacyAvailableRangesName);
+                                      legacyTab);
         execute(insert,
                 "foo",
                 ImmutableSet.of(SystemKeyspace.rangeToBytes(testRange)));
-        SystemKeyspaceMigrator40.migrate();
+        SystemKeyspaceMigrator40.migrateAvailableRanges();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.availableRangesName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
         {
             rowCount++;
             assertEquals("foo", row.getString("keyspace_name"));
             assertEquals(ImmutableSet.of(testRange), SystemKeyspace.rawRangesToRangeSet(row.getSet("full_ranges", BytesType.instance), DatabaseDescriptor.getPartitioner()));
+        }
+        assertEquals(1, rowCount);
+    }
+
+    @Test
+    public void testMigrateSSTableActivity() throws Throwable
+    {
+        String legacyTab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_SSTABLE_ACTIVITY);
+        String tab = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SSTABLE_ACTIVITY_V2);
+
+        String insert = String.format("INSERT INTO %s (%s) VALUES (%s)",
+                                      legacyTab,
+                                      StringUtils.join(new String[] {"keyspace_name",
+                                                       "columnfamily_name",
+                                                       "generation",
+                                                       "rate_120m",
+                                                       "rate_15m"}, ", "),
+                                      StringUtils.repeat("?", ", ", 5));
+
+        execute(insert, "ks", "tab", 5, 123.234d, 345.456d);
+
+        ColumnFamilyStore cf = getColumnFamilyStore(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SSTABLE_ACTIVITY_V2);
+        cf.truncateBlocking();
+        cf.clearUnsafe();
+        SystemKeyspaceMigrator40.migrateSSTableActivity();
+
+        int rowCount = 0;
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", tab)))
+        {
+            rowCount++;
+            assertEquals("ks", row.getString("keyspace_name"));
+            assertEquals("tab", row.getString("columnfamily_name"));
+            assertEquals(new SequenceBasedSSTableUniqueIdentifier(5).asBytes(), row.getBytes("generation"));
+            assertEquals(123.234d, row.getDouble("rate_120m"), 0.001d);
+            assertEquals(345.456d, row.getDouble("rate_15m"), 0.001d);
         }
         assertEquals(1, rowCount);
     }

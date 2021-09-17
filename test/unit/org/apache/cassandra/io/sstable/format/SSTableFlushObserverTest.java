@@ -33,6 +33,7 @@ import java.util.Objects;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -297,7 +298,7 @@ public class SSTableFlushObserverTest
                                                directory,
                                                metadata.keyspace,
                                                metadata.name,
-                                               0,
+                                               new SequenceBasedSSTableUniqueIdentifier(0),
                                                type);
 
         SSTableWriter writer = format.getWriterFactory()

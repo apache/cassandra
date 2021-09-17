@@ -71,6 +71,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
@@ -82,6 +83,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NonThrowingCloseable;
 import org.mockito.Mockito;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -283,7 +285,7 @@ public class CompactionsTest
         assertEquals(1, sstables.size());
         SSTableReader sstable = sstables.iterator().next();
 
-        int prevGeneration = sstable.descriptor.generation;
+        SSTableUniqueIdentifier prevGeneration = sstable.descriptor.generation;
         String file = new File(sstable.descriptor.filenameFor(Component.DATA)).getAbsolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
@@ -295,7 +297,7 @@ public class CompactionsTest
         // CF should have only one sstable with generation number advanced
         sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
-        assertEquals( prevGeneration + 1, sstables.iterator().next().descriptor.generation);
+        assertThat(prevGeneration).isLessThan(sstables.iterator().next().descriptor.generation);
     }
 
     public static void writeSSTableWithRangeTombstoneMaskingOneColumn(ColumnFamilyStore cfs, TableMetadata table, int[] dks) {

@@ -22,8 +22,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -36,6 +40,9 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
+import org.apache.cassandra.io.sstable.ULIDBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -52,6 +59,21 @@ import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABL
 
 public class MockSchema
 {
+    public static Supplier<? extends SSTableUniqueIdentifier> sstableIdGenerator = SequenceBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty());
+
+    private static final ConcurrentMap<Integer, SSTableUniqueIdentifier> sstableIds = new ConcurrentHashMap<>();
+
+    public static SSTableUniqueIdentifier sstableId(int idx)
+    {
+        return sstableIds.computeIfAbsent(idx, ignored -> sstableIdGenerator.get());
+    }
+
+    public static Collection<Object[]> sstableIdGenerators()
+    {
+        return Arrays.asList(new Object[]{ SequenceBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty()) },
+                             new Object[]{ ULIDBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty()) });
+    }
+
     static
     {
         Memory offsets = Memory.allocate(4);
@@ -114,7 +136,7 @@ public class MockSchema
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
                                                cfs.getTableName(),
-                                               generation, SSTableFormat.Type.BIG);
+                                               sstableId(generation), SSTableFormat.Type.BIG);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
@@ -185,7 +207,7 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS(TableMetadata metadata)
     {
-        return new ColumnFamilyStore(ks, metadata.name, 0, new TableMetadataRef(metadata), new Directories(metadata), false, false, false);
+        return new ColumnFamilyStore(ks, metadata.name, SequenceBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty()), new TableMetadataRef(metadata), new Directories(metadata), false, false, false);
     }
 
     public static TableMetadata newTableMetadata(String ksname)

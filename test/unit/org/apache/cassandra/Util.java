@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -777,7 +778,9 @@ public class Util
     {
         LifecycleTransaction.waitForDeletions();
         assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
-        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        Set<SSTableUniqueIdentifier> liveGenerations = cfs.getLiveSSTables().stream()
+                                                          .map(sstable -> sstable.descriptor.generation)
+                                                          .collect(Collectors.toSet());
         int fileCount = 0;
         for (File f : cfs.getDirectories().getCFDirectories())
         {

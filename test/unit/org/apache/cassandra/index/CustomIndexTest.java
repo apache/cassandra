@@ -65,6 +65,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.cql3.statements.schema.IndexTarget.CUSTOM_INDEX_OPTION_NAME;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -655,7 +656,7 @@ public class CustomIndexTest extends CQLTester
         }
 
         // SSTables remain uncommitted.
-        assertEquals(1, getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables().listFiles().length);
+        assertThat(getCurrentColumnFamilyStore().getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).includeBackups(false).list()).isEmpty();
     }
 
     @Test

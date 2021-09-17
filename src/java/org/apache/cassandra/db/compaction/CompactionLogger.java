@@ -180,7 +180,7 @@ public class CompactionLogger
     private JsonNode formatSSTable(SSTableReader sstable)
     {
         ObjectNode node = json.objectNode();
-        node.put("generation", sstable.descriptor.generation);
+        node.put("generation", sstable.descriptor.generation.asString());
         node.put("version", sstable.descriptor.version.getVersion());
         node.put("size", sstable.onDiskLength());
 

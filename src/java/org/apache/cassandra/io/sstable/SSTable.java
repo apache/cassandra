@@ -171,7 +171,7 @@ public abstract class SSTable
         return descriptor.ksname;
     }
 
-    public int getGeneration()
+    public SSTableUniqueIdentifier getGeneration()
     {
         return descriptor.generation;
     }

@@ -20,7 +20,8 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -59,7 +60,7 @@ public class Descriptor
     public final Version version;
     public final String ksname;
     public final String cfname;
-    public final int generation;
+    public final SSTableUniqueIdentifier generation;
     public final SSTableFormat.Type formatType;
     private final int hashCode;
 
@@ -67,7 +68,7 @@ public class Descriptor
      * A descriptor that assumes CURRENT_VERSION.
      */
     @VisibleForTesting
-    public Descriptor(File directory, String ksname, String cfname, int generation)
+    public Descriptor(File directory, String ksname, String cfname, SSTableUniqueIdentifier generation)
     {
         this(SSTableFormat.Type.current().info.getLatestVersion(), directory, ksname, cfname, generation, SSTableFormat.Type.current());
     }
@@ -75,18 +76,18 @@ public class Descriptor
     /**
      * Constructor for sstable writers only.
      */
-    public Descriptor(File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
+    public Descriptor(File directory, String ksname, String cfname, SSTableUniqueIdentifier generation, SSTableFormat.Type formatType)
     {
         this(formatType.info.getLatestVersion(), directory, ksname, cfname, generation, formatType);
     }
 
     @VisibleForTesting
-    public Descriptor(String version, File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
+    public Descriptor(String version, File directory, String ksname, String cfname, SSTableUniqueIdentifier generation, SSTableFormat.Type formatType)
     {
         this(formatType.info.getVersion(version), directory, ksname, cfname, generation, formatType);
     }
 
-    public Descriptor(Version version, File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
+    public Descriptor(Version version, File directory, String ksname, String cfname, SSTableUniqueIdentifier generation, SSTableFormat.Type formatType)
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
@@ -106,7 +107,7 @@ public class Descriptor
         hashCode = Objects.hashCode(version, this.directory, generation, ksname, cfname, formatType);
     }
 
-    public Descriptor withGeneration(int newGeneration)
+    public Descriptor withGeneration(SSTableUniqueIdentifier newGeneration)
     {
         return new Descriptor(version, directory, ksname, cfname, newGeneration, formatType);
     }
@@ -276,14 +277,14 @@ public class Descriptor
         if (!Version.validate(versionString))
             throw invalidSSTable(name, "invalid version %s", versionString);
 
-        int generation;
+        SSTableUniqueIdentifier generation;
         try
         {
-            generation = Integer.parseInt(tokens.get(1));
+            generation = SSTableUniqueIdentifierFactory.instance.fromString(tokens.get(1));
         }
-        catch (NumberFormatException e)
+        catch (RuntimeException e)
         {
-            throw invalidSSTable(name, "the 'generation' part of the name doesn't parse as a number");
+            throw invalidSSTable(name, "the 'generation' part of the name doesn't parse as a valid unique identifier");
         }
 
         String formatString = tokens.get(2);
@@ -367,7 +368,7 @@ public class Descriptor
             return false;
         Descriptor that = (Descriptor)o;
         return that.directory.equals(this.directory)
-                       && that.generation == this.generation
+                       && that.generation.equals(this.generation)
                        && that.ksname.equals(this.ksname)
                        && that.cfname.equals(this.cfname)
                        && that.version.equals(this.version)

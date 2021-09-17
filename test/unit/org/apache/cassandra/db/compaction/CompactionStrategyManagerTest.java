@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -53,6 +54,7 @@ import org.apache.cassandra.db.SortedLocalRanges;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
@@ -458,7 +460,7 @@ public class CompactionStrategyManagerTest
     {
         MockCFS(ColumnFamilyStore cfs, Directories dirs)
         {
-            super(cfs.keyspace, cfs.getTableName(), 0, cfs.metadata, dirs, false, false, true);
+            super(cfs.keyspace, cfs.getTableName(), SequenceBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty()), cfs.metadata, dirs, false, false, true);
         }
     }
 }
