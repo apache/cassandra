@@ -217,6 +217,7 @@ public class WarningsSnapshot
         }
     }
 
+    @VisibleForTesting
     static Builder builder()
     {
         return new Builder();
@@ -275,21 +276,11 @@ public class WarningsSnapshot
             return this;
         }
 
-        public Builder rowIndexSizeWarning(ImmutableSet<InetAddressAndPort> instances, long maxValue)
-        {
-            return rowIndexSizeWarning(new Counter(Objects.requireNonNull(instances), maxValue));
-        }
-
         public Builder rowIndexSizeWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
             snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY)));
             return this;
-        }
-
-        public Builder rowIndexSizeAbort(ImmutableSet<InetAddressAndPort> instances, long maxValue)
-        {
-            return rowIndexSizeAbort(new Counter(Objects.requireNonNull(instances), maxValue));
         }
 
         public Builder rowIndexSizeAbort(Counter counter)
