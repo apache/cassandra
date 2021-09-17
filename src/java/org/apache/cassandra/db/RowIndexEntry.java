@@ -357,6 +357,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKb() * 1024;
             int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKb() * 1024;
+            if (warnThreshold == 0 && abortThreshold == 0)
+                return;
 
             long estimatedMemory = estimateMaterializedIndexSize(entries, bytes);
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
