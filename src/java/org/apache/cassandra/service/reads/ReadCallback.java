@@ -17,17 +17,11 @@
  */
 package org.apache.cassandra.service.reads;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +42,7 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
+import org.apache.cassandra.service.reads.trackwarnings.WarningContext;
 import org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -57,50 +52,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements RequestCallback<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
-
-    private static class WarnAbortCounter
-    {
-        final Set<InetAddressAndPort> warnings = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        // the highest number reported by a node's warning
-        final AtomicLong maxWarningValue = new AtomicLong();
-
-        final Set<InetAddressAndPort> aborts = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        // the highest number reported by a node's rejection.
-        final AtomicLong maxAbortsValue = new AtomicLong();
-
-        void addWarning(InetAddressAndPort from, long value)
-        {
-            maxWarningValue.accumulateAndGet(value, Math::max);
-            // call add last so concurrent reads see empty even if values > 0; if done in different order then
-            // size=1 could have values == 0
-            warnings.add(from);
-        }
-
-        void addAbort(InetAddressAndPort from, long value)
-        {
-            maxAbortsValue.accumulateAndGet(value, Math::max);
-            // call add last so concurrent reads see empty even if values > 0; if done in different order then
-            // size=1 could have values == 0
-            aborts.add(from);
-        }
-
-        WarningsSnapshot.Warnings snapshot()
-        {
-            return WarningsSnapshot.Warnings.create(WarningsSnapshot.Counter.create(warnings, maxWarningValue), WarningsSnapshot.Counter.create(aborts, maxAbortsValue));
-        }
-    }
-
-    private static class WarningContext
-    {
-        final WarnAbortCounter tombstones = new WarnAbortCounter();
-        final WarnAbortCounter localReadSize = new WarnAbortCounter();
-        final WarnAbortCounter rowIndexTooLarge = new WarnAbortCounter();
-
-        private WarningsSnapshot snapshot()
-        {
-            return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
-        }
-    }
 
     public final ResponseResolver<E, P> resolver;
     final SimpleCondition condition = new SimpleCondition();
@@ -115,8 +66,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private volatile WarningContext warningContext;
-    private static final AtomicReferenceFieldUpdater<ReadCallback, ReadCallback.WarningContext> warningsUpdater
-        = AtomicReferenceFieldUpdater.newUpdater(ReadCallback.class, ReadCallback.WarningContext.class, "warningContext");
+    private static final AtomicReferenceFieldUpdater<ReadCallback, WarningContext> warningsUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(ReadCallback.class, WarningContext.class, "warningContext");
 
     public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
@@ -203,38 +154,15 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return blockFor;
     }
 
-    private RequestFailureReason updateCounters(Map<ParamType, Object> params,
-                                                InetAddressAndPort from,
-                                                ParamType abort, ParamType warn,
-                                                RequestFailureReason reason,
-                                                Function<WarningContext, WarnAbortCounter> fieldAccess)
-    {
-        // some checks use int32 others user int64; so rely on Number to handle both cases
-        if (params.containsKey(abort))
-        {
-            fieldAccess.apply(getWarningContext()).addAbort(from, ((Number) params.get(abort)).longValue());
-            return reason;
-        }
-        else if (params.containsKey(warn))
-        {
-            fieldAccess.apply(getWarningContext()).addWarning(from, ((Number) params.get(warn)).longValue());
-        }
-        return null;
-    }
-
     @Override
     public void onResponse(Message<ReadResponse> message)
     {
         assertWaitingFor(message.from());
         Map<ParamType, Object> params = message.header.params();
         InetAddressAndPort from = message.from();
-        for (Supplier<RequestFailureReason> fn : Arrays.<Supplier<RequestFailureReason>>asList(
-        () -> updateCounters(params, from, ParamType.TOMBSTONE_ABORT, ParamType.TOMBSTONE_WARNING, RequestFailureReason.READ_TOO_MANY_TOMBSTONES, ctx -> ctx.tombstones),
-        () -> updateCounters(params, from, ParamType.LOCAL_READ_SIZE_ABORT, ParamType.LOCAL_READ_SIZE_WARN, RequestFailureReason.READ_SIZE, ctx -> ctx.localReadSize),
-        () -> updateCounters(params, from, ParamType.ROW_INDEX_SIZE_ABORT, ParamType.ROW_INDEX_SIZE_WARN, RequestFailureReason.READ_SIZE, ctx -> ctx.rowIndexTooLarge)
-        ))
+        if (WarningContext.isSupported(params.keySet()))
         {
-            RequestFailureReason reason = fn.get();
+            RequestFailureReason reason = getWarningContext().updateCounters(params, from);
             if (reason != null)
             {
                 onFailure(message.from(), reason);
