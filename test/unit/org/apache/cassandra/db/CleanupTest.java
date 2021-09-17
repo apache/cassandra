@@ -258,6 +258,17 @@ public class CleanupTest
     @Test
     public void testCleanupSkippingSSTables() throws UnknownHostException, ExecutionException, InterruptedException
     {
+        testCleanupSkippingSSTablesHelper(false);
+    }
+
+    @Test
+    public void testCleanupSkippingRepairedSSTables() throws UnknownHostException, ExecutionException, InterruptedException
+    {
+        testCleanupSkippingSSTablesHelper(true);
+    }
+
+    public void testCleanupSkippingSSTablesHelper(boolean repaired) throws UnknownHostException, ExecutionException, InterruptedException
+    {
         Keyspace keyspace = Keyspace.open(KEYSPACE3);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD3);
         cfs.disableAutoCompaction();
@@ -276,6 +287,20 @@ public class CleanupTest
         }
 
         Set<SSTableReader> beforeFirstCleanup = Sets.newHashSet(cfs.getLiveSSTables());
+        if (repaired)
+        {
+            beforeFirstCleanup.forEach((sstable) -> {
+                try
+                {
+                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, System.currentTimeMillis(), null, false);
+                    sstable.reloadSSTableMetadata();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
         // single token - 127.0.0.1 owns everything, cleanup should be noop
         cfs.forceCleanup(2);
         assertEquals(beforeFirstCleanup, cfs.getLiveSSTables());
