@@ -28,6 +28,9 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.Digest;
 
+/**
+ * When adding new String keyspace names here, double check if it needs to be added to PartitionDenylist.canDenylistKeyspace
+ */
 public final class SchemaConstants
 {
     public static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");

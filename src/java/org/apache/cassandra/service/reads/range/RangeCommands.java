@@ -24,10 +24,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.util.VisibleForTesting;
@@ -113,5 +117,27 @@ public class RangeCommands
         // adjust maxExpectedResults by the number of tokens this node has and the replication factor for this ks
         return (maxExpectedResults / DatabaseDescriptor.getNumTokens())
                / keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+    }
+
+    /**
+     * Added specifically to check for sufficient nodes live to serve partition denylist queries
+     */
+    public static boolean sufficientLiveNodesForSelectStar(TableMetadata metadata, ConsistencyLevel consistency)
+    {
+        try
+        {
+            Keyspace keyspace = Keyspace.open(metadata.keyspace);
+            ReplicaPlanIterator rangeIterator = new ReplicaPlanIterator(DataRange.allData(metadata.partitioner).keyRange(),
+                                                                        keyspace, consistency);
+
+            // Called for the side effect of running assureSufficientLiveReplicasForRead.
+            // Deliberately called with an invalid vnode count in case it is used elsewhere in the future..
+            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, consistency, r.range(), -1));
+            return true;
+        }
+        catch (UnavailableException e)
+        {
+            return false;
+        }
     }
 }

@@ -25,6 +25,7 @@ import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.function.Consumer;
 
 
 import com.google.common.base.Throwables;
@@ -37,6 +38,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -590,6 +592,26 @@ public class DatabaseDescriptorTest
 
         Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
         Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
+    }
+
+    @Test
+    public void testDenylistInvalidValuesRejected()
+    {
+        DatabaseDescriptor.loadConfig();
+
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, 0, "denylist_refresh_seconds must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, -1, "denylist_refresh_seconds must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysPerTable, 0, "denylist_max_keys_per_table must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysPerTable, -1, "denylist_max_keys_per_table must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysTotal, 0, "denylist_max_keys_total must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysTotal, -1, "denylist_max_keys_total must be a positive integer.");
+    }
+
+    private void expectIllegalArgumentException(Consumer<Integer> c, int val, String expectedMessage)
+    {
+        assertThatThrownBy(() -> c.accept(val))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(expectedMessage);
     }
 
     // coordinator read

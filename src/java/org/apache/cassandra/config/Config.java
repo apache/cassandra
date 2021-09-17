@@ -532,6 +532,38 @@ public class Config
     public volatile String auth_read_consistency_level = "LOCAL_QUORUM";
     public volatile String auth_write_consistency_level = "EACH_QUORUM";
 
+    /** This feature allows denying access to operations on certain key partitions, intended for use by operators to
+     * provide another tool to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
+     */
+    public volatile boolean enable_partition_denylist = false;
+
+    public volatile boolean enable_denylist_writes = true;
+
+    public volatile boolean enable_denylist_reads = true;
+
+    public volatile boolean enable_denylist_range_reads = true;
+
+    public int denylist_refresh_seconds = 600;
+
+    public int denylist_initial_load_retry_seconds = 5;
+
+    /** We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Operators will
+     * receive warnings and only denylist_max_keys_per_table in natural query ordering will be processed on overflow.
+     */
+    public volatile int denylist_max_keys_per_table = 1000;
+
+    /** We cap the total number of denylisted keys allowed in the cluster to keep things from growing unbounded.
+     * Operators will receive warnings on initial cache load that there are too many keys and be directed to trim
+     * down the entries to within the configured limits.
+     */
+    public volatile int denylist_max_keys_total = 10000;
+
+    /** Since the denylist in many ways serves to protect the health of the cluster from partitions operators have identified
+     * as being in a bad state, we usually want more robustness than just CL.ONE on operations to/from these tables to
+     * ensure that these safeguards are in place. That said, we allow users to configure this if they're so inclined.
+     */
+    public ConsistencyLevel denylist_consistency_level = ConsistencyLevel.QUORUM;
+
     /**
      * The intial capacity for creating RangeTombstoneList.
      */
