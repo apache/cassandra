@@ -1,4 +1,5 @@
 3.11.12
+ * Add key validation to ssstablescrub (CASSANDRA-16969)
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Include SASI components to snapshots (CASSANDRA-15134)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
