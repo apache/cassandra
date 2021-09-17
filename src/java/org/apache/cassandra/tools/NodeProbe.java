@@ -544,9 +544,9 @@ public class NodeProbe implements AutoCloseable
         pcProxy.invalidate();
     }
 
-    public void invalidatePermissionsCache(String userName, String resourceName)
+    public void invalidatePermissionsCache(String roleName, String resourceName)
     {
-        pcProxy.invalidatePermissions(userName, resourceName);
+        pcProxy.invalidatePermissions(roleName, resourceName);
     }
 
     public void invalidateRolesCache()

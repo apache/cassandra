@@ -50,6 +50,9 @@ public class ResourcesTest
         assertEquals(DataResource.keyspace("ks1"), Resources.fromName("data/ks1"));
         assertEquals("data/ks1", DataResource.keyspace("ks1").getName());
 
+        assertEquals(DataResource.allTables("ks1"), Resources.fromName("data/ks1/*"));
+        assertEquals("data/ks1/*", DataResource.allTables("ks1").getName());
+
         assertEquals(DataResource.table("ks1", "t1"), Resources.fromName("data/ks1/t1"));
         assertEquals("data/ks1/t1", DataResource.table("ks1", "t1").getName());
     }

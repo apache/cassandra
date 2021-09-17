@@ -55,7 +55,7 @@ public class CassandraRoleManagerTest
         // collects all of the necessary info with a single query for each granted role.
         // This just tests that that is the case, i.e. we perform 1 read per role in the
         // transitive set of granted roles
-        IRoleManager roleManager = new LocalCassandraRoleManager();
+        IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         roleManager.setup();
         for (RoleResource r : ALL_ROLES)
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, r, new RoleOptions());

@@ -30,10 +30,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.CassandraAuthorizer;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
-import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -64,7 +62,8 @@ public class ClientStateTest
     }
 
     @Test
-    public void permissionsCheckStartsAtHeadOfResourceChain() throws Exception {
+    public void permissionsCheckStartsAtHeadOfResourceChain()
+    {
         // verify that when performing a permissions check, we start from the
         // root IResource in the applicable hierarchy and proceed to the more
         // granular resources until we find the required permission (or until
@@ -94,12 +93,10 @@ public class ClientStateTest
             public boolean canLogin() { return true; }
         };
 
-        IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
-        roleManager.setup();
-        Roles.initRolesCache(roleManager, () -> true);
+        Roles.cache.invalidate();
 
         // finally, need to configure CassandraAuthorizer so we don't shortcircuit out of the authz process
-        DatabaseDescriptor.setAuthorizer(new CassandraAuthorizer());
+        DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
 
         // check permissions on the table, which should check for the root resource first
         // & return successfully without needing to proceed further

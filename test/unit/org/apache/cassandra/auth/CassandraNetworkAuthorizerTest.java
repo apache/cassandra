@@ -43,13 +43,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
 
 import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
-import static org.apache.cassandra.auth.AuthTestUtils.LocalCassandraRoleManager;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
 public class CassandraNetworkAuthorizerTest
 {
-    public static void setupSuperUser()
+    private static void setupSuperUser()
     {
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
                                                      + "VALUES ('%s', true, true, '%s')",
@@ -63,13 +62,12 @@ public class CassandraNetworkAuthorizerTest
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
-        SchemaLoader.setupAuth(new LocalCassandraRoleManager(),
-                               new PasswordAuthenticator(),
+        SchemaLoader.setupAuth(new AuthTestUtils.LocalCassandraRoleManager(),
+                               new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+
         setupSuperUser();
-        // not strictly necessary to init the cache here, but better to be explicit
-        Roles.initRolesCache(DatabaseDescriptor.getRoleManager(), () -> true);
     }
 
     @Before
@@ -122,7 +120,7 @@ public class CassandraNetworkAuthorizerTest
         AuthenticationStatement authStmt = (AuthenticationStatement) statement;
 
         // invalidate roles cache so that any changes to the underlying roles are picked up
-        Roles.clearCache();
+        Roles.cache.invalidate();
         authStmt.execute(getClientState());
     }
 
@@ -193,7 +191,7 @@ public class CassandraNetworkAuthorizerTest
         assertDcPermRow(username, "dc1");
 
         // clear the roles cache to lose the (non-)superuser status for the user
-        Roles.clearCache();
+        Roles.cache.invalidate();
         auth("ALTER ROLE %s WITH superuser = true", username);
         Assert.assertEquals(DCPermissions.all(), dcPerms(username));
     }
@@ -207,7 +205,7 @@ public class CassandraNetworkAuthorizerTest
     }
 
     @Test
-    public void getLoginPrivilegeFromRolesCache() throws Exception
+    public void getLoginPrivilegeFromRolesCache()
     {
         String username = createName();
         auth("CREATE ROLE %s", username);

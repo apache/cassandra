@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class InvalidateJmxPermissionsCacheTest extends CQLTester
 {
-    private static final AuthorizationProxy authorizationProxy = new NoAuthSetupAuthorizationProxy();
+    private static final AuthorizationProxy authorizationProxy = new AuthTestUtils.NoAuthSetupAuthorizationProxy();
 
     @BeforeClass
     public static void setup() throws Exception
@@ -50,9 +50,9 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
         AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         AuthTestUtils.LocalCassandraAuthorizer authorizer = new AuthTestUtils.LocalCassandraAuthorizer();
         SchemaLoader.setupAuth(roleManager,
-                new AuthTestUtils.LocalPasswordAuthenticator(),
-                authorizer,
-                new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+                               new AuthTestUtils.LocalPasswordAuthenticator(),
+                               authorizer,
+                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
 
         JMXResource rootJmxResource = JMXResource.root();
         Set<Permission> jmxPermissions = rootJmxResource.applicablePermissions();
@@ -178,12 +178,4 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
         return subject;
     }
 
-    private static class NoAuthSetupAuthorizationProxy extends AuthorizationProxy
-    {
-        public NoAuthSetupAuthorizationProxy()
-        {
-            super();
-            this.isAuthSetupComplete = () -> true;
-        }
-    }
 }

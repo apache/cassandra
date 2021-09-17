@@ -38,6 +38,11 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new InternodeInboundTable(VIRTUAL_VIEWS))
                     .add(new PendingHintsTable(VIRTUAL_VIEWS))
                     .addAll(TableMetricTables.getAll(VIRTUAL_VIEWS))
+                    .add(new CredentialsCacheKeysTable(VIRTUAL_VIEWS))
+                    .add(new JmxPermissionsCacheKeysTable(VIRTUAL_VIEWS))
+                    .add(new NetworkPermissionsCacheKeysTable(VIRTUAL_VIEWS))
+                    .add(new PermissionsCacheKeysTable(VIRTUAL_VIEWS))
+                    .add(new RolesCacheKeysTable(VIRTUAL_VIEWS))
                     .build());
     }
 }

@@ -26,7 +26,7 @@ import com.google.common.collect.BoundType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
@@ -145,7 +145,7 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
         throw invalidRequest("Range deletion is not supported by table %s", metadata);
     }
 
-    protected void applyRowDeletion(ColumnValues partitionKey, ColumnValues clusteringColumnValues)
+    protected void applyRowDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns)
     {
         throw invalidRequest("Row deletion is not supported by table %s", metadata);
     }
