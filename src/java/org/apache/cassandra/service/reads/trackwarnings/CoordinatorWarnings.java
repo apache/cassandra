@@ -111,7 +111,8 @@ public class CoordinatorWarnings
             // set map to an "ignore" map; dropping all mutations
             // since init was not called, it isn't clear that the state will be cleaned up, so avoid populating
             map = IgnoreMap.get();
-        } else if (map == INIT)
+        }
+        else if (map == INIT)
         {
             map = new HashMap<>();
             STATE.set(map);
