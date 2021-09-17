@@ -377,7 +377,9 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             else if (warnThreshold != 0 && estimatedMemory > warnThreshold)
             {
                 // use addIfLarger rather than add as a previous partition may be larger than this one
-                MessageParams.addIfLarger(ParamType.ROW_INDEX_SIZE_WARN, estimatedMemory);
+                Long current = MessageParams.get(ParamType.ROW_INDEX_SIZE_WARN);
+                if (current == null || current.compareTo(estimatedMemory) < 0)
+                    MessageParams.add(ParamType.ROW_INDEX_SIZE_WARN, estimatedMemory);
             }
         }
 
