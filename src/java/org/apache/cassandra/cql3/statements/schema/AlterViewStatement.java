@@ -65,9 +65,10 @@ public final class AlterViewStatement extends AlterSchemaStatement
 
         if (params.defaultTimeToLive > 0)
         {
-            throw ire("Cannot set or alter default_time_to_live for a materialized view. " +
+            throw ire("Forbidden default_time_to_live detected for a materialized view. " +
                       "Data in a materialized view always expire at the same time than " +
-                      "the corresponding data in the parent table.");
+                      "the corresponding data in the parent table. default_time_to_live " +
+                      "must be set to zero, see CASSANDRA-12868 for more information");
         }
 
         ViewMetadata newView = view.copy(view.metadata.withSwapped(params));
