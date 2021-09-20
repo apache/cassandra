@@ -29,6 +29,8 @@ import com.datastax.driver.core.Row;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.junit.Assert.assertEquals;
+
 /*
  * This test class was too large and used to timeout CASSANDRA-16777. We're splitting it into:
  * - ViewTest
@@ -287,14 +289,21 @@ public class ViewTimesTest extends ViewAbstractTest
 
         createView("mv_ttl2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
 
+        execute("USE " + keyspace());
+        executeNet("USE " + keyspace());
+
         // Must NOT include "default_time_to_live" on alter Materialized View
         try
         {
-            executeNet("ALTER MATERIALIZED VIEW %s WITH default_time_to_live = 30");
+            executeNet("ALTER MATERIALIZED VIEW " + keyspace() + ".mv_ttl2 WITH default_time_to_live = 30");
             Assert.fail("Should fail if TTL is provided while altering materialized view");
         }
         catch (Exception e)
         {
+            // Make sure the message is clear. See CASSANDRA-16960
+            assertEquals("Forbidden default_time_to_live detected for a materialized view. Data in a materialized view always expire at the same time than the corresponding "
+                         + "data in the parent table. default_time_to_live must be set to zero, see CASSANDRA-12868 for more information",
+                         e.getMessage());
         }
     }
 }
