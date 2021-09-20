@@ -27,14 +27,13 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.SyntaxError;
 import com.datastax.driver.core.exceptions.UnauthorizedException;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -54,7 +53,6 @@ import static org.junit.Assert.assertTrue;
  * Non authenticated tests are covered in {@link AuditLoggerTest}
  */
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class AuditLoggerAuthTest
 {
     private static EmbeddedCassandraService embedded;

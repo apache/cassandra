@@ -31,9 +31,7 @@ import com.google.common.collect.Multimap;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
@@ -46,7 +44,6 @@ import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.Util.token;
 
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class TokenMetadataTest
 {
     public final static String ONE = "1";

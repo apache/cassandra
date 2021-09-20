@@ -22,9 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.metrics.CacheMetrics;
@@ -34,7 +32,6 @@ import org.apache.cassandra.service.CacheService;
  * Test intended to manually measure GC pressure to write and read partitions of different size
  * for CASSANDRA-11206.
  */
-@RunWith(OrderedJUnit4ClassRunner.class)
 @Ignore // all these tests take very, very long - so only run them manually
 public class LargePartitionsTest extends CQLTester
 {
