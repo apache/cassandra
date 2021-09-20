@@ -1,4 +1,13 @@
 4.1
+ * Upgrade Caffeine to 2.9.2 (CASSANDRA-15153)
+ * Allow DELETE and TRUNCATE to work on Virtual Tables if the implementation allows it (CASSANDRA-16806)
+ * Include SASI components to snapshots (CASSANDRA-15134)
+ * Fix missed wait latencies in the output of `nodetool tpstats -F` (CASSANDRA-16938)
+ * Reduce native transport max frame size to 16MB (CASSANDRA-16886)
+ * Add support for filtering using IN restrictions (CASSANDRA-14344)
+ * Provide a nodetool command to invalidate auth caches (CASSANDRA-16404)
+ * Catch read repair timeout exceptions and add metric (CASSANDRA-16880)
+ * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
  * Add client warnings and abort to tombstone and coordinator reads which go past a low/high watermark (CASSANDRA-16850)
  * Add TTL support to nodetool snapshots (CASSANDRA-16789)
  * Allow CommitLogSegmentReader to optionally skip sync marker CRC checks (CASSANDRA-16842)
@@ -19,8 +28,21 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Avoid trying to acquire 0 permits from the rate limiter when taking snapshot (CASSANDRA-16872)
+ * Remove all the state pollution between tests in SSTableReaderTest (CASSANDRA-16888)
+ * Delay auth setup until after gossip has settled to avoid unavailables on startup (CASSANDRA-16783)
+ * org.apache.cassandra.db.rows.ArrayCell#unsharedHeapSizeExcludingData includes data twice (CASSANDRA-16900)
+ * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
+ * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
+Merged from 3.11:
+ * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
+ * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
+Merged from 3.0:
+ * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
+
+4.0.1
  * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)
- * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866) 
+ * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866)
  * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
  * Bump zstd-jni version to 1.5.0-4 (CASSANDRA-16884)
  * Remove assumption that all urgent messages are small (CASSANDRA-16877)
@@ -40,6 +62,7 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
  * Fix secondary indexes on primary key columns skipping some writes (CASSANDRA-16868)
  * Use JMX to validate nodetool --jobs parameter (CASSANDRA-16104)
  * Handle properly UnsatisfiedLinkError in NativeLibrary#getProcessID() (CASSANDRA-16578)

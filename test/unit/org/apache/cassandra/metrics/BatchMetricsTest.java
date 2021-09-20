@@ -23,13 +23,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -44,7 +42,6 @@ import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.Generate.intArrays;
 import static org.quicktheories.generators.SourceDSL.integers;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class BatchMetricsTest extends SchemaLoader
 {
     private static final int MAX_ROUNDS_TO_PERFORM = 3;

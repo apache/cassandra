@@ -19,8 +19,10 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -32,10 +34,9 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 
-public class SnapshotsTTLTest extends TestBaseImpl
+public class SnapshotsTest extends TestBaseImpl
 {
     public static final Integer SNAPSHOT_CLEANUP_PERIOD_SECONDS = 1;
     public static final Integer FIVE_SECONDS = 5;
@@ -157,7 +158,8 @@ public class SnapshotsTTLTest extends TestBaseImpl
     }
 
     @Test
-    public void testSecondaryIndexCleanup() throws Exception {
+    public void testSecondaryIndexCleanup() throws Exception
+    {
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
         cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
         cluster.schemaChange("CREATE INDEX value_idx ON default.tbl (value)");
@@ -180,10 +182,25 @@ public class SnapshotsTTLTest extends TestBaseImpl
         listSnapshotsResult.stdoutNotContains("first");
     }
 
-    private void populate(Cluster cluster) {
-        for (int i = 0; i < 100; i++) {
-            cluster.coordinator(1).execute("INSERT INTO default.tbl (key, value) VALUES (?, 'txt')", ConsistencyLevel.ONE, i);
-        }
+    @Test
+    public void testSameTimestampOnEachTableOfSnaphot()
+    {
+        cluster.get(1).nodetoolResult("snapshot", "-t", "sametimestamp").asserts().success();
+        NodeToolResult result = cluster.get(1).nodetoolResult("listsnapshots");
 
+        long distinctTimestamps = Arrays.stream(result.getStdout().split("\n"))
+                                   .filter(line -> line.startsWith("sametimestamp"))
+                                   .map(line -> line.replaceAll(" +", " ").split(" ")[7])
+                                   .distinct()
+                                   .count();
+
+        // assert all dates are same so there is just one value accross all individual tables
+        Assert.assertEquals(1, distinctTimestamps);
+    }
+
+    private void populate(Cluster cluster)
+    {
+        for (int i = 0; i < 100; i++)
+            cluster.coordinator(1).execute("INSERT INTO default.tbl (key, value) VALUES (?, 'txt')", ConsistencyLevel.ONE, i);
     }
 }

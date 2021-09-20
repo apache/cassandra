@@ -77,6 +77,11 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
+        for (SSTableReader sstable : indexedSSTables)
+        {
+                sstable.addComponents(Collections.singleton(columnIndex.getComponent()));
+        }
+
         return newSSTables.stream().filter(sstable -> !indexedSSTables.contains(sstable)).collect(Collectors.toList());
     }
 

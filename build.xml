@@ -532,7 +532,7 @@
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
             <exclusion groupId="com.google.guava" artifactId="guava"/>
           </dependency>
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.8" scope="test"/>
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.9" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
@@ -540,10 +540,12 @@
             <exclusion groupId="org.eclipse.jdt" artifactId="core"/>
             <exclusion groupId="ant" artifactId="ant"/>
             <exclusion groupId="junit" artifactId="junit"/>
+            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3" scope="provided">
             <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
+            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.6.0"/>
@@ -625,7 +627,7 @@
           </dependency>
           <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
           <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
-          <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.3.5" />
+          <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.9.2" />
           <dependency groupId="org.jctools" artifactId="jctools-core" version="3.1.0"/>
           <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}"/>
           <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" scope="test"/>

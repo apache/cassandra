@@ -351,9 +351,17 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         assertRows(execute("SELECT v1 FROM %s WHERE time = 1"), row("B"), row("E"));
 
-        assertInvalidMessage("IN restrictions are not supported on indexed columns",
-                             "SELECT v1 FROM %s WHERE id2 = 0 and time IN (1, 2) ALLOW FILTERING");
+        // Checks that IN restrictions are not used for index queries
+        assertInvalidMessage("PRIMARY KEY column \"time\" cannot be restricted as preceding column \"author\" is not restricted",
+                            "SELECT v1 FROM %s WHERE time IN (1, 2)");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT v1 FROM %s WHERE id2 IN (0, 2)");
 
+        // Checks that the IN queries works with filtering
+        assertRows(execute("SELECT v1 FROM %s WHERE time IN (1, 2) ALLOW FILTERING"), row("B"), row("C"), row("E"));
+        assertRows(execute("SELECT v1 FROM %s WHERE id2 IN (0, 2) ALLOW FILTERING"), row("A"), row("B"), row("D"));
+
+        // Checks index query with filtering
         assertRows(execute("SELECT v1 FROM %s WHERE author > 'ted' AND time = 1 ALLOW FILTERING"), row("E"));
         assertRows(execute("SELECT v1 FROM %s WHERE author > 'amy' AND author < 'zoe' AND time = 0 ALLOW FILTERING"),
                            row("A"), row("D"));
@@ -638,5 +646,139 @@ public class SelectSingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE b IS NOT NULL", udt);
         assertInvalidMessage("Cannot use CONTAINS on non-collection column b",
                              "SELECT * FROM %s WHERE b CONTAINS ?", udt);
+    }
+
+    @Test
+    public void testInRestrictionWithClusteringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int, c1 int, c2 int, s1 text static, PRIMARY KEY ((key, c1), c2))");
+
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 10, 11, 1, 's1')");
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 10, 12, 2, 's2')");
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 10, 13, 3, 's3')");
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 10, 13, 4, 's4')");
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 20, 21, 1, 's1')");
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 20, 22, 2, 's2')");
+        execute("INSERT INTO %s (key, c1, c2, s1) VALUES ( 20, 22, 3, 's3')");
+
+        assertRows(execute("SELECT * from %s WHERE key = ? AND c1 IN (?, ?)", 10, 21, 13),
+                   row(10, 13, 3, "s4"),
+                   row(10, 13, 4, "s4"));
+
+        assertRows(execute("SELECT * from %s WHERE key = ? AND c2 IN (?, ?) ALLOW FILTERING", 20, 1, 2),
+                   row(20, 22, 2, "s3"),
+                   row(20, 21, 1, "s1"));
+
+        assertRows(execute("SELECT * from %s WHERE c1 = ? AND c2 IN (?, ?) ALLOW FILTERING", 13, 2, 3),
+                   row(10, 13, 3, "s4"));
+
+        assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c2 IN (?, ?) ALLOW FILTERING", 1, 2),
+                                row(10, 11, 1, "s1"),
+                                row(10, 12, 2, "s2"),
+                                row(20, 21, 1, "s1"),
+                                row(20, 22, 2, "s3"));
+
+        assertInvalidMessage("Invalid null value in condition for column c2",
+                             "SELECT * from %s WHERE key = 10 AND c2 IN (1, null) ALLOW FILTERING");
+    }
+
+    @Test
+    public void testInRestrictionsWithAllowFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, c text, s int static, v int, primary key((pk1, pk2), c))");
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) values (?, ?, ?, ?, ?)", 1, 0, "5", 1, 3);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) values (?, ?, ?, ?, ?)", 1, 0, "7", 1, 2);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) values (?, ?, ?, ?, ?)", 1, 1, "7", 1, 3);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) values (?, ?, ?, ?, ?)", 2, 0, "4", 2, 1);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) values (?, ?, ?, ?, ?)", 2, 3, "6", 2, 8);
+
+        // Test filtering on regular columns
+        assertRows(execute("SELECT * FROM %s WHERE v IN (?, ?) ALLOW FILTERING", 4, 3),
+                   row(1, 0, "5", 1, 3),
+                   row(1, 1, "7", 1, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE v IN ? ALLOW FILTERING", list(4, 3)),
+                   row(1, 0, "5", 1, 3),
+                   row(1, 1, "7", 1, 3));
+
+        // Test filtering on clustering columns
+        assertRows(execute("SELECT * FROM %s WHERE c IN (?, ?, ?) ALLOW FILTERING", "7", "6", "8"),
+                   row(2, 3, "6", 2, 8),
+                   row(1, 0, "7", 1, 2),
+                   row(1, 1, "7", 1, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE c IN ? ALLOW FILTERING", list("7", "6", "8")),
+                   row(2, 3, "6", 2, 8),
+                   row(1, 0, "7", 1, 2),
+                   row(1, 1, "7", 1, 3));
+
+        // Test filtering on partition keys
+        assertRows(execute("SELECT * FROM %s WHERE pk1 IN (?, ?) ALLOW FILTERING", 1, 3),
+                   row(1, 0, "5", 1, 3),
+                   row(1, 0, "7", 1, 2),
+                   row(1, 1, "7", 1, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk1 IN ? ALLOW FILTERING", list(1, 3)),
+                   row(1, 0, "5", 1, 3),
+                   row(1, 0, "7", 1, 2),
+                   row(1, 1, "7", 1, 3));
+
+        // Test filtering on static columns
+        assertRows(execute("SELECT * FROM %s WHERE s IN (?, ?) ALLOW FILTERING", 1, 3),
+                   row(1, 0, "5", 1, 3),
+                   row(1, 0, "7", 1, 2),
+                   row(1, 1, "7", 1, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE s IN ? ALLOW FILTERING", list(1, 3)),
+                   row(1, 0, "5", 1, 3),
+                   row(1, 0, "7", 1, 2),
+                   row(1, 1, "7", 1, 3));
+    }
+
+    @Test
+    public void testInRestrictionsWithAllowFilteringAndOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c text, v int, primary key(pk, c)) WITH CLUSTERING ORDER BY (c DESC)");
+        execute("INSERT INTO %s (pk, c, v) values (?, ?, ?)", 1, "0", 5);
+        execute("INSERT INTO %s (pk, c, v) values (?, ?, ?)", 1, "1", 7);
+        execute("INSERT INTO %s (pk, c, v) values (?, ?, ?)", 1, "2", 7);
+        execute("INSERT INTO %s (pk, c, v) values (?, ?, ?)", 2, "0", 4);
+        execute("INSERT INTO %s (pk, c, v) values (?, ?, ?)", 2, "2", 6);
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c IN (?, ?, ?) ALLOW FILTERING", 1, "2", "0", "8"),
+                   row(1, "2", 7),
+                   row(1, "0", 5));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c IN ? ORDER BY c ASC ALLOW FILTERING", 2, list("2", "8", "0")),
+                   row(2, "0", 4),
+                   row(2, "2", 6));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk IN (?, ?) AND c IN (?, ?, ?) ALLOW FILTERING", 1, 2, "2", "0", "8"),
+                   row(1, "2", 7),
+                   row(1, "0", 5),
+                   row(2, "2", 6),
+                   row(2, "0", 4));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ? AND c IN ? ORDER BY c ASC ALLOW FILTERING", list(1, 2), list("2", "8", "0")),
+                   row(1, "0", 5),
+                   row(2, "0", 4),
+                   row(1, "2", 7),
+                   row(2, "2", 6));
+    }
+
+    @Test
+    public void testInRestrictionsWithCountersAndAllowFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v counter, primary key (pk))");
+
+        assertEmpty(execute("SELECT * FROM %s WHERE v IN (?, ?) ALLOW FILTERING", 0L, 1L));
+
+        execute("UPDATE %s SET v = v + 1 WHERE pk = 1");
+        execute("UPDATE %s SET v = v + 2 WHERE pk = 2");
+        execute("UPDATE %s SET v = v + 1 WHERE pk = 3");
+
+        assertRows(execute("SELECT * FROM %s WHERE v IN (?, ?) ALLOW FILTERING", 0L, 1L),
+                   row(1, 1L),
+                   row(3, 1L));
     }
 }

@@ -20,13 +20,11 @@ package org.apache.cassandra.db;
 
 import com.google.common.base.Charsets;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -37,7 +35,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -51,10 +48,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.io.*;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -74,7 +69,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class VerifyTest
 {
     public static final String KEYSPACE = "Keyspace1";

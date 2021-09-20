@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatIOException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.cassandra.config.Duration;
-import org.codehaus.jackson.map.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class SnapshotManifestTest
 {
@@ -106,7 +106,7 @@ public class SnapshotManifestTest
 
     @Test
     public void testSerializeAndDeserialize() throws Exception {
-        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new Duration("2m"));
+        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new Duration("2m"), Instant.now());
         File manifestFile = tempFolder.newFile("manifest.json");
         manifest.serializeToJsonFile(manifestFile);
         manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);

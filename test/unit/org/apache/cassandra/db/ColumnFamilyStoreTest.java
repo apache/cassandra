@@ -30,7 +30,6 @@ import org.junit.Before;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -61,7 +60,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static junit.framework.Assert.assertNotNull;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest
 {
     public static final String KEYSPACE1 = "ColumnFamilyStoreTest1";
@@ -124,6 +122,7 @@ public class ColumnFamilyStoreTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        keyspace.getColumnFamilyStores().forEach(ColumnFamilyStore::truncateBlocking);
 
         List<Mutation> rms = new LinkedList<>();
         rms.add(new RowUpdateBuilder(cfs.metadata(), 0, "key1")
@@ -556,5 +555,6 @@ public class ColumnFamilyStoreTest
         List<File> ssTableFiles = new Directories(cfs.metadata()).sstableLister(Directories.OnTxnErr.THROW).listFiles();
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
+        cfs.clearUnsafe();
     }
 }

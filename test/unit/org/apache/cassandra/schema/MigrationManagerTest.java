@@ -30,9 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -63,7 +61,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class MigrationManagerTest
 {
     private static final String KEYSPACE1 = "keyspace1";
@@ -258,56 +255,6 @@ public class MigrationManagerTest
 
         UntypedResultSet rows = QueryProcessor.executeInternal("SELECT * FROM newkeyspace1.newstandard1");
         assertRows(rows, row("key0", "col0", "val0"));
-    }
-
-    @Test
-    public void dropKS() throws ConfigurationException
-    {
-        // sanity
-        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
-        assertNotNull(ks);
-        final TableMetadata cfm = ks.tables.getNullable(TABLE2);
-        assertNotNull(cfm);
-
-        // write some data, force a flush, then verify that files exist on disk.
-        for (int i = 0; i < 100; i++)
-            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
-                                                         KEYSPACE1, TABLE2),
-                                           "dropKs", "col" + i, "anyvalue");
-        ColumnFamilyStore cfs = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
-        assertNotNull(cfs);
-        cfs.forceBlockingFlush();
-        assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
-
-        MigrationManager.announceKeyspaceDrop(ks.name);
-
-        assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
-
-        // write should fail.
-        boolean success = true;
-        try
-        {
-            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
-                                                         KEYSPACE1, TABLE2),
-                                           "dropKs", "col0", "anyvalue");
-        }
-        catch (Throwable th)
-        {
-            success = false;
-        }
-        assertFalse("This mutation should have failed since the KS no longer exists.", success);
-
-        // reads should fail too.
-        boolean threw = false;
-        try
-        {
-            Keyspace.open(ks.name);
-        }
-        catch (Throwable th)
-        {
-            threw = true;
-        }
-        assertTrue(threw);
     }
 
     @Test

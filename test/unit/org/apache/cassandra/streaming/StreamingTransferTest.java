@@ -29,12 +29,11 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.junit.Assert;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
@@ -63,7 +62,6 @@ import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class StreamingTransferTest
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingTransferTest.class);

@@ -1004,7 +1004,8 @@ public class StorageProxy implements StorageProxyMBean
                         {
                             mutation.apply(writeCommitLog);
                             nonLocalMutations.remove(mutation);
-                            cleanup.ackMutation();
+                            // won't trigger cleanup
+                            cleanup.decrement();
                         }
                         catch (Exception exc)
                         {
@@ -2540,6 +2541,11 @@ public class StorageProxy implements StorageProxyMBean
     public long getReadRepairRepairedBackground()
     {
         return ReadRepairMetrics.repairedBackground.getCount();
+    }
+
+    public long getReadRepairRepairTimedOut()
+    {
+        return ReadRepairMetrics.timedOut.getCount();
     }
 
     public int getNumberOfTables()

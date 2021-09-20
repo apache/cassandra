@@ -21,9 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -36,7 +34,6 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class GossipInfoTest extends CQLTester
 {
     private static String token;

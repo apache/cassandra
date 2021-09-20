@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -1139,6 +1140,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             try
             {
                 joinTokenRing(0);
+                doAuthSetup(false);
             }
             catch (ConfigurationException e)
             {
@@ -1153,6 +1155,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing(resumedBootstrap, SystemKeyspace.getSavedTokens());
+                doAuthSetup(false);
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1185,10 +1188,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
-        doAuthSetup(false);
     }
 
-    private void doAuthSetup(boolean setUpSchema)
+    @VisibleForTesting
+    public void doAuthSetup(boolean setUpSchema)
     {
         if (!authSetupCalled.getAndSet(true))
         {
@@ -1211,6 +1214,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return authSetupComplete;
     }
+
+    @VisibleForTesting
+    public boolean authSetupCalled()
+    {
+        return authSetupCalled.get();
+    }
+
 
     @VisibleForTesting
     public void setUpDistributedSystemKeyspaces()
@@ -1856,6 +1866,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             isSurveyMode = false;
                             progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
                             finishJoiningRing(true, bootstrapTokens);
+                            doAuthSetup(false);
                         }
                         progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                         if (!isNativeTransportRunning())
@@ -3673,12 +3684,34 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return upgradeSSTables(keyspaceName, excludeCurrentVersion, 0, tableNames);
     }
 
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public int upgradeSSTables(String keyspaceName,
+                               final boolean skipIfCurrentVersion,
+                               final long skipIfNewerThanTimestamp,
+                               int jobs,
+                               String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return rewriteSSTables(keyspaceName, skipIfCurrentVersion, skipIfNewerThanTimestamp, false, jobs, tableNames);
+    }
+
+    public int recompressSSTables(String keyspaceName,
+                                  int jobs,
+                                  String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return rewriteSSTables(keyspaceName, false, Long.MAX_VALUE, true, jobs, tableNames);
+    }
+
+
+    public int rewriteSSTables(String keyspaceName,
+                               final boolean skipIfCurrentVersion,
+                               final long skipIfNewerThanTimestamp,
+                               final boolean skipIfCompressionMatches,
+                               int jobs,
+                               String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, keyspaceName, tableNames))
         {
-            CompactionManager.AllSSTableOpStatus oneStatus = cfStore.sstablesRewrite(excludeCurrentVersion, jobs);
+            CompactionManager.AllSSTableOpStatus oneStatus = cfStore.sstablesRewrite(skipIfCurrentVersion, skipIfNewerThanTimestamp, skipIfCompressionMatches, jobs);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                 status = oneStatus;
         }
@@ -3841,10 +3874,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+        Instant creationTime = Instant.now();
 
         for (Keyspace keyspace : keyspaces)
         {
-            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter);
+            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter, creationTime);
         }
     }
 
@@ -3906,13 +3940,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+        Instant creationTime = Instant.now();
 
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter);
+                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter, creationTime);
         }
-
     }
 
     private void verifyKeyspaceIsValid(String keyspaceName)

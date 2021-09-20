@@ -28,10 +28,8 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -43,7 +41,6 @@ import org.yaml.snakeyaml.Yaml;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class TpStatsTest extends CQLTester
 {
 
@@ -141,18 +138,22 @@ public class TpStatsTest extends CQLTester
     }
 
     @Test
-    public void testFromatArg()
+    public void testFormatArg()
     {
         Arrays.asList(Pair.of("-F", "json"), Pair.of("--format", "json")).forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
             tool.assertOnCleanExit();
-            assertThat(isJSONString(tool.getStdout())).isTrue();
+            String json = tool.getStdout();
+            assertThat(isJSONString(json)).isTrue();
+            assertThat(json).containsPattern("\"WaitLatencies\"\\s*:\\s*\\{\\s*\"");
         });
 
         Arrays.asList( Pair.of("-F", "yaml"), Pair.of("--format", "yaml")).forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
             tool.assertOnCleanExit();
-            assertThat(isYAMLString(tool.getStdout())).isTrue();
+            String yaml = tool.getStdout();
+            assertThat(isYAMLString(yaml)).isTrue();
+            assertThat(yaml).containsPattern("WaitLatencies:\\s*[A-Z|_]+:\\s+-\\s");
         });
     }
 
