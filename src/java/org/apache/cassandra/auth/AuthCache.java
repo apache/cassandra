@@ -38,7 +38,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthCache.class);
 
-    private static final String MBEAN_NAME_BASE = "org.apache.cassandra.auth:type=";
+    public static final String MBEAN_NAME_BASE = "org.apache.cassandra.auth:type=";
 
     /**
      * Underlying cache. LoadingCache will call underlying load function on {@link #get} if key is not present

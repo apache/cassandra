@@ -26,13 +26,11 @@ import java.util.stream.Stream;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -43,7 +41,6 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class TableMetricsTest extends SchemaLoader
 {
     private static Session session;
@@ -261,7 +258,7 @@ public class TableMetricsTest extends SchemaLoader
     @Test
     public void testViewMetricsCleanupOnDrop()
     {
-        String tableName = TABLE + "_metrics_cleanup";
+        String tableName = TABLE + "_2_metrics_cleanup";
         String viewName = TABLE + "_materialized_view_cleanup";
         CassandraMetricsRegistry registry = CassandraMetricsRegistry.Metrics;
         Supplier<Stream<String>> metrics = () -> registry.getNames().stream().filter(m -> m.contains(viewName));

@@ -32,7 +32,12 @@ public class RequestFailureException extends RequestExecutionException
 
     protected RequestFailureException(ExceptionCode code, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super(code, buildErrorMessage(received, failureReasonByEndpoint));
+        this(code, buildErrorMessage(received, failureReasonByEndpoint), consistency, received, blockFor, failureReasonByEndpoint);
+    }
+
+    protected RequestFailureException(ExceptionCode code, String msg, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    {
+        super(code, buildErrorMessage(msg, failureReasonByEndpoint));
         this.consistency = consistency;
         this.received = received;
         this.blockFor = blockFor;
@@ -41,10 +46,7 @@ public class RequestFailureException extends RequestExecutionException
 
     private static String buildErrorMessage(int received, Map<InetAddressAndPort, RequestFailureReason> failures)
     {
-        return String.format("Operation failed - received %d responses and %d failures: %s",
-                             received,
-                             failures.size(),
-                             buildFailureString(failures));
+        return String.format("received %d responses and %d failures", received, failures.size());
     }
 
     private static String buildFailureString(Map<InetAddressAndPort, RequestFailureReason> failures)
@@ -52,5 +54,14 @@ public class RequestFailureException extends RequestExecutionException
         return failures.entrySet().stream()
                        .map(e -> String.format("%s from %s", e.getValue(), e.getKey()))
                        .collect(Collectors.joining(", "));
+    }
+
+    private static String buildErrorMessage(CharSequence msg, Map<InetAddressAndPort, RequestFailureReason> failures)
+    {
+        StringBuilder sb = new StringBuilder("Operation failed - ");
+        sb.append(msg);
+        if (failures != null && !failures.isEmpty())
+            sb.append(": ").append(buildFailureString(failures));
+        return sb.toString();
     }
 }

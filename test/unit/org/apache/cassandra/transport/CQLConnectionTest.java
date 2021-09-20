@@ -59,6 +59,7 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
+import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 import static org.apache.cassandra.net.FramingTest.randomishBytes;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
@@ -104,6 +105,8 @@ public class CQLConnectionTest
         alloc = GlobalBufferPoolAllocator.instance;
         // set connection-local queue size to 0 so that all capacity is allocated from reserves
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(0);
+        // set transport to max frame size possible
+        DatabaseDescriptor.setNativeTransportMaxFrameSize(256 * (int) ONE_MB);
     }
 
     @Test

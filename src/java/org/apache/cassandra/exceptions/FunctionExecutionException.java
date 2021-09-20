@@ -37,11 +37,17 @@ public class FunctionExecutionException extends RequestExecutionException
         return fee;
     }
 
-    public FunctionExecutionException(FunctionName functionName, List<String> argTypes, String detail)
+    public static FunctionExecutionException create(FunctionName functionName, List<String> argTypes, String detail)
     {
-        super(ExceptionCode.FUNCTION_FAILURE, "execution of '" + functionName + argTypes + "' failed: " + detail);
+        String msg = "execution of '" + functionName + argTypes + "' failed: " + detail;
+        return new FunctionExecutionException(functionName, argTypes, msg);
+    }
+
+    public FunctionExecutionException(FunctionName functionName, List<String> argTypes, String msg)
+    {
+        super(ExceptionCode.FUNCTION_FAILURE, msg);
         this.functionName = functionName;
         this.argTypes = argTypes;
-        this.detail = detail;
+        this.detail = msg;
     }
 }

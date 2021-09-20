@@ -19,19 +19,15 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.io.Files;
-
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -41,32 +37,23 @@ import org.assertj.core.api.Assertions;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class StandaloneSplitterWithCQLTesterTest extends CQLTester
 {
     private static String sstableFileName;
     private static File sstablesDir;
-    private static File sstablesBackupDir;
     private static List<File> origSstables;
 
-    // CQLTester post test method cleanup needs to be avoided by overriding as it'd clean all sstables, env, etc.
-    @Override
-    public void afterTest() throws Throwable
+    @Before
+    public void before() throws Throwable
     {
-    }
-
-    @Test
-    public void setupEnv() throws Throwable
-    {
-        // Stop the server after setup as we're going to be changing things under it's feet
         setupTestSstables();
         tearDownClass();
+        SSTableReader.resetTidying();
     }
 
     @Test
     public void testMinFileSizeCheck() throws Throwable
     {
-        restoreOrigSstables();
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, sstableFileName);
         Assertions.assertThat(tool.getStdout()).contains("is less than the split size");
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
@@ -76,8 +63,6 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     @Test
     public void testSplittingSSTable() throws Throwable
     {
-        restoreOrigSstables();
-
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", sstableFileName);
         List<File> splitFiles = Arrays.asList(sstablesDir.listFiles());
         splitFiles.stream().forEach(f -> {
@@ -94,7 +79,6 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     @Test
     public void testSplittingMultipleSSTables() throws Throwable
     {
-        restoreOrigSstables();
         ArrayList<String> args = new ArrayList<>(Arrays.asList("-s", "1"));
 
         args.addAll(Arrays.asList(sstablesDir.listFiles())
@@ -117,7 +101,6 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     @Test
     public void testNoSnapshotOption() throws Throwable
     {
-        restoreOrigSstables();
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", "--no-snapshot", sstableFileName);
         assertTrue(origSstables.size() < Arrays.asList(sstablesDir.listFiles()).size());
         assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
@@ -125,15 +108,9 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         assertEquals(0, tool.getExitCode());
     }
 
-    @Test
-    public void cleanEnv() throws Throwable
-    {
-        super.afterTest();
-        System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
-    }
-
     private void setupTestSstables() throws Throwable
     {
+        SSTableReader.resetTidying();
         createTable("CREATE TABLE %s (id text primary key, val text)");
         for (int i = 0; i < 100000; i++)
             executeFormattedQuery(formatQuery("INSERT INTO %s (id, val) VALUES (?, ?)"), "mockData" + i, "mockData" + i);
@@ -145,44 +122,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         sstableFileName = sstables.iterator().next().getFilename();
         assertTrue("Generated sstable must be at least 1MB", (new File(sstableFileName)).length() > 1024*1024);
         sstablesDir = new File(sstableFileName).getParentFile();
-        sstablesBackupDir = new File(sstablesDir.getAbsolutePath() + "/testbackup");
-        sstablesBackupDir.mkdir();
         origSstables = Arrays.asList(sstablesDir.listFiles());
-
-        // Back up orig sstables
-        origSstables.stream().forEach(f -> {
-            if (f.isFile())
-                try
-                {
-                    Files.copy(f, new File(sstablesBackupDir.getAbsolutePath() + "/" + f.getName()));
-                }
-                catch(IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-        });
-
         System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
-    }
-
-    private void restoreOrigSstables()
-    {
-        Arrays.asList(sstablesDir.listFiles()).stream().forEach(f -> {
-            if (f.isFile())
-                f.delete();
-        });
-        Arrays.asList(sstablesBackupDir.listFiles()).stream().forEach(f -> {
-            if (f.isFile())
-                try
-                {
-                    Files.copy(f, new File(sstablesDir.getAbsolutePath() + "/" + f.getName()));
-                }
-                catch(IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-        });
-
-        SSTableReader.resetTidying();
     }
 }

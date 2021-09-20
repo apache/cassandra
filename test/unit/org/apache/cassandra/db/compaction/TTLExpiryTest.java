@@ -26,9 +26,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.schema.TableMetadata;
@@ -49,7 +47,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class TTLExpiryTest
 {
     public static final String KEYSPACE1 = "TTLExpiryTest";

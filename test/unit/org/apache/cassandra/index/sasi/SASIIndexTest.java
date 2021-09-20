@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.index.sasi;
 
+import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
@@ -24,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -73,20 +76,29 @@ import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.service.snapshot.SnapshotManifest;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.junit.*;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -131,7 +143,82 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testSingleExpressionQueries()
+    public void testSASIComponentsAddedToSnapshot() throws Throwable
+    {
+        String snapshotName = "sasi_test";
+        Map<String, Pair<String, Integer>> data = new HashMap<>();
+        Random r = new Random();
+
+        for (int i = 0; i < 100; i++)
+            data.put(UUID.randomUUID().toString(), Pair.create(UUID.randomUUID().toString(), r.nextInt()));
+
+        ColumnFamilyStore store = loadData(data, true);
+        store.forceMajorCompaction();
+
+        Set<SSTableReader> ssTableReaders = store.getLiveSSTables();
+        Set<Component> sasiComponents = new HashSet<>();
+
+        for (Index index : store.indexManager.listIndexes())
+            if (index instanceof SASIIndex)
+                sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
+
+        Assert.assertFalse(sasiComponents.isEmpty());
+
+        try
+        {
+            store.snapshot(snapshotName);
+            SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(store.getDirectories().getSnapshotManifestFile(snapshotName));
+
+            Assert.assertFalse(ssTableReaders.isEmpty());
+            Assert.assertFalse(manifest.files.isEmpty());
+            Assert.assertEquals(ssTableReaders.size(), manifest.files.size());
+
+            Map<Descriptor, Set<Component>> snapshotSSTables = store.getDirectories()
+                                                                    .sstableLister(Directories.OnTxnErr.IGNORE)
+                                                                    .snapshots(snapshotName)
+                                                                    .list();
+
+            long indexSize = 0;
+            long tableSize = 0;
+
+            for (SSTableReader sstable : ssTableReaders)
+            {
+                File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
+                Descriptor snapshotSSTable = new Descriptor(snapshotDirectory,
+                                                            sstable.getKeyspaceName(),
+                                                            sstable.getColumnFamilyName(),
+                                                            sstable.descriptor.generation,
+                                                            sstable.descriptor.formatType);
+
+                Set<Component> components = snapshotSSTables.get(snapshotSSTable);
+
+                Assert.assertNotNull(components);
+                Assert.assertTrue(components.containsAll(sasiComponents));
+
+                for (Component c : components)
+                {
+                    Path componentPath = Paths.get(sstable.descriptor + "-" + c.name);
+                    long componentSize = Files.size(componentPath);
+                    if (Component.Type.fromRepresentation(c.name) == Component.Type.SECONDARY_INDEX)
+                        indexSize += componentSize;
+                    else
+                        tableSize += componentSize;
+                }
+            }
+            
+            TableSnapshot details = store.listSnapshots().get(snapshotName);
+
+            // check that SASI components are included in the computation of snapshot size
+            Assert.assertEquals(details.computeTrueSizeBytes(), tableSize + indexSize);
+        }
+        finally
+        {
+            store.clearSnapshot(snapshotName);
+        }
+    }
+
+    @Test
+    public void testSingleExpressionQueries() throws Exception
     {
         testSingleExpressionQueries(false);
         cleanupData();
@@ -2484,6 +2571,37 @@ public class SASIIndexTest
                 }
             }
         });
+    }
+
+    @Test
+    public void testIllegalArgumentsForAnalyzerShouldFail()
+    {
+        String baseTable = "illegal_argument_test";
+        String indexName = "illegal_index";
+        QueryProcessor.executeOnceInternal(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KS_NAME));
+        QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, baseTable));
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("CREATE CUSTOM INDEX IF NOT EXISTS %s ON %s.%s(v) " +
+                            "USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = { 'mode' : 'CONTAINS', " +
+                            "'analyzer_class': 'org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer', " +
+                            "'case_sensitive': 'false'," +
+                            "'normalize_uppercase': 'true'};",
+                    indexName, KS_NAME, baseTable));
+
+            Assert.fail("creation of index analyzer with illegal options should fail");
+        }
+        catch (ConfigurationException e)
+        {
+            //correct behaviour
+            //confirm that it wasn't written to the schema
+            String query = String.format("SELECT * FROM system_schema.indexes WHERE keyspace_name = '%s' " +
+                                         "and table_name = '%s' and index_name = '%s';", KS_NAME, baseTable, indexName);
+            Assertions.assertThat(QueryProcessor.executeOnceInternal(query)).isEmpty();
+
+            Assert.assertEquals("case_sensitive option cannot be specified together with either normalize_lowercase or normalize_uppercase", e.getMessage());
+        }
     }
 
     private ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)

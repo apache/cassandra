@@ -195,6 +195,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (null != tableBuilder.getColumn(name))
                 throw ire("Column with name '%s' already exists", name);
 
+            if (table.isCompactTable())
+                throw ire("Cannot add new column to a COMPACT STORAGE table");
+
             if (isStatic && table.clusteringColumns().isEmpty())
                 throw ire("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
 
@@ -203,7 +206,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             {
                 // After #8099, not safe to re-add columns of incompatible types - until *maybe* deser logic with dropped
                 // columns is pushed deeper down the line. The latter would still be problematic in cases of schema races.
-                if (!type.isValueCompatibleWith(droppedColumn.type))
+                if (!type.isSerializationCompatibleWith(droppedColumn.type))
                 {
                     throw ire("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
                               name,

@@ -223,10 +223,10 @@ public class ColumnIndex
 
         Op operator = Op.valueOf(op);
         return !(isTokenized && operator == Op.EQ) // EQ is only applicable to non-tokenized indexes
+               && operator != Op.IN // IN operator is not supported
                && !(isTokenized && mode.mode == OnDiskIndexBuilder.Mode.CONTAINS && operator == Op.PREFIX) // PREFIX not supported on tokenized CONTAINS mode indexes
                && !(isLiteral() && operator == Op.RANGE) // RANGE only applicable to indexes non-literal indexes
                && mode.supports(operator); // for all other cases let's refer to index itself
-
     }
 
     public static ByteBuffer getValueOf(ColumnMetadata column, Row row, int nowInSecs)

@@ -710,9 +710,9 @@ native_transport_port: 9042
 # native_transport_max_threads: 128
 #
 # The maximum size of allowed frame. Frame (requests) larger than this will
-# be rejected as invalid. The default is 256MB. If you're changing this parameter,
+# be rejected as invalid. The default is 16MB. If you're changing this parameter,
 # you may want to adjust max_value_size_in_mb accordingly. This should be positive and less than 2048.
-# native_transport_max_frame_size_in_mb: 256
+# native_transport_max_frame_size_in_mb: 16
 
 # The maximum number of concurrent client connections.
 # The default is -1, which means unlimited.
@@ -1453,3 +1453,17 @@ enable_drop_compact_storage: false
 #  subnets:
 #    - 127.0.0.1
 #    - 127.0.0.0/31
+
+# Enables tracking warnings/aborts across all replicas for reporting back to client.
+# Scheduled to enable in 4.2
+# See: CASSANDRA-16850
+# See: tombstone_warn_threshold, tombstone_failure_threshold, client_large_read_warn_threshold_kb, and client_large_read_abort_threshold_kb
+#client_track_warnings_enabled: false
+
+# When client_track_warnings_enabled: true, this tracks the materialized size of a query on the
+# coordinator. If client_large_read_warn_threshold_kb is greater than 0, this will emit a warning
+# to clients with details on what query triggered this as well as the size of the result set; if
+# client_large_read_abort_threshold_kb is greater than 0, this will abort the query after it
+# has exceeded this threshold, returning a read error to the user.
+#client_large_read_warn_threshold_kb: 0
+#client_large_read_abort_threshold_kb: 0

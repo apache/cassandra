@@ -24,9 +24,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
@@ -34,7 +32,6 @@ import org.hamcrest.CoreMatchers;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class StandaloneSplitterTest extends OfflineToolUtils
 {
     // Note: StandaloneSplitter modifies sstables
@@ -46,21 +43,6 @@ public class StandaloneSplitterTest extends OfflineToolUtils
         // (Don't use ByteOrderedPartitioner.class.getName() as that would initialize the class and work
         // against the goal of this test to check classes and threads initialized by the tool.)
         System.setProperty("cassandra.partitioner", "org.apache.cassandra.dht.ByteOrderedPartitioner");
-    }
-
-    @Test
-    public void testNoArgsPrintsHelp()
-    {
-        ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class);
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No sstables to split"));
-        assertEquals(1, tool.getExitCode());
-        assertNoUnexpectedThreadsStarted(null, null);
-        assertSchemaNotLoaded();
-        assertCLSMNotLoaded();
-        assertSystemKSNotLoaded();
-        assertKeyspaceNotLoaded();
-        assertServerNotLoaded();
     }
 
     @Test

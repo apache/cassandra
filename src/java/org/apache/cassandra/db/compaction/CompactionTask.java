@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -115,7 +116,11 @@ public class CompactionTask extends AbstractCompactionTask
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
+        {
+            Instant creationTime = Instant.now();
+            cfs.snapshotWithoutFlush(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
+        }
+
 
         try (CompactionController controller = getCompactionController(transaction.originals()))
         {

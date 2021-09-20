@@ -30,12 +30,15 @@ import org.junit.Before;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.snapshot.SnapshotManifest;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.collect.Iterators;
@@ -57,7 +60,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static junit.framework.Assert.assertNotNull;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest
 {
     public static final String KEYSPACE1 = "ColumnFamilyStoreTest1";
@@ -85,6 +87,7 @@ public class ColumnFamilyStoreTest
     {
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlocking();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1).truncateBlocking();
         Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
     }
 
@@ -119,6 +122,7 @@ public class ColumnFamilyStoreTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        keyspace.getColumnFamilyStores().forEach(ColumnFamilyStore::truncateBlocking);
 
         List<Mutation> rms = new LinkedList<>();
         rms.add(new RowUpdateBuilder(cfs.metadata(), 0, "key1")
@@ -238,14 +242,14 @@ public class ColumnFamilyStoreTest
         cfs.snapshot("nonEphemeralSnapshot", null, false, false);
         cfs.snapshot("ephemeralSnapshot", null, true, false);
 
-        Map<String, Directories.SnapshotSizeDetails> snapshotDetails = cfs.getSnapshotDetails();
+        Map<String, TableSnapshot> snapshotDetails = cfs.listSnapshots();
         assertEquals(2, snapshotDetails.size());
         assertTrue(snapshotDetails.containsKey("ephemeralSnapshot"));
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
 
         ColumnFamilyStore.clearEphemeralSnapshots(cfs.getDirectories());
 
-        snapshotDetails = cfs.getSnapshotDetails();
+        snapshotDetails = cfs.listSnapshots();
         assertEquals(1, snapshotDetails.size());
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
 
@@ -443,19 +447,70 @@ public class ColumnFamilyStoreTest
         String snapshotName = "newSnapshot";
         cfs.snapshotWithoutFlush(snapshotName);
 
-        JsonNode manifest = new ObjectMapper().readTree(cfs.getDirectories().getSnapshotManifestFile(snapshotName));
-        JsonNode files = manifest.get("files");
+        File snapshotManifestFile = cfs.getDirectories().getSnapshotManifestFile(snapshotName);
+        SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(snapshotManifestFile);
 
         // Keyspace1-Indexed1 and the corresponding index
-        Assert.assertTrue(files.isArray());
-        Assert.assertEquals(2, files.size());
+        assertThat(manifest.getFiles()).hasSize(2);
 
         // Snapshot of the secondary index is stored in the subfolder with the same file name
-        String baseTableFile = files.get(0).asText();
-        String indexTableFile = files.get(1).asText();
-        assert !baseTableFile.equals(indexTableFile);
-        assert Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile());
-        assert indexTableFile.endsWith(baseTableFile);
+        String baseTableFile = manifest.getFiles().get(0);
+        String indexTableFile = manifest.getFiles().get(1);
+        assertThat(baseTableFile).isNotEqualTo(indexTableFile);
+        assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile())).isTrue();
+        assertThat(indexTableFile).endsWith(baseTableFile);
+    }
+
+    private void createSnapshotAndDelete(String ks, String table, boolean writeData)
+    {
+        ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(table);
+        if (writeData)
+        {
+            writeData(cfs);
+        }
+
+        TableSnapshot snapshot = cfs.snapshot("basic");
+
+
+        assertThat(snapshot.exists()).isTrue();
+        assertThat(cfs.listSnapshots().containsKey("basic")).isTrue();
+        assertThat(cfs.listSnapshots().get("basic")).isEqualTo(snapshot);
+
+        snapshot.getDirectories().forEach(FileUtils::deleteRecursive);
+
+        assertThat(snapshot.exists()).isFalse();
+        assertFalse(cfs.listSnapshots().containsKey("basic"));
+    }
+
+    private void writeData(ColumnFamilyStore cfs)
+    {
+        if (cfs.name.equals(CF_INDEX1))
+        {
+            new RowUpdateBuilder(cfs.metadata(), 2, "key").add("birthdate", 1L).add("notbirthdate", 2L).build().applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+        else
+        {
+            new RowUpdateBuilder(cfs.metadata(), 2, "key").clustering("name").add("val", "2").build().applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+    }
+
+    @Test
+    public void testSnapshotCreationAndDeleteEmptyTable() {
+        createSnapshotAndDelete(KEYSPACE1, CF_INDEX1, false);
+        createSnapshotAndDelete(KEYSPACE1, CF_STANDARD1, false);
+        createSnapshotAndDelete(KEYSPACE1, CF_STANDARD2, false);
+        createSnapshotAndDelete(KEYSPACE2, CF_STANDARD1, false);
+        createSnapshotAndDelete(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.TRANSFERRED_RANGES_V2, false);
+    }
+
+    @Test
+    public void testSnapshotCreationAndDeletePopulatedTable() {
+        createSnapshotAndDelete(KEYSPACE1, CF_INDEX1, true);
+        createSnapshotAndDelete(KEYSPACE1, CF_STANDARD1, true);
+        createSnapshotAndDelete(KEYSPACE1, CF_STANDARD2, true);
+        createSnapshotAndDelete(KEYSPACE2, CF_STANDARD1, true);
     }
 
     @Test
@@ -500,5 +555,6 @@ public class ColumnFamilyStoreTest
         List<File> ssTableFiles = new Directories(cfs.metadata()).sstableLister(Directories.OnTxnErr.THROW).listFiles();
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
+        cfs.clearUnsafe();
     }
 }

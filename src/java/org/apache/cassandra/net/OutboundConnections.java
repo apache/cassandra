@@ -36,6 +36,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -199,12 +200,26 @@ public class OutboundConnections
         if (specifyConnection != null)
             return specifyConnection;
 
-        if (msg.verb().priority == Verb.Priority.P0)
-            return URGENT_MESSAGES;
+        if (msg.serializedSize(current_version) > LARGE_MESSAGE_THRESHOLD)
+        {
+            if (msg.verb().priority == Verb.Priority.P0)
+            {
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
+                                 "Enqueued URGENT message which exceeds large message threshold");
 
-        return msg.serializedSize(current_version) <= LARGE_MESSAGE_THRESHOLD
-               ? SMALL_MESSAGES
-               : LARGE_MESSAGES;
+                if (logger.isTraceEnabled())
+                    logger.trace("{} message with size {} exceeded large message threshold {}",
+                                 msg.verb(),
+                                 msg.serializedSize(current_version),
+                                 LARGE_MESSAGE_THRESHOLD);
+            }
+
+            return LARGE_MESSAGES;
+        }
+
+        return msg.verb().priority == Verb.Priority.P0
+               ? URGENT_MESSAGES
+               : SMALL_MESSAGES;
     }
 
     @VisibleForTesting

@@ -24,6 +24,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.util.*;
 import java.util.Objects;
 import java.util.concurrent.*;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javax.management.*;
 import javax.management.openmbean.*;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
@@ -41,6 +43,7 @@ import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
@@ -84,6 +87,8 @@ import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManifest;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -1521,7 +1526,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // skip snapshot creation during scrub, SEE JIRA 5891
         if(!disableSnapshot)
-            snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
+        {
+            Instant creationTime = Instant.now();
+            String snapshotName = "pre-scrub-" + creationTime.toEpochMilli();
+            snapshotWithoutFlush(snapshotName, creationTime);
+        }
 
         try
         {
@@ -1565,9 +1574,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return CompactionManager.instance.performVerify(ColumnFamilyStore.this, options);
     }
 
-    public CompactionManager.AllSSTableOpStatus sstablesRewrite(boolean excludeCurrentVersion, int jobs) throws ExecutionException, InterruptedException
+    /**
+     * Rewrites all SSTables according to specified parameters
+     *
+     * @param skipIfCurrentVersion - if {@link true}, will rewrite only SSTables that have version older than the current one ({@link BigFormat#latestVersion})
+     * @param skipIfNewerThanTimestamp - max timestamp (local creation time) for SSTable; SSTables created _after_ this timestamp will be excluded from compaction
+     * @param skipIfCompressionMatches - if {@link true}, will rewrite only SSTables whose compression parameters are different from {@link CFMetaData#compressionParams()}
+     * @param jobs number of jobs for parallel execution
+     */
+    public CompactionManager.AllSSTableOpStatus sstablesRewrite(final boolean skipIfCurrentVersion,
+                                                                final long skipIfNewerThanTimestamp,
+                                                                final boolean skipIfCompressionMatches,
+                                                                final int jobs) throws ExecutionException, InterruptedException
     {
-        return CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, excludeCurrentVersion, jobs);
+        return CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, skipIfCurrentVersion, skipIfNewerThanTimestamp, skipIfCompressionMatches, jobs);
     }
 
     public CompactionManager.AllSSTableOpStatus relocateSSTables(int jobs) throws ExecutionException, InterruptedException
@@ -1823,21 +1843,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata().comparator;
     }
 
-    public void snapshotWithoutFlush(String snapshotName)
+    public TableSnapshot snapshotWithoutFlush(String snapshotName)
     {
-        snapshotWithoutFlush(snapshotName, null, false, null);
+        return snapshotWithoutFlush(snapshotName, Instant.now());
+    }
+
+    public TableSnapshot snapshotWithoutFlush(String snapshotName, Instant creationTime)
+    {
+        return snapshotWithoutFlush(snapshotName, null, false, null, null, creationTime);
     }
 
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
      */
-    public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, RateLimiter rateLimiter)
+    public TableSnapshot snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
     {
+        if (ephemeral && ttl != null)
+        {
+            throw new IllegalStateException(String.format("can not take ephemeral snapshot (%s) while ttl is specified too", snapshotName));
+        }
+
         if (rateLimiter == null)
             rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
-        Set<SSTableReader> snapshottedSSTables = new HashSet<>();
-        final List<String> filenames = new ArrayList<>();
+        Set<SSTableReader> snapshottedSSTables = new LinkedHashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             try (RefViewFragment currentView = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
@@ -1845,9 +1874,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    rateLimiter.acquire(SSTableReader.componentsFor(ssTable.descriptor).size());
-                    ssTable.createLinks(snapshotDirectory.getPath()); // hard links
-                    filenames.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
+                    ssTable.createLinks(snapshotDirectory.getPath(), rateLimiter); // hard links
 
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
@@ -1856,29 +1883,53 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        writeSnapshotManifest(filenames, snapshotName);
-        if (!SchemaConstants.isLocalSystemKeyspace(metadata.keyspace) && !SchemaConstants.isReplicatedSystemKeyspace(metadata.keyspace))
-            writeSnapshotSchema(snapshotName);
-
-        if (ephemeral)
-            createEphemeralSnapshotMarkerFile(snapshotName);
-        return snapshottedSSTables;
+        return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables, creationTime);
     }
 
-    private void writeSnapshotManifest(final List<String> filenames, final String snapshotName)
-    {
-        final File manifestFile = getDirectories().getSnapshotManifestFile(snapshotName);
+    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, Duration ttl, Set<SSTableReader> sstables, Instant creationTime) {
+        Set<File> snapshotDirs = sstables.stream()
+                                         .map(s -> Directories.getSnapshotDirectory(s.descriptor, tag).getAbsoluteFile())
+                                         .filter(dir -> !Directories.isSecondaryIndexFolder(dir)) // Remove secondary index subdirectory
+                                         .collect(Collectors.toCollection(HashSet::new));
 
+        // Create and write snapshot manifest
+        SnapshotManifest manifest = new SnapshotManifest(mapToDataFilenames(sstables), ttl, creationTime);
+        File manifestFile = getDirectories().getSnapshotManifestFile(tag);
+        writeSnapshotManifest(manifest, manifestFile);
+        snapshotDirs.add(manifestFile.getParentFile().getAbsoluteFile()); // manifest may create empty snapshot dir
+
+        // Write snapshot schema
+        if (!SchemaConstants.isLocalSystemKeyspace(metadata.keyspace) && !SchemaConstants.isReplicatedSystemKeyspace(metadata.keyspace))
+        {
+            File schemaFile = getDirectories().getSnapshotSchemaFile(tag);
+            writeSnapshotSchema(schemaFile);
+            snapshotDirs.add(schemaFile.getParentFile().getAbsoluteFile()); // schema may create empty snapshot dir
+        }
+
+        // Maybe create ephemeral marker
+        if (ephemeral)
+        {
+            File ephemeralSnapshotMarker = getDirectories().getNewEphemeralSnapshotMarkerFile(tag);
+            createEphemeralSnapshotMarkerFile(tag, ephemeralSnapshotMarker);
+            snapshotDirs.add(ephemeralSnapshotMarker.getParentFile().getAbsoluteFile()); // marker may create empty snapshot dir
+        }
+
+        TableSnapshot snapshot = new TableSnapshot(metadata.keyspace, metadata.name, tag, manifest.createdAt,
+                                                   manifest.expiresAt, snapshotDirs, directories::getTrueAllocatedSizeIn);
+
+        StorageService.instance.addSnapshot(snapshot);
+        return snapshot;
+    }
+
+    private SnapshotManifest writeSnapshotManifest(SnapshotManifest manifest, File manifestFile)
+    {
         try
         {
             if (!manifestFile.getParentFile().exists())
                 manifestFile.getParentFile().mkdirs();
 
-            try (PrintStream out = new PrintStream(manifestFile))
-            {
-                final Map<String, Object> manifest = Collections.singletonMap("files", filenames);
-                out.println(Json.writeAsJsonString(manifest));
-            }
+            manifest.serializeToJsonFile(manifestFile);
+            return manifest;
         }
         catch (IOException e)
         {
@@ -1886,10 +1937,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private void writeSnapshotSchema(final String snapshotName)
+    private List<String> mapToDataFilenames(Collection<SSTableReader> sstables)
     {
-        final File schemaFile = getDirectories().getSnapshotSchemaFile(snapshotName);
+        return sstables.stream().map(s -> s.descriptor.relativeFilenameFor(Component.DATA)).collect(Collectors.toList());
+    }
 
+    private void writeSnapshotSchema(File schemaFile)
+    {
         try
         {
             if (!schemaFile.getParentFile().exists())
@@ -1908,10 +1962,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private void createEphemeralSnapshotMarkerFile(final String snapshot)
+    private void createEphemeralSnapshotMarkerFile(final String snapshot, File ephemeralSnapshotMarker)
     {
-        final File ephemeralSnapshotMarker = getDirectories().getNewEphemeralSnapshotMarkerFile(snapshot);
-
         try
         {
             if (!ephemeralSnapshotMarker.getParentFile().exists())
@@ -1986,9 +2038,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param snapshotName the name of the associated with the snapshot
      */
-    public Set<SSTableReader> snapshot(String snapshotName)
+    public TableSnapshot snapshot(String snapshotName)
     {
-        return snapshot(snapshotName, false, null);
+        return snapshot(snapshotName, false, null, null, Instant.now());
     }
 
     /**
@@ -1996,11 +2048,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param snapshotName the name of the associated with the snapshot
      * @param skipFlush Skip blocking flush of memtable
+     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
      * @param rateLimiter Rate limiter for hardlinks-per-second
+     * @param creationTime time when this snapshot was taken
      */
-    public Set<SSTableReader> snapshot(String snapshotName, boolean skipFlush, RateLimiter rateLimiter)
+    public TableSnapshot snapshot(String snapshotName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
     {
-        return snapshot(snapshotName, null, false, skipFlush, rateLimiter);
+        return snapshot(snapshotName, null, false, skipFlush, ttl, rateLimiter, creationTime);
     }
 
 
@@ -2008,23 +2062,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
      * @param skipFlush Skip blocking flush of memtable
      */
-    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush)
+    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush)
     {
-        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null);
+        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null, null, Instant.now());
     }
 
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
      * @param skipFlush Skip blocking flush of memtable
+     * @param ttl duration after which the taken snapshot is removed automatically, if supplied with null, it will never be automatically removed
      * @param rateLimiter Rate limiter for hardlinks-per-second
+     * @param creationTime time when this snapshot was taken
      */
-    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, RateLimiter rateLimiter)
+    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (!skipFlush)
         {
             forceBlockingFlush();
         }
-        return snapshotWithoutFlush(snapshotName, predicate, ephemeral, rateLimiter);
+        return snapshotWithoutFlush(snapshotName, predicate, ephemeral, ttl, rateLimiter, creationTime);
     }
 
     public boolean snapshotExists(String snapshotName)
@@ -2032,10 +2088,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getDirectories().snapshotExists(snapshotName);
     }
 
-    public long getSnapshotCreationTime(String snapshotName)
-    {
-        return getDirectories().snapshotCreationTime(snapshotName);
-    }
 
     /**
      * Clear all the snapshots for a given column family.
@@ -2055,9 +2107,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has true size and size on disk.
      */
-    public Map<String, Directories.SnapshotSizeDetails> getSnapshotDetails()
+    public Map<String, TableSnapshot> listSnapshots()
     {
-        return getDirectories().getSnapshotDetails();
+        return getDirectories().listSnapshots();
     }
 
     /**

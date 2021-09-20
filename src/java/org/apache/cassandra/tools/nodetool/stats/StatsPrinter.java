@@ -23,6 +23,7 @@ import java.io.PrintStream;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.Json;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -42,6 +43,7 @@ public interface StatsPrinter<T extends StatsHolder>
         @Override
         public void print(T data, PrintStream out)
         {
+/*
             // First need to get a Map representation of stats
             final Map<String, Object> stats = data.convert2Map();
             // but then also need slight massaging to coerce NaN values into nulls
@@ -58,6 +60,18 @@ public interface StatsPrinter<T extends StatsHolder>
 
             // and then we can serialize
             out.println(Json.writeAsJsonString(stats));
+*/
+            ObjectMapper mapper = new ObjectMapper();
+            try
+            {
+                String json = mapper.writerWithDefaultPrettyPrinter()
+                                    .writeValueAsString(data.convert2Map());
+                out.println(json);
+            }
+            catch (IOException e)
+            {
+                out.println(e);
+            }
         }
     }
 

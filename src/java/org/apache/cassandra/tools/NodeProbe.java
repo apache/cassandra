@@ -59,6 +59,16 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
+import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.auth.NetworkPermissionsCache;
+import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.auth.PermissionsCache;
+import org.apache.cassandra.auth.PermissionsCacheMBean;
+import org.apache.cassandra.auth.RolesCache;
+import org.apache.cassandra.auth.RolesCacheMBean;
+import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -138,6 +148,11 @@ public class NodeProbe implements AutoCloseable
     protected BatchlogManagerMBean bmProxy;
     protected ActiveRepairServiceMBean arsProxy;
     protected AuditLogManagerMBean almProxy;
+    protected PasswordAuthenticator.CredentialsCacheMBean ccProxy;
+    protected AuthorizationProxy.JmxPermissionsCacheMBean jpcProxy;
+    protected NetworkPermissionsCacheMBean npcProxy;
+    protected PermissionsCacheMBean pcProxy;
+    protected RolesCacheMBean rcProxy;
     protected Output output;
     private boolean failed;
 
@@ -246,6 +261,16 @@ public class NodeProbe implements AutoCloseable
             arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
             name = new ObjectName(AuditLogManager.MBEAN_NAME);
             almProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuditLogManagerMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
+            ccProxy = JMX.newMBeanProxy(mbeanServerConn, name, PasswordAuthenticator.CredentialsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME);
+            jpcProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuthorizationProxy.JmxPermissionsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + NetworkPermissionsCache.CACHE_NAME);
+            npcProxy = JMX.newMBeanProxy(mbeanServerConn, name, NetworkPermissionsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PermissionsCache.CACHE_NAME);
+            pcProxy = JMX.newMBeanProxy(mbeanServerConn, name, PermissionsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + RolesCache.CACHE_NAME);
+            rcProxy = JMX.newMBeanProxy(mbeanServerConn, name, RolesCacheMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -305,14 +330,19 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames);
     }
 
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, long maxSSTableTimestamp, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        return ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames);
+        return ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, maxSSTableTimestamp, jobs, tableNames);
     }
 
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
+    }
+
+    public int recompressSSTables(String keyspaceName, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.recompressSSTables(keyspaceName, jobs, tableNames);
     }
 
     private void checkJobs(PrintStream out, int jobs)
@@ -325,64 +355,59 @@ public class NodeProbe implements AutoCloseable
     public void forceKeyspaceCleanup(PrintStream out, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        switch (forceKeyspaceCleanup(jobs, keyspaceName, tableNames))
-        {
-            case 1:
-                failed = true;
-                out.println("Aborted cleaning up at least one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
-            case 2:
-                failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
-        }
+        perform(out, keyspaceName,
+                () -> forceKeyspaceCleanup(jobs, keyspaceName, tableNames),
+                "cleaning up");
     }
 
     public void scrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        switch (ssProxy.scrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, keyspaceName, tables))
-        {
-            case 1:
-                failed = true;
-                out.println("Aborted scrubbing at least one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
-            case 2:
-                failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
-        }
+        perform(out, keyspaceName,
+                () -> scrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, keyspaceName, tables),
+                "scrubbing");
     }
 
     public void verify(PrintStream out, boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        switch (verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames))
-        {
-            case 1:
-                failed = true;
-                out.println("Aborted verifying at least one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
-            case 2:
-                failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
-        }
+        perform(out, keyspaceName,
+                () -> verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames),
+                "verifying");
     }
 
-
-    public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public void recompressSSTables(PrintStream out, String keyspaceName, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        switch (upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames))
+        perform(out, keyspaceName,
+                () -> recompressSSTables(keyspaceName, jobs, tableNames),
+                "recompressing sstables");
+    }
+
+    public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, long maxSSTableTimestamp, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        checkJobs(out, jobs);
+        perform(out, keyspaceName,
+                () -> upgradeSSTables(keyspaceName, excludeCurrentVersion, maxSSTableTimestamp, jobs, tableNames),
+                "upgrading sstables");
+    }
+
+    private static interface Job
+    {
+        int perform() throws IOException, ExecutionException, InterruptedException;
+    }
+
+    private void perform(PrintStream out, String ks, Job job, String jobName) throws IOException, ExecutionException, InterruptedException
+    {
+        switch (job.perform())
         {
             case 1:
-                failed = true;
-                out.println("Aborted upgrading sstables for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+                out.printf("Aborted %s for at least one table in keyspace %s, check server logs for more information.\n",
+                           jobName, ks);
                 break;
             case 2:
                 failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
+                out.printf("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n",
+                           ks);
         }
     }
 
@@ -479,9 +504,59 @@ public class NodeProbe implements AutoCloseable
         cacheService.invalidateCounterCache();
     }
 
+    public void invalidateCredentialsCache()
+    {
+        ccProxy.invalidate();
+    }
+
+    public void invalidateCredentialsCache(String roleName)
+    {
+        ccProxy.invalidateCredentials(roleName);
+    }
+
+    public void invalidateJmxPermissionsCache()
+    {
+        jpcProxy.invalidate();
+    }
+
+    public void invalidateJmxPermissionsCache(String roleName)
+    {
+        jpcProxy.invalidatePermissions(roleName);
+    }
+
     public void invalidateKeyCache()
     {
         cacheService.invalidateKeyCache();
+    }
+
+    public void invalidateNetworkPermissionsCache()
+    {
+        npcProxy.invalidate();
+    }
+
+    public void invalidateNetworkPermissionsCache(String roleName)
+    {
+        npcProxy.invalidateNetworkPermissions(roleName);
+    }
+
+    public void invalidatePermissionsCache()
+    {
+        pcProxy.invalidate();
+    }
+
+    public void invalidatePermissionsCache(String userName, String resourceName)
+    {
+        pcProxy.invalidatePermissions(userName, resourceName);
+    }
+
+    public void invalidateRolesCache()
+    {
+        rcProxy.invalidate();
+    }
+
+    public void invalidateRolesCache(String roleName)
+    {
+        rcProxy.invalidateRoles(roleName);
     }
 
     public void invalidateRowCache()
@@ -710,9 +785,15 @@ public class NodeProbe implements AutoCloseable
         ssProxy.clearSnapshot(tag, keyspaces);
     }
 
+    public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
+    {
+        return ssProxy.getSnapshotDetails(options);
+    }
+
+    @Deprecated
     public Map<String, TabularData> getSnapshotDetails()
     {
-        return ssProxy.getSnapshotDetails();
+        return getSnapshotDetails(ImmutableMap.of());
     }
 
     public long trueSnapshotsSize()

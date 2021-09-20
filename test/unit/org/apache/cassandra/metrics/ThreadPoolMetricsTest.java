@@ -159,7 +159,7 @@ public class ThreadPoolMetricsTest
         // Allowing third task to complete
         task3.allowToComplete();
 
-        spinAssertEquals(true, task5::isStarted);
+        spinAssertEquals(true, () -> task5.isStarted() || task6.isStarted());
         spinAssertEquals(2, metrics.activeTasks::getValue);
         spinAssertEquals(3L, metrics.completedTasks::getValue);
         spinAssertEquals(1, metrics.pendingTasks::getValue);
@@ -169,7 +169,7 @@ public class ThreadPoolMetricsTest
         // Allowing fourth task to complete
         task4.allowToComplete();
 
-        spinAssertEquals(true, task6::isStarted);
+        spinAssertEquals(true, () -> task5.isStarted() && task6.isStarted());
         spinAssertEquals(2, metrics.activeTasks::getValue);
         spinAssertEquals(4L, metrics.completedTasks::getValue);
         spinAssertEquals(0, metrics.pendingTasks::getValue);

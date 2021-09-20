@@ -24,17 +24,17 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -57,13 +57,10 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.ServerTestUtils.cleanup;
-import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class StorageServiceServerTest
 {
     @BeforeClass
@@ -75,24 +72,6 @@ public class StorageServiceServerTest
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
         Keyspace.setInitialized();
-    }
-
-    @Test
-    public void testRegularMode() throws ConfigurationException
-    {
-        mkdirs();
-        cleanup();
-        StorageService.instance.initServer(0);
-        for (String path : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            // verify that storage directories are there.
-            assertTrue(new File(path).exists());
-        }
-        // a proper test would be to call decommission here, but decommission() mixes both shutdown and datatransfer
-        // calls.  This test is only interested in the shutdown-related items which a properly handled by just
-        // stopping the client.
-        //StorageService.instance.decommission();
-        StorageService.instance.stopClient();
     }
 
     @Test
@@ -696,5 +675,35 @@ public class StorageServiceServerTest
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         StorageService.instance.disableAuditLog();
+    }
+
+    @Test
+    public void isReplacingSameHostAddressAndHostIdTest() throws UnknownHostException
+    {
+        try
+        {
+            UUID differentHostId = UUID.randomUUID();
+            Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
+
+            final String hostAddress = FBUtilities.getBroadcastAddressAndPort().getHostAddress(false);
+            UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
+            Gossiper.instance.initializeNodeUnsafe(FBUtilities.getBroadcastAddressAndPort(), localHostId, 1);
+
+            // Check detects replacing the same host address with the same hostid
+            System.setProperty("cassandra.replace_address", hostAddress);
+            Assert.assertTrue(StorageService.instance.isReplacingSameHostAddressAndHostId(localHostId));
+
+            // Check detects replacing the same host address with a different host id
+            System.setProperty("cassandra.replace_address", hostAddress);
+            Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
+
+            // Check tolerates the DNS entry going away for the replace_address
+            System.setProperty("cassandra.replace_address", "unresolvable.host.local.");
+            Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
+        }
+        finally
+        {
+            System.clearProperty("cassandra.replace_address");
+        }
     }
 }

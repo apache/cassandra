@@ -857,6 +857,9 @@ public class DatabaseDescriptor
             throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
                                              "set the system property cassandra.allow_unlimited_concurrent_validations=true");
         }
+
+        conf.client_large_read_warn_threshold_kb = Math.max(conf.client_large_read_warn_threshold_kb, 0);
+        conf.client_large_read_abort_threshold_kb = Math.max(conf.client_large_read_abort_threshold_kb, 0);
     }
 
     @VisibleForTesting
@@ -2254,6 +2257,11 @@ public class DatabaseDescriptor
         return (int) ByteUnit.MEBI_BYTES.toBytes(conf.native_transport_max_frame_size_in_mb);
     }
 
+    public static void setNativeTransportMaxFrameSize(int bytes)
+    {
+        conf.native_transport_max_frame_size_in_mb = (int) ByteUnit.MEBI_BYTES.fromBytes(bytes);
+    }
+
     public static long getNativeTransportMaxConcurrentConnections()
     {
         return conf.native_transport_max_concurrent_connections;
@@ -3295,6 +3303,11 @@ public class DatabaseDescriptor
         {
             return val * multiplier;
         }
+
+        public long fromBytes(int val)
+        {
+            return val / multiplier;
+        }
     }
 
     /**
@@ -3442,5 +3455,35 @@ public class DatabaseDescriptor
     public static SubnetGroups getInternodeErrorReportingExclusions()
     {
         return conf.internode_error_reporting_exclusions;
+    }
+
+    public static long getClientLargeReadWarnThresholdKB()
+    {
+        return conf.client_large_read_warn_threshold_kb;
+    }
+
+    public static void setClientLargeReadWarnThresholdKB(long threshold)
+    {
+        conf.client_large_read_warn_threshold_kb = Math.max(threshold, 0);
+    }
+
+    public static long getClientLargeReadAbortThresholdKB()
+    {
+        return conf.client_large_read_abort_threshold_kb;
+    }
+
+    public static void setClientLargeReadAbortThresholdKB(long threshold)
+    {
+        conf.client_large_read_abort_threshold_kb = Math.max(threshold, 0);
+    }
+
+    public static boolean getClientTrackWarningsEnabled()
+    {
+        return conf.client_track_warnings_enabled;
+    }
+
+    public static void setClientTrackWarningsEnabled(boolean value)
+    {
+        conf.client_track_warnings_enabled = value;
     }
 }
