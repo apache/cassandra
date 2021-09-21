@@ -73,7 +73,11 @@ do_start()
     ulimit -n "$FD_LIMIT"
 
     cassandra_home=`getent passwd cassandra | awk -F ':' '{ print $6; }'`
-    heap_dump_f="$cassandra_home/java_`date +%s`.hprof"
+    if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
+        heap_dump_f="$CASSANDRA_HEAPDUMP_DIR/java_`date +%s`.hprof"
+    else
+        heap_dump_f="$cassandra_home/java_`date +%s`.hprof"
+    fi
     error_log_f="$cassandra_home/hs_err_`date +%s`.log"
 
     [ -e `dirname "$PIDFILE"` ] || \
