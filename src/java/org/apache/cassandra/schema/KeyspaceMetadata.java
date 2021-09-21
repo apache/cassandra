@@ -119,6 +119,11 @@ public final class KeyspaceMetadata implements SchemaElement
         return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
+    public KeyspaceMetadata empty()
+    {
+        return new KeyspaceMetadata(this.name, this.kind, this.params, Tables.none(), Views.none(), Types.none(), Functions.none());
+    }
+
     public boolean isVirtual()
     {
         return kind == Kind.VIRTUAL;
