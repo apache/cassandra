@@ -19,7 +19,6 @@ package org.apache.cassandra.schema;
 
 import java.util.Iterator;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -67,7 +66,7 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         return keyspaces.values().stream();
     }
 
-    public Set<String> names()
+    public ImmutableSet<String> names()
     {
         return keyspaces.keySet();
     }
