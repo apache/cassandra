@@ -27,9 +27,13 @@ import io.airlift.airline.Option;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.config.Duration;
 
 @Command(name = "clearsnapshot", description = "Remove the snapshot with the given name from the given keyspaces")
 public class ClearSnapshot extends NodeToolCmd
@@ -43,9 +47,26 @@ public class ClearSnapshot extends NodeToolCmd
     @Option(title = "clear_all_snapshots", name = "--all", description = "Removes all snapshots")
     private boolean clearAllSnapshots = false;
 
+    @Option(title = "older-than", name = {"--older-than"}, description = "Removes snapshots older than this duration (eg. 12h, 1d, 30d, etc)")
+    private String olderThanHumanFormat = EMPTY;
+
+    @Option(title = "older-than-timestamp", name = {"--older-than-timestamp"}, description = "Removes snapshots older than a Unix timestamp")
+    private int olderThanUnixFormat = -1;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        Instant clearOlderThan = null;
+
+        if(olderThanUnixFormat > 0){
+            clearOlderThan = Instant.ofEpochSecond(olderThanUnixFormat);
+        }
+
+        if(!olderThanHumanFormat.isEmpty()){
+            Duration duration = new Duration(olderThanHumanFormat);
+            clearOlderThan = LocalDateTime.now().minusSeconds(duration.toSeconds()).toInstant(OffsetDateTime.now().getOffset());
+        }
+
         if(snapshotName.isEmpty() && !clearAllSnapshots)
             throw new RuntimeException("Specify snapshot name or --all");
 
