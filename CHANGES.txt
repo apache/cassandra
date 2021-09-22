@@ -35,6 +35,7 @@ Merged from 4.0:
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
 Merged from 3.11:
+ * Add key validation to ssstablescrub (CASSANDRA-16969)
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
