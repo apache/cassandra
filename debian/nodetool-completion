@@ -76,7 +76,6 @@ have nodetool && have cqlsh &&
             enablehandoff
             enablehintsfordc
             enableoldprotocolversions
-            expiresnapshots
             failuredetector
             gcstats
             getbatchlogreplaythrottle

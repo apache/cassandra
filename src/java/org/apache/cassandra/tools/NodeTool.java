@@ -121,7 +121,6 @@ public class NodeTool
                 DisableGossip.class,
                 EnableHandoff.class,
                 EnableFullQueryLog.class,
-                ExpireSnapshots.class,
                 DisableFullQueryLog.class,
                 GcStats.class,
                 GetAuditLog.class,
