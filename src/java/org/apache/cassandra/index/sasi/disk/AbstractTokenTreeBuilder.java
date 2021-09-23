@@ -603,7 +603,7 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
 
             for (int i = splitPosition; i < TOKENS_PER_BLOCK; i++)
             {
-                if (i != TOKENS_PER_BLOCK && i != splitPosition)
+                if (i != splitPosition)
                 {
                     long token = tokens.get(i);
                     sibling.updateTokenRange(token);

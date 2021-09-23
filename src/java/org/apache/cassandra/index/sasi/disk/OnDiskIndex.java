@@ -89,7 +89,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
                 case ASC:
                     if (found.cmp < 0) // search term was bigger then whole data set
                         return found.index;
-                    return inclusive && (found.cmp == 0 || found.cmp < 0) ? found.index : found.index - 1;
+                    return inclusive && found.cmp == 0 ? found.index : found.index - 1;
 
                 default:
                     throw new IllegalArgumentException("Unknown order: " + this);
