@@ -42,6 +42,36 @@ This script validates and applies any changes to the `config-2_1.yml` file, and 
 requires the [CircleCI CLI](https://circleci.com/docs/2.0/local-cli/#install) to be
 installed.
 
+## Setting envrinonment variables
+Both `config-2_1.yml` and `config.yml` files contain a set of environment variables 
+defining things like what dtest repo and branch to use, what tests could be repeatedly 
+run, etc.
+
+These environment variables can be directly edited in the `config.yml` file, although if 
+you do this you should take into account that the entire set of env vars is repeated on 
+every job. 
+
+A probably better approach is editing them in `config-2_1.yml` and then regenerate the 
+`config.yml` file using the `generate.sh` script. You can also directly pass environment
+variable values to the `generate.sh` script with the `-e` flag. For example, to set the 
+dtest repo and branch with MIDRES config you can run:
+
+```
+generate.sh -m \
+  -e DTEST_REPO=git://github.com/adelapena/cassandra-dtest.git \
+  -e DTEST_BRANCH=CASSANDRA-8272 
+```
+
+Or you can set the test multiplexer for repeating a specific test with HIGHRES:
+
+```
+generate.sh -h \
+  -e REPEATED_UTEST_TARGET=testsome \
+  -e REPEATED_UTEST_CLASS=org.apache.cassandra.cql3.ViewTest \
+  -e REPEATED_UTEST_METHODS=testCompoundPartitionKey,testStaticTable \
+  -e REPEATED_UTEST_COUNT=100
+```
+
 ## Updating the config
 For configuration changes meant to be permanent in the Apache repo you should never edit
 the `config.yml` file manually. Instead, you should edit the `config-2_1.yml` file and then
