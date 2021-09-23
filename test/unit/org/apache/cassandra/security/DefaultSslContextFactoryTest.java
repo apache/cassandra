@@ -28,7 +28,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.netty.handler.ssl.OpenSsl;
+import io.netty.handler.ssl.OpenSslContext;
+import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslProvider;
+import org.apache.cassandra.config.EncryptionOptions;
 
 public class DefaultSslContextFactoryTest
 {
@@ -47,6 +51,23 @@ public class DefaultSslContextFactoryTest
     {
         config.put("keystore", "test/conf/cassandra_ssl_test.keystore");
         config.put("keystore_password", "cassandra");
+    }
+
+    @Test
+    public void getSslContextOpenSSL() throws IOException
+    {
+        EncryptionOptions options = new EncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore")
+                                                           .withTrustStorePassword("cassandra")
+                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore")
+                                                           .withKeyStorePassword("cassandra")
+                                                           .withRequireClientAuth(false)
+                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
+        Assert.assertNotNull(sslContext);
+        if (OpenSsl.isAvailable())
+            Assert.assertTrue(sslContext instanceof OpenSslContext);
+        else
+            Assert.assertTrue(sslContext instanceof SslContext);
     }
 
     @Test(expected = IOException.class)

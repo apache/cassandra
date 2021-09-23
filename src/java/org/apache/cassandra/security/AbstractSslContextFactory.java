@@ -67,7 +67,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     // ServerEncryptionOptions does not use the enabled flag at all instead using the existing
     // internode_encryption option. So we force this private and expose through isEnabled
     // so users of ServerEncryptionOptions can't accidentally use this when they should use isEnabled
-    // Long term we need to refactor ClientEncryptionOptions and ServerEncyrptionOptions to be separate
+    // Long term we need to refactor ClientEncryptionOptions and ServerEncryptionOptions to be separate
     // classes so we can choose appropriate configuration for each.
     // See CASSANDRA-15262 and CASSANDRA-15146
     protected Boolean enabled;

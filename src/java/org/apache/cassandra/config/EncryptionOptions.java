@@ -237,7 +237,7 @@ public class EncryptionOptions
      */
     private void prepareSslContextFactoryParameterizedKeys(Map<String,Object> sslContextFactoryParameters)
     {
-        if ( ssl_context_factory.parameters != null )
+        if (ssl_context_factory.parameters != null)
         {
             Set<String> configKeys = ConfigKey.asSet();
             for (Map.Entry<String, String> entry : ssl_context_factory.parameters.entrySet())
@@ -280,7 +280,7 @@ public class EncryptionOptions
 
     private void putSslContextFactoryParameter(Map<String,Object> existingParameters, ConfigKey configKey,
                                                Object value) {
-        if ( value != null ) {
+        if (value != null) {
             existingParameters.put(configKey.getKeyName(), value);
         }
     }

@@ -17,18 +17,43 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -42,8 +67,8 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.audit.IAuditLogger;
+import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
@@ -702,22 +727,6 @@ public class FBUtilities
         {
             throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
         }
-    }
-
-    public static boolean isAuditLoggerClassExists(String className)
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.audit." + className;
-
-        try
-        {
-            FBUtilities.classForName(className, "Audit logger");
-        }
-        catch (ConfigurationException e)
-        {
-            return false;
-        }
-        return true;
     }
 
     /**

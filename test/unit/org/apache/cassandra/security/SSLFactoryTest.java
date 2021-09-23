@@ -31,17 +31,12 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.handler.ssl.JdkSslContext;
-import io.netty.handler.ssl.OpenSsl;
-import io.netty.handler.ssl.OpenSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
-
-import static org.junit.Assert.assertArrayEquals;
 
 public class SSLFactoryTest
 {
@@ -71,22 +66,6 @@ public class SSLFactoryTest
                             .withTrustStorePassword("cassandra")
                             .withRequireClientAuth(false)
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
-    }
-
-    @Test
-    public void getSslContext_OpenSSL() throws IOException
-    {
-        // only try this test if OpenSsl is available
-        if (!OpenSsl.isAvailable())
-        {
-            logger.warn("OpenSSL not available in this application, so not testing the netty-openssl code paths");
-            return;
-        }
-
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
-        Assert.assertNotNull(sslContext);
-        Assert.assertTrue(sslContext instanceof OpenSslContext);
     }
 
     private ServerEncryptionOptions addKeystoreOptions(ServerEncryptionOptions options)
