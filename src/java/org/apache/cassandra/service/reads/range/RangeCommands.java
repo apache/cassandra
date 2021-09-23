@@ -29,6 +29,7 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.util.VisibleForTesting;
@@ -52,10 +53,11 @@ public class RangeCommands
     @SuppressWarnings("resource") // created iterators will be closed in CQL layer through the chain of transformations
     public static PartitionIterator partitions(PartitionRangeReadCommand command,
                                                ConsistencyLevel consistencyLevel,
-                                               long queryStartNanoTime)
+                                               long queryStartNanoTime,
+                                               QueryInfoTracker.ReadTracker readTracker)
     {
         // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
-        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, queryStartNanoTime);
+        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, queryStartNanoTime, readTracker);
         return command.limits().filter(command.postReconciliationProcessing(rangeCommands),
                                        command.nowInSec(),
                                        command.selectsFullPartition(),
@@ -66,7 +68,8 @@ public class RangeCommands
     @SuppressWarnings("resource") // created iterators will be closed in CQL layer through the chain of transformations
     static RangeCommandIterator rangeCommandIterator(PartitionRangeReadCommand command,
                                                      ConsistencyLevel consistencyLevel,
-                                                     long queryStartNanoTime)
+                                                     long queryStartNanoTime,
+                                                     QueryInfoTracker.ReadTracker readTracker)
     {
         Tracing.trace("Computing ranges to query");
 
@@ -105,7 +108,8 @@ public class RangeCommands
                                            concurrencyFactor,
                                            maxConcurrencyFactor,
                                            replicaPlans.size(),
-                                           queryStartNanoTime);
+                                           queryStartNanoTime,
+                                           readTracker);
     }
 
     /**

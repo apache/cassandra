@@ -19,9 +19,9 @@
 package org.apache.cassandra.service.reads.range;
 
 import org.apache.cassandra.db.PartitionRangeReadCommand;
-import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -46,9 +46,10 @@ public class EndpointGroupingRangeCommandIterator extends RangeCommandIterator
                                          int concurrencyFactor,
                                          int maxConcurrencyFactor,
                                          int totalRangeCount,
-                                         long queryStartNanoTime)
+                                         long queryStartNanoTime,
+                                         QueryInfoTracker.ReadTracker readTracker)
     {
-        super(replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, totalRangeCount, queryStartNanoTime);
+        super(replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, totalRangeCount, queryStartNanoTime, readTracker);
     }
 
     @Override
@@ -60,7 +61,8 @@ public class EndpointGroupingRangeCommandIterator extends RangeCommandIterator
                                                                                   counter,
                                                                                   replicaPlans,
                                                                                   concurrencyFactor(),
-                                                                                  queryStartNanoTime);
+                                                                                  queryStartNanoTime,
+                                                                                  readTracker);
         PartitionIterator partitions = coordinator.execute();
 
         rangesQueried += coordinator.vnodeRanges();

@@ -227,12 +227,12 @@ public abstract class Message
                 {
                     shouldTrace = true;
                     tracingSessionId = UUIDGen.getTimeUUID();
-                    Tracing.instance.newSession(tracingSessionId, getCustomPayload());
+                    Tracing.instance.newSession(queryState.getClientState(), tracingSessionId, getCustomPayload());
                 }
                 else if (StorageService.instance.shouldTraceProbablistically())
                 {
                     shouldTrace = true;
-                    Tracing.instance.newSession(getCustomPayload());
+                    Tracing.instance.newSession(queryState.getClientState(), getCustomPayload());
                 }
             }
 
