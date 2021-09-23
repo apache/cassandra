@@ -40,8 +40,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.utils.CloseableIterator;
 
+import static org.apache.cassandra.service.QueryInfoTracker.*;
 import static org.junit.Assert.assertEquals;
 
 public class RangeCommandIteratorTest
@@ -104,27 +106,27 @@ public class RangeCommandIteratorTest
 
         // without range merger, there will be 2 batches requested: 1st batch with 1 range and 2nd batch with remaining ranges
         CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
-        RangeCommandIterator data = RangeCommandIterator.create(replicaPlans, command, 1, 1000, vnodeCount, System.nanoTime());
+        RangeCommandIterator data = RangeCommandIterator.create(replicaPlans, command, 1, 1000, vnodeCount, System.nanoTime(), ReadTracker.NOOP);
         verifyRangeCommandIterator(data, rows, 2, vnodeCount);
 
         // without range merger and initial cf=5, there will be 1 batches requested: 5 vnode ranges for 1st batch
         replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
-        data = RangeCommandIterator.create(replicaPlans, command, vnodeCount, 1000, vnodeCount, System.nanoTime());
+        data = RangeCommandIterator.create(replicaPlans, command, vnodeCount, 1000, vnodeCount, System.nanoTime(), ReadTracker.NOOP);
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
 
         // without range merger and max cf=1, there will be 5 batches requested: 1 vnode range per batch
         replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
-        data = RangeCommandIterator.create(replicaPlans, command, 1, 1, vnodeCount, System.nanoTime());
+        data = RangeCommandIterator.create(replicaPlans, command, 1, 1, vnodeCount, System.nanoTime(), ReadTracker.NOOP);
         verifyRangeCommandIterator(data, rows, vnodeCount, vnodeCount);
 
         // with range merger, there will be only 1 batch requested, as all ranges share the same replica - localhost
         replicaPlans = replicaPlanIterator(keyRange, keyspace, true);
-        data = RangeCommandIterator.create(replicaPlans, command, 1, 1000, vnodeCount, System.nanoTime());
+        data = RangeCommandIterator.create(replicaPlans, command, 1, 1000, vnodeCount, System.nanoTime(), ReadTracker.NOOP);
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
 
         // with range merger and max cf=1, there will be only 1 batch requested, as all ranges share the same replica - localhost
         replicaPlans = replicaPlanIterator(keyRange, keyspace, true);
-        data = RangeCommandIterator.create(replicaPlans, command, 1, 1, vnodeCount, System.nanoTime());
+        data = RangeCommandIterator.create(replicaPlans, command, 1, 1, vnodeCount, System.nanoTime(), ReadTracker.NOOP);
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
     }
 

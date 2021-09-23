@@ -430,6 +430,15 @@ public class Message<T>
         {
             return (TraceType) params.getOrDefault(ParamType.TRACE_TYPE, TraceType.QUERY);
         }
+
+        /**
+         * Keyspace that is beeing traced by the trace session attached to this message (if any).
+         */
+        @Nullable
+        public String traceKeyspace()
+        {
+            return (String) params.get(ParamType.TRACE_KEYSPACE);
+        }
     }
 
     @SuppressWarnings("WeakerAccess")

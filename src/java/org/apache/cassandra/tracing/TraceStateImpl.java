@@ -35,6 +35,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.metrics.CoordinatorClientRequestMetrics;
 import org.apache.cassandra.metrics.CoordinatorClientRequestMetricsProvider;
 import org.apache.cassandra.service.StorageProxy;
@@ -55,9 +56,9 @@ public class TraceStateImpl extends TraceState
 
     private final Set<Future<?>> pendingFutures = ConcurrentHashMap.newKeySet();
 
-    public TraceStateImpl(InetAddressAndPort coordinator, UUID sessionId, Tracing.TraceType traceType)
+    public TraceStateImpl(ClientState state, InetAddressAndPort coordinator, UUID sessionId, Tracing.TraceType traceType)
     {
-        super(coordinator, sessionId, traceType);
+        super(state, coordinator, sessionId, traceType);
     }
 
     protected void traceImpl(String message)
@@ -107,7 +108,7 @@ public class TraceStateImpl extends TraceState
         {
             protected void runMayThrow()
             {
-                mutateWithCatch(mutation);
+                mutateWithCatch(clientState, mutation);
             }
         }, Stage.TRACING.executor());
 
@@ -116,12 +117,12 @@ public class TraceStateImpl extends TraceState
             logger.warn("Failed to insert pending future, tracing synchronization may not work");
     }
 
-    static void mutateWithCatch(Mutation mutation)
+    static void mutateWithCatch(ClientState state, Mutation mutation)
     {
         try
         {
             CoordinatorClientRequestMetrics metrics = CoordinatorClientRequestMetricsProvider.instance.metrics(mutation.getKeyspaceName());
-            StorageProxy.mutate(Collections.singletonList(mutation), ConsistencyLevel.ANY, System.nanoTime(), metrics);
+            StorageProxy.mutate(Collections.singletonList(mutation), ConsistencyLevel.ANY, System.nanoTime(), metrics, state);
         }
         catch (OverloadedException e)
         {

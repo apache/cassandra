@@ -75,11 +75,13 @@ import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.ReplicaUtils.FULL_RANGE;
 import static org.apache.cassandra.net.Verb.INTERNAL_RSP;
+import static org.mockito.Mockito.mock;
 
 @Ignore
 public abstract  class AbstractReadRepairTest
@@ -335,7 +337,7 @@ public abstract  class AbstractReadRepairTest
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());
-        repair.startRepair(null, consumer);
+        repair.startRepair(mock(DigestResolver.class), consumer);
 
         Assert.assertEquals(epSet(target1, target2), repair.getReadRecipients());
         repair.maybeSendAdditionalReads();
@@ -354,7 +356,7 @@ public abstract  class AbstractReadRepairTest
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());
-        repair.startRepair(null, consumer);
+        repair.startRepair(mock(DigestResolver.class), consumer);
 
         Assert.assertEquals(epSet(target1, target2), repair.getReadRecipients());
         repair.getReadCallback().onResponse(msg(target1, cell1));

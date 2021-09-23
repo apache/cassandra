@@ -37,6 +37,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.metrics.CoordinatorClientRequestMetricsProvider;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -58,6 +59,7 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
     protected final long queryStartNanoTime;
     protected DataLimits.Counter counter;
     private PartitionIterator sentQueryIterator;
+    protected QueryInfoTracker.ReadTracker readTracker;
 
     private final int maxConcurrencyFactor;
     protected int concurrencyFactor;
@@ -73,20 +75,23 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
                                               int concurrencyFactor,
                                               int maxConcurrencyFactor,
                                               int totalRangeCount,
-                                              long queryStartNanoTime)
+                                              long queryStartNanoTime,
+                                              QueryInfoTracker.ReadTracker readTracker)
     {
         return supportsEndpointGrouping(command) ? new EndpointGroupingRangeCommandIterator(replicaPlans,
                                                                                             command,
                                                                                             concurrencyFactor,
                                                                                             maxConcurrencyFactor,
                                                                                             totalRangeCount,
-                                                                                            queryStartNanoTime)
+                                                                                            queryStartNanoTime,
+                                                                                            readTracker)
                                                  : new NonGroupingRangeCommandIterator(replicaPlans,
                                                                                        command,
                                                                                        concurrencyFactor,
                                                                                        maxConcurrencyFactor,
                                                                                        totalRangeCount,
-                                                                                       queryStartNanoTime);
+                                                                                       queryStartNanoTime,
+                                                                                       readTracker);
     }
 
     RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
@@ -94,7 +99,8 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
                          int concurrencyFactor,
                          int maxConcurrencyFactor,
                          int totalRangeCount,
-                         long queryStartNanoTime)
+                         long queryStartNanoTime,
+                         QueryInfoTracker.ReadTracker readTracker)
     {
         this.rangeMetrics = CoordinatorClientRequestMetricsProvider.instance.metrics(command.metadata().keyspace).rangeMetrics;
         this.replicaPlans = replicaPlans;
@@ -103,6 +109,7 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
         this.maxConcurrencyFactor = maxConcurrencyFactor;
         this.totalRangeCount = totalRangeCount;
         this.queryStartNanoTime = queryStartNanoTime;
+        this.readTracker = readTracker;
 
         startTime = System.nanoTime();
         enforceStrictLiveness = command.metadata().enforceStrictLiveness();

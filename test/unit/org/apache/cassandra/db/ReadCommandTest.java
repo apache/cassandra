@@ -77,6 +77,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -440,7 +441,7 @@ public class ReadCommandTest
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).includeRow("dd").build();
         int messagingVersion = MessagingService.current_version;
         FakeOutputStream out = new FakeOutputStream();
-        Tracing.instance.newSession(Tracing.TraceType.QUERY);
+        Tracing.instance.newSession(ClientState.forInternalCalls(), Tracing.TraceType.QUERY);
         Message<ReadCommand> messageOut = Message.out(Verb.READ_REQ, readCommand);
         long size = messageOut.serializedSize(messagingVersion);
         Message.serializer.serialize(messageOut, new WrappedDataOutputStreamPlus(out), messagingVersion);

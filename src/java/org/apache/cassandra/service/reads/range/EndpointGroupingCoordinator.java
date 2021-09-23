@@ -48,6 +48,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.QueryInfoTracker;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ShortReadPartitionsProtection;
@@ -82,6 +84,7 @@ public class EndpointGroupingCoordinator
     private final List<PartitionIterator> concurrentQueries;
 
     private final long queryStartNanoTime;
+    private QueryInfoTracker.ReadTracker readTracker;
     private final int vnodeRanges;
 
     /**
@@ -90,16 +93,19 @@ public class EndpointGroupingCoordinator
      * @param replicaPlans to be queried
      * @param concurrencyFactor number of vnode ranges to query at once
      * @param queryStartNanoTime the start time of the query
+     * @param readTracker
      */
     public EndpointGroupingCoordinator(PartitionRangeReadCommand command,
                                        DataLimits.Counter counter,
                                        Iterator<ReplicaPlan.ForRangeRead> replicaPlans,
                                        int concurrencyFactor,
-                                       long queryStartNanoTime)
+                                       long queryStartNanoTime,
+                                       QueryInfoTracker.ReadTracker readTracker)
     {
         this.command = command;
         this.counter = counter;
         this.queryStartNanoTime = queryStartNanoTime;
+        this.readTracker = readTracker;
         this.endpointContexts = new HashMap<>();
 
         // Read callbacks in token order
@@ -111,6 +117,7 @@ public class EndpointGroupingCoordinator
         while (replicaPlans.hasNext() && vnodeRanges < concurrencyFactor)
         {
             ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
+            readTracker.onReplicaPlan(replicaPlan);
 
             boolean isFirst = vnodeRanges == 0;
             vnodeRanges += replicaPlan.vnodeCount();
@@ -161,8 +168,11 @@ public class EndpointGroupingCoordinator
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
 
-        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-                new EndpointDataResolver(subrangeCommand, sharedReplicaPlan, NoopReadRepair.instance, queryStartNanoTime);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new EndpointDataResolver(subrangeCommand,
+                                                                                                      sharedReplicaPlan,
+                                                                                                      NoopReadRepair.instance,
+                                                                                                      queryStartNanoTime,
+                                                                                                      readTracker);
 
         // Create a handler for the range and add it, by replica, to the endpoint contexts.
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
@@ -285,9 +295,9 @@ public class EndpointGroupingCoordinator
      */
     private class EndpointDataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends DataResolver<E, P>
     {
-        public EndpointDataResolver(ReadCommand command, ReplicaPlan.Shared replicaPlan, ReadRepair readRepair, long queryStartNanoTime)
+        public EndpointDataResolver(ReadCommand command, ReplicaPlan.Shared replicaPlan, ReadRepair readRepair, long queryStartNanoTime, QueryInfoTracker.ReadTracker readTracker)
         {
-            super(command, replicaPlan, readRepair, queryStartNanoTime);
+            super(command, replicaPlan, readRepair, queryStartNanoTime, readTracker);
         }
 
         @Override
