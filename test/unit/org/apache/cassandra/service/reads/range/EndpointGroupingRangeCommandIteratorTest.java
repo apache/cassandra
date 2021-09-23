@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.reads.range;
 
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
@@ -29,7 +28,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -39,17 +37,14 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.service.QueryInfoTracker.*;
 import static org.junit.Assert.assertEquals;
 
 public class EndpointGroupingRangeCommandIteratorTest extends CQLTester
@@ -113,7 +108,7 @@ public class EndpointGroupingRangeCommandIteratorTest extends CQLTester
 
     private void verifyEndpointGrouping(PartitionRangeReadCommand command, int vnodeCount, int concurrencyFactor) throws Exception
     {
-        EndpointGroupingCoordinator coordinator = endpointGroupingCoordinator(command, concurrencyFactor);
+        EndpointGroupingCoordinator coordinator = endpointGroupingCoordinator(command, concurrencyFactor, ReadTracker.NOOP);
 
         // verify queried vnode ranges respects concurrency factor.
         assertEquals(vnodeCount, coordinator.vnodeRanges());
@@ -124,37 +119,37 @@ public class EndpointGroupingRangeCommandIteratorTest extends CQLTester
         assertEquals(rangesForQuery, endpointContext.rangesCount());
 
         // verify that endpoint grouping coordinator fetches given ranges according to concurrency factor
-        RangeCommandIterator tokenOrderedIterator = tokenOrderIterator(command, vnodeCount, concurrencyFactor);
+        RangeCommandIterator tokenOrderedIterator = tokenOrderIterator(command, vnodeCount, concurrencyFactor, ReadTracker.NOOP);
         int expected = Util.size(tokenOrderedIterator.sendNextRequests());
         int actual = Util.size(coordinator.execute());
         assertEquals(expected, actual);
 
         // verify that endpoint grouping executor fetches all data
-        RangeCommandIterator endpointGroupingIterator = endpointGroupingIterator(command, vnodeCount, concurrencyFactor);
-        tokenOrderedIterator = tokenOrderIterator(command, vnodeCount, concurrencyFactor);
+        RangeCommandIterator endpointGroupingIterator = endpointGroupingIterator(command, vnodeCount, concurrencyFactor, ReadTracker.NOOP);
+        tokenOrderedIterator = tokenOrderIterator(command, vnodeCount, concurrencyFactor, ReadTracker.NOOP);
         expected = Util.size(tokenOrderedIterator.sendNextRequests());
         actual = Util.size(endpointGroupingIterator.sendNextRequests());
         assertEquals(1, endpointGroupingIterator.batchesRequested());
         assertEquals(expected, actual);
     }
 
-    private static EndpointGroupingCoordinator endpointGroupingCoordinator(PartitionRangeReadCommand command, int concurrencyFactor)
+    private static EndpointGroupingCoordinator endpointGroupingCoordinator(PartitionRangeReadCommand command, int concurrencyFactor, ReadTracker readTracker)
     {
         CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = replicaPlanIterator(command);
         DataLimits.Counter counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), true);
-        return new EndpointGroupingCoordinator(command, counter, replicaPlans, concurrencyFactor, System.nanoTime());
+        return new EndpointGroupingCoordinator(command, counter, replicaPlans, concurrencyFactor, System.nanoTime(), readTracker);
     }
 
-    private static EndpointGroupingRangeCommandIterator endpointGroupingIterator(PartitionRangeReadCommand command, int vnodeCount, int concurrencyFactor)
+    private static EndpointGroupingRangeCommandIterator endpointGroupingIterator(PartitionRangeReadCommand command, int vnodeCount, int concurrencyFactor, ReadTracker readTracker)
     {
         CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = replicaPlanIterator(command);
-        return new EndpointGroupingRangeCommandIterator(replicaPlans, command, concurrencyFactor, concurrencyFactor, vnodeCount, System.nanoTime());
+        return new EndpointGroupingRangeCommandIterator(replicaPlans, command, concurrencyFactor, concurrencyFactor, vnodeCount, System.nanoTime(), readTracker);
     }
 
-    private static NonGroupingRangeCommandIterator tokenOrderIterator(PartitionRangeReadCommand command, int vnodeCount, int concurrencyFactor)
+    private static NonGroupingRangeCommandIterator tokenOrderIterator(PartitionRangeReadCommand command, int vnodeCount, int concurrencyFactor, ReadTracker readTracker)
     {
         CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = replicaPlanIterator(command);
-        return new NonGroupingRangeCommandIterator(replicaPlans, command, concurrencyFactor, 10000, vnodeCount, System.nanoTime());
+        return new NonGroupingRangeCommandIterator(replicaPlans, command, concurrencyFactor, 10000, vnodeCount, System.nanoTime(), readTracker);
     }
 
     private static CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlanIterator(PartitionRangeReadCommand command)

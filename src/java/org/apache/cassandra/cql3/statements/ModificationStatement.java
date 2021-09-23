@@ -390,6 +390,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private Map<DecoratedKey, Partition> readRequiredLists(Collection<ByteBuffer> partitionKeys,
                                                            ClusteringIndexFilter filter,
+                                                           QueryState state,
                                                            DataLimits limits,
                                                            boolean local,
                                                            ConsistencyLevel cl,
@@ -429,7 +430,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             }
         }
 
-        try (PartitionIterator iter = group.execute(cl, null, queryStartNanoTime))
+        try (PartitionIterator iter = group.execute(cl, state, queryStartNanoTime))
         {
             return asMaterializedMap(iter);
         }
@@ -488,7 +489,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             options.getTimestamp(queryState),
             options.getNowInSeconds(queryState), queryStartNanoTime);
         if (!mutations.isEmpty())
-            StorageProxy.mutateWithTriggers(mutations, cl, false, queryStartNanoTime);
+            StorageProxy.mutateWithTriggers(mutations, cl, false, queryStartNanoTime, queryState.getClientState());
 
         return null;
     }
@@ -851,6 +852,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         Map<DecoratedKey, Partition> lists =
             readRequiredLists(keys,
                               filter,
+                              state,
                               limits,
                               local,
                               options.getConsistency(),

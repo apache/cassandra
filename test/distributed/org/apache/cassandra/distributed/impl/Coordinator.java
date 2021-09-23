@@ -63,12 +63,13 @@ public class Coordinator implements ICoordinator
         return instance().sync(() -> executeInternal(query, consistencyLevel, boundValues)).call();
     }
 
+    @Override
     public Future<SimpleQueryResult> asyncExecuteWithTracingWithResult(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
     {
         return instance.async(() -> {
             try
             {
-                Tracing.instance.newSession(sessionId, Collections.emptyMap());
+                Tracing.instance.newSession(ClientState.forInternalCalls(), sessionId, Collections.emptyMap());
                 return executeInternal(query, consistencyLevelOrigin, boundValues);
             }
             finally

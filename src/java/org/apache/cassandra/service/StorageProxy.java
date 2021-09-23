@@ -164,6 +164,8 @@ public class StorageProxy implements StorageProxyMBean
         }
     };
 
+    private static volatile QueryInfoTracker queryInfoTracker = QueryInfoTracker.NOOP;
+
     private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
     private static final boolean disableSerialReadLinearizability =
         Boolean.parseBoolean(System.getProperty(DISABLE_SERIAL_READ_LINEARIZABILITY_KEY, "false"));
@@ -215,6 +217,23 @@ public class StorageProxy implements StorageProxyMBean
                         "the restricted case of upgrading from a pre-CASSANDRA-12126 version, and only if you " +
                         "understand the tradeoff.", DISABLE_SERIAL_READ_LINEARIZABILITY_KEY);
         }
+    }
+
+    /**
+     * Registers the provided query info tracker
+     *
+     * <p>Note that only 1 query tracker can be registered at a time, so the provided tracker will unconditionally
+     * replace the currently registered tracker.
+     *
+     * @param tracker the tracker to register.
+     */
+    public void registerQueryTracker(QueryInfoTracker tracker) {
+        Objects.requireNonNull(tracker);
+        queryInfoTracker = tracker;
+    }
+
+    public static QueryInfoTracker queryTracker() {
+        return queryInfoTracker;
     }
 
     /**
@@ -271,9 +290,14 @@ public class StorageProxy implements StorageProxyMBean
     {
         final long startTimeForMetrics = System.nanoTime();
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(keyspaceName);
+        TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
+        QueryInfoTracker.LWTWriteTracker lwtTracker = queryTracker().onLWTWrite(state.getClientState(),
+                                                                                metadata,
+                                                                                key,
+                                                                                consistencyForPaxos,
+                                                                                consistencyForCommit);;
         try
         {
-            TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
             consistencyForPaxos.validateForCas(keyspaceName, state);
             consistencyForCommit.validateForCasCommit(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName, state);
 
@@ -285,7 +309,8 @@ public class StorageProxy implements StorageProxyMBean
                 ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
 
                 FilteredPartition current;
-                try (RowIterator rowIter = readOne(readCommand, readConsistency, queryStartNanoTime))
+
+                try (RowIterator rowIter = readOne(readCommand, readConsistency, queryStartNanoTime, lwtTracker))
                 {
                     current = FilteredPartition.create(rowIter);
                 }
@@ -293,12 +318,16 @@ public class StorageProxy implements StorageProxyMBean
                 if (!request.appliesTo(current))
                 {
                     Tracing.trace("CAS precondition does not match current values {}", current);
+                    lwtTracker.onNotApplied();
+                    lwtTracker.onDone();
                     metrics.casWriteMetrics.conditionNotMet.inc();
                     return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
                 }
 
                 // Create the desired updates
                 PartitionUpdate updates = request.makeUpdates(current, state);
+                lwtTracker.onApplied(updates);
+                lwtTracker.onDone();
 
                 long size = updates.dataSize();
                 metrics.casWriteMetrics.mutationSize.update(size);
@@ -330,30 +359,35 @@ public class StorageProxy implements StorageProxyMBean
         catch (CasWriteUnknownResultException e)
         {
             metrics.casWriteMetrics.unknownResult.mark();
+            lwtTracker.onError(e);
             throw e;
         }
         catch (CasWriteTimeoutException wte)
         {
             metrics.casWriteMetrics.timeouts.mark();
             metrics.writeMetricsForLevel(consistencyForPaxos).timeouts.mark();
+            lwtTracker.onError(wte);
             throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, wte.contentions);
         }
         catch (ReadTimeoutException e)
         {
             metrics.casWriteMetrics.timeouts.mark();
             metrics.writeMetricsForLevel(consistencyForPaxos).timeouts.mark();
+            lwtTracker.onError(e);
             throw e;
         }
         catch (WriteFailureException | ReadFailureException e)
         {
             metrics.casWriteMetrics.failures.mark();
             metrics.writeMetricsForLevel(consistencyForPaxos).failures.mark();
+            lwtTracker.onError(e);
             throw e;
         }
         catch (UnavailableException e)
         {
             metrics.casWriteMetrics.unavailables.mark();
             metrics.writeMetricsForLevel(consistencyForPaxos).unavailables.mark();
+            lwtTracker.onError(e);
             throw e;
         }
         finally
@@ -786,11 +820,17 @@ public class StorageProxy implements StorageProxyMBean
      * @param consistencyLevel the consistency level for the operation
      * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed
      */
-    public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime, ClientRequestsMetrics metrics)
+    public static void mutate(List<? extends IMutation> mutations,
+                              ConsistencyLevel consistencyLevel,
+                              long queryStartNanoTime,
+                              ClientRequestsMetrics metrics,
+                              ClientState state)
     throws UnavailableException, OverloadedException, WriteTimeoutException, WriteFailureException
     {
         Tracing.trace("Determining replicas for mutation");
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+
+        QueryInfoTracker.WriteTracker writeTracker = queryTracker().onWrite(state, false, mutations, consistencyLevel);
 
         long startTime = System.nanoTime();
 
@@ -817,6 +857,8 @@ public class StorageProxy implements StorageProxyMBean
             // wait for writes.  throws TimeoutException if necessary
             for (AbstractWriteResponseHandler<IMutation> responseHandler : responseHandlers)
                 responseHandler.get();
+
+            writeTracker.onDone();
         }
         catch (WriteTimeoutException|WriteFailureException ex)
         {
@@ -841,6 +883,7 @@ public class StorageProxy implements StorageProxyMBean
                     WriteTimeoutException te = (WriteTimeoutException)ex;
                     Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
                 }
+                writeTracker.onError(ex);
                 throw ex;
             }
         }
@@ -849,6 +892,7 @@ public class StorageProxy implements StorageProxyMBean
             metrics.writeMetrics.unavailables.mark();
             metrics.writeMetricsForLevel(consistencyLevel).unavailables.mark();
             Tracing.trace("Unavailable");
+            writeTracker.onError(e);
             throw e;
         }
         catch (OverloadedException e)
@@ -856,6 +900,7 @@ public class StorageProxy implements StorageProxyMBean
             metrics.writeMetrics.unavailables.mark();
             metrics.writeMetricsForLevel(consistencyLevel).unavailables.mark();
             Tracing.trace("Overloaded");
+            writeTracker.onError(e);
             throw e;
         }
         finally
@@ -1028,7 +1073,8 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutateWithTriggers(List<? extends IMutation> mutations,
                                           ConsistencyLevel consistencyLevel,
                                           boolean mutateAtomically,
-                                          long queryStartNanoTime)
+                                          long queryStartNanoTime,
+                                          ClientState state)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
         Collection<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
@@ -1044,13 +1090,13 @@ public class StorageProxy implements StorageProxyMBean
         metrics.writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
 
         if (augmented != null)
-            mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime, metrics);
+            mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime, metrics, state);
         else
         {
             if (mutateAtomically || updatesView)
-                mutateAtomically((Collection<Mutation>) mutations, consistencyLevel, updatesView, queryStartNanoTime, metrics);
+                mutateAtomically((Collection<Mutation>) mutations, consistencyLevel, updatesView, queryStartNanoTime, metrics, state);
             else
-                mutate(mutations, consistencyLevel, queryStartNanoTime, metrics);
+                mutate(mutations, consistencyLevel, queryStartNanoTime, metrics, state);
         }
     }
 
@@ -1061,19 +1107,22 @@ public class StorageProxy implements StorageProxyMBean
      * After: remove the batchlog entry (after writing hints for the batch rows, if necessary).
      *
      * @param mutations the Mutations to be applied across the replicas
-     * @param consistency_level the consistency level for the operation
+     * @param consistencyLevel the consistency level for the operation
      * @param requireQuorumForRemove at least a quorum of nodes will see update before deleting batchlog
      * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed
      */
     public static void mutateAtomically(Collection<Mutation> mutations,
-                                        ConsistencyLevel consistency_level,
+                                        ConsistencyLevel consistencyLevel,
                                         boolean requireQuorumForRemove,
                                         long queryStartNanoTime,
-                                        ClientRequestsMetrics metrics)
+                                        ClientRequestsMetrics metrics,
+                                        ClientState clientState)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
+
+        QueryInfoTracker.WriteTracker writeTracker = queryTracker().onWrite(clientState, true, mutations, consistencyLevel);
 
         List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
 
@@ -1087,13 +1136,13 @@ public class StorageProxy implements StorageProxyMBean
             // require ALL, or EACH_QUORUM. This is so that *at least* QUORUM nodes see the update.
             ConsistencyLevel batchConsistencyLevel = requireQuorumForRemove
                                                      ? ConsistencyLevel.QUORUM
-                                                     : consistency_level;
+                                                     : consistencyLevel;
 
-            switch (consistency_level)
+            switch (consistencyLevel)
             {
                 case ALL:
                 case EACH_QUORUM:
-                    batchConsistencyLevel = consistency_level;
+                    batchConsistencyLevel = consistencyLevel;
             }
 
             ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY);
@@ -1106,7 +1155,7 @@ public class StorageProxy implements StorageProxyMBean
             for (Mutation mutation : mutations)
             {
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
-                                                                               consistency_level,
+                                                                               consistencyLevel,
                                                                                batchConsistencyLevel,
                                                                                WriteType.BATCH,
                                                                                cleanup,
@@ -1120,33 +1169,38 @@ public class StorageProxy implements StorageProxyMBean
 
             // now actually perform the writes and wait for them to complete
             syncWriteBatchedMutations(wrappers, Stage.MUTATION);
+
+            writeTracker.onDone();
         }
         catch (UnavailableException e)
         {
             metrics.writeMetrics.unavailables.mark();
-            metrics.writeMetricsForLevel(consistency_level).unavailables.mark();
+            metrics.writeMetricsForLevel(consistencyLevel).unavailables.mark();
             Tracing.trace("Unavailable");
+            writeTracker.onError(e);
             throw e;
         }
         catch (WriteTimeoutException e)
         {
             metrics.writeMetrics.timeouts.mark();
-            metrics.writeMetricsForLevel(consistency_level).timeouts.mark();
+            metrics.writeMetricsForLevel(consistencyLevel).timeouts.mark();
             Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
+            writeTracker.onError(e);
             throw e;
         }
         catch (WriteFailureException e)
         {
             metrics.writeMetrics.failures.mark();
-            metrics.writeMetricsForLevel(consistency_level).failures.mark();
+            metrics.writeMetricsForLevel(consistencyLevel).failures.mark();
             Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
+            writeTracker.onError(e);
             throw e;
         }
         finally
         {
             long latency = System.nanoTime() - startTime;
             metrics.writeMetrics.addNano(latency);
-            metrics.writeMetricsForLevel(consistency_level).addNano(latency);
+            metrics.writeMetricsForLevel(consistencyLevel).addNano(latency);
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
@@ -1684,31 +1738,52 @@ public class StorageProxy implements StorageProxyMBean
         return true;
     }
 
-    public static RowIterator readOne(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    public static RowIterator readOne(SinglePartitionReadCommand command,
+                                      ConsistencyLevel consistencyLevel,
+                                      long queryStartNanoTime,
+                                      QueryInfoTracker.ReadTracker readTracker)
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
-        return readOne(command, consistencyLevel, null, queryStartNanoTime);
+        return readOne(command, consistencyLevel, null, queryStartNanoTime, readTracker);
     }
 
-    public static RowIterator readOne(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, QueryState queryState, long queryStartNanoTime)
+    public static RowIterator readOne(SinglePartitionReadCommand command,
+                                      ConsistencyLevel consistencyLevel,
+                                      QueryState queryState,
+                                      long queryStartNanoTime,
+                                      QueryInfoTracker.ReadTracker readTracker)
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
-        return PartitionIterators.getOnlyElement(read(SinglePartitionReadCommand.Group.one(command), consistencyLevel, queryState, queryStartNanoTime), command);
+        return PartitionIterators.getOnlyElement(read(SinglePartitionReadCommand.Group.one(command),
+                                                      consistencyLevel,
+                                                      queryState,
+                                                      queryStartNanoTime,
+                                                      readTracker),
+                                                 command);
     }
 
-    public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
-    throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
+    public static PartitionIterator read(SinglePartitionReadCommand.Group group,
+                                         ConsistencyLevel consistencyLevel,
+                                         QueryState queryState,
+                                         long queryStartNanoTime)
     {
-        // When using serial CL, the ClientState should be provided
-        assert !consistencyLevel.isSerialConsistency();
-        return read(group, consistencyLevel, null, queryStartNanoTime);
+        QueryInfoTracker.ReadTracker readTracker = StorageProxy.queryTracker().onRead(queryState.getClientState(),
+                                                                                      group.metadata(),
+                                                                                      group.queries,
+                                                                                      consistencyLevel);
+        PartitionIterator partitions = read(group, consistencyLevel, queryState, queryStartNanoTime, readTracker);
+        return PartitionIterators.doOnClose(partitions, readTracker::onDone);
     }
 
     /**
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
-    public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, QueryState queryState, long queryStartNanoTime)
+    public static PartitionIterator read(SinglePartitionReadCommand.Group group,
+                                         ConsistencyLevel consistencyLevel,
+                                         QueryState queryState,
+                                         long queryStartNanoTime,
+                                         QueryInfoTracker.ReadTracker readTracker)
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(group.metadata().keyspace);
@@ -1720,11 +1795,18 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return consistencyLevel.isSerialConsistency()
-             ? readWithPaxos(group, consistencyLevel, queryState, queryStartNanoTime)
-             : readRegular(group, consistencyLevel, queryStartNanoTime);
+             ? readWithPaxos(group, consistencyLevel, queryState, queryStartNanoTime, readTracker)
+             : readRegular(group, consistencyLevel, queryStartNanoTime, readTracker);
     }
 
-    private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, QueryState queryState, long queryStartNanoTime)
+    /**
+     * Performs a read for paxos reads and paxos writes (cas method)
+      */
+    private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group,
+                                                   ConsistencyLevel consistencyLevel,
+                                                   QueryState queryState,
+                                                   long queryStartNanoTime,
+                                                   QueryInfoTracker.ReadTracker readTracker)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         assert queryState != null;
@@ -1777,13 +1859,14 @@ public class StorageProxy implements StorageProxyMBean
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime);
+            result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime, readTracker);
         }
         catch (UnavailableException e)
         {
             metrics.readMetrics.unavailables.mark();
             metrics.casReadMetrics.unavailables.mark();
             metrics.readMetricsForLevel(consistencyLevel).unavailables.mark();
+            readTracker.onError(e);
             throw e;
         }
         catch (ReadTimeoutException e)
@@ -1791,6 +1874,7 @@ public class StorageProxy implements StorageProxyMBean
             metrics.readMetrics.timeouts.mark();
             metrics.casReadMetrics.timeouts.mark();
             metrics.readMetricsForLevel(consistencyLevel).timeouts.mark();
+            readTracker.onError(e);
             throw e;
         }
         catch (ReadFailureException e)
@@ -1798,6 +1882,7 @@ public class StorageProxy implements StorageProxyMBean
             metrics.readMetrics.failures.mark();
             metrics.casReadMetrics.failures.mark();
             metrics.readMetricsForLevel(consistencyLevel).failures.mark();
+            readTracker.onError(e);
             throw e;
         }
         finally
@@ -1808,19 +1893,21 @@ public class StorageProxy implements StorageProxyMBean
             metrics.readMetricsForLevel(consistencyLevel).addNano(latency);
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
-
         return result;
     }
 
     @SuppressWarnings("resource")
-    private static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    private static PartitionIterator readRegular(SinglePartitionReadCommand.Group group,
+                                                 ConsistencyLevel consistencyLevel,
+                                                 long queryStartNanoTime,
+                                                 QueryInfoTracker.ReadTracker readTracker)
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(group.metadata().keyspace);
         long start = System.nanoTime();
         try
         {
-            PartitionIterator result = fetchRows(group.queries, consistencyLevel, queryStartNanoTime);
+            PartitionIterator result = fetchRows(group.queries, consistencyLevel, queryStartNanoTime, readTracker);
             // Note that the only difference between the command in a group must be the partition key on which
             // they applied.
             boolean enforceStrictLiveness = group.queries.get(0).metadata().enforceStrictLiveness();
@@ -1834,18 +1921,21 @@ public class StorageProxy implements StorageProxyMBean
         {
             metrics.readMetrics.unavailables.mark();
             metrics.readMetricsForLevel(consistencyLevel).unavailables.mark();
+            readTracker.onError(e);
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             metrics.readMetrics.timeouts.mark();
             metrics.readMetricsForLevel(consistencyLevel).timeouts.mark();
+            readTracker.onError(e);
             throw e;
         }
         catch (ReadFailureException e)
         {
             metrics.readMetrics.failures.mark();
             metrics.readMetricsForLevel(consistencyLevel).failures.mark();
+            readTracker.onError(e);
             throw e;
         }
         finally
@@ -1898,7 +1988,10 @@ public class StorageProxy implements StorageProxyMBean
      * 4. If the digests (if any) match the data return the data
      * 5. else carry out read repair by getting data from all the nodes.
      */
-    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
+                                               ConsistencyLevel consistencyLevel,
+                                               long queryStartNanoTime,
+                                               QueryInfoTracker.ReadTracker readTracker)
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         int cmdCount = commands.size();
@@ -1909,7 +2002,7 @@ public class StorageProxy implements StorageProxyMBean
         // for type of speculation we'll use in this read
         for (int i=0; i<cmdCount; i++)
         {
-            reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime);
+            reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime, readTracker);
         }
 
         // sends a data request to the closest replica, and a digest request to the others. If we have a speculating
@@ -2022,9 +2115,16 @@ public class StorageProxy implements StorageProxyMBean
 
     public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command,
                                                   ConsistencyLevel consistencyLevel,
-                                                  long queryStartNanoTime)
+                                                  long queryStartNanoTime,
+                                                  ClientState clientState)
     {
-        return RangeCommands.partitions(command, consistencyLevel, queryStartNanoTime);
+        QueryInfoTracker.ReadTracker readTracker = queryTracker().onRangeRead(clientState,
+                                                                              command.metadata(),
+                                                                              command,
+                                                                              consistencyLevel);
+
+        PartitionIterator partitions = RangeCommands.partitions(command, consistencyLevel, queryStartNanoTime, readTracker);
+        return PartitionIterators.doOnClose(partitions, readTracker::onDone);
     }
 
     public Map<String, List<String>> getSchemaVersions()

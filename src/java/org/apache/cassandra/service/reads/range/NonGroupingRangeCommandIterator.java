@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -45,9 +46,10 @@ public class NonGroupingRangeCommandIterator extends RangeCommandIterator
                                     int concurrencyFactor,
                                     int maxConcurrencyFactor,
                                     int totalRangeCount,
-                                    long queryStartNanoTime)
+                                    long queryStartNanoTime,
+                                    QueryInfoTracker.ReadTracker readTracker)
     {
-        super(replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, totalRangeCount, queryStartNanoTime);
+        super(replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, totalRangeCount, queryStartNanoTime, readTracker);
     }
 
     protected PartitionIterator sendNextRequests()
@@ -60,6 +62,7 @@ public class NonGroupingRangeCommandIterator extends RangeCommandIterator
             for (int i = 0; i < concurrencyFactor() && replicaPlans.hasNext(); )
             {
                 ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
+                readTracker.onReplicaPlan(replicaPlan);
 
                 @SuppressWarnings("resource") // response will be closed by concatAndBlockOnRepair, or in the catch block below
                 SingleRangeResponse response = query(replicaPlan, i == 0);
@@ -108,7 +111,7 @@ public class NonGroupingRangeCommandIterator extends RangeCommandIterator
         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
         ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
         DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-        new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime, trackRepairData);
+        new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime, trackRepairData, readTracker);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
         new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
 
