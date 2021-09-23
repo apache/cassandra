@@ -72,6 +72,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -343,5 +344,10 @@ public abstract class AbstractReadResponseTest
             }
         };
         return new SingletonUnfilteredPartitionIterator(rowIter);
+    }
+
+    public QueryInfoTracker.ReadTracker noopReadTracker()
+    {
+        return QueryInfoTracker.ReadTracker.NOOP;
     }
 }

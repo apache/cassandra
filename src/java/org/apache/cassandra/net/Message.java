@@ -442,7 +442,16 @@ public class Message<T>
         @Nullable
         public Map<String,byte[]> customParams()
         {
-            return (Map<String,byte[]>) params.get(ParamType.CUSTOM_MAP);
+            return (Map<String, byte[]>) params.get(ParamType.CUSTOM_MAP);
+        }
+
+        /**
+         * Keyspace that is beeing traced by the trace session attached to this message (if any).
+         */
+        @Nullable
+        public String traceKeyspace()
+        {
+            return (String) params.get(ParamType.TRACE_KEYSPACE);
         }
     }
 

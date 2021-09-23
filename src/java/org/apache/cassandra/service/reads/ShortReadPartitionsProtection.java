@@ -45,6 +45,7 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
@@ -192,7 +193,11 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(cmd,
+                                                         replicaPlan,
+                                                         (NoopReadRepair<E, P>)NoopReadRepair.instance,
+                                                         queryStartNanoTime,
+                                                         QueryInfoTracker.ReadTracker.NOOP);
         ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 
         if (source.isSelf())

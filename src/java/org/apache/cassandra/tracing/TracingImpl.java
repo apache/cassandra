@@ -25,7 +25,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 
@@ -93,15 +95,15 @@ class TracingImpl extends Tracing
     }
 
     @Override
-    protected TraceState newTraceState(InetAddressAndPort coordinator, UUID sessionId, TraceType traceType)
+    protected TraceState newTraceState(ClientState state, InetAddressAndPort coordinator, UUID sessionId, TraceType traceType)
     {
-        return new TraceStateImpl(coordinator, sessionId, traceType);
+        return new TraceStateImpl(state, coordinator, sessionId, traceType);
     }
 
     /**
      * Called for non-local traces (traces that are not initiated by local node == coordinator).
      */
-    public void trace(final ByteBuffer sessionId, final String message, final int ttl)
+    public void trace(ClientState clientState, final ByteBuffer sessionId, final String message, final int ttl)
     {
         final String threadName = Thread.currentThread().getName();
 
@@ -109,7 +111,8 @@ class TracingImpl extends Tracing
         {
             public void runMayThrow()
             {
-                TraceStateImpl.mutateWithCatch(TraceKeyspace.makeEventMutation(sessionId, message, -1, threadName, ttl));
+                Mutation mutation = TraceKeyspace.makeEventMutation(sessionId, message, -1, threadName, ttl);
+                TraceStateImpl.mutateWithCatch(clientState, mutation);
             }
         });
     }

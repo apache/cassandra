@@ -29,7 +29,7 @@ class ExpiredTraceState extends TraceState
 
     ExpiredTraceState(TraceState delegate)
     {
-        super(FBUtilities.getBroadcastAddressAndPort(), delegate.sessionId, delegate.traceType);
+        super(delegate.clientState, FBUtilities.getBroadcastAddressAndPort(), delegate.sessionId, delegate.traceType);
         this.delegate = delegate;
     }
 

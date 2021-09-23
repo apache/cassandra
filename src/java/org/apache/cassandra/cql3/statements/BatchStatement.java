@@ -449,7 +449,7 @@ public class BatchStatement implements CQLStatement
         updatePartitionsPerBatchMetrics(mutations.size());
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
-        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime, queryState.getClientState());
     }
 
     private void updatePartitionsPerBatchMetrics(int updatedPartitions)

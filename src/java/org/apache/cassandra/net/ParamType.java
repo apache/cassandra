@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.StringSerializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
@@ -56,6 +57,11 @@ public enum ParamType
 
     @Deprecated
     TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
+
+    /**
+     * Messages with tracing sessions are decorated with the traced keyspace.
+     */
+    TRACE_KEYSPACE      (8, "TraceKeyspace", StringSerializer.serializer),
 
     CUSTOM_MAP          (14, "CUSTOM",       CustomParamsSerializer.serializer);
 
