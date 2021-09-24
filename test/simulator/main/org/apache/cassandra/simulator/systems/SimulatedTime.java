@@ -18,27 +18,26 @@
 
 package org.apache.cassandra.simulator.systems;
 
-import java.util.concurrent.TimeUnit;
-
-import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
-import org.apache.cassandra.distributed.shared.InstanceClassLoader;
-import org.apache.cassandra.simulator.Action;
-import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.utils.KindOfSequence;
+import org.apache.cassandra.simulator.utils.KindOfSequence.Period;
+import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
+import org.apache.cassandra.utils.Shared;
 
-import static java.lang.Math.*;
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.HOURS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.simulator.ActionListener.*;
+import static org.apache.cassandra.simulator.RandomSource.Choices.uniform;
 
-// TODO (now): when we encounter an exception and unwind the simulation, we should restore normal time to go with normal waits etc.
-// TODO (future): configurable clock skew
+// TODO (cleanup): when we encounter an exception and unwind the simulation, we should restore normal time to go with normal waits etc.
+// TODO (now): configurable clock skew
 public class SimulatedTime
 {
     public static class Throwing implements Clock, MonotonicClock
@@ -52,92 +51,123 @@ public class SimulatedTime
         public boolean isAfter(long now, long instant)  { throw new IllegalStateException("Using time is not allowed during simulation"); }
     }
 
-    public static class Wrapped implements Clock, MonotonicClock
+    @Shared(scope = Shared.Scope.SIMULATION)
+    public interface LocalTime extends Clock, MonotonicClock
     {
-        private static Clock systemClock;
-        private static MonotonicClock monotonicClock;
+        long relativeNanosToAbsolute(long relativeNanos);
+        long absoluteToRelativeNanos(long absoluteNanos);
+        long localToGlobal(long absoluteNanos);
+        long nextGlobalMonotonicMicros();
+    }
+
+    @PerClassLoader
+    public static class Global implements Clock, MonotonicClock
+    {
+        private static LocalTime current;
 
         public long nanoTime()
         {
-            return systemClock.nanoTime();
+            return current.nanoTime();
         }
 
         public long currentTimeMillis()
         {
-            return systemClock.currentTimeMillis();
+            return current.currentTimeMillis();
         }
 
         @Override
         public long now()
         {
-            return monotonicClock.now();
+            return current.now();
         }
 
         @Override
         public long error()
         {
-            return monotonicClock.error();
+            return current.error();
         }
 
         @Override
         public MonotonicClockTranslation translate()
         {
-            return monotonicClock.translate();
+            return current.translate();
         }
 
         @Override
         public boolean isAfter(long instant)
         {
-            return monotonicClock.isAfter(instant);
+            return current.isAfter(instant);
         }
 
         @Override
         public boolean isAfter(long now, long instant)
         {
-            return monotonicClock.isAfter(now, instant);
+            return current.isAfter(now, instant);
         }
 
-        public static void setup(Clock newSystemClock, MonotonicClock newMonotonicClock)
+        public static long relativeToGlobalAbsoluteNanos(long relativeNanos)
         {
-            systemClock = newSystemClock;
-            monotonicClock = newMonotonicClock;
+            return current.localToGlobal(current.relativeNanosToAbsolute(relativeNanos));
+        }
+
+        public static long relativeToAbsoluteNanos(long relativeNanos)
+        {
+            return current.relativeNanosToAbsolute(relativeNanos);
+        }
+
+        public static long absoluteToRelativeNanos(long absoluteNanos)
+        {
+            return current.absoluteToRelativeNanos(absoluteNanos);
+        }
+
+        public static long localToGlobalNanos(long absoluteNanos)
+        {
+            return current.localToGlobal(absoluteNanos);
+        }
+
+        public static LocalTime current()
+        {
+            return current;
+        }
+
+        @SuppressWarnings("unused") // used by simulator for schema changes
+        public static long nextGlobalMonotonicMicros()
+        {
+            return current.nextGlobalMonotonicMicros();
+        }
+
+        public static void setup(LocalTime newLocalTime)
+        {
+            current = newLocalTime;
         }
     }
 
-    private final RandomSource random;
-    private final long millisEpoch, nanosPerMajorTick;
-    private long maxNanos;
-    private long futureTimestamp;
-    private long minorTicks;
-
-    private class InstanceTime implements Clock, MonotonicClock
+    private class InstanceTime implements LocalTime
     {
-        long nanos, millis = millisEpoch;
-        long ticks;
+        final Period nanosDriftSupplier;
+        long localNanoTime;
+        long nanosDrift;
 
-        void update()
+        private InstanceTime(Period nanosDriftSupplier)
         {
-            if (ticks == minorTicks)
-                return;
-
-            do nanos += random.uniform(0, max(1, 1L << (3*Long.numberOfLeadingZeros(maxNanos - nanos)/4)));
-            while (++ticks < minorTicks && nanos < maxNanos);
-            ticks = minorTicks;
-            millis = millisEpoch + NANOSECONDS.toMillis(nanos);
+            this.nanosDriftSupplier = nanosDriftSupplier;
         }
 
         @Override
         public long nanoTime()
         {
-            update();
-            return ++nanos;
+            if (globalNanoTime + nanosDrift > localNanoTime)
+            {
+                localNanoTime = globalNanoTime + nanosDrift;
+                nanosDrift = nanosDriftSupplier.get(random);
+            }
+            return localNanoTime;
         }
 
         @Override
         public long currentTimeMillis()
         {
-            update();
-            return millis;
+            return NANOSECONDS.toMillis(nanoTime()) + millisEpoch;
         }
 
         @Override
@@ -188,49 +218,100 @@ public class SimulatedTime
         {
             return false;
         }
+
+        @Override
+        public long nextGlobalMonotonicMicros()
+        {
+            return SimulatedTime.this.nextGlobalMonotonicMicros();
+        }
+
+        @Override
+        public long relativeNanosToAbsolute(long relativeNanos)
+        {
+            return relativeNanos + localNanoTime;
+        }
+
+        @Override
+        public long absoluteToRelativeNanos(long absoluteNanos)
+        {
+            return absoluteNanos - localNanoTime;
+        }
+
+        @Override
+        public long localToGlobal(long absoluteNanos)
+        {
+            return absoluteNanos + (globalNanoTime - localNanoTime);
+        }
     }
 
-    public SimulatedTime(RandomSource random, long millisEpoch, long nanosPerMajorTick)
+    private final KindOfSequence kindOfDrift;
+    private final LongRange nanosDriftRange;
+    private final RandomSource random;
+    private final Period discontinuityTimeSupplier;
+    private final long millisEpoch;
+    private long globalNanoTime;
+    private long futureTimestamp;
+    private long discontinuityTime;
+    private boolean permitDiscontinuities;
+
+    public SimulatedTime(RandomSource random, long millisEpoch, LongRange nanoDriftRange, KindOfSequence kindOfDrift, Period discontinuityTimeSupplier)
     {
         this.random = random;
         this.millisEpoch = millisEpoch;
-        this.maxNanos = this.nanosPerMajorTick = nanosPerMajorTick;
-        this.futureTimestamp = (millisEpoch + TimeUnit.DAYS.toMillis(1000)) * 1000;
+        this.nanosDriftRange = nanoDriftRange;
+        this.futureTimestamp = (millisEpoch + DAYS.toMillis(1000)) * 1000;
+        this.kindOfDrift = kindOfDrift;
+        this.discontinuityTime = MILLISECONDS.toNanos(random.uniform(500L, 30000L));
+        this.discontinuityTimeSupplier = discontinuityTimeSupplier;
     }
 
     public void setup(ClassLoader classLoader)
     {
-        InstanceTime instanceTime = new InstanceTime();
-        IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableBiConsumer<Clock, MonotonicClock>) SimulatedTime.Wrapped::setup, classLoader)
-                        .accept(instanceTime, instanceTime);
+        InstanceTime instanceTime = new InstanceTime(kindOfDrift.period(nanosDriftRange, random));
+        IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<LocalTime>) Global::setup, classLoader)
+                        .accept(instanceTime);
     }
 
-    public void tick()
+    public void permitDiscontinuities()
     {
-        ++minorTicks;
+        permitDiscontinuities = true;
+        maybeApplyDiscontinuity();
     }
 
-    public void majorTick()
+    private void maybeApplyDiscontinuity()
     {
-        maxNanos += nanosPerMajorTick;
-    }
-
-    class MajorTickListener implements SelfAddingActionListener
-    {
-        @Override
-        public void after(Action finished)
+        if (permitDiscontinuities && globalNanoTime >= discontinuityTime)
         {
-            majorTick();
+            globalNanoTime += uniform(DAYS, HOURS, MINUTES).choose(random).toNanos(1L);
+            discontinuityTime = globalNanoTime + discontinuityTimeSupplier.get(random);
         }
     }
 
-    public void initialize(ActionList actions)
+    public void forbidDiscontinuities()
     {
-        actions.forEach(new MajorTickListener());
+        permitDiscontinuities = false;
+    }
+
+    public void tick(long nanos)
+    {
+        if (nanos > globalNanoTime)
+        {
+            globalNanoTime = nanos;
+            maybeApplyDiscontinuity();
+        }
+        else
+        {
+            ++globalNanoTime;
+        }
+    }
+
+    public long nanoTime()
+    {
+        return globalNanoTime;
     }
 
     // make sure schema changes persist
-    public synchronized long futureTimestamp()
+    public synchronized long nextGlobalMonotonicMicros()
     {
         return ++futureTimestamp;
     }

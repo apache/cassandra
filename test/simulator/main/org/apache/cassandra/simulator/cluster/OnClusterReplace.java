@@ -34,7 +34,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.Actions.ReliableAction;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
@@ -46,14 +46,14 @@ class OnClusterReplace extends OnClusterChangeTopology
     final int leaving;
     final int joining;
 
-    OnClusterReplace(KeyspaceActions actions, int[] members, int[] membersOfQuorumDcs, int leaving, int joining, int quorumRf)
+    OnClusterReplace(KeyspaceActions actions, Topology before, Topology during, Topology after, int leaving, int joining)
     {
-        super(lazy(() -> String.format("node%d Replacing node%d", joining, leaving)), actions, STRICT, NONE, members, membersOfQuorumDcs, quorumRf, quorumRf);
+        super(lazy(() -> String.format("node%d Replacing node%d", joining, leaving)), actions, STRICT, NONE, before, after, during.pendingKeys());
         this.leaving = leaving;
         this.joining = joining;
     }
 
-    public ActionList performInternal()
+    public ActionList performSimple()
     {
         // need to mark it as DOWN, and perhaps shut it down
         Map<InetSocketAddress, IInvokableInstance> lookup = Cluster.getUniqueAddressLookup(actions.cluster);
@@ -81,7 +81,7 @@ class OnClusterReplace extends OnClusterChangeTopology
 
         return ActionList.of(
         // first sync gossip so that newly joined nodes are known by all, so that when we markdown we do not throw UnavailableException
-        Actions.ReliableAction.transitively("Sync Gossip", () -> actions.gossipWithAll(leaving)),
+        ReliableAction.transitively("Sync Gossip", () -> actions.gossipWithAll(leaving)),
 
         // "shutdown" the leaving instance
         new OnClusterUpdateGossip(actions,
@@ -89,14 +89,13 @@ class OnClusterReplace extends OnClusterChangeTopology
                                                     new OnClusterMarkDown(actions, leaving)),
                                       new OnInstanceSendShutdownToAll(actions, leaving)),
 
-        // TODO (future): start failing all queries to this node
-        // TODO (future): confirm repair does not include this node
+        // TODO (safety): confirm repair does not include this node
 
         // note that in the case of node replacement, we must perform a paxos repair before AND mid-transition.
         // the first ensures the paxos state is flushed to the base table's sstables, so that the replacing node
         // must receive a copy of all earlier operations (since the old node is now "offline")
 
-        new OnClusterRepairRanges(actions, others, repairRanges),
+        new OnClusterRepairRanges(actions, others, true, false, repairRanges),
 
         // stream/repair from a peer
         new OnClusterUpdateGossip(actions, joining, new OnInstanceSetBootstrapReplacing(actions, joining, leaving, hostId, movingToken)),

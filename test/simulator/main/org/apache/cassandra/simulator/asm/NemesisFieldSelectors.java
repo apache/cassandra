@@ -18,23 +18,13 @@
 
 package org.apache.cassandra.simulator.asm;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.utils.Nemesis;
 import org.reflections.Reflections;

@@ -20,9 +20,7 @@ package org.apache.cassandra.simulator.asm;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.LdcInsnNode;
 
-import static org.apache.cassandra.simulator.asm.InterceptAgent.isLockSupportCaptured;
 import static org.apache.cassandra.simulator.asm.TransformationKind.LOCK_SUPPORT;
 import static org.apache.cassandra.simulator.asm.TransformationKind.MONITOR;
 
@@ -68,15 +66,15 @@ class MonitorEnterExitParkTransformer extends MethodVisitor
                             throw new AssertionError("Unexpected descriptor for method wait() in " + className + '.' + name);
                         case 'V': // ()V
                             transformer.witness(MONITOR);
-                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "wait", "(Ljava/lang/Object;)V", false);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "wait", "(Ljava/lang/Object;)V", false);
                             return;
                         case ')': // (J)V
                             transformer.witness(MONITOR);
-                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "wait", "(Ljava/lang/Object;J)V", false);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "wait", "(Ljava/lang/Object;J)V", false);
                             return;
                         case 'I': // (JI)V
                             transformer.witness(MONITOR);
-                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "wait", "(Ljava/lang/Object;JI)V", false);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "wait", "(Ljava/lang/Object;JI)V", false);
                             return;
                     }
                 case 'n':
@@ -86,20 +84,20 @@ class MonitorEnterExitParkTransformer extends MethodVisitor
                             throw new AssertionError();
                         case 6: // notify
                             transformer.witness(MONITOR);
-                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "notify", "(Ljava/lang/Object;)V", false);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "notify", "(Ljava/lang/Object;)V", false);
                             return;
 
                         case 9: // notifyAll
                             transformer.witness(MONITOR);
-                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "notifyAll", "(Ljava/lang/Object;)V", false);
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "notifyAll", "(Ljava/lang/Object;)V", false);
                             return;
                     }
             }
         }
-        if (opcode == Opcodes.INVOKESTATIC && !isInterface && !isLockSupportCaptured() && owner.equals("java/util/concurrent/locks/LockSupport"))
+        if (opcode == Opcodes.INVOKESTATIC && !isInterface && owner.equals("java/util/concurrent/locks/LockSupport"))
         {
             transformer.witness(LOCK_SUPPORT);
-            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptingLockSupport", name, descriptor, false);
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptibleThread", name, descriptor, false);
             return;
         }
         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
@@ -113,11 +111,11 @@ class MonitorEnterExitParkTransformer extends MethodVisitor
             case Opcodes.MONITORENTER:
                 transformer.witness(MONITOR);
                 super.visitLdcInsn(monitorDelayChance.get());
-                super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "preMonitorEnter", "(Ljava/lang/Object;F)Ljava/lang/Object;", false);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "preMonitorEnter", "(Ljava/lang/Object;F)Ljava/lang/Object;", false);
                 break;
             case Opcodes.MONITOREXIT:
                 transformer.witness(MONITOR);
-                super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "preMonitorExit", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "preMonitorExit", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
                 break;
         }
         super.visitInsn(opcode);

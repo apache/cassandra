@@ -19,14 +19,14 @@
 package org.apache.cassandra.simulator;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -49,6 +49,7 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.function.Function.identity;
@@ -62,8 +63,8 @@ import static org.apache.cassandra.simulator.Debug.Info.LOG;
 import static org.apache.cassandra.simulator.Debug.Level.*;
 import static org.apache.cassandra.simulator.paxos.Ballots.paxosDebugInfo;
 
-// TODO (future): move logging to a depth parameter
-// TODO (future): log only deltas for schema/cluster data
+// TODO (feature): move logging to a depth parameter
+// TODO (feature): log only deltas for schema/cluster data
 public class Debug
 {
     private static final Logger logger = LoggerFactory.getLogger(Debug.class);
@@ -142,8 +143,9 @@ public class Debug
         this.primaryKeys = primaryKeys;
     }
 
-    public void debug(EventType type, List<? extends ActionList> actions, Cluster cluster, String keyspace, Integer primaryKey)
+    public ActionListener debug(EventType type, SimulatedTime time, Cluster cluster, String keyspace, Integer primaryKey)
     {
+        List<ActionListener> listeners = new ArrayList<>();
         for (Map.Entry<Info, Levels> e : levels.entrySet())
         {
             Info info = e.getKey();
@@ -157,8 +159,8 @@ public class Debug
                 switch (level)
                 {
                     default: throw new AssertionError();
-                    case PLANNED: listener = adapt.apply(new LogOne(false)); break;
-                    case CONSEQUENCES: case ALL: listener = adapt.apply(recursive(new LogOne(true))); break;
+                    case PLANNED: listener = adapt.apply(new LogOne(time, false)); break;
+                    case CONSEQUENCES: case ALL: listener = adapt.apply(recursive(new LogOne(time, true))); break;
                 }
             }
             else
@@ -182,8 +184,12 @@ public class Debug
                 }
             }
 
-            actions.forEach(list -> list.forEach(a -> a.register(listener)));
+            listeners.add(listener);
         }
+
+        if (listeners.isEmpty())
+            return null;
+        return new ActionListener.Combined(listeners);
     }
 
     public boolean isOn(Info info)
@@ -201,24 +207,26 @@ public class Debug
     @SuppressWarnings("UnnecessaryToStringCall")
     private static class LogOne implements ActionListener
     {
+        final SimulatedTime time;
         final boolean logConsequences;
-        private LogOne(boolean logConsequences)
+        private LogOne(SimulatedTime time, boolean logConsequences)
         {
+            this.time = time;
             this.logConsequences = logConsequences;
         }
 
         @Override
-        public void before(Action action, boolean performing)
+        public void before(Action action, Before before)
         {
             if (logger.isWarnEnabled()) // invoke toString() eagerly to ensure we have the task's descriptin
-                logger.warn("{} {}", performing ? "Executing" : "Dropping", action.toString());
+                logger.warn(String.format("%6ds %s %s", TimeUnit.NANOSECONDS.toSeconds(time.nanoTime()), before, action));
         }
 
         @Override
         public void consequences(ActionList consequences)
         {
             if (logConsequences && !consequences.isEmpty() && logger.isWarnEnabled())
-                logger.warn("Next: {}", consequences.toString());
+                logger.warn(String.format("%6ds Next: %s", TimeUnit.NANOSECONDS.toSeconds(time.nanoTime()), consequences));
         }
     }
 

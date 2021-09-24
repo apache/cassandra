@@ -29,6 +29,6 @@ class ClusterUnsafeAction extends SimulatedActionTask
 
     ClusterUnsafeAction(String id, Modifiers self, Modifiers children, ClusterActions actions, IInvokableInstance on, Runnable run)
     {
-        super(id, self, children, actions, unsafeAsTask(on, run, actions.failures));
+        super(id, self, children, null, actions, unsafeAsTask(on, run, actions.failures));
     }
 }

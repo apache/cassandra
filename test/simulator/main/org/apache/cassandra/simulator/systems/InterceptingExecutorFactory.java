@@ -26,14 +26,19 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.concurrent.LocalAwareSequentialExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
@@ -43,17 +48,24 @@ import org.apache.cassandra.concurrent.SyncFutureTask;
 import org.apache.cassandra.concurrent.TaskFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiFunction;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableFunction;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.simulator.systems.InterceptibleThreadFactory.ConcreteInterceptibleThreadFactory;
+import org.apache.cassandra.simulator.systems.InterceptibleThreadFactory.PlainThreadFactory;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingTaskFactory;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingLocalAwareSequentialExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingPooledExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingPooledLocalAwareExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingSequentialExecutor;
 import org.apache.cassandra.simulator.systems.InterceptorOfExecution.InterceptExecution;
+import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.INFINITE_LOOP;
 
 public class InterceptingExecutorFactory implements ExecutorFactory
 {
@@ -118,6 +130,12 @@ public class InterceptingExecutorFactory implements ExecutorFactory
         }
 
         @Override
+        public ExecutorBuilder<E> withDefaultThreadGroup()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public ExecutorBuilder<E> withQueueLimit(int queueLimit)
         {
             // should implement (not pressing)
@@ -160,14 +178,16 @@ public class InterceptingExecutorFactory implements ExecutorFactory
     }
 
     final SimulatedExecution simulatedExecution;
+    final InterceptorOfGlobalMethods interceptorOfGlobalMethods;
     final ClassLoader classLoader;
     final ThreadGroup threadGroup;
     final IIsolatedExecutor.DynamicFunction<Serializable> transferToInstance;
     volatile boolean isClosed;
 
-    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, ClassLoader classLoader, ThreadGroup threadGroup)
+    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
     {
         this.simulatedExecution = simulatedExecution;
+        this.interceptorOfGlobalMethods = interceptorOfGlobalMethods;
         this.classLoader = classLoader;
         this.threadGroup = threadGroup;
         this.transferToInstance = IsolatedExecutor.transferTo(classLoader);
@@ -190,15 +210,27 @@ public class InterceptingExecutorFactory implements ExecutorFactory
 
     InterceptibleThreadFactory factory(String name, Object extraInfo, ThreadGroup threadGroup, UncaughtExceptionHandler uncaughtExceptionHandler)
     {
+        return factory(name, extraInfo, threadGroup, uncaughtExceptionHandler, ConcreteInterceptibleThreadFactory::new);
+    }
+
+    ThreadFactory plainFactory(String name, Object extraInfo, ThreadGroup threadGroup, UncaughtExceptionHandler uncaughtExceptionHandler)
+    {
+        return factory(name, extraInfo, threadGroup, uncaughtExceptionHandler, PlainThreadFactory::new);
+    }
+
+    <F extends ThreadFactory> F factory(String name, Object extraInfo, ThreadGroup threadGroup, UncaughtExceptionHandler uncaughtExceptionHandler, InterceptibleThreadFactory.MetaFactory<F> factory)
+    {
         if (uncaughtExceptionHandler == null)
-            uncaughtExceptionHandler = transferToInstance.apply((IIsolatedExecutor.SerializableCallable<UncaughtExceptionHandler>)() -> (thread, throwable) -> {
-                if (!(throwable instanceof UncheckedInterruptedException))
+            uncaughtExceptionHandler = transferToInstance.apply((SerializableFunction<Supplier<Boolean>, UncaughtExceptionHandler>)(reportUnchecked) -> (thread, throwable) -> {
+                if (!(throwable instanceof UncheckedInterruptedException) || reportUnchecked.get())
                     JVMStabilityInspector.uncaughtException(thread, throwable);
-            }).call();
+            }).apply(() -> !isClosed);
 
         if (threadGroup == null) threadGroup = this.threadGroup;
         else if (!this.threadGroup.parentOf(threadGroup)) throw new IllegalArgumentException();
-        return new InterceptibleThreadFactory(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, this, extraInfo);
+        Runnable onTermination = transferToInstance.apply((SerializableRunnable)FastThreadLocal::removeAll);
+        LocalTime time = transferToInstance.apply((IIsolatedExecutor.SerializableCallable<LocalTime>) SimulatedTime.Global::current).call();
+        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo);
     }
 
     @Override
@@ -288,9 +320,9 @@ public class InterceptingExecutorFactory implements ExecutorFactory
         return configurePooled(name, threads).build();
     }
 
-    public Thread startThread(String name, Runnable run)
+    public Thread startThread(String name, Runnable runnable, Daemon daemon)
     {
-        return simulatedExecution.intercept().start(SimulatedAction.Kind.THREAD, factory(name)::newThread, run);
+        return simulatedExecution.intercept().start(SimulatedAction.Kind.THREAD, factory(name)::newThread, runnable);
     }
 
     @VisibleForTesting
@@ -301,16 +333,27 @@ public class InterceptingExecutorFactory implements ExecutorFactory
                                                                SimulatedAction.Kind.THREAD);
     }
 
-    public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe)
+    @Override
+    public Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon, Interrupts interrupts)
     {
-        InterceptExecution interceptor = !simulatorSafe ? simulatedExecution.noIntercept() : simulatedExecution.intercept();
-        return new InfiniteLoopExecutor((n, r) -> interceptor.start(SimulatedAction.Kind.INFINITE_LOOP, factory(n, task)::newThread, r), name, task);
+        if (simulatorSafe != SimulatorSafe.SAFE)
+        {
+            return new InfiniteLoopExecutor((n, t) -> {
+                Thread thread = plainFactory(n, t, threadGroup, null).newThread(t);
+                thread.start();
+                return thread;
+            }, name, task, interrupts);
+        }
+
+        InterceptExecution interceptor = simulatedExecution.intercept();
+        return new InfiniteLoopExecutor((n, r) -> interceptor.start(INFINITE_LOOP, factory(n, task)::newThread, r),
+                                        name, task, interrupts);
     }
 
     @Override
     public ThreadGroup newThreadGroup(String name)
     {
-        return null;
+        return new ThreadGroup(threadGroup, name);
     }
 
     public void close()
@@ -339,7 +382,11 @@ public class InterceptingExecutorFactory implements ExecutorFactory
             groups = new ThreadGroup[threadGroup.activeGroupCount()];
             threadGroup.enumerate(groups, false);
         }
-        for (Thread thread : threads) consumer.accept((InterceptibleThread) thread);
+        for (Thread thread : threads)
+        {
+            if (thread instanceof InterceptibleThread)
+                consumer.accept((InterceptibleThread) thread);
+        }
         for (ThreadGroup group : groups) forEach(group, consumer);
     }
 }

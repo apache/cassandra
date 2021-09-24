@@ -28,7 +28,7 @@ public class NodeLookup
         this.nodeToDc = nodeToDc;
         this.nodeToToken = new int[nodeToDc.length];
         for (int i = 0; i < nodeToToken.length; ++i)
-            nodeToToken[i] = i;
+            nodeToToken[i] = i + 1;
     }
 
     public int dcOf(int node)

@@ -29,70 +29,94 @@ import org.apache.cassandra.simulator.systems.InterceptedWait.TriggerListener;
 import org.apache.cassandra.utils.concurrent.Awaitable;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.TIMED_WAIT;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToGlobalNanos;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToAbsoluteNanos;
 
+@PerClassLoader
 abstract class InterceptingAwaitable implements Awaitable
 {
     abstract boolean isSignalled();
-    abstract Condition maybeIntercept(InterceptedWait.Kind kind);
+    abstract Condition maybeIntercept(InterceptedWait.Kind kind, long waitNanos);
+
+    Condition maybeInterceptThrowChecked(InterceptedWait.Kind kind, long waitNanos) throws InterruptedException
+    {
+        if (Thread.interrupted())
+            throw new InterruptedException();
+
+        return maybeIntercept(kind, waitNanos);
+    }
+
+    Condition maybeInterceptThrowUnchecked(InterceptedWait.Kind kind, long waitNanos)
+    {
+        if (Thread.interrupted())
+            throw new UncheckedInterruptedException();
+
+        return maybeIntercept(kind, waitNanos);
+    }
 
     public boolean awaitUntil(long deadline) throws InterruptedException
     {
-        maybeIntercept(TIMED_WAIT).awaitUntil(deadline);
+        maybeInterceptThrowChecked(WAIT_UNTIL, deadline).awaitUntil(deadline);
         return isSignalled();
     }
 
     public boolean awaitUntilThrowUncheckedOnInterrupt(long deadline)
     {
-        maybeIntercept(TIMED_WAIT).awaitUntilThrowUncheckedOnInterrupt(deadline);
+        maybeInterceptThrowUnchecked(WAIT_UNTIL, deadline).awaitUntilThrowUncheckedOnInterrupt(deadline);
         return isSignalled();
     }
 
     public boolean awaitUntilUninterruptibly(long deadline)
     {
-        maybeIntercept(TIMED_WAIT).awaitUntilUninterruptibly(deadline);
+        maybeIntercept(WAIT_UNTIL, deadline).awaitUntilUninterruptibly(deadline);
         return isSignalled();
     }
 
     public Awaitable await() throws InterruptedException
     {
-        maybeIntercept(UNBOUNDED_WAIT).await();
+        maybeInterceptThrowChecked(UNBOUNDED_WAIT, 0).await();
         return this;
     }
 
     public Awaitable awaitThrowUncheckedOnInterrupt()
     {
-        maybeIntercept(UNBOUNDED_WAIT).awaitThrowUncheckedOnInterrupt();
+        maybeInterceptThrowUnchecked(UNBOUNDED_WAIT, 0).awaitThrowUncheckedOnInterrupt();
         return this;
     }
 
     public Awaitable awaitUninterruptibly()
     {
-        maybeIntercept(UNBOUNDED_WAIT).awaitUninterruptibly();
+        maybeIntercept(UNBOUNDED_WAIT, 0).awaitUninterruptibly();
         return this;
     }
 
     public boolean await(long time, TimeUnit units) throws InterruptedException
     {
-        maybeIntercept(TIMED_WAIT).await(time, units);
+        long deadline = relativeToAbsoluteNanos(units.toNanos(time));
+        maybeInterceptThrowChecked(WAIT_UNTIL, localToGlobalNanos(deadline)).awaitUntil(deadline);
         return isSignalled();
     }
 
     public boolean awaitThrowUncheckedOnInterrupt(long time, TimeUnit units)
     {
-        maybeIntercept(TIMED_WAIT).awaitThrowUncheckedOnInterrupt(time, units);
+        long deadline = relativeToAbsoluteNanos(units.toNanos(time));
+        maybeInterceptThrowUnchecked(WAIT_UNTIL, localToGlobalNanos(deadline)).awaitUntilThrowUncheckedOnInterrupt(deadline);
         return isSignalled();
     }
 
     public boolean awaitUninterruptibly(long time, TimeUnit units)
     {
-        maybeIntercept(TIMED_WAIT).awaitUninterruptibly(time, units);
+        long deadline = relativeToAbsoluteNanos(units.toNanos(time));
+        maybeIntercept(WAIT_UNTIL, localToGlobalNanos(deadline)).awaitUntilUninterruptibly(deadline);
         return isSignalled();
     }
 
+    @PerClassLoader
     static class InterceptingCondition extends InterceptingAwaitable implements Condition, TriggerListener
     {
         private final InterceptorOfWaits interceptorOfWaits;
@@ -104,7 +128,7 @@ abstract class InterceptingAwaitable implements Awaitable
             this.interceptorOfWaits = interceptorOfWaits;
         }
 
-        Condition maybeIntercept(InterceptedWait.Kind kind)
+        Condition maybeIntercept(InterceptedWait.Kind kind, long waitNanos)
         {
             if (inner.isSignalled())
                 return inner;
@@ -113,7 +137,7 @@ abstract class InterceptingAwaitable implements Awaitable
             if (thread == null)
                 return inner;
 
-            InterceptedConditionWait signal = new InterceptedConditionWait(kind, thread, interceptorOfWaits.captureWaitSite(thread), inner);
+            InterceptedConditionWait signal = new InterceptedConditionWait(kind, waitNanos, thread, interceptorOfWaits.captureWaitSite(thread), inner);
             synchronized (this)
             {
                 if (intercepted == null)
@@ -142,7 +166,7 @@ abstract class InterceptingAwaitable implements Awaitable
                 {
                     Thread signalledBy = Thread.currentThread();
                     intercepted.forEach(signal -> {
-                        // TODO (now): make captureSites and interceptedBy methods of InterceptedWait?
+                        // TODO (cleanup): make captureSites and interceptedBy methods of InterceptedWait?
                         interceptorOfWaits.interceptSignal(signalledBy, signal, signal.captureSites, signal.interceptedBy);
                     });
                 }
@@ -156,6 +180,7 @@ abstract class InterceptingAwaitable implements Awaitable
         }
     }
 
+    @PerClassLoader
     static class InterceptingCountDownLatch extends InterceptingCondition implements CountDownLatch
     {
         private final AtomicInteger count;
@@ -178,6 +203,7 @@ abstract class InterceptingAwaitable implements Awaitable
         }
     }
 
+    @PerClassLoader
     static class InterceptingSignal<V> extends InterceptingAwaitable implements WaitQueue.Signal
     {
         final InterceptorOfWaits interceptorOfWaits;
@@ -253,7 +279,7 @@ abstract class InterceptingAwaitable implements Awaitable
             checkAndClear();
         }
 
-        Condition maybeIntercept(InterceptedWait.Kind kind)
+        Condition maybeIntercept(InterceptedWait.Kind kind, long waitNanos)
         {
             assert intercepted == null;
             assert !inner.isSignalled();
@@ -262,7 +288,7 @@ abstract class InterceptingAwaitable implements Awaitable
             if (thread == null)
                 return inner;
 
-            intercepted = new InterceptedConditionWait(kind, thread, interceptorOfWaits.captureWaitSite(thread), inner);
+            intercepted = new InterceptedConditionWait(kind, waitNanos, thread, interceptorOfWaits.captureWaitSite(thread), inner);
             thread.interceptWait(intercepted);
             return intercepted;
         }

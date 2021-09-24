@@ -64,6 +64,7 @@
     <property name="test.compression.algo" value="LZ4"/>
     <property name="test.simulator.src" value="${test.dir}/simulator/main"/>
     <property name="test.simulator-asm.src" value="${test.dir}/simulator/asm"/>
+    <property name="test.simulator-bootstrap.src" value="${test.dir}/simulator/bootstrap"/>
     <property name="test.driver.connection_timeout_ms" value="5000"/>
     <property name="test.driver.read_timeout_ms" value="12000"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
@@ -886,6 +887,7 @@
         The build target builds all the .class files
     -->
     <target name="build" depends="resolver-retrieve-build,build-project,checkstyle" description="Compile Cassandra classes"/>
+    <target name="_build_unsafe" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes without checks"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -1023,8 +1025,16 @@
     <property name="simulator-asm.build.classes" value="${build.classes}/simulator-asm" />
     <property name="simulator-asm.manifest" value="${simulator-asm.build.classes}/MANIFEST.MF" />
 
-    <target name="simulator-asm-build" depends="build" description="build simulator-asm">
+    <property name="simulator-bootstrap.build.src" value="${test.simulator-bootstrap.src}" />
+    <property name="simulator-bootstrap.build.classes" value="${build.classes}/simulator-bootstrap" />
+    <property name="simulator-bootstrap.manifest" value="${simulator-bootstrap.build.classes}/MANIFEST.MF" />
+
+    <target name="simulator-asm-build" depends="_build_unsafe" description="build simulator-asm">
         <antcall target="_simulator-asm_build"/>
+    </target>
+
+    <target name="simulator-bootstrap-build" depends="_build_unsafe" description="build simulator-bootstrap">
+        <antcall target="_simulator-bootstrap_build"/>
     </target>
 
     <target name="_simulator-asm_build">
@@ -1036,6 +1046,23 @@
             <classpath>
                 <fileset dir="${test.lib}">
                      <include name="**/asm-*${asm.version}.jar" /> 
+                </fileset>
+                <fileset dir="${build.lib}">
+                     <include name="**/asm-*${asm.version}.jar" />
+                </fileset>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="_simulator-bootstrap_build">
+    	<mkdir dir="${simulator-bootstrap.build.classes}" />
+        <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
+               source="${source.version}" target="${target.version}"
+               encoding="utf-8" destdir="${simulator-bootstrap.build.classes}" includeantruntime="true">
+            <src path="${simulator-bootstrap.build.src}" />
+            <classpath>
+                <fileset dir="${test.lib}">
+                     <include name="**/asm-*${asm.version}.jar" />
                 </fileset>
                 <fileset dir="${build.lib}">
                      <include name="**/asm-*${asm.version}.jar" />
@@ -1080,45 +1107,76 @@
         </manifest>
       </jar>
     </target>
-    <target name="jar"
-            depends="_main-jar,build-test,stress-build,fqltool-build,simulator-asm-build,write-poms"
+
+    <target name="stress-jar"
+            depends="stress-build"
             description="Assemble Cassandra JAR files">
-      <!-- Stress jar -->
-      <manifest file="${stress.manifest}">
-        <attribute name="Built-By" value="Pavel Yaskevich"/>
-        <attribute name="Main-Class" value="org.apache.cassandra.stress.Stress"/>
-      </manifest>
-      <mkdir dir="${stress.build.classes}/META-INF" />
-      <mkdir dir="${build.dir}/tools/lib/" />
-      <jar destfile="${build.dir}/tools/lib/stress.jar" manifest="${stress.manifest}">
-        <fileset dir="${stress.build.classes}"/>
-      </jar>
-      <!-- fqltool jar -->
-      <manifest file="${fqltool.manifest}">
-        <attribute name="Built-By" value="Marcus Eriksson"/>
-        <attribute name="Main-Class" value="org.apache.cassandra.fqltool.FullQueryLogTool"/>
-      </manifest>
-      <mkdir dir="${fqltool.build.classes}/META-INF" />
-      <mkdir dir="${build.dir}/tools/lib/" />
-      <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${stress.manifest}">
-        <fileset dir="${fqltool.build.classes}"/>
-      </jar>
-      <!-- simulator asm jar -->
-      <manifest file="${simulator-asm.manifest}">
-        <attribute name="Built-By" value="Benedict Elliott Smith"/>
-        <attribute name="Premain-Class" value="org.apache.cassandra.simulator.asm.InterceptAgent"/>
-        <attribute name="Agent-Class" value="org.apache.cassandra.simulator.asm.InterceptAgent"/>
-        <attribute name="Can-Redefine-Classes" value="true"/>
-        <attribute name="Can-Retransform-Classes" value="true"/>
-      </manifest>
-      <mkdir dir="${simulator-asm.build.classes}/META-INF" />
-      <mkdir dir="${build.dir}/test/lib/" />
-      <jar destfile="${build.dir}/test/lib/simulator-asm.jar" manifest="${simulator-asm.manifest}">
-        <fileset dir="${simulator-asm.build.classes}"/>
-        <fileset dir="${test.lib}">
-           <include name="**/asm-*${asm.version}.jar" />
-        </fileset>
-      </jar>
+        <!-- Stress jar -->
+        <manifest file="${stress.manifest}">
+            <attribute name="Built-By" value="Pavel Yaskevich"/>
+            <attribute name="Main-Class" value="org.apache.cassandra.stress.Stress"/>
+        </manifest>
+        <mkdir dir="${stress.build.classes}/META-INF" />
+        <mkdir dir="${build.dir}/tools/lib/" />
+        <jar destfile="${build.dir}/tools/lib/stress.jar" manifest="${stress.manifest}">
+            <fileset dir="${stress.build.classes}"/>
+        </jar>
+    </target>
+
+    <target name="fqltool-jar"
+            depends="fqltool-build"
+            description="Assemble Cassandra JAR files">
+
+        <!-- fqltool jar -->
+        <manifest file="${fqltool.manifest}">
+            <attribute name="Built-By" value="Marcus Eriksson"/>
+            <attribute name="Main-Class" value="org.apache.cassandra.fqltool.FullQueryLogTool"/>
+        </manifest>
+        <mkdir dir="${fqltool.build.classes}/META-INF" />
+        <mkdir dir="${build.dir}/tools/lib/" />
+        <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${stress.manifest}">
+            <fileset dir="${fqltool.build.classes}"/>
+        </jar>
+    </target>
+
+    <target name="simulator-jars"
+            depends="simulator-asm-build,simulator-bootstrap-build"
+            description="Assemble Cassandra JAR files">
+
+        <!-- simulator asm jar -->
+        <manifest file="${simulator-asm.manifest}">
+            <attribute name="Built-By" value="Benedict Elliott Smith"/>
+            <attribute name="Premain-Class" value="org.apache.cassandra.simulator.asm.InterceptAgent"/>
+            <attribute name="Agent-Class" value="org.apache.cassandra.simulator.asm.InterceptAgent"/>
+            <attribute name="Can-Redefine-Classes" value="true"/>
+            <attribute name="Can-Retransform-Classes" value="true"/>
+        </manifest>
+        <mkdir dir="${simulator-asm.build.classes}/META-INF" />
+        <mkdir dir="${build.dir}/test/lib/" />
+        <jar destfile="${build.dir}/test/lib/simulator-asm.jar" manifest="${simulator-asm.manifest}">
+            <fileset dir="${simulator-asm.build.classes}"/>
+            <fileset dir="${test.lib}">
+                <include name="**/asm-*${asm.version}.jar" />
+            </fileset>
+        </jar>
+
+        <!-- simulator bootstrap jar -->
+        <manifest file="${simulator-bootstrap.manifest}">
+            <attribute name="Built-By" value="Benedict Elliott Smith"/>
+        </manifest>
+        <mkdir dir="${simulator-bootstrap.build.classes}/META-INF" />
+        <mkdir dir="${build.dir}/test/lib/" />
+        <jar destfile="${build.dir}/test/lib/simulator-bootstrap.jar" manifest="${simulator-bootstrap.manifest}">
+            <fileset dir="${simulator-bootstrap.build.classes}"/>
+            <fileset dir="${test.lib}">
+                <include name="**/asm-*${asm.version}.jar" />
+            </fileset>
+        </jar>
+    </target>
+
+    <target name="jar"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,write-poms"
+            description="Assemble Cassandra JAR files">
     </target>
 
     <!--
@@ -1335,6 +1393,7 @@
      <src path="${test.distributed.src}"/>
      <src path="${test.simulator.src}"/>
      <src path="${test.simulator-asm.src}"/>
+     <src path="${test.simulator-bootstrap.src}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->

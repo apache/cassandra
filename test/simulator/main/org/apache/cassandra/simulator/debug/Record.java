@@ -26,12 +26,13 @@ import java.io.PrintWriter;
 import java.nio.channels.Channels;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
 import org.slf4j.Logger;
@@ -41,6 +42,8 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
 
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
@@ -76,8 +79,16 @@ public class Record
                              + (withRng ? "rng," : "") + (withRngCallSites ? "rngCallSites," : "")
                              + (builder.capture().waitSites ? "waitSites," : "") + (builder.capture().wakeSites ? "wakeSites," : ""));
 
-            Supplier<RandomSource> random = withRng ? new RandomSourceRecorder(rngOut, new RandomSource.Default(), withRngCallSites) : RandomSource.Default::new;
-            builder.random(random);
+            RandomSourceRecorder random;
+            if (withRng)
+            {
+                random = new RandomSourceRecorder(rngOut, new RandomSource.Default(), withRngCallSites);
+                builder.random(random);
+            }
+            else
+            {
+                random = null;
+            }
 
             // periodic forced flush to ensure state is on disk after some kind of stall
             Thread flusher = new Thread(() -> {
@@ -87,9 +98,12 @@ public class Record
                     {
                         Thread.sleep(1000);
                         eventOut.flush();
-                        synchronized (random)
+                        if (random != null)
                         {
-                            rngOut.flush();
+                            synchronized (random)
+                            {
+                                rngOut.flush();
+                            }
                         }
                     }
                 }
@@ -105,9 +119,12 @@ public class Record
                     eventOut.flush();
                     try
                     {
-                        synchronized (random)
+                        if (random != null)
                         {
-                            rngOut.flush();
+                            synchronized (random)
+                            {
+                                rngOut.flush();
+                            }
                         }
                     }
                     catch (IOException e)
@@ -121,12 +138,13 @@ public class Record
 
             try (ClusterSimulation<?> cluster = builder.create(seed))
             {
-                try
+                try (CloseableIterator<?> iter = cluster.simulation.iterator();)
                 {
-                    Iterable<?> iterable = cluster.simulation.iterable();
-                    Iterator<?> iter = iterable.iterator();
                     while (iter.hasNext())
                         eventOut.println(normaliseRecordingOut(iter.next().toString()));
+
+                    if (random != null)
+                        random.close();
                 }
                 finally
                 {
@@ -153,12 +171,16 @@ public class Record
         ).replaceAll("$1$2]");
     }
 
-    public static class RandomSourceRecorder extends RandomSource.Abstract implements Supplier<RandomSource>
+    public static class RandomSourceRecorder extends RandomSource.Abstract implements Supplier<RandomSource>, Closeable
     {
+        private static final AtomicReferenceFieldUpdater<RandomSourceRecorder, Thread> lockedUpdater = AtomicReferenceFieldUpdater.newUpdater(Record.RandomSourceRecorder.class, Thread.class, "locked");
+
         final DataOutputStreamPlus out;
         final AbstractRecorder threads;
         final RandomSource wrapped;
         int count = 0;
+        volatile Thread locked;
+        volatile boolean disabled;
 
         public RandomSourceRecorder(DataOutputStreamPlus out, RandomSource wrapped, boolean withCallSites)
         {
@@ -167,114 +189,211 @@ public class Record
             this.threads = new AbstractRecorder(out, withCallSites);
         }
 
-        public synchronized int uniform(int min, int max)
+        private void enter()
+        {
+            while (!lockedUpdater.compareAndSet(this, null, Thread.currentThread()))
+            {
+                if (disabled)
+                    return;
+
+                Thread alt = locked;
+                if (alt == null)
+                    continue;
+                StackTraceElement[] altTrace = alt.getStackTrace();
+                if (Stream.of(altTrace).noneMatch(ste -> ste.getClassName().equals(RandomSourceRecorder.class.getName())))
+                    continue;
+
+                disabled = true;
+                logger.error("Race within RandomSourceReconciler between {} and {} - means we have a Simulator bug permitting two threads to run at once\n{}", Thread.currentThread(), alt, Threads.prettyPrint(altTrace, true, "\n"));
+                throw failWithOOM();
+            }
+        }
+
+        private void exit()
+        {
+            locked = null;
+        }
+
+        public int uniform(int min, int max)
         {
             int v = wrapped.uniform(min, max);
+            if (disabled)
+                return v;
+
+            enter();
             try
             {
-                out.writeByte(1);
-                out.writeVInt(count++);
-                threads.writeThread();
-                out.writeVInt(min);
-                out.writeVInt(max - min);
-                out.writeVInt(v - min);
+                synchronized (this)
+                {
+                    out.writeByte(1);
+                    out.writeVInt(count++);
+                    threads.writeThread();
+                    out.writeVInt(min);
+                    out.writeVInt(max - min);
+                    out.writeVInt(v - min);
+                }
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
+            finally
+            {
+                exit();
+            }
             return v;
         }
 
-        public synchronized long uniform(long min, long max)
+        public long uniform(long min, long max)
         {
             long v = wrapped.uniform(min, max);
+            if (disabled)
+                return v;
+
+            enter();
             try
             {
-                out.writeByte(2);
-                out.writeVInt(count++);
-                threads.writeThread();
-                out.writeVInt(min);
-                out.writeVInt(max - min);
-                out.writeVInt(v - min);
+                synchronized (this)
+                {
+                    out.writeByte(2);
+                    out.writeVInt(count++);
+                    threads.writeThread();
+                    out.writeVInt(min);
+                    out.writeVInt(max - min);
+                    out.writeVInt(v - min);
+                }
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
+            finally
+            {
+                exit();
+            }
             return v;
         }
 
-        public synchronized float uniformFloat()
+        public float uniformFloat()
         {
             float v = wrapped.uniformFloat();
+            if (disabled)
+                return v;
+
+            enter();
             try
             {
-                out.writeByte(3);
-                out.writeVInt(count++);
-                threads.writeThread();
-                out.writeFloat(v);
+                synchronized (this)
+                {
+                    out.writeByte(3);
+                    out.writeVInt(count++);
+                    threads.writeThread();
+                    out.writeFloat(v);
+                }
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
+            finally
+            {
+                exit();
+            }
             return v;
         }
 
-        public synchronized double uniformDouble()
+        public double uniformDouble()
         {
             double v = wrapped.uniformDouble();
+            if (disabled)
+                return v;
+
+            enter();
             try
             {
-                out.writeByte(6);
-                out.writeVInt(count++);
-                threads.writeThread();
-                out.writeDouble(v);
+                synchronized (this)
+                {
+                    out.writeByte(6);
+                    out.writeVInt(count++);
+                    threads.writeThread();
+                    out.writeDouble(v);
+                }
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
+            finally
+            {
+                exit();
+            }
             return v;
         }
 
-        public synchronized void reset(long seed)
+        public void reset(long seed)
         {
             wrapped.reset(seed);
+            if (disabled)
+                return;
+
+            enter();
             try
             {
-                out.writeByte(4);
-                out.writeVInt(count++);
-                out.writeVInt(seed);
+                synchronized (this)
+                {
+                    out.writeByte(4);
+                    out.writeVInt(count++);
+                    out.writeVInt(seed);
+                }
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
+            }
+            finally
+            {
+                exit();
             }
         }
 
-        public synchronized long reset()
+        public long reset()
         {
             long v = wrapped.reset();
+            if (disabled)
+                return v;
+
+            enter();
             try
             {
-                out.writeByte(5);
-                out.writeVInt(count++);
-                out.writeFloat(v);
+                synchronized (this)
+                {
+                    out.writeByte(5);
+                    out.writeVInt(count++);
+                    out.writeFloat(v);
+                }
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
+            }
+            finally
+            {
+                exit();
             }
             return v;
         }
 
-        public synchronized RandomSource get()
+        public RandomSource get()
         {
             if (count++ > 0)
-                failWithOOM();
+                throw failWithOOM();
             return this;
+        }
+
+        @Override
+        public void close()
+        {
+            disabled = true;
         }
     }
 
@@ -298,7 +417,8 @@ public class Record
             {
                 StackTraceElement[] ste = thread.getStackTrace();
                 String trace = Arrays.stream(ste, 3, ste.length)
-                                     .filter(st -> !st.getClassName().equals("org.apache.cassandra.simulator.paxos.PaxosBurnTest"))
+                                     .filter(st -> !st.getClassName().equals("org.apache.cassandra.simulator.debug.Record")
+                                                   && !st.getClassName().equals("org.apache.cassandra.simulator.SimulationRunner$Record"))
                                      .collect(new Threads.StackTraceCombiner(true, "", "\n", ""));
                 out.writeUTF(trace);
             }

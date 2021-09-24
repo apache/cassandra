@@ -20,13 +20,14 @@ package org.apache.cassandra.simulator.cluster;
 
 import org.apache.cassandra.simulator.Actions.ReliableAction;
 
+import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 
 class OnInstanceSendShutdownToAll extends ReliableAction
 {
     OnInstanceSendShutdownToAll(ClusterActions actions, int from)
     {
-        super("Send Shutdown from " + from + " to all", RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS,
+        super("Send Shutdown from " + from + " to all", NONE, RELIABLE_NO_TIMEOUTS,
               () -> actions.sendShutdownToAll(from));
     }
 }

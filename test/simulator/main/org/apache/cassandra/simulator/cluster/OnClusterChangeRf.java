@@ -20,13 +20,12 @@ package org.apache.cassandra.simulator.cluster;
 
 import java.util.Arrays;
 
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
 
-import static java.util.Arrays.stream;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
+import static org.apache.cassandra.simulator.cluster.ClusterReliableQueryAction.schemaChange;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 
 class OnClusterChangeRf extends OnClusterChangeTopology
@@ -35,33 +34,33 @@ class OnClusterChangeRf extends OnClusterChangeTopology
     final long timestamp;
     final int on;
     final boolean increase;
-    final int[] newRf;
 
-    OnClusterChangeRf(KeyspaceActions actions, long timestamp, int on, int[] membersOfRing, int[] membersOfQuorumDcs, boolean increase, int[] newRf, int quorumRfBefore, int quorumRfAfter)
+    OnClusterChangeRf(KeyspaceActions actions, long timestamp, int on, Topology before, Topology after, boolean increase)
     {
-        super(increase ? lazy(() -> "Increase replication factor to " + Arrays.toString(newRf)) : lazy(() -> "Decrease replication factor to " + Arrays.toString(newRf)),
-              actions, STRICT, NONE, membersOfRing, membersOfQuorumDcs, quorumRfBefore, quorumRfAfter);
+        super(increase ? lazy(() -> "Increase replication factor to " + Arrays.toString(after.rf))
+                       : lazy(() -> "Decrease replication factor to " + Arrays.toString(after.rf)),
+              actions, STRICT, NONE, before, after, before.primaryKeys);
         this.actions = actions;
         this.timestamp = timestamp;
         this.on = on;
         this.increase = increase;
-        this.newRf = newRf;
     }
 
-    protected ActionList performInternal()
+    protected ActionList performSimple()
     {
         before(actions.cluster.get(on));
 
         StringBuilder command = new StringBuilder("ALTER KEYSPACE " + actions.keyspace + " WITH replication = {'class': 'NetworkTopologyStrategy'");
-        for (int i = 0; i < newRf.length; ++i)
-            command.append(", '").append(actions.snitch.nameOfDc(i)).append("': ").append(newRf[i]);
+        for (int i = 0; i < after.rf.length; ++i)
+            command.append(", '").append(actions.snitch.nameOfDc(i)).append("': ").append(after.rf[i]);
         command.append("};");
 
         return ActionList.of(
-        new OnClusterUpdateGossip(actions, on, new ClusterReliableQueryAction("ALTER KEYSPACE " + description(), actions, on, command.toString(), timestamp, ConsistencyLevel.ALL)),
-        new OnClusterFullRepair(actions, membersOfRing, membersOfQuorumDcs, stream(newRf).sum(), false),
-        // TODO (future): cleanup should clear paxos state tables
-        Actions.of("Flush and Cleanup", !increase ? () -> actions.flushAndCleanup(membersOfRing) : ActionList::empty)
+            schemaChange("ALTER KEYSPACE " + description(), actions, on, command.toString()),
+            new OnClusterSyncPendingRanges(actions),
+            new OnClusterFullRepair(actions, after, true, false, false),
+            // TODO: cleanup should clear paxos state tables
+            Actions.of("Flush and Cleanup", !increase ? () -> actions.flushAndCleanup(after.membersOfRing) : ActionList::empty)
         );
     }
 }

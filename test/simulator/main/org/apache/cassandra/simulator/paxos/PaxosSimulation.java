@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.simulator.paxos;
 
-import java.util.Iterator;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 import javax.annotation.Nullable;
 
@@ -29,6 +32,9 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -36,17 +42,18 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionPlan;
-import org.apache.cassandra.simulator.ActionSchedulerSequential;
-import org.apache.cassandra.simulator.ActionSchedulers;
+import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.Simulation;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.systems.SimulatedQuery;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.Action.Modifiers.DISPLAY_ORIGIN;
+import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.causedBy;
 
 public abstract class PaxosSimulation implements Simulation, ClusterActionListener
@@ -62,15 +69,15 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
         public Operation(int primaryKey, int id, IInvokableInstance instance,
                          String idString, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConistency, Object... params)
         {
-            super(primaryKey + "/" + id + ": " + idString, RELIABLE_NO_TIMEOUTS, NONE, PaxosSimulation.this.simulated, instance, query, commitConsistency, serialConistency, params);
+            super(primaryKey + "/" + id + ": " + idString, DISPLAY_ORIGIN, NONE, PaxosSimulation.this.simulated, instance, query, commitConsistency, serialConistency, params);
             this.primaryKey = primaryKey;
             this.id = id;
         }
 
-        public ActionList perform(boolean perform)
+        public ActionList performAndRegister()
         {
             start = logicalClock.incrementAndGet();
-            return super.perform(perform);
+            return super.performAndRegister();
         }
 
         @Override
@@ -96,34 +103,76 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 
     final Cluster cluster;
     final SimulatedSystems simulated;
-    final ActionSchedulers schedulers;
+    final RunnableActionScheduler runnableScheduler;
     final AtomicInteger logicalClock = new AtomicInteger(1);
+    final long runForNanos;
+    final LongSupplier jitter;
 
-    public PaxosSimulation(SimulatedSystems simulated, Cluster cluster, ActionSchedulers schedulers)
+    public PaxosSimulation(SimulatedSystems simulated, Cluster cluster, RunnableActionScheduler runnableScheduler, long runForNanos, LongSupplier jitter)
     {
         this.cluster = cluster;
         this.simulated = simulated;
-        this.schedulers = schedulers;
+        this.runnableScheduler = runnableScheduler;
+        this.runForNanos = runForNanos;
+        this.jitter = jitter;
     }
 
     protected abstract ActionPlan plan();
 
     public void run()
     {
-        //noinspection StatementWithEmptyBody
-        for (Object ignore : iterable()) {}
+        AtomicLong counter = new AtomicLong();
+        ScheduledExecutorPlus livenessChecker = null;
+        ScheduledFuture<?> liveness = null;
+        if (CassandraRelevantProperties.TEST_SIMULATOR_LIVENESS_CHECK.getBoolean())
+        {
+            livenessChecker = ExecutorFactory.Global.executorFactory().scheduled("SimulationLiveness");
+            liveness = livenessChecker.scheduleWithFixedDelay(new Runnable()
+            {
+                long prev = 0;
+                @Override
+                public void run()
+                {
+                    long cur = counter.get();
+                    if (cur == prev)
+                    {
+                        logger.error("Simulation appears to have stalled");
+                        throw failWithOOM();
+                    }
+                    prev = cur;
+                }
+            }, 1L, 1L, TimeUnit.MINUTES);
+        }
+
+        try (CloseableIterator<?> iter = iterator())
+        {
+            while (iter.hasNext())
+            {
+                iter.next();
+                counter.incrementAndGet();
+            }
+        }
+        finally
+        {
+            if (liveness != null)
+                liveness.cancel(true);
+            if (livenessChecker != null)
+                livenessChecker.shutdownNow();
+        }
     }
 
-    public Iterable<?> iterable()
+    public CloseableIterator<?> iterator()
     {
-        Iterator<?> iterator = plan().iterable(simulated.time, new ActionSchedulerSequential(), schedulers).iterator();
-        return (Iterable<Object>) () -> new Iterator<Object>()
+        CloseableIterator<?> iterator = plan().iterator(runForNanos, jitter, simulated.time, new RunnableActionScheduler.Immediate(), runnableScheduler, simulated.futureScheduler);
+        return new CloseableIterator<Object>()
         {
+            @Override
             public boolean hasNext()
             {
                 return !isDone() && iterator.hasNext();
             }
 
+            @Override
             public Object next()
             {
                 try
@@ -134,6 +183,12 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
                 {
                     throw failWith(t);
                 }
+            }
+
+            @Override
+            public void close()
+            {
+                iterator.close();
             }
         };
     }

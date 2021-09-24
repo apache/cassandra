@@ -20,31 +20,33 @@ package org.apache.cassandra.simulator.debug;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
-import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfConsequences;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.memory.HeapPool;
 
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.debug.Reconcile.NORMALISE_LAMBDA;
 import static org.apache.cassandra.simulator.debug.Reconcile.NORMALISE_THREAD;
-import static org.apache.cassandra.simulator.debug.Reconcile.failWithHeapDump;
 
 /**
  * Simulator runs should be deterministic, so run two in parallel and see if they produce the same event stream
@@ -52,13 +54,15 @@ import static org.apache.cassandra.simulator.debug.Reconcile.failWithHeapDump;
 public class SelfReconcile
 {
     private static final Logger logger = LoggerFactory.getLogger(SelfReconcile.class);
+    static final Pattern NORMALISE_RECONCILE_THREAD = Pattern.compile("(Thread\\[Reconcile:)[0-9]+,[0-9],Reconcile(_[0-9]+)?]");
 
     static class InterceptReconciler implements InterceptorOfConsequences, Supplier<RandomSource>
     {
         final List<Object> events = new ArrayList<>();
         final boolean withRngCallsites;
         int counter = 0;
-        boolean failOnUninterceptedRng;
+        boolean verifyUninterceptedRng;
+        boolean closed;
 
         InterceptReconciler(boolean withRngCallsites)
         {
@@ -84,9 +88,9 @@ public class SelfReconcile
         }
 
         @Override
-        public synchronized void interceptExecution(InterceptedExecution invoke, InterceptingExecutor executor)
+        public synchronized void interceptExecution(InterceptedExecution invoke, OrderOn orderOn)
         {
-            verify("Execute " + normalise(invoke.toString()) + " on " + executor);
+            verify("Execute " + normalise(invoke.toString()) + " on " + orderOn);
         }
 
         @Override
@@ -96,40 +100,62 @@ public class SelfReconcile
         }
 
         @Override
-        public synchronized void interceptTermination()
+        public void interceptTermination(boolean isThreadTermination)
         {
-            verify("Terminate " + Thread.currentThread());
+            // Cannot verify this, as thread may terminate after triggering follow-on events
         }
 
-        synchronized void verify(String event)
+        void interceptAllocation(long amount, String table)
         {
+            verify("Allocate " + amount + " for " + table + " on " + Thread.currentThread());
+        }
+
+        synchronized void verify(Object event)
+        {
+            if (closed)
+                return;
+
             events.add(event);
 
-            try
+            if (events.size() == 1)
             {
                 int cur = counter;
-                while (events.size() == 1 && cur == counter)
-                    wait();
-
-                if (events.size() == 0 || cur != counter)
-                    return;
-
+                while (cur == counter)
+                {
+                    try
+                    {
+                        wait();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new UncheckedInterruptedException(e);
+                    }
+                }
+            }
+            else
+            {
                 if (events.size() != 2)
                     throw new IllegalStateException();
 
-                if (!events.get(0).toString().equals(events.get(1)))
-                    failWithOOM();
-
-                ++counter;
-                events.clear();
-            }
-            catch (InterruptedException e)
-            {
-                throw new UncheckedInterruptedException(e);
-            }
-            finally
-            {
-                notifyAll();
+                try
+                {
+                    Object event0 = events.get(0);
+                    Object event1 = events.get(1);
+                    if (event0 instanceof Pair)
+                        event0 = ((Pair<?, ?>) event0).left;
+                    if (event1 instanceof Pair)
+                        event1 = ((Pair<?, ?>) event1).left;
+                    String e0 = normalise(event0.toString());
+                    String e1 = normalise(event1.toString());
+                    if (!e0.equals(e1))
+                        throw failWithOOM();
+                }
+                finally
+                {
+                    events.clear();
+                    ++counter;
+                    notifyAll();
+                }
             }
         }
 
@@ -181,76 +207,68 @@ public class SelfReconcile
                     Thread thread = Thread.currentThread();
                     if (!(thread instanceof InterceptibleThread) || !((InterceptibleThread) thread).isIntercepting())
                     {
-                        if (failOnUninterceptedRng)
-                            failWithOOM();
-                        return result;
+                        if (!verifyUninterceptedRng)
+                            return result;
                     }
-                    InterceptReconciler.this.verify(withRngCallsites ? event + result + ' ' + new CaptureSites(Thread.currentThread(), false) : event);
+                    InterceptReconciler.this.verify(withRngCallsites ? event + result + ' ' + Thread.currentThread() + ' '
+                                                                       + new CaptureSites(Thread.currentThread(), false)
+                                                                         .toString(ste -> !ste.getClassName().startsWith(SelfReconcile.class.getName()))
+                                                                     : event + result);
                     return result;
                 }
             };
         }
+
+        void close()
+        {
+            closed = true;
+        }
     }
 
-    public static void reconcileWithSelf(long seed, boolean withRng, boolean withRngCallSites, ClusterSimulation.Builder<?> builder)
+    public static void reconcileWithSelf(long seed, boolean withRng, boolean withRngCallSites, boolean withAllocations, ClusterSimulation.Builder<?> builder)
     {
         logger.error("Seed 0x{}", Long.toHexString(seed));
 
         InterceptReconciler reconciler = new InterceptReconciler(withRngCallSites);
         if (withRng) builder.random(reconciler);
 
-        Executor executor = Executors.newFixedThreadPool(2);
-        try (ClusterSimulation<?> cluster1 = builder.unique(0).create(seed);
-             ClusterSimulation<?> cluster2 = builder.unique(1).create(seed))
+        HeapPool.Logged.Listener memoryListener = withAllocations ? reconciler::interceptAllocation : null;
+        ExecutorService executor = ExecutorFactory.Global.executorFactory().pooled("Reconcile", 2);
+
+        try (ClusterSimulation<?> cluster1 = builder.unique(0).memoryListener(memoryListener).create(seed);
+             ClusterSimulation<?> cluster2 = builder.unique(1).memoryListener(memoryListener).create(seed))
         {
             InterceptibleThread.setDebugInterceptor(reconciler);
-            Iterable<?> iter1 = cluster1.simulation.iterable();
-            Iterable<?> iter2 = cluster2.simulation.iterable();
-            reconciler.failOnUninterceptedRng = true;
+            reconciler.verifyUninterceptedRng = true;
 
-            final Object done = new Object();
-            SynchronousQueue<Object> check1 = new SynchronousQueue<>();
-            SynchronousQueue<Object> check2 = new SynchronousQueue<>();
-            executor.execute(() -> {
-                for (Object o : iter1)
+            Future<?> f1 = executor.submit(() -> {
+                try (CloseableIterator<?> iter = cluster1.simulation.iterator())
                 {
-                    try
+                    while (iter.hasNext())
                     {
-                        check1.put(Pair.create(o, o.toString()));
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new UncheckedInterruptedException(e);
+                        Object o = iter.next();
+                        reconciler.verify(Pair.create(normalise(o.toString()), o));
                     }
                 }
+                reconciler.verify("done");
             });
-            executor.execute(() -> {
-                for (Object o : iter2)
+            Future<?> f2 = executor.submit(() -> {
+                try (CloseableIterator<?> iter = cluster2.simulation.iterator())
                 {
-                    try
+                    while (iter.hasNext())
                     {
-                        check2.put(Pair.create(o, o.toString()));
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new UncheckedInterruptedException(e);
+                        Object o = iter.next();
+                        reconciler.verify(Pair.create(normalise(o.toString()), o));
                     }
                 }
+                reconciler.verify("done");
             });
-
-            Object next1, next2 = new Object();
-            while (done != (next1 = check1.take()) && done != (next2 = check2.take()))
-            {
-                String normalised1 = normalise(((Pair)next1).right.toString());
-                String normalised2 = normalise(((Pair)next2).right.toString());
-                if (!normalised1.equals(normalised2))
-                    failWithHeapDump(-1, normalised1, normalised2);
-            }
-            if (next1 != next2)
-                failWithHeapDump(-1, next1, next2);
+            f1.get();
+            f2.get();
         }
         catch (Throwable t)
         {
+            reconciler.close();
             t.printStackTrace();
             throw new RuntimeException("Failed on seed " + Long.toHexString(seed), t);
         }
@@ -258,10 +276,11 @@ public class SelfReconcile
 
     private static String normalise(String input)
     {
-        return NORMALISE_THREAD.matcher(
-            NORMALISE_LAMBDA.matcher(input).replaceAll("")
-        ).replaceAll("$1$2]");
+        return NORMALISE_RECONCILE_THREAD.matcher(
+            NORMALISE_THREAD.matcher(
+                NORMALISE_LAMBDA.matcher(input).replaceAll("")
+            ).replaceAll("$1$2]")
+        ).replaceAll("$1]");
     }
-
 
 }

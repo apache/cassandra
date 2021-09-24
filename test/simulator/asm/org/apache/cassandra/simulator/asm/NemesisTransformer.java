@@ -34,8 +34,7 @@ import static org.apache.cassandra.simulator.asm.TransformationKind.SIGNAL_NEMES
  * If the annotated field is an AtomicX or AtomicXFieldUpdater, we insert nemesis points either side of the next
  * invocation of
  *
- * TODO (future): consider permitting Nemesis on a class as well as a field, so as to mark all (at least volatile or atomic) members
- * TODO (future): expand nemesis points
+ * TODO (config): permit Nemesis on a class as well as a field, so as to mark all (at least volatile or atomic) members
  */
 class NemesisTransformer extends MethodVisitor
 {
@@ -45,7 +44,6 @@ class NemesisTransformer extends MethodVisitor
 
     // for simplicity, we simply activate nemesis for all atomic operations on the relevant type once any such
     // field is loaded in a method
-    // TODO (future): only nemesis before/after selectively for different operations?
     Set<String> onForTypes;
 
     public NemesisTransformer(ClassTransformer transformer, int api, String name, MethodVisitor parent, NemesisGenerator generator, NemesisFieldKind.Selector nemesisFieldSelector)

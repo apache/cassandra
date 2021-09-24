@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.paxos;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.RepairValidator;
+import org.apache.cassandra.simulator.cluster.Topology;
 
 import static java.util.Arrays.stream;
 
@@ -31,10 +32,8 @@ public class PaxosRepairValidator implements RepairValidator
     final Object id;
 
     boolean isPaxos;
-    int quorumRf;
+    Topology topology;
     Ballots.LatestBallots[][] ballotsBefore;
-    int[] primaryKeys;
-    int[][] replicasForKeys;
 
     public PaxosRepairValidator(Cluster cluster, String keyspace, String table, Object id)
     {
@@ -45,12 +44,14 @@ public class PaxosRepairValidator implements RepairValidator
     }
 
     @Override
-    public void before(int[] primaryKeys, int[][] replicasForKeys, int quorumRf)
+    public void before(Topology topology, boolean repairPaxos, boolean repairOnlyPaxos)
     {
-        this.quorumRf = quorumRf;
-        this.primaryKeys = primaryKeys;
-        this.replicasForKeys = replicasForKeys;
-        this.ballotsBefore = Ballots.read(cluster, keyspace, table, primaryKeys, replicasForKeys, false);
+        if (repairOnlyPaxos)
+            return;
+
+        this.isPaxos = isPaxos;
+        this.topology = topology;
+        this.ballotsBefore = Ballots.read(cluster, keyspace, table, topology.primaryKeys, topology.replicasForKeys, false);
     }
 
     @Override
@@ -59,6 +60,9 @@ public class PaxosRepairValidator implements RepairValidator
         if (ballotsBefore == null)
             return;
 
+        int[] primaryKeys = topology.primaryKeys;
+        int[][] replicasForKeys = topology.replicasForKeys;
+        int quorumRf = topology.quorumRf;
         int quorum = quorumRf / 2 + 1;
         Ballots.LatestBallots[][] ballotsAfter  = Ballots.read(cluster, keyspace, table, primaryKeys, replicasForKeys, true);
         for (int pki = 0; pki < primaryKeys.length ; ++pki)
@@ -87,7 +91,7 @@ public class PaxosRepairValidator implements RepairValidator
             }
 
             int countAfter = (int) stream(after).filter(n -> n.persisted >= expectPersisted).count();
-            if (countAfter < quorumRf)
+            if (countAfter < quorum)
                 throw new AssertionError(String.format("%d: %d %s before %s but only persisted on %d after (out of %d)",
                                                        primaryKeys[pki], expectPersisted, kind, id, countAfter, quorumRf));
         }

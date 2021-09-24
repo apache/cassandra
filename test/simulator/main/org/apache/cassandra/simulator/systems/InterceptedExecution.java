@@ -34,8 +34,10 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 public interface InterceptedExecution
 {
     SimulatedAction.Kind kind();
-
+    long deadlineNanos();
     void invokeAndAwaitPause(InterceptorOfConsequences interceptor);
+    void cancel();
+    void onCancel(Runnable onCancel);
 
     /**
      * Abstract implementation we only need to implement Runnable for, which we will invoke
@@ -45,11 +47,14 @@ public interface InterceptedExecution
     abstract class InterceptedTaskExecution implements InterceptedExecution, Runnable
     {
         public final InterceptingExecutor executor;
+        boolean submittedOrCancelled;
+        Runnable onCancel;
 
         protected InterceptedTaskExecution(InterceptingExecutor executor)
         {
             Preconditions.checkNotNull(executor);
             this.executor = executor;
+            executor.addPending(this);
         }
 
         @Override
@@ -58,9 +63,39 @@ public interface InterceptedExecution
             return SimulatedAction.Kind.TASK;
         }
 
+        @Override
+        public long deadlineNanos()
+        {
+            return -1L;
+        }
+
         public void invokeAndAwaitPause(InterceptorOfConsequences interceptor)
         {
+            Preconditions.checkState(!submittedOrCancelled);
             executor.submitAndAwaitPause(this, interceptor);
+            submittedOrCancelled = true;
+        }
+
+        @Override
+        public void cancel()
+        {
+            if (!submittedOrCancelled)
+            {
+                executor.cancelPending(this);
+                submittedOrCancelled = true;
+                if (onCancel != null)
+                {
+                    onCancel.run();
+                    onCancel = null;
+                }
+            }
+        }
+
+        @Override
+        public void onCancel(Runnable onCancel)
+        {
+            assert this.onCancel == null || onCancel == null;
+            this.onCancel = onCancel;
         }
     }
 
@@ -93,18 +128,28 @@ public interface InterceptedExecution
     {
         private final SimulatedAction.Kind kind;
         private final InterceptingExecutor executor;
-        private final RunnableFuture<T> run;
+        private final long deadlineNanos;
+        private RunnableFuture<T> run;
+        private Runnable onCancel;
 
         public InterceptedFutureTaskExecution(SimulatedAction.Kind kind, InterceptingExecutor executor, RunnableFuture<T> run)
         {
+            this(kind, executor, run, -1L);
+        }
+
+        public InterceptedFutureTaskExecution(SimulatedAction.Kind kind, InterceptingExecutor executor, RunnableFuture<T> run, long deadlineNanos)
+        {
+            Preconditions.checkArgument(deadlineNanos >= -1);
             this.kind = kind;
             this.executor = executor;
             this.run = run;
+            this.deadlineNanos = deadlineNanos;
+            executor.addPending(run);
         }
 
         public String toString()
         {
-            return run.toString() + " with " + executor;
+            return (run != null ? run.toString() : "(done)") + " with " + executor;
         }
 
         @Override
@@ -114,9 +159,39 @@ public interface InterceptedExecution
         }
 
         @Override
+        public long deadlineNanos()
+        {
+            return deadlineNanos;
+        }
+
+        @Override
         public void invokeAndAwaitPause(InterceptorOfConsequences interceptor)
         {
+            Preconditions.checkNotNull(run);
             executor.submitAndAwaitPause(run, interceptor);
+            run = null;
+        }
+
+        @Override
+        public void cancel()
+        {
+            if (run != null)
+            {
+                executor.cancelPending(run);
+                run = null;
+                if (onCancel != null)
+                {
+                    onCancel.run();
+                    onCancel = null;
+                }
+            }
+        }
+
+        @Override
+        public void onCancel(Runnable onCancel)
+        {
+            assert this.onCancel == null || onCancel == null;
+            this.onCancel = onCancel;
         }
     }
 
@@ -124,7 +199,8 @@ public interface InterceptedExecution
     {
         final SimulatedAction.Kind kind;
         final InterceptibleThread thread;
-        final Runnable run;
+        Runnable run;
+        Runnable onCancel;
 
         public InterceptedThreadStart(Function<Runnable, InterceptibleThread> factory, Runnable run, SimulatedAction.Kind kind)
         {
@@ -149,19 +225,25 @@ public interface InterceptedExecution
             }
             finally
             {
-                thread.interceptTermination();
+                thread.interceptTermination(true);
             }
         }
 
         public String toString()
         {
-            return run + " with " + thread;
+            return (run != null ? run.toString() : "(done)") + " with " + thread;
         }
 
         @Override
         public SimulatedAction.Kind kind()
         {
             return kind;
+        }
+
+        @Override
+        public long deadlineNanos()
+        {
+            return -1L;
         }
 
         public void invokeAndAwaitPause(InterceptorOfConsequences interceptor)
@@ -173,6 +255,27 @@ public interface InterceptedExecution
                 thread.start();
                 done.awaitPause();
             }
+        }
+
+        @Override
+        public void cancel()
+        {
+            if (run != null)
+            {
+                run = null;
+                if (onCancel != null)
+                {
+                    onCancel.run();
+                    onCancel = null;
+                }
+            }
+        }
+
+        @Override
+        public void onCancel(Runnable onCancel)
+        {
+            assert this.onCancel == null || onCancel == null;
+            this.onCancel = onCancel;
         }
     }
 }

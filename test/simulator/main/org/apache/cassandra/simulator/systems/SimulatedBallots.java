@@ -28,7 +28,7 @@ import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.utils.UUIDGen;
 
-// TODO (future): link with SimulateTime, and otherwise improve
+// TODO (feature): link with SimulateTime, and otherwise improve
 public class SimulatedBallots
 {
     enum Next { ONE, JUMP, TO_LATEST }

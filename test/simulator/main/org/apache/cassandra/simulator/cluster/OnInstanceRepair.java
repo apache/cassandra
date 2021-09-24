@@ -44,55 +44,55 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
 
 class OnInstanceRepair extends ClusterAction
 {
-    public OnInstanceRepair(KeyspaceActions actions, int on, boolean force)
+    public OnInstanceRepair(KeyspaceActions actions, int on, boolean repairPaxos, boolean repairOnlyPaxos, boolean force)
     {
-        super("Repair on " + on, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, on, invokableBlockingRepair(actions.keyspace, false, force));
+        super("Repair on " + on, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, on, invokableBlockingRepair(actions.keyspace, repairPaxos, repairOnlyPaxos, false, force));
     }
 
-    public OnInstanceRepair(KeyspaceActions actions, int on, Map.Entry<String, String> repairRange, boolean force)
+    public OnInstanceRepair(KeyspaceActions actions, int on, boolean repairPaxos, boolean repairOnlyPaxos, Map.Entry<String, String> repairRange, boolean force)
     {
-        this(actions, on, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, repairRange, force);
+        this(actions, on, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, repairPaxos, repairOnlyPaxos, repairRange, force);
     }
 
-    public OnInstanceRepair(KeyspaceActions actions, int on, Modifiers self, Modifiers transitive, String id, boolean primaryRangeOnly, boolean force)
+    public OnInstanceRepair(KeyspaceActions actions, int on, Modifiers self, Modifiers transitive, String id, boolean repairPaxos, boolean repairOnlyPaxos, boolean primaryRangeOnly, boolean force)
     {
-        super(id, self, transitive, actions, on, invokableBlockingRepair(actions.keyspace, primaryRangeOnly, force));
+        super(id, self, transitive, actions, on, invokableBlockingRepair(actions.keyspace, repairPaxos, repairOnlyPaxos, primaryRangeOnly, force));
     }
 
-    public OnInstanceRepair(KeyspaceActions actions, int on, Modifiers self, Modifiers transitive, Map.Entry<String, String> repairRange, boolean force)
+    public OnInstanceRepair(KeyspaceActions actions, int on, Modifiers self, Modifiers transitive, boolean repairPaxos, boolean repairOnlyPaxos, Map.Entry<String, String> repairRange, boolean force)
     {
-        super("Repair on " + on, self, transitive, actions, on, invokableBlockingRepair(actions.keyspace, repairRange, force));
+        super("Repair on " + on, self, transitive, actions, on, invokableBlockingRepair(actions.keyspace, repairPaxos, repairOnlyPaxos, repairRange, force));
     }
 
-    private static IIsolatedExecutor.SerializableRunnable invokableBlockingRepair(String keyspaceName, boolean primaryRangeOnly, boolean force)
+    private static IIsolatedExecutor.SerializableRunnable invokableBlockingRepair(String keyspaceName, boolean repairPaxos, boolean repairOnlyPaxos, boolean primaryRangeOnly, boolean force)
     {
         return () -> {
             Condition done = newOneTimeCondition();
-            invokeRepair(keyspaceName, primaryRangeOnly, force, done::signal);
+            invokeRepair(keyspaceName, repairPaxos, repairOnlyPaxos, primaryRangeOnly, force, done::signal);
             done.awaitThrowUncheckedOnInterrupt();
         };
     }
 
-    private static IIsolatedExecutor.SerializableRunnable invokableBlockingRepair(String keyspaceName, Map.Entry<String, String> repairRange, boolean force)
+    private static IIsolatedExecutor.SerializableRunnable invokableBlockingRepair(String keyspaceName, boolean repairPaxos, boolean repairOnlyPaxos, Map.Entry<String, String> repairRange, boolean force)
     {
         return () -> {
             Condition done = newOneTimeCondition();
-            invokeRepair(keyspaceName, () -> parseTokenRanges(singletonList(repairRange)), false, force, done::signal);
+            invokeRepair(keyspaceName, repairPaxos, repairOnlyPaxos, () -> parseTokenRanges(singletonList(repairRange)), false, force, done::signal);
             done.awaitThrowUncheckedOnInterrupt();
         };
     }
 
-    private static void invokeRepair(String keyspaceName, boolean primaryRangeOnly, boolean force, Runnable listener)
+    private static void invokeRepair(String keyspaceName, boolean repairPaxos, boolean repairOnlyPaxos, boolean primaryRangeOnly, boolean force, Runnable listener)
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
         TokenMetadata metadata = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap();
-        invokeRepair(keyspaceName,
+        invokeRepair(keyspaceName, repairPaxos, repairOnlyPaxos,
                      () -> primaryRangeOnly ? Collections.singletonList(metadata.getPrimaryRangeFor(currentToken()))
                                             : keyspace.getReplicationStrategy().getAddressReplicas(metadata).get(getBroadcastAddressAndPort()).asList(Replica::range),
                      primaryRangeOnly, force, listener);
     }
 
-    private static void invokeRepair(String keyspaceName, IIsolatedExecutor.SerializableCallable<Collection<Range<Token>>> rangesSupplier, boolean isPrimaryRangeOnly, boolean force, Runnable listener)
+    private static void invokeRepair(String keyspaceName, boolean repairPaxos, boolean repairOnlyPaxos, IIsolatedExecutor.SerializableCallable<Collection<Range<Token>>> rangesSupplier, boolean isPrimaryRangeOnly, boolean force, Runnable listener)
     {
         Collection<Range<Token>> ranges = rangesSupplier.call();
         // no need to wait for completion, as we track all task submissions and message exchanges, and ensure they finish before continuing to next action

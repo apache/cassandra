@@ -20,12 +20,13 @@ package org.apache.cassandra.simulator.paxos;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.utils.KindOfSequence;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 
 class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implements AutoCloseable
@@ -77,8 +78,13 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
                               .set("paxos_cache_size_in_mb", (builder.stateCache != null ? builder.stateCache : random.uniformFloat() < 0.5) ? null : 0L),
               (simulated, schedulers, cluster, options) -> {
                   int[] primaryKeys = primaryKeys(seed, builder.primaryKeyCount());
+                  KindOfSequence.Period jitter = RandomSource.Choices.uniform(KindOfSequence.values()).choose(random)
+                                                                     .period(builder.schedulerJitterNanos(), random);
                   return new PairOfSequencesPaxosSimulation(simulated, cluster, options.changePaxosVariantTo(builder.finalPaxosVariant),
-                                                            builder.readChance().select(random), builder.serialConsistency, schedulers, builder.debug(), seed, primaryKeys, builder.actionsPerPrimaryKey());
+                                                            builder.readChance().select(random), builder.concurrency(), builder.primaryKeySeconds(), builder.withinKeyConcurrency(),
+                                                            builder.serialConsistency, schedulers, builder.debug(), seed,
+                                                            primaryKeys, builder.secondsToSimulate() >= 0 ? SECONDS.toNanos(builder.secondsToSimulate()) : -1,
+                                                            () -> jitter.get(random));
               });
     }
 

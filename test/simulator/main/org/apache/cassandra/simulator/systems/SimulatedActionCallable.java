@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.Collections;
 import java.util.function.BiConsumer;
 
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -31,7 +32,7 @@ public abstract class SimulatedActionCallable<O> extends SimulatedAction impleme
 
     public SimulatedActionCallable(Object description, Modifiers self, Modifiers children, SimulatedSystems simulated, IInvokableInstance on, SerializableCallable<? extends O> execute)
     {
-        super(description, self, children, simulated);
+        super(description, self, children, null, simulated);
         this.execute = execute;
         this.on = on;
     }

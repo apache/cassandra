@@ -21,13 +21,14 @@ package org.apache.cassandra.simulator.cluster;
 import org.apache.cassandra.schema.MigrationCoordinator;
 import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 
+import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 
 class OnInstanceSyncSchemaForBootstrap extends SimulatedActionTask
 {
     public OnInstanceSyncSchemaForBootstrap(ClusterActions actions, int node)
     {
-        super("Sync Schema on " + node, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, actions.cluster.get(node),
+        super("Sync Schema on " + node, RELIABLE_NO_TIMEOUTS.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, actions, actions.cluster.get(node),
               () -> MigrationCoordinator.instance.awaitSchemaRequests(Long.MAX_VALUE));
     }
 }

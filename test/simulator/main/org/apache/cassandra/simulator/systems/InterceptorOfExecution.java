@@ -32,13 +32,12 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 public interface InterceptorOfExecution
 {
     InterceptExecution intercept();
-    InterceptExecution noIntercept();
 
     @Shared(scope = SIMULATION)
     interface InterceptExecution
     {
-        <V, T extends RunnableFuture<V>> T addTask(T runnable, InterceptingExecutor executor);
-        <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, Callable<T> runnable, InterceptingExecutor executor);
+        <V, T extends RunnableFuture<V>> T addTask(T task, InterceptingExecutor executor);
+        <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<T> runnable, InterceptingExecutor executor);
         Thread start(SimulatedAction.Kind kind, Function<Runnable, InterceptibleThread> factory, Runnable run);
     }
 }

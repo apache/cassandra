@@ -124,6 +124,13 @@ public interface RandomSource
                 throw new IllegalArgumentException();
             return new Choices<>(cumulativeProbabilities(nonCumulativeProbabilities), options);
         }
+
+        public static <T> Choices<T> uniform(T ... options)
+        {
+            float[] nonCumulativeProbabilities = new float[options.length];
+            Arrays.fill(nonCumulativeProbabilities, 1f / options.length);
+            return new Choices<>(cumulativeProbabilities(nonCumulativeProbabilities), options);
+        }
     }
 
     public static abstract class Abstract implements RandomSource

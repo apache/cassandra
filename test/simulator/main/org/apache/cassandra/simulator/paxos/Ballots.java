@@ -39,10 +39,12 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.simulator.systems.NonInterceptible;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,7 +66,6 @@ public class Ballots
     @Shared(scope = SIMULATION)
     public static class LatestBallots
     {
-
         public final long promise;
         public final long accept;
         public final long commit;
@@ -87,51 +88,62 @@ public class Ballots
         {
             return max(commit, persisted);
         }
+
+        public String toString()
+        {
+            return "[" + promise + ',' + accept + ',' + commit + ',' + persisted + ']';
+        }
     }
 
     public static LatestBallots read(DecoratedKey key, TableMetadata metadata, int nowInSec, boolean includeEmptyProposals)
     {
-        PaxosState state = loadPaxosState(key, metadata, nowInSec);
-        UUID promised = state.promised.ballot;
-        Commit accepted = isAfter(state.accepted, state.mostRecentCommit) ? null : state.accepted;
-        Commit committed = state.mostRecentCommit;
-        long baseTable = latestBallotFromBaseTable(key, metadata);
-        return new LatestBallots(
-        UUIDGen.microsTimestamp(promised),
-            accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update),
-        latestBallot(committed.update),
-        baseTable
-        );
+        return NonInterceptible.apply(() -> {
+              PaxosState state = loadPaxosState(key, metadata, nowInSec);
+              UUID promised = state.promised.ballot;
+              Commit accepted = isAfter(state.accepted, state.mostRecentCommit) ? null : state.accepted;
+              Commit committed = state.mostRecentCommit;
+              long baseTable = latestBallotFromBaseTable(key, metadata);
+              return new LatestBallots(
+              UUIDGen.microsTimestamp(promised),
+              accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update),
+              latestBallot(committed.update),
+              baseTable
+              );
+          });
     }
 
     static LatestBallots[][] read(Cluster cluster, String keyspace, String table, int[] primaryKeys, int[][] replicasForKeys, boolean includeEmptyProposals)
     {
-        LatestBallots[][] result = new LatestBallots[primaryKeys.length][];
-        for (int i = 0 ; i < primaryKeys.length ; ++i)
-        {
-            int primaryKey = primaryKeys[i];
-            result[i] = stream(replicasForKeys[i])
-                        .mapToObj(cluster::get)
-                        .map(node -> node.unsafeApplyOnThisThread((ks, tbl, pk, ie) -> {
-                            TableMetadata metadata = Keyspace.open(ks).getColumnFamilyStore(tbl).metadata.get();
-                            DecoratedKey key = metadata.partitioner.decorateKey(Int32Type.instance.decompose(pk));
-                            return read(key, metadata, FBUtilities.nowInSeconds(), ie);
-                        }, keyspace, table, primaryKey, includeEmptyProposals))
-                        .toArray(LatestBallots[]::new);
-        }
-        return result;
+        return NonInterceptible.apply(() -> {
+            LatestBallots[][] result = new LatestBallots[primaryKeys.length][];
+            for (int i = 0 ; i < primaryKeys.length ; ++i)
+            {
+                int primaryKey = primaryKeys[i];
+                result[i] = stream(replicasForKeys[i])
+                            .mapToObj(cluster::get)
+                            .map(node -> node.unsafeApplyOnThisThread((ks, tbl, pk, ie) -> {
+                                TableMetadata metadata = Keyspace.open(ks).getColumnFamilyStore(tbl).metadata.get();
+                                DecoratedKey key = metadata.partitioner.decorateKey(Int32Type.instance.decompose(pk));
+                                return read(key, metadata, FBUtilities.nowInSeconds(), ie);
+                            }, keyspace, table, primaryKey, includeEmptyProposals))
+                            .toArray(LatestBallots[]::new);
+            }
+            return result;
+        });
     }
 
     public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, int nowInSec)
     {
-        PaxosState paxosTable = loadPaxosState(key, metadata, nowInSec);
-        long[] paxosMemtable = latestBallotsFromPaxosMemtable(key, metadata);
-        long baseTable = latestBallotFromBaseTable(key, metadata);
-        long baseMemtable = latestBallotFromBaseMemtable(key, metadata);
-        return debugBallot(null, paxosMemtable[0], paxosTable.promised) + ", "
-               + debugBallot(null, paxosMemtable[1], paxosTable.accepted) + ", "
-               + debugBallot(null, paxosMemtable[2], paxosTable.mostRecentCommit) + ", "
-               + debugBallot(baseMemtable, 0L, baseTable);
+        return NonInterceptible.apply(() -> {
+            PaxosState paxosTable = loadPaxosState(key, metadata, nowInSec);
+            long[] paxosMemtable = latestBallotsFromPaxosMemtable(key, metadata);
+            long baseTable = latestBallotFromBaseTable(key, metadata);
+            long baseMemtable = latestBallotFromBaseMemtable(key, metadata);
+            return debugBallot(null, paxosMemtable[0], paxosTable.promised) + ", "
+                   + debugBallot(null, paxosMemtable[1], paxosTable.accepted) + ", "
+                   + debugBallot(null, paxosMemtable[2], paxosTable.mostRecentCommit) + ", "
+                   + debugBallot(baseMemtable, 0L, baseTable);
+        });
     }
 
     private static ColumnMetadata paxosUUIDColumn(String name)
@@ -174,12 +186,15 @@ public class Ballots
     {
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(metadata, 0, key, Slice.ALL);
         ImmutableBTreePartition partition;
-        try (ReadExecutionController controller = cmd.executionController(); UnfilteredPartitionIterator iter = cmd.executeLocally(controller))
+        try (ReadExecutionController controller = cmd.executionController(); UnfilteredPartitionIterator partitions = cmd.executeLocally(controller))
         {
-            if (!iter.hasNext())
+            if (!partitions.hasNext())
                 return 0L;
 
-            partition = ImmutableBTreePartition.create(iter.next());
+            try (UnfilteredRowIterator rows = partitions.next())
+            {
+                partition = ImmutableBTreePartition.create(rows);
+            }
         }
         return latestBallot(partition);
     }

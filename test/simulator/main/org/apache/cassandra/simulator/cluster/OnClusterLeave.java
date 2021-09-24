@@ -18,29 +18,41 @@
 
 package org.apache.cassandra.simulator.cluster;
 
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.simulator.ActionList;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.simulator.ActionList;
+import org.apache.cassandra.simulator.systems.SimulatedActionConsumer;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
+
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 
 class OnClusterLeave extends OnClusterChangeTopology
 {
     final int leaving;
 
-    OnClusterLeave(KeyspaceActions actions, int[] membersOfRing, int[] membersOfQuorum, int leaving, int quorumRf)
+    OnClusterLeave(KeyspaceActions actions, Topology before, Topology during, Topology after, int leaving)
     {
-        super(lazy(() -> String.format("node%d Leaving", leaving)), actions, membersOfRing, membersOfQuorum, quorumRf, quorumRf);
+        super(lazy(() -> String.format("node%d Leaving", leaving)), actions, before, after, during.pendingKeys());
         this.leaving = leaving;
     }
 
-    public ActionList performInternal()
+    public ActionList performSimple()
     {
         IInvokableInstance leaveInstance = actions.cluster.get(leaving);
         before(leaveInstance);
+        AtomicReference<Supplier<? extends Future<?>>> preparedUnbootstrap = new AtomicReference<>();
         return ActionList.of(
             // setup the node's own gossip state for pending ownership, and return gossip actions to disseminate
             new OnClusterUpdateGossip(actions, leaving, new OnInstanceSetLeaving(actions, leaving)),
-            new OnInstanceUnbootstrap(actions, leaving, leaveInstance),
+            new SimulatedActionConsumer<>("Prepare unbootstrap on " + leaving, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, leaveInstance,
+                                          ref -> ref.set(StorageService.instance.prepareUnbootstrapStreaming()), preparedUnbootstrap),
+            new SimulatedActionConsumer<>("Execute unbootstrap on " + leaving, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, leaveInstance,
+                                          ref -> FBUtilities.waitOnFuture(ref.get().get()), preparedUnbootstrap),
             // setup the node's own gossip state for natural ownership, and return gossip actions to disseminate
             new OnClusterUpdateGossip(actions, leaving, new OnInstanceSetLeft(actions, leaving))
         );

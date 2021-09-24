@@ -19,13 +19,13 @@
 package org.apache.cassandra.simulator.cluster;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
+import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions.SimpleAction;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 
-class OnClusterSetPaxosVariant extends SimpleAction
+class OnClusterSetPaxosVariant extends Action
 {
     private final ClusterActions actions;
     final PaxosVariant newVariant;
@@ -37,7 +37,7 @@ class OnClusterSetPaxosVariant extends SimpleAction
         this.newVariant = newVariant;
     }
 
-    protected ActionList performInternal()
+    protected ActionList performSimple()
     {
         return actions.onAll((on) -> new OnInstanceSetPaxosVariant(actions, on, newVariant));
     }

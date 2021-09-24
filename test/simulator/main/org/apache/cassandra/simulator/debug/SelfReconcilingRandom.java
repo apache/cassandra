@@ -114,10 +114,10 @@ public class SelfReconcilingRandom implements Supplier<RandomSource>
             void next(long v)
             {
                 if (!map.get(++cur, tmp))
-                    failWithOOM();
+                    throw failWithOOM();
                 map.remove(cur);
                 if (tmp[0] != v)
-                    failWithOOM();
+                    throw failWithOOM();
             }
 
             public void reset(long seed)

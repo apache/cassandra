@@ -18,17 +18,18 @@
 
 package org.apache.cassandra.simulator.cluster;
 
-import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.Actions.ReliableAction;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.systems.SimulatedAction;
 
+import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
 
 public class OnClusterUpdateGossip extends ReliableAction
 {
+    ActionList cancel;
     OnClusterUpdateGossip(ClusterActions actions, int on, SimulatedAction updateLocalState)
     {
         this(updateLocalState.description() + " and Sync Gossip", actions, ActionList.of(updateLocalState),
@@ -42,6 +43,22 @@ public class OnClusterUpdateGossip extends ReliableAction
 
     OnClusterUpdateGossip(Object id, ClusterActions actions, ActionList updateLocalState, Action sendGossip)
     {
-        super(id, STRICT, RELIABLE_NO_TIMEOUTS, () -> updateLocalState.andThen(sendGossip).andThen(new OnClusterSyncPendingRanges(actions)));
+        this(id, actions, updateLocalState.andThen(sendGossip));
+    }
+
+    OnClusterUpdateGossip(Object id, ClusterActions actions, ActionList updateLocalStateThenSendGossip)
+    {
+        super(id, STRICT.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, () -> updateLocalStateThenSendGossip.andThen(new OnClusterSyncPendingRanges(actions)));
+        cancel = updateLocalStateThenSendGossip;
+    }
+
+    @Override
+    protected Throwable safeInvalidate(boolean isCancellation)
+    {
+        ActionList list = cancel;
+        if (list == null)
+            return null;
+        cancel = null;
+        return list.safeForEach(Action::invalidate);
     }
 }

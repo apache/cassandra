@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.UUID;
+
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -28,6 +30,7 @@ import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.NEMESI
 @PerClassLoader
 public class InterceptingGlobalMethods extends InterceptingMonitors implements InterceptorOfGlobalMethods
 {
+    private int uniqueUuidCounter = 0;
     public InterceptingGlobalMethods(InterceptorOfWaits interceptorOfWaits, RandomSource random)
     {
         super(interceptorOfWaits, random);
@@ -55,11 +58,33 @@ public class InterceptingGlobalMethods extends InterceptingMonitors implements I
     public void nemesis(float chance)
     {
         InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
-        if (thread == null || !random.decide(chance))
+        if (thread == null || thread.isEvaluationDeterministic() || !random.decide(chance))
             return;
 
-        InterceptedWait.InterceptedConditionWait signal = new InterceptedWait.InterceptedConditionWait(NEMESIS, thread, interceptorOfWaits.captureWaitSite(thread), null);
+        InterceptedWait.InterceptedConditionWait signal = new InterceptedWait.InterceptedConditionWait(NEMESIS, 0L, thread, interceptorOfWaits.captureWaitSite(thread), null);
         thread.interceptWait(signal);
+
+        // save interrupt state to restore afterwards - new ones only arrive if terminating simulation
+        boolean wasInterrupted = Thread.interrupted();
         signal.awaitThrowUncheckedOnInterrupt();
+        if (wasInterrupted) thread.interrupt();
+    }
+
+    @Override
+    public long randomSeed()
+    {
+        InterceptibleThread thread = interceptorOfWaits.ifIntercepted();
+        if (thread == null || thread.isEvaluationDeterministic())
+            return Thread.currentThread().getName().hashCode();
+
+        return random.uniform(Long.MIN_VALUE, Long.MAX_VALUE);
+    }
+
+    @Override
+    public synchronized UUID randomUUID()
+    {
+        long msb = random.uniform(0, 1L << 60);
+        msb = ((msb << 4) & 0xffffffffffff0000L) | 0x4000 | (msb & 0xfff);
+        return new UUID(msb, (1L << 63) | uniqueUuidCounter++);
     }
 }

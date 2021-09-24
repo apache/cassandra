@@ -22,14 +22,14 @@ import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions.SimpleAction;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 
-class OnInstanceSetPaxosVariant extends SimpleAction
+class OnInstanceSetPaxosVariant extends Action
 {
     final IInvokableInstance instance;
     final int on;
@@ -43,7 +43,7 @@ class OnInstanceSetPaxosVariant extends SimpleAction
         this.newVariant = newVariant;
     }
 
-    protected ActionList performInternal()
+    protected ActionList performSimple()
     {
         instance.unsafeRunOnThisThread(invokableSetVariant(newVariant));
         return ActionList.empty();

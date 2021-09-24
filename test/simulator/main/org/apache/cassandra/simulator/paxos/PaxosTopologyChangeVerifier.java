@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.simulator.paxos;
 
-import java.util.Arrays;
-
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.TopologyChangeValidator;
+import org.apache.cassandra.simulator.cluster.Topology;
+import org.apache.cassandra.simulator.systems.NonInterceptible;
 
 import static java.util.Arrays.stream;
 
@@ -32,12 +32,8 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
     final String table;
     final Object id;
 
-    int[] primaryKeys;
-    int quorumRfBefore;
-    int[][] replicasBefore;
-    int[][] replicasAfter;
+    Topology topologyBefore;
     Ballots.LatestBallots[][] ballotsBefore;
-    Ballots.LatestBallots[][] ballotsAfter;
 
     public PaxosTopologyChangeVerifier(Cluster cluster, String keyspace, String table, Object id)
     {
@@ -48,31 +44,40 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
     }
 
     @Override
-    public void before(int[] primaryKeys, int[][] replicasForKeys, int quorumRf)
+    public void before(Topology before, int[] participatingKeys)
     {
-        this.primaryKeys = primaryKeys;
-        this.quorumRfBefore = quorumRf;
-        this.replicasBefore = replicasForKeys;
-        this.ballotsBefore = Ballots.read(cluster, keyspace, table, primaryKeys, replicasForKeys, true);
+        this.topologyBefore = before.select(participatingKeys);
+        this.ballotsBefore = NonInterceptible.apply(() ->
+            Ballots.read(cluster, keyspace, table, topologyBefore.primaryKeys, topologyBefore.replicasForKeys, true)
+        );
+        for (int i = 0; i < topologyBefore.primaryKeys.length ; ++i)
+        {
+            if (ballotsBefore[i].length != topologyBefore.quorumRf)
+                throw new AssertionError("Inconsistent ownership/ballot information");
+        }
     }
 
     @Override
-    public void after(int[][] replicasForKeys, int quorumRfAfter)
+    public void after(Topology topologyAfter)
     {
-        replicasAfter = replicasForKeys;
-        int quorumBefore = quorumRfBefore / 2 + 1;
-        int quorumAfter = quorumRfAfter / 2 + 1;
+        afterInternal(topologyAfter.select(topologyBefore.primaryKeys));
+    }
+
+    public void afterInternal(Topology topologyAfter)
+    {
+        int[] primaryKeys = topologyAfter.primaryKeys;
+        int quorumBefore = topologyBefore.quorumRf / 2 + 1;
+        int quorumAfter = topologyAfter.quorumRf / 2 + 1;
         Ballots.LatestBallots[][] allBefore = ballotsBefore;
-        Ballots.LatestBallots[][] allAfter = Ballots.read(cluster, keyspace, table, primaryKeys, replicasAfter, true);
+        Ballots.LatestBallots[][] allAfter = NonInterceptible.apply(() ->
+            Ballots.read(cluster, keyspace, table, primaryKeys, topologyAfter.replicasForKeys, true)
+        );
         for (int pki = 0; pki < primaryKeys.length; ++pki)
         {
             Ballots.LatestBallots[] before = allBefore[pki];
             Ballots.LatestBallots[] after = allAfter[pki];
 
-            if (replicasBefore[pki].length != quorumRfBefore || replicasAfter[pki].length != quorumRfAfter)
-                throw new AssertionError(String.format("Inconsistent ownership information: %s (expect %d) vs %s (expect %d)", Arrays.toString(replicasBefore[pki]), quorumRfBefore, Arrays.toString(replicasAfter[pki]), quorumRfAfter));
-
-            if (before.length != quorumRfBefore || after.length != quorumRfAfter)
+            if (after.length != topologyAfter.quorumRf)
                 throw new AssertionError("Inconsistent ownership/ballot information");
 
             {
@@ -104,8 +109,8 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
         }
 
         // clear memory usage on success
-        replicasAfter = replicasBefore = null;
-        ballotsAfter = ballotsBefore = null;
+        topologyBefore = null;
+        ballotsBefore = null;
     }
 
 }

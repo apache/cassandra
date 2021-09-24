@@ -24,11 +24,13 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Set;
 
-import static org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.Global.identityHashCode;
+import com.google.common.collect.Iterators;
+
+import static org.apache.cassandra.simulator.systems.InterceptorOfSystemMethods.Global.identityHashCode;
 
 /**
  * A class that behaves like IdentityHashMap but uses our deterministically generated
- * {@link InterceptorOfGlobalMethods.Global#identityHashCode(Object)}
+ * {@link InterceptorOfSystemMethods.Global#identityHashCode(Object)}
  *
  * This is used in case we iterate over the contents of any such collection (which we do)
  */
@@ -118,7 +120,7 @@ public class InterceptedIdentityHashMap<K, V> extends IdentityHashMap<K, V>
             @Override
             public Iterator<K> iterator()
             {
-                return wrapped.keySet().stream().map(Key::key).iterator();
+                return Iterators.transform(wrapped.keySet().iterator(), Key::key);
             }
 
             @Override
@@ -143,10 +145,7 @@ public class InterceptedIdentityHashMap<K, V> extends IdentityHashMap<K, V>
             @Override
             public Iterator<Entry<K, V>> iterator()
             {
-                return wrapped.entrySet()
-                              .stream()
-                              .map(e -> (Entry<K, V>)new SimpleEntry<>(e.getKey().key, e.getValue()))
-                              .iterator();
+                return Iterators.transform(wrapped.entrySet().iterator(), e -> new SimpleEntry<>(e.getKey().key, e.getValue()));
             }
 
             @Override

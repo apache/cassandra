@@ -23,10 +23,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.memory.BufferPool;
+
 /**
  * A simple encapsulation for capturing and reporting failures during the simulation
  */
-public class Failures implements Consumer<Throwable>
+public class Failures implements Consumer<Throwable>, BufferPool.DebugLeaks, Ref.OnLeak
 {
     private final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean hasFailure;
@@ -51,5 +54,17 @@ public class Failures implements Consumer<Throwable>
     public void accept(Throwable throwable)
     {
         onFailure(throwable);
+    }
+
+    @Override
+    public void leak()
+    {
+        failures.add(new AssertionError("ChunkCache leak detected"));
+    }
+
+    @Override
+    public void onLeak(Object state)
+    {
+        failures.add(new AssertionError("Ref leak detected " + state.toString()));
     }
 }

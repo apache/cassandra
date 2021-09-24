@@ -26,6 +26,8 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.Printer;
@@ -36,18 +38,21 @@ import static java.util.Arrays.stream;
 import static org.apache.cassandra.simulator.asm.MethodLogger.Level.NONE;
 import static org.apache.cassandra.simulator.asm.MethodLogger.Level.valueOf;
 
-// TODO: support logging only for packages/classes matching a pattern
+// TODO (config): support logging only for packages/classes matching a pattern
 interface MethodLogger
 {
     static final Level LOG = valueOf(System.getProperty("cassandra.simulator.print_asm", "none").toUpperCase());
-    static final Set<TransformationKind> KINDS = System.getProperty("cassandra.simulator.print_asm_types", "").isEmpty()
+    static final Set<TransformationKind> KINDS = System.getProperty("cassandra.simulator.print_asm_opts", "").isEmpty()
                                                  ? EnumSet.allOf(TransformationKind.class)
-                                                 : stream(System.getProperty("cassandra.simulator.print_asm_types", "").split(","))
+                                                 : stream(System.getProperty("cassandra.simulator.print_asm_opts", "").split(","))
                                                    .map(TransformationKind::valueOf)
                                                    .collect(() -> EnumSet.noneOf(TransformationKind.class), Collection::add, Collection::addAll);
+    static final Pattern LOG_CLASSES = System.getProperty("cassandra.simulator.print_asm_classes", "").isEmpty()
+                                                 ? null
+                                                 : Pattern.compile(System.getProperty("cassandra.simulator.print_asm_classes", ""));
 
     // debug the output of each class at most once
-    static final Set<String> LOG_CLASS = LOG != NONE ? Collections.newSetFromMap(new ConcurrentHashMap<>()) : null;
+    static final Set<String> LOGGED_CLASS = LOG != NONE ? Collections.newSetFromMap(new ConcurrentHashMap<>()) : null;
 
     enum Level { NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM }
 
@@ -63,12 +68,14 @@ interface MethodLogger
             case NONE:
                 return None.INSTANCE;
             case ASM:
-                return LOG_CLASS.add(className) ? new Printing(api, className) : None.INSTANCE;
+                return (LOG_CLASSES == null || LOG_CLASSES.matcher(className).matches()) && LOGGED_CLASS.add(className)
+                       ? new Printing(api, className) : None.INSTANCE;
             case CLASS_DETAIL:
             case CLASS_SUMMARY:
             case METHOD_DETAIL:
             case METHOD_SUMMARY:
-                return LOG_CLASS.add(className) ? new Counting(api, className, LOG) : None.INSTANCE;
+                return (LOG_CLASSES == null || LOG_CLASSES.matcher(className).matches()) && LOGGED_CLASS.add(className)
+                       ? new Counting(api, className, LOG) : None.INSTANCE;
         }
     }
 

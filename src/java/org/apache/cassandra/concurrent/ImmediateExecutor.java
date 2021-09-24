@@ -19,6 +19,7 @@
 package org.apache.cassandra.concurrent;
 
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -28,6 +29,9 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION) // shared to support instanceof check in SimulatedAction
 public class ImmediateExecutor implements LocalAwareExecutorPlus
 {
     public static final ImmediateExecutor INSTANCE = new ImmediateExecutor();

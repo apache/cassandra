@@ -23,10 +23,10 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiFunction;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
 import org.apache.cassandra.utils.Closeable;
@@ -61,13 +61,13 @@ public class SimulatedWaits implements InterceptorOfWaits
         }
 
         @Override
-        public void interceptExecution(InterceptedExecution invoke, InterceptingExecutor executor)
+        public void interceptExecution(InterceptedExecution invoke, OrderOn orderOn)
         {
             throw new AssertionError();
         }
 
         @Override
-        public void interceptTermination()
+        public void interceptTermination(boolean isThreadTermination)
         {
             throw new AssertionError();
         }
@@ -131,8 +131,11 @@ public class SimulatedWaits implements InterceptorOfWaits
                 return interceptibleThread;
         }
 
+        if (NonInterceptible.isPermitted())
+            return null;
+
         if (!disabled)
-            failWithOOM();
+            throw failWithOOM();
 
         return null;
     }
@@ -141,7 +144,7 @@ public class SimulatedWaits implements InterceptorOfWaits
     {
         this.disabled = true;
         onStop.forEach(Closeable::close);
-        // TODO (future): signal remaining waiters for cleaner shutdown?
+        // TODO (cleanup): signal remaining waiters for cleaner shutdown?
     }
 
     public void captureStackTraces(boolean waitSites, boolean wakeSites, boolean nowSites)

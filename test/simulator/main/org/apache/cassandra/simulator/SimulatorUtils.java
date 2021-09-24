@@ -29,11 +29,12 @@ import org.apache.cassandra.utils.concurrent.Threads;
 
 public class SimulatorUtils
 {
-    public static void failWithOOM()
+    public static RuntimeException failWithOOM()
     {
         List<long[]> oom = new ArrayList<>();
         for (int i = 0 ; i < 1024 ; ++i)
             oom.add(new long[0x7fffffff]);
+        throw new AssertionError();
     }
 
     public static void dumpStackTraces(Logger logger)

@@ -43,7 +43,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -260,6 +259,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public Executor executorFor(int verb)
         {
+            if (isShutdown)
+                throw new IllegalStateException();
+
             // this method must be lock-free to avoid Simulator deadlock
             return delegate().executorFor(verb);
         }

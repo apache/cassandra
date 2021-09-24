@@ -19,7 +19,6 @@
 package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.IdentityHashMap;
 
 import org.junit.Test;
@@ -27,8 +26,11 @@ import org.junit.Test;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+
+import static org.apache.cassandra.simulator.cluster.ClusterActions.InitialConfiguration.initializeAll;
 
 public class SimulationTest extends SimulationTestBase
 {
@@ -37,11 +39,11 @@ public class SimulationTest extends SimulationTestBase
     {
         simulate((simulation) -> {
                      ClusterActions clusterActions = new ClusterActions(simulation.simulated, simulation.cluster, null,null, null);
-                     return Arrays.asList(clusterActions.initializeCluster(ClusterActions.InitialConfiguration.initializeAll(simulation.cluster.size())),
+                     return ActionList.of(clusterActions.initializeCluster(initializeAll(simulation.cluster.size())),
                                           simulation.schemaChange(1, "CREATE KEYSPACE ks WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3}"),
                                           simulation.schemaChange(1, "CREATE TABLE IF NOT EXISTS ks.tbl (pk int PRIMARY KEY, v int)"));
                  },
-                 (simulation) -> Arrays.asList(simulation.executeQuery(1, "INSERT INTO ks.tbl VALUES (1,1)", ConsistencyLevel.QUORUM),
+                 (simulation) -> ActionList.of(simulation.executeQuery(1, "INSERT INTO ks.tbl VALUES (1,1)", ConsistencyLevel.QUORUM),
                                                simulation.executeQuery(1, "SELECT * FROM ks.tbl WHERE pk = 1", ConsistencyLevel.QUORUM)),
                  (config) -> config
                              .threadCount(10)

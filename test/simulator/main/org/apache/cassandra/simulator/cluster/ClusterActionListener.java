@@ -22,37 +22,16 @@ public interface ClusterActionListener
 {
     interface TopologyChangeValidator
     {
-        public void before(int[] primaryKeys, int[][] replicasForKeys, int quorumRf);
-        public void after(int[][] replicasForKeys, int quorumRf);
+        public void before(Topology before, int[] participatingKeys);
+        public void after(Topology after);
     }
 
     interface RepairValidator
     {
-        public void before(int[] primaryKeys, int[][] replicasForKeys, int quorumRf);
+        public void before(Topology topology, boolean repairPaxos, boolean repairOnlyPaxos);
         public void after();
     }
 
     TopologyChangeValidator newTopologyChangeValidator(Object id);
     RepairValidator newRepairValidator(Object id);
-
-    public static final ClusterActionListener NO_OP = new ClusterActionListener()
-    {
-        public TopologyChangeValidator newTopologyChangeValidator(Object id)
-        {
-            return new TopologyChangeValidator()
-            {
-                public void before(int[] primaryKeys, int[][] replicasForKeys, int quorumRf) {}
-                public void after(int[][] replicasForKeys, int quorumRf) {}
-            };
-        }
-
-        public RepairValidator newRepairValidator(Object id)
-        {
-            return new RepairValidator()
-            {
-                public void before(int[] primaryKeys, int[][] replicasForKeys, int quorumRf) {}
-                public void after() {}
-            };
-        }
-    };
 }

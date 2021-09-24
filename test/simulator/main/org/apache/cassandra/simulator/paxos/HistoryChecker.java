@@ -104,21 +104,34 @@ class HistoryChecker
     }
 
     final int primaryKey;
-    private final Event[] byId;
     private final Queue<Event> unwitnessed = new ArrayDeque<>();
+    private Event[] byId = new Event[128];
     private Event[] events = new Event[16];
 
-    HistoryChecker(int primaryKey, int events)
+    HistoryChecker(int primaryKey)
     {
         this.primaryKey = primaryKey;
-        byId = new Event[events + 1];
+    }
+
+    Event byId(int id)
+    {
+        if (byId.length <= id)
+            byId = Arrays.copyOf(byId, Math.max(id, byId.length * 2));
+        return byId[id];
+    }
+
+    Event setById(int id, Event event)
+    {
+        if (byId.length <= id)
+            byId = Arrays.copyOf(byId, Math.max(id, byId.length * 2));
+        return byId[id] = event;
     }
 
     void witness(Observation witness, int[] witnessSequence, int start, int end)
     {
         int eventPosition = witnessSequence.length;
         int eventId = eventPosition == 0 ? -1 : witnessSequence[eventPosition - 1];
-        (byId[witness.id] = new Event(witness.id)).log.add(new VerboseWitness(witness.id, start, end, witnessSequence));
+        setById(witness.id, new Event(witness.id)).log.add(new VerboseWitness(witness.id, start, end, witnessSequence));
         Event event = get(eventPosition, eventId);
         recordWitness(event, witness, witnessSequence);
         recordVisibleBy(event, end);
@@ -150,10 +163,10 @@ class HistoryChecker
 
     void applied(int eventId, int start, int end, boolean success)
     {
-        Event event = byId[eventId];
+        Event event = byId(eventId);
         if (event == null)
         {
-            byId[eventId] = event = new Event(eventId);
+            setById(eventId, event = new Event(eventId));
             unwitnessed.add(event);
         }
 
@@ -246,7 +259,7 @@ class HistoryChecker
             }
             else
             {
-                event = byId[eventId];
+                event = byId(eventId);
                 if (event != null)
                 {
                     if (event.eventPosition >= 0)
@@ -256,7 +269,7 @@ class HistoryChecker
                 }
                 else
                 {
-                    byId[eventId] = events[eventPosition] = event = new Event(eventId);
+                    setById(eventId, events[eventPosition] = event = new Event(eventId));
                 }
             }
         }

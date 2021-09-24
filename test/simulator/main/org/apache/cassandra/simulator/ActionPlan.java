@@ -19,15 +19,19 @@
 package org.apache.cassandra.simulator;
 
 import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.function.LongSupplier;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.simulator.ActionSchedule.Work;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
+import org.apache.cassandra.utils.CloseableIterator;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 
 public class ActionPlan
 {
@@ -42,7 +46,7 @@ public class ActionPlan
      * These planned actions may initiate other actions, that will all complete before the next planned action
      * for that action sequence is started.
      */
-    public final List<ActionSequence> interleave;
+    public final List<ActionList> interleave;
 
     /**
      * Actions to perform (reliably, and in strict order) after finishing the proper simulation.
@@ -51,27 +55,36 @@ public class ActionPlan
      */
     public final ActionList post;
 
-    public ActionPlan(ActionList pre, List<ActionSequence> interleave, ActionList post)
+    public ActionPlan(ActionList pre, List<ActionList> interleave, ActionList post)
     {
         this.pre = pre;
         this.interleave = interleave;
         this.post = post;
     }
 
-    public Iterable<?> iterable(SimulatedTime time, ActionSchedulers preAndPostSchedulers, ActionSchedulers mainSchedulers)
+    public CloseableIterator<?> iterator(long runForNanos, LongSupplier schedulerJitter, SimulatedTime time, RunnableActionScheduler preAndPostScheduler, RunnableActionScheduler mainScheduler, FutureActionScheduler futureScheduler)
     {
-        return () -> Iterators.concat(
-                new ActionSchedule(time, preAndPostSchedulers, singletonList(pre.strictlySequential())),
-                new ActionSchedule(time, mainSchedulers, interleave),
-                new ActionSchedule(time, preAndPostSchedulers, singletonList(post.strictlySequential()))
-        );
+        return new ActionSchedule(time, futureScheduler, schedulerJitter,
+                                  new Work(UNLIMITED, preAndPostScheduler, singletonList(pre.setStrictlySequential())),
+                                  new Work(runForNanos > 0 ? TIME_LIMITED : STREAM_LIMITED, runForNanos, mainScheduler, interleave),
+                                  new Work(UNLIMITED, preAndPostScheduler, singletonList(post.setStrictlySequential())));
+    }
+
+    public static ActionPlan interleave(List<ActionList> interleave)
+    {
+        return new ActionPlan(ActionList.empty(), interleave, ActionList.empty());
+    }
+
+    public static ActionPlan setUpTearDown(ActionList pre, ActionList post)
+    {
+        return new ActionPlan(pre, emptyList(), post);
     }
 
     public ActionPlan encapsulate(ActionPlan that)
     {
         return new ActionPlan(
                 this.pre.andThen(that.pre),
-                ImmutableList.<ActionSequence>builder().addAll(this.interleave).addAll(that.interleave).build(),
+                ImmutableList.<ActionList>builder().addAll(this.interleave).addAll(that.interleave).build(),
                 that.post.andThen(this.post));
     }
 }

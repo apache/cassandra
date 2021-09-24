@@ -30,8 +30,9 @@ class ClusterReliableQueryAction extends SimulatedQuery
         super(id, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, actions.cluster.get(on), query, timestamp, consistencyLevel, params);
     }
 
-    public static ClusterReliableQueryAction schemaChange(String id, ClusterActions actions, int on, String query, long timestamp)
+    public static ClusterReliableQueryAction schemaChange(String id, ClusterActions actions, int on, String query)
     {
-        return new ClusterReliableQueryAction(id, actions, on, query, timestamp, ConsistencyLevel.ALL);
+        // this isn't used on 4.0+ nodes, but no harm in supplying it anyway
+        return new ClusterReliableQueryAction(id, actions, on, query, actions.time.nextGlobalMonotonicMicros(), ConsistencyLevel.ALL);
     }
 }

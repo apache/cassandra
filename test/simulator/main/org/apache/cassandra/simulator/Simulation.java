@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.simulator;
 
+import org.apache.cassandra.utils.CloseableIterator;
+
 public interface Simulation extends AutoCloseable
 {
-    Iterable<?> iterable();
+    CloseableIterator<?> iterator();
     void run();
 }

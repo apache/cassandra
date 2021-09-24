@@ -16,20 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.cluster;
+package org.apache.cassandra.simulator.systems;
 
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.simulator.systems.SimulatedActionTask;
+import org.apache.cassandra.simulator.utils.ChanceRange;
+import org.apache.cassandra.simulator.utils.LongRange;
 
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
-
-class OnInstanceUnbootstrap extends SimulatedActionTask
+public class SchedulerConfig
 {
-    public OnInstanceUnbootstrap(ClusterActions actions, int num, IInvokableInstance on)
+    final ChanceRange longDelayChance;
+    final LongRange delayNanos, longDelayNanos;
+
+    public SchedulerConfig(ChanceRange longDelayChance, LongRange delayNanos, LongRange longDelayNanos)
     {
-        //noinspection Convert2MethodRef - invalid inspection across multiple classloaders
-        super("Unbootstrap on " + num, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, on,
-              () -> StorageService.instance.prepareUnbootstrapStreaming());
+        this.longDelayChance = longDelayChance;
+        this.delayNanos = delayNanos;
+        this.longDelayNanos = longDelayNanos;
     }
 }

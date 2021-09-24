@@ -27,6 +27,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 
 import static java.util.Collections.singletonList;
+import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.cluster.Utils.parseTokens;
 
@@ -39,7 +41,7 @@ class OnInstanceBootstrap extends SimulatedActionTask
 
     public OnInstanceBootstrap(ClusterActions actions, IInvokableInstance on, String token, boolean replacing)
     {
-        super("Bootstrap on " + on.config().num(), RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, on,
+        super("Bootstrap on " + on.config().num(), RELIABLE_NO_TIMEOUTS.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, actions, on,
               invokableBootstrap(token, replacing));
     }
 

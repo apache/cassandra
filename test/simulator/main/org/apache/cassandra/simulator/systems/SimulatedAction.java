@@ -24,10 +24,12 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.Executor;
 
 import javax.annotation.Nullable;
 
+
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -38,6 +40,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.FutureActionScheduler.Deliver;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedRunnableExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait.TriggerListener;
@@ -45,13 +48,19 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.net.MessagingService.instance;
+import static org.apache.cassandra.simulator.Action.Modifiers.DROP;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
-import static org.apache.cassandra.simulator.Action.Modifiers.SCHEDULED;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_DAEMON_TASK;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_INFINITE_LOOP;
-import static org.apache.cassandra.simulator.Action.Modifiers.TIMEOUT;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_TASK;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_THREAD;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_TIMEOUT_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.WAKE_UP_THREAD;
-import static org.apache.cassandra.simulator.Action.Modifiers.WAKE_UP_THREAD_LATER;
+import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER;
+import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.TIMEOUT;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.MESSAGE;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
 import static org.apache.cassandra.simulator.Debug.Info.LOG;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
@@ -67,11 +76,12 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
     @Shared(scope = SIMULATION)
     public enum Kind
     {
-        TASK(RELIABLE, NONE, WAKE_UP_THREAD),
-        SCHEDULED_TASK(SCHEDULED, NONE, WAKE_UP_THREAD),
-        SCHEDULED_TIMEOUT(TIMEOUT, NONE, WAKE_UP_THREAD),
-        DAEMON(Modifiers.DAEMON, NONE, WAKE_UP_THREAD),
-        THREAD(RELIABLE, NONE, WAKE_UP_THREAD),
+        MESSAGE(NONE, NONE, WAKE_UP_THREAD),
+        TASK(START_TASK, NONE, WAKE_UP_THREAD),
+        SCHEDULED_TASK(START_SCHEDULED_TASK, NONE, WAKE_UP_THREAD),
+        SCHEDULED_TIMEOUT(START_TIMEOUT_TASK, NONE, WAKE_UP_THREAD),
+        SCHEDULED_DAEMON(START_DAEMON_TASK, NONE, WAKE_UP_THREAD),
+        THREAD(START_THREAD, NONE, WAKE_UP_THREAD),
         INFINITE_LOOP(START_INFINITE_LOOP, NONE, WAKE_UP_THREAD);
 
         public final Modifiers self, transitive, signal;
@@ -82,9 +92,9 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
             this.signal = signal;
         }
 
-        public boolean isTask()
+        public boolean logWakeups()
         {
-            return this == TASK || this == SCHEDULED_TASK;
+            return this == MESSAGE || this == TASK || this == SCHEDULED_TASK;
         }
     }
 
@@ -95,10 +105,11 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
         boolean signalling;
 
         // note that we do not inherit from the parent thread's self, as anything relevantly heritable by continuations is likely already transitive
-        protected Signal(Object description, Modifiers self, boolean isTimeout, InterceptedWait wakeup)
+        protected Signal(Object description, Modifiers self, long deadlineNanos, InterceptedWait wakeup)
         {
             super(description, self.inheritIfContinuation(SimulatedAction.this.self()), NONE);
-            this.isTimeout = isTimeout;
+            if (isTimeout = deadlineNanos >= 0)
+                setDeadline(deadlineNanos);
             this.wakeup = wakeup;
             assert !wakeup.isTriggered();
             wakeup.addListener(this);
@@ -116,30 +127,33 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
         }
 
         @Override
-        protected ActionList perform(boolean perform)
+        protected ActionList performAndRegister()
         {
-            if (!perform)
-                return performed(ActionList.empty(), false, false);
-
             assert !wakeup.isTriggered();
             assert !isFinished();
             assert !realThreadHasTerminated;
 
             signalling = true;
-            return performed(simulate(() -> wakeup.triggerAndAwaitDone(SimulatedAction.this, isTimeout)),
-                             false, realThreadHasTerminated);
+            return performed(performSimple(), false, realThreadHasTerminated);
+        }
+
+        @Override
+        protected ActionList performSimple()
+        {
+            return simulate(() -> wakeup.triggerAndAwaitDone(SimulatedAction.this, isTimeout));
         }
 
         @Override
         public void onTrigger(InterceptedWait triggered)
         {
             if (!signalling)
-                invalidate();
+                cancel();
         }
     }
 
     protected final SimulatedAction.Kind kind;
     protected final SimulatedSystems simulated;
+    protected final Verb forVerb;
     protected Map<Verb, Modifiers> verbModifiers;
 
     private InterceptibleThread realThread; // unset until first simulation
@@ -148,28 +162,30 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
     private @Nullable InterceptedWait pausedOn;
     private boolean realThreadHasTerminated;
 
-    public SimulatedAction(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated)
+    public SimulatedAction(Object description, Modifiers self, Modifiers transitive, Verb forVerb, SimulatedSystems simulated)
     {
-        this(description, OrderOn.NONE, self, transitive, simulated);
+        this(description, OrderOn.NONE, self, transitive, forVerb, simulated);
     }
 
-    public SimulatedAction(Object description, OrderOn orderOn, Modifiers self, Modifiers transitive, SimulatedSystems simulated)
+    public SimulatedAction(Object description, OrderOn orderOn, Modifiers self, Modifiers transitive, Verb forVerb, SimulatedSystems simulated)
     {
-        this(description, TASK, orderOn, self, transitive, Collections.emptyMap(), simulated);
+        this(description, TASK, orderOn, self, transitive, Collections.emptyMap(), forVerb, simulated);
     }
 
-    public SimulatedAction(Object description, Kind kind, OrderOn orderOn, Modifiers self, Modifiers transitive, Map<Verb, Modifiers> verbModifiers, SimulatedSystems simulated)
+    public SimulatedAction(Object description, Kind kind, OrderOn orderOn, Modifiers self, Modifiers transitive, Map<Verb, Modifiers> verbModifiers, Verb forVerb, SimulatedSystems simulated)
     {
         super(description, orderOn, self, transitive);
         this.kind = kind;
         this.simulated = simulated;
         this.verbModifiers = verbModifiers;
+        this.forVerb = forVerb;
     }
 
     @Override
     public void interceptMessage(IInvokableInstance from, IInvokableInstance to, IMessage message)
     {
-        consequences.add(applyToMessage(from, to, message));
+        if (!to.isShutdown())
+            consequences.add(applyToMessage(from, to, message));
     }
 
     @Override
@@ -180,9 +196,12 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
     }
 
     @Override
-    public void interceptExecution(InterceptedExecution invoke, InterceptingExecutor orderOn)
+    public void interceptExecution(InterceptedExecution invoke, OrderOn orderOn)
     {
-        consequences.add(applyToExecution(invoke, orderOn));
+        if (invoke.kind() == SCHEDULED_TIMEOUT && transitive().is(Modifier.RELIABLE) && transitive().is(Modifier.NO_TIMEOUTS))
+            invoke.cancel();
+        else
+            consequences.add(applyToExecution(invoke, orderOn));
     }
 
     @Override
@@ -192,7 +211,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
     }
 
     @Override
-    public void interceptTermination()
+    public void interceptTermination(boolean isThreadTermination)
     {
         realThreadHasTerminated = true;
     }
@@ -201,14 +220,22 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
     {
         try
         {
-            simulate.run();
+            try
+            {
+                simulate.run();
+            }
+            catch (Throwable t)
+            {
+                consequences.forEach(Action::invalidate);
+                throw t;
+            }
 
             InterceptedWait wakeUpWith = pausedOn;
             if (wakeUpWith != null && wakeUpWith.kind() != UNBOUNDED_WAIT)
             {
                 applyToWait(consequences, wakeUpWith);
             }
-            else if (wakeUpWith != null && kind.isTask() && !isFinished())
+            else if (wakeUpWith != null && kind.logWakeups() && !isFinished())
             {
                 if (simulated.debug.isOn(LOG))
                     consequences.add(Actions.empty(Modifiers.INFO, lazy(() -> "Waiting[" + wakeUpWith + "] " + realThread)));
@@ -225,13 +252,15 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
 
     protected abstract InterceptedExecution task();
 
-    protected ActionList perform(boolean perform)
+    protected ActionList performAndRegister()
     {
-        if (!perform)
-            return performed(ActionList.empty(), true, true);
+        return performed(performSimple(), true, realThreadHasTerminated);
+    }
 
-        return performed(simulate(() -> task().invokeAndAwaitPause(this)),
-                         true, realThreadHasTerminated);
+    @Override
+    protected ActionList performSimple()
+    {
+        return simulate(() -> task().invokeAndAwaitPause(this));
     }
 
     @Override
@@ -245,80 +274,144 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
     {
         switch (wakeupWith.kind())
         {
-            case TIMED_WAIT: applyToSignal(out, Modifiers.TIMEOUT, "Timeout", wakeupWith, true); break;
-            case NEMESIS: applyToSignal(out, WAKE_UP_THREAD_LATER, "Nemesis", wakeupWith, false); break;
-            default : applyToSignal(out, WAKE_UP_THREAD, "Continue", wakeupWith, false); break;
+            case WAIT_UNTIL:
+                applyToSignal(out, START_TIMEOUT_TASK, "Timeout", wakeupWith, wakeupWith.waitTime());
+                break;
+            case NEMESIS:
+                applyToSignal(out, WAKE_UP_THREAD, "Nemesis", wakeupWith, -1L);
+                break;
+            default :
+                applyToSignal(out, WAKE_UP_THREAD, "Continue", wakeupWith, -1L);
+                break;
         }
     }
 
     void applyToWakeup(List<Action> out, InterceptedWait wakeup)
     {
-        applyToSignal(out, kind.signal, "Wakeup", wakeup, false);
+        applyToSignal(out, kind.signal, "Wakeup", wakeup, -1);
     }
 
-    void applyToSignal(List<Action> out, Modifiers self, String kind, InterceptedWait wakeup, boolean isTimeout)
+    void applyToSignal(List<Action> out, Modifiers self, String kind, InterceptedWait wakeup, long deadlineNanos)
     {
-        applyToSignal(out, lazy(() -> kind + '[' + wakeup + "] " + realThread), self, isTimeout, wakeup);
+        applyToSignal(out, lazy(() -> kind + wakeup + ' ' + realThread), self, wakeup, deadlineNanos);
     }
 
-    void applyToSignal(List<Action> out, LazyToString id, Modifiers self, boolean isTimeout, InterceptedWait wakeup)
+    void applyToSignal(List<Action> out, LazyToString id, Modifiers self, InterceptedWait wakeup, long deadlineNanos)
     {
-        if (isTimeout && !self.is(Modifier.TIMEOUT))
+        if (deadlineNanos >= 0 && !self.is(Modifier.TIMEOUT))
             throw new IllegalStateException();
 
-        out.add(new Signal(id, self, isTimeout, wakeup));
+        out.add(new Signal(id, self, deadlineNanos, wakeup));
     }
 
     Action applyToMessage(IInvokableInstance from, IInvokableInstance to, IMessage message)
     {
+        Executor executor = to.executorFor(message.verb());
+        if (executor instanceof ImmediateExecutor)
+            executor = to.executor();
+
         InterceptedExecution.InterceptedTaskExecution task = new InterceptedRunnableExecution(
-            (InterceptingExecutor) to.executorFor(message.verb()), () -> to.receiveMessageWithInvokingThread(message)
+            (InterceptingExecutor) executor, () -> to.receiveMessageWithInvokingThread(message)
         );
 
         Verb verb = Verb.fromId(message.verb());
         Modifiers self = verbModifiers.getOrDefault(verb, NONE);
 
-        return applyTo(lazy(() -> String.format("%s(%d) from %s to %s", Verb.fromId(message.verb()), message.id(), message.from(), to.broadcastAddress())),
-                       TASK, task.executor, self, task, () -> {
-                        InetSocketAddress failedOn = (verb.isResponse() ? from : to).broadcastAddress();
-                        IInvokableInstance notify = verb.isResponse() ? to : from;
-                        InterceptedExecution.InterceptedTaskExecution failTask = new InterceptedRunnableExecution(
-                        (InterceptingExecutor) notify.executorFor(verb.id),
-                            () -> notify.unsafeApplyOnThisThread(
-                                (socketAddress, id, decision) -> {
-                                    InetAddressAndPort address = InetAddressAndPort.getByAddress(socketAddress);
-                                    RequestCallbacks.CallbackInfo callback = instance().callbacks.remove(id, address);
-                                    if (callback != null && callback.callback.invokeOnFailure())
-                                    {
-                                        RequestCallback<?> invokeOn = (RequestCallback<?>) callback.callback;
-                                        // TODO (future): randomise this with biased distribution
-                                        RequestFailureReason reason = decision ? RequestFailureReason.UNKNOWN : RequestFailureReason.TIMEOUT;
-                                        invokeOn.onFailure(address, reason);
-                                    }
-                                    return null;
-                            }, failedOn, message.id(), simulated.random.decide(0.5f))
-                        );
-            return ActionList.of(applyTo((lazy(() -> String.format("Report Timeout of %s(%d) from %s to %s", Verb.fromId(message.verb()), message.id(), failedOn, notify.broadcastAddress()))),
-                                         TASK, failTask.executor, RELIABLE, failTask
-            ));
-        });
+        int fromNum = from.config().num();
+        int toNum = to.config().num();
+
+        Deliver deliver;
+        if (is(Modifier.RELIABLE) || self.is(Modifier.RELIABLE)) deliver = DELIVER;
+        else deliver = simulated.futureScheduler.shouldDeliver(fromNum, toNum);
+
+        Action action;
+        switch (deliver)
+        {
+            default: throw new AssertionError();
+            case DELIVER:
+            {
+                Object description = lazy(() -> String.format("%s(%d) from %s to %s", Verb.fromId(message.verb()), message.id(), message.from(), to.broadcastAddress()));
+                OrderOn orderOn = task.executor.orderAppliesAfterScheduling();
+                action = applyTo(description, MESSAGE, orderOn, self, verb, task);
+                action.setDeadline(simulated.futureScheduler.messageDeadlineNanos(fromNum, toNum));
+                break;
+            }
+            case FAILURE:
+            case TIMEOUT:
+            {
+                task.cancel();
+                self = DROP.with(self);
+
+                InetSocketAddress failedOn;
+                IInvokableInstance notify;
+                if (verb.isResponse())
+                {
+                    failedOn = from.broadcastAddress();
+                    notify = to;
+                }
+                else
+                {
+                    failedOn = to.broadcastAddress();
+                    notify = from;
+                }
+                InterceptedExecution.InterceptedTaskExecution failTask = new InterceptedRunnableExecution(
+                    (InterceptingExecutor) notify.executorFor(verb.id),
+                    () -> notify.unsafeApplyOnThisThread((socketAddress, id, isTimeout) -> {
+                        InetAddressAndPort address = InetAddressAndPort.getByAddress(socketAddress);
+                        RequestCallbacks.CallbackInfo callback = instance().callbacks.remove(id, address);
+                        if (callback != null)
+                        {
+                            RequestCallback<?> invokeOn = (RequestCallback<?>) callback.callback;
+                            RequestFailureReason reason = isTimeout ? RequestFailureReason.TIMEOUT : RequestFailureReason.UNKNOWN;
+                            invokeOn.onFailure(address, reason);
+                        }
+                        return null;
+                    }, failedOn, message.id(), deliver == TIMEOUT)
+                );
+
+                Object description = (lazy(() -> String.format("Report Timeout of %s(%d) from %s to %s", Verb.fromId(message.verb()), message.id(), failedOn, notify.broadcastAddress())));
+                OrderOn orderOn = failTask.executor.orderAppliesAfterScheduling();
+                action = applyTo(description, MESSAGE, orderOn, self, failTask);
+                switch (deliver)
+                {
+                    default: throw new AssertionError();
+                    case TIMEOUT:
+                        long expiresAfterNanos = from.unsafeApplyOnThisThread(id -> Verb.fromId(id).expiresAfterNanos(), (verb.isResponse() ? forVerb : verb).id);
+                        action.setDeadline(simulated.futureScheduler.messageTimeoutNanos(expiresAfterNanos));
+                        break;
+                    case FAILURE:
+                        action.setDeadline(simulated.futureScheduler.messageFailureNanos(toNum, fromNum));
+                        break;
+                }
+                break;
+            }
+        }
+        return action;
     }
 
-    Action applyToExecution(InterceptedExecution invoke, OrderOn orderedOn)
+    Action applyToExecution(InterceptedExecution invoke, OrderOn orderOn)
     {
-        return applyTo(lazy(() -> String.format("Invoke %s", invoke)),
-                       invoke.kind(), orderedOn, invoke.kind().self,
-                       invoke);
+        Action result =  applyTo(lazy(() -> String.format("Invoke %s", invoke)),
+                                 invoke.kind(), orderOn, invoke.kind().self, invoke);
+        switch (invoke.kind())
+        {
+            case SCHEDULED_DAEMON:
+            case SCHEDULED_TASK:
+            case SCHEDULED_TIMEOUT:
+                result.setDeadline(invoke.deadlineNanos());
+        }
+
+        return result;
     }
 
     Action applyTo(Object description, Kind kind, OrderOn orderOn, Modifiers self, InterceptedExecution task)
     {
-        return new SimulatedActionTask(description, kind, orderOn, self, NONE, verbModifiers, simulated, task);
+        return new SimulatedActionTask(description, kind, orderOn, self, NONE, verbModifiers, forVerb, simulated, task);
     }
 
-    Action applyTo(Object description, Kind kind, OrderOn orderOn, Modifiers self, InterceptedExecution task, Supplier<ActionList> drop)
+    Action applyTo(Object description, Kind kind, OrderOn orderOn, Modifiers self, Verb verb, InterceptedExecution task)
     {
-        return new SimulatedActionTaskDroppable(description, kind, orderOn, self, NONE, verbModifiers, simulated, task, drop);
+        return new SimulatedActionTask(description, kind, orderOn, self, NONE, verbModifiers, verb, simulated, task);
     }
 
     @SuppressWarnings({"SameParameterValue", "UnusedReturnValue"})
@@ -327,7 +420,8 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
         if (verbModifiers.isEmpty())
             verbModifiers = new EnumMap<>(Verb.class);
         verbModifiers.put(verb, self);
-        verbModifiers.put(verb.responseVerb, responses);
+        if (verb.responseVerb != null)
+            verbModifiers.put(verb.responseVerb, responses);
         return this;
     }
 

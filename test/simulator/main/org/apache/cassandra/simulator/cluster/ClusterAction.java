@@ -24,6 +24,6 @@ class ClusterAction extends SimulatedActionTask
 {
     ClusterAction(String description, Modifiers self, Modifiers children, ClusterActions actions, int on, SerializableRunnable invoke)
     {
-        super(description, self, children, actions, actions.cluster.get(on), invoke);
+        super(description, self.with(Modifier.DISPLAY_ORIGIN), children, actions, actions.cluster.get(on), invoke);
     }
 }

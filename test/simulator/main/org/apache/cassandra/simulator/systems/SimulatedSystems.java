@@ -18,12 +18,18 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.Action.Modifiers;
 import org.apache.cassandra.simulator.Debug;
+import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.cluster.Topology;
+import org.apache.cassandra.simulator.cluster.TopologyListener;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
@@ -38,15 +44,22 @@ public class SimulatedSystems
     public final SimulatedBallots ballots;
     public final SimulatedFailureDetector failureDetector;
     public final SimulatedSnitch snitch;
+    public final FutureActionScheduler futureScheduler;
     public final Debug debug;
     public final Failures failures;
+    private final List<TopologyListener> topologyListeners; // TODO (cleanup): this is a mutable set of listeners but shared between instances
 
     public SimulatedSystems(SimulatedSystems copy)
     {
-        this(copy.random, copy.time, copy.waits, copy.delivery, copy.execution, copy.ballots, copy.failureDetector, copy.snitch, copy.debug, copy.failures);
+        this(copy.random, copy.time, copy.waits, copy.delivery, copy.execution, copy.ballots, copy.failureDetector, copy.snitch, copy.futureScheduler, copy.debug, copy.failures, copy.topologyListeners);
     }
 
-    public SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedWaits waits, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, Debug debug, Failures failures)
+    public SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedWaits waits, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures)
+    {
+        this(random, time, waits, delivery, execution, ballots, failureDetector, snitch, futureScheduler, debug, failures, new ArrayList<>());
+    }
+
+    private SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedWaits waits, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures, List<TopologyListener> topologyListeners)
     {
         this.random = random;
         this.time = time;
@@ -56,8 +69,10 @@ public class SimulatedSystems
         this.ballots = ballots;
         this.failureDetector = failureDetector;
         this.snitch = snitch;
+        this.futureScheduler = futureScheduler;
         this.debug = debug;
         this.failures = failures;
+        this.topologyListeners = topologyListeners;
     }
 
     public Action run(Object description, IInvokableInstance on, SerializableRunnable run)
@@ -65,9 +80,9 @@ public class SimulatedSystems
         return new SimulatedActionTask(description, NONE, NONE, this, on, run);
     }
 
-    public Action reliable(Object description, IInvokableInstance on, SerializableRunnable run)
+    public Action transitivelyReliable(Object description, IInvokableInstance on, SerializableRunnable run)
     {
-        return new SimulatedActionTask(description, RELIABLE, RELIABLE, this, on, run);
+        return new SimulatedActionTask(description, NONE, RELIABLE, this, on, run);
     }
 
     /**
@@ -75,6 +90,17 @@ public class SimulatedSystems
      */
     public Action invoke(Object description, Modifiers self, Modifiers children, InterceptedExecution invoke)
     {
-        return new SimulatedActionTask(description, self, children, this, invoke);
+        return new SimulatedActionTask(description, self, children, null, this, invoke);
+    }
+
+    public void announce(Topology topology)
+    {
+        for (int i = 0; i < topologyListeners.size() ; ++i)
+            topologyListeners.get(i).onChange(topology);
+    }
+
+    public void register(TopologyListener listener)
+    {
+        topologyListeners.add(listener);
     }
 }

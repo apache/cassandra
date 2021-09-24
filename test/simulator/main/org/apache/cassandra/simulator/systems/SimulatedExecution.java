@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.simulator.systems;
 
-import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,6 +26,7 @@ import java.util.function.Function;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionPlan;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedFutureTaskExecution;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedThreadStart;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptedScheduledFutureTask;
@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
 
-import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.DAEMON;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_DAEMON;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
@@ -45,8 +45,12 @@ public class SimulatedExecution implements InterceptorOfExecution
     {
         static final NoExecutorMarker INFINITE_LOOP = new NoExecutorMarker();
         static final NoExecutorMarker THREAD = new NoExecutorMarker();
+
+        @Override public void addPending(Object task) { throw new UnsupportedOperationException(); }
+        @Override public void cancelPending(Object task) { throw new UnsupportedOperationException(); }
         @Override public void submitUnmanaged(Runnable task) { throw new UnsupportedOperationException(); }
         @Override public void submitAndAwaitPause(Runnable task, InterceptorOfConsequences interceptor) { throw new UnsupportedOperationException(); }
+        @Override public OrderOn orderAppliesAfterScheduling() { throw new UnsupportedOperationException(); }
         @Override public int concurrency() { return Integer.MAX_VALUE; }
     }
 
@@ -88,7 +92,7 @@ public class SimulatedExecution implements InterceptorOfExecution
             return task;
         }
 
-        public <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, Callable<T> runnable, InterceptingExecutor executor)
+        public <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<T> runnable, InterceptingExecutor executor)
         {
             return new NotScheduledFuture<>();
         }
@@ -130,12 +134,13 @@ public class SimulatedExecution implements InterceptorOfExecution
             return task;
         }
 
-        public <V> ScheduledFuture<V> schedule(SimulatedAction.Kind kind, Callable<V> call, InterceptingExecutor executor)
+        public <V> ScheduledFuture<V> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<V> call, InterceptingExecutor executor)
         {
-            assert kind == SCHEDULED_TASK || kind == SCHEDULED_TIMEOUT || kind == DAEMON;
-            InterceptedScheduledFutureTask<V> task = new InterceptedScheduledFutureTask<>(call);
-            InterceptedFutureTaskExecution<?> intercepted = new InterceptedFutureTaskExecution<>(kind, executor, task);
-            intercept.interceptExecution(intercepted, executor);
+            assert kind == SCHEDULED_TASK || kind == SCHEDULED_TIMEOUT || kind == SCHEDULED_DAEMON;
+            InterceptedScheduledFutureTask<V> task = new InterceptedScheduledFutureTask<>(delayNanos, call);
+            InterceptedFutureTaskExecution<?> intercepted = new InterceptedFutureTaskExecution<>(kind, executor, task, deadlineNanos);
+            task.onCancel(intercepted::cancel);
+            intercept.interceptExecution(intercepted, executor.orderAppliesAfterScheduling());
             return task;
         }
 
@@ -153,14 +158,9 @@ public class SimulatedExecution implements InterceptorOfExecution
     {
     }
 
-    public InterceptingExecutorFactory factory(ClassLoader classLoader, ThreadGroup threadGroup)
+    public InterceptingExecutorFactory factory(InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
     {
-        return new InterceptingExecutorFactory(this, classLoader, threadGroup);
-    }
-
-    public NoIntercept noIntercept()
-    {
-        return noIntercept;
+        return new InterceptingExecutorFactory(this, interceptorOfGlobalMethods, classLoader, threadGroup);
     }
 
     public InterceptExecution intercept()
@@ -178,7 +178,7 @@ public class SimulatedExecution implements InterceptorOfExecution
 
     public ActionPlan plan()
     {
-        return new ActionPlan(start(), Collections.emptyList(), stop());
+        return ActionPlan.setUpTearDown(start(), stop());
     }
 
     private ActionList start()

@@ -52,7 +52,7 @@ class NemesisGenerator extends MethodNode
         this.maxStack = 1;
         instructions.add(new LabelNode());
         instructions.add(ldc);
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "nemesis", "(F)V", false));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "nemesis", "(F)V", false));
         instructions.add(new LabelNode());
         instructions.add(new InsnNode(Opcodes.RETURN));
     }
@@ -67,7 +67,7 @@ class NemesisGenerator extends MethodNode
     {
         this.name = baseName + '$' + (withinMethodCounter++) + "$nemesis";
         ldc.cst = chanceSupplier.get();
-        writeDefinitionTo.write(kind, this);
+        writeDefinitionTo.writeSyntheticMethod(kind, this);
         writeInvocationTo.visitMethodInsn(Opcodes.INVOKESTATIC, className, name, "()V", false);
     }
 }

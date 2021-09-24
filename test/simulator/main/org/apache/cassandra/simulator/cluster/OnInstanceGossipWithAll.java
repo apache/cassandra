@@ -21,13 +21,14 @@ package org.apache.cassandra.simulator.cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.simulator.Actions.ReliableAction;
 
+import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 
 class OnInstanceGossipWithAll extends ReliableAction
 {
     OnInstanceGossipWithAll(ClusterActions actions, int from)
     {
-        super("Send Shutdown from " + from + " to all", RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS,
+        super("Send Shutdown from " + from + " to all", NONE, RELIABLE_NO_TIMEOUTS,
               () -> actions.gossipWithAll(from));
     }
     OnInstanceGossipWithAll(ClusterActions actions, IInvokableInstance from)

@@ -19,18 +19,19 @@
 package org.apache.cassandra.simulator.systems;
 
 import java.util.ArrayDeque;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.function.IntSupplier;
+import java.util.function.ToIntFunction;
 
 import net.openhft.chronicle.core.util.WeakIdentityHashMap;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.Shared;
-import org.apache.cassandra.utils.concurrent.Awaitable.SyncAwaitable;
 import org.apache.cassandra.utils.concurrent.BlockingQueues;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Semaphore;
-import org.apache.cassandra.utils.concurrent.Semaphore.UnfairAsync;
+import org.apache.cassandra.utils.concurrent.Semaphore.Standard;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
@@ -38,97 +39,236 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @SuppressWarnings("unused")
 @Shared(scope = SIMULATION, inner = INTERFACES)
-public interface InterceptorOfGlobalMethods extends Closeable
+public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, Closeable
 {
     WaitQueue newWaitQueue();
     CountDownLatch newCountDownLatch(int count);
     Condition newOneTimeCondition();
-    void waitUntil(long deadlineNanos) throws InterruptedException;
-    boolean waitUntil(Object monitor, long deadlineNanos) throws InterruptedException;
-    void wait(Object monitor) throws InterruptedException;
-    void wait(Object monitor, long millis) throws InterruptedException;
-    void wait(Object monitor, long millis, int nanos) throws InterruptedException;
-    void preMonitorEnter(Object object, float chanceOfSwitch);
-    void preMonitorExit(Object object);
-    void notify(Object monitor);
-    void notifyAll(Object monitor);
-    void nemesis(float chance);
 
-    public static class NotIntercepted implements InterceptorOfGlobalMethods
+    public static class IfInterceptibleThread extends None implements InterceptorOfGlobalMethods
     {
         @Override
         public WaitQueue newWaitQueue()
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newWaitQueue();
+
             return WaitQueue.newWaitQueue();
         }
 
         @Override
         public CountDownLatch newCountDownLatch(int count)
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newCountDownLatch(count);
+
             return CountDownLatch.newCountDownLatch(count);
         }
 
         @Override
         public Condition newOneTimeCondition()
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newOneTimeCondition();
+
             return Condition.newOneTimeCondition();
         }
 
         @Override
         public void waitUntil(long deadlineNanos) throws InterruptedException
         {
-            Clock.waitUntil(deadlineNanos);
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().waitUntil(deadlineNanos);
+            }
+            else
+            {
+                super.waitUntil(deadlineNanos);
+            }
         }
 
         @Override
         public boolean waitUntil(Object monitor, long deadlineNanos) throws InterruptedException
         {
-            return SyncAwaitable.waitUntil(monitor, deadlineNanos);
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().waitUntil(monitor, deadlineNanos);
+
+            return super.waitUntil(monitor, deadlineNanos);
         }
 
         @Override
         public void wait(Object monitor) throws InterruptedException
         {
-            monitor.wait();
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().wait(monitor);
+            }
+            else
+            {
+                monitor.wait();
+            }
         }
 
         @Override
         public void wait(Object monitor, long millis) throws InterruptedException
         {
-            monitor.wait(millis);
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().wait(monitor, millis);
+            }
+            else
+            {
+                monitor.wait(millis);
+            }
         }
 
         @Override
         public void wait(Object monitor, long millis, int nanos) throws InterruptedException
         {
-            monitor.wait(millis, nanos);
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().wait(monitor, millis, nanos);
+            }
+            else
+            {
+                monitor.wait(millis, nanos);
+            }
         }
 
         @Override
         public void preMonitorEnter(Object object, float chanceOfSwitch)
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().preMonitorEnter(object, chanceOfSwitch);
+            }
         }
 
         @Override
         public void preMonitorExit(Object object)
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().preMonitorExit(object);
+            }
         }
 
         @Override
         public void notify(Object monitor)
         {
-            monitor.notify();
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().notify(monitor);
+            }
+            else
+            {
+                monitor.notify();
+            }
         }
 
         @Override
         public void notifyAll(Object monitor)
         {
-            monitor.notifyAll();
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().notifyAll(monitor);
+            }
+            else
+            {
+                monitor.notifyAll();
+            }
+        }
+
+        @Override
+        public void park()
+        {
+            InterceptibleThread.park();
+        }
+
+        @Override
+        public void parkNanos(long nanos)
+        {
+            InterceptibleThread.parkNanos(nanos);
+        }
+
+        @Override
+        public void parkUntil(long millis)
+        {
+            InterceptibleThread.parkUntil(millis);
+        }
+
+        @Override
+        public void park(Object blocker)
+        {
+            InterceptibleThread.park(blocker);
+        }
+
+        @Override
+        public void parkNanos(Object blocker, long nanos)
+        {
+            InterceptibleThread.parkNanos(blocker, nanos);
+        }
+
+        @Override
+        public void parkUntil(Object blocker, long millis)
+        {
+            InterceptibleThread.parkUntil(blocker, millis);
+        }
+
+        @Override
+        public void unpark(Thread thread)
+        {
+            InterceptibleThread.unpark(thread);
         }
 
         @Override
         public void nemesis(float chance)
         {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                ((InterceptibleThread) thread).interceptorOfGlobalMethods().nemesis(chance);
+            }
+        }
+
+        @Override
+        public long randomSeed()
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().randomSeed();
+            }
+            else
+            {   // TODO: throw an exception? May result in non-determinism
+                return super.randomSeed();
+            }
+        }
+
+        @Override
+        public UUID randomUUID()
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().randomUUID();
+            }
+            else
+            {
+                return super.randomUUID();
+            }
         }
 
         @Override
@@ -140,32 +280,31 @@ public interface InterceptorOfGlobalMethods extends Closeable
     @SuppressWarnings("unused")
     public static class Global
     {
-        private static InterceptorOfGlobalMethods instance;
-        private static final IdentityHashCode identityHashCode = new IdentityHashCode();
+        private static InterceptorOfGlobalMethods methods;
 
         public static WaitQueue newWaitQueue()
         {
-            return instance.newWaitQueue();
+            return methods.newWaitQueue();
         }
 
         public static CountDownLatch newCountDownLatch(int count)
         {
-            return instance.newCountDownLatch(count);
+            return methods.newCountDownLatch(count);
         }
 
         public static Semaphore newSemaphore(int count)
         {
-            return new UnfairAsync(count);
+            return new Standard(count, false);
         }
 
         public static Semaphore newFairSemaphore(int count)
         {
-            return new UnfairAsync(count);
+            return new Standard(count, true);
         }
 
         public static Condition newOneTimeCondition()
         {
-            return instance.newOneTimeCondition();
+            return methods.newOneTimeCondition();
         }
 
         public static <T> BlockingQueue<T> newBlockingQueue()
@@ -178,98 +317,65 @@ public interface InterceptorOfGlobalMethods extends Closeable
             return new BlockingQueues.Sync<>(capacity, new ArrayDeque<>());
         }
 
-        public static boolean waitUntil(Object monitor, long deadlineNanos) throws InterruptedException
-        {
-            return instance.waitUntil(monitor, deadlineNanos);
-        }
-
-        public static void waitUntil(long deadlineNanos) throws InterruptedException
-        {
-            instance.waitUntil(deadlineNanos);
-        }
-
-        public static void wait(Object monitor) throws InterruptedException
-        {
-            instance.wait(monitor);
-        }
-
-        public static void wait(Object monitor, long millis) throws InterruptedException
-        {
-            instance.wait(monitor, millis);
-        }
-
-        // TODO (now): this should be registered with each InterceptibleThread on creation, rather than done statically here
-        //             as for things intercepted by the javaagent we have to set this globally and so cannot self-reconcile
-        //             or have multiple simulations running on the same JVM
-        @SuppressWarnings("unused")
-        public static Object preMonitorEnter(Object object, float chance)
-        {
-            instance.preMonitorEnter(object, chance);
-            return object;
-        }
-
-        public static Object preMonitorExit(Object object)
-        {
-            instance.preMonitorExit(object);
-            return object;
-        }
-
-        public static void notify(Object monitor)
-        {
-            instance.notify(monitor);
-        }
-
-        public static void notifyAll(Object monitor)
-        {
-            instance.notifyAll(monitor);
-        }
-
-        public static void nemesis(float chance)
-        {
-            instance.nemesis(chance);
-        }
-
-        public static int identityHashCode(Object object)
-        {
-            return identityHashCode.get(object);
-        }
-
         public static void unsafeReset()
         {
-            instance = new NotIntercepted();
+            Global.methods = new IfInterceptibleThread();
+            InterceptorOfSystemMethods.Global.unsafeSet(methods);
         }
 
-        public static void unsafeSet(InterceptorOfGlobalMethods methods, int seed, int constant)
+        public static void unsafeSet(InterceptorOfGlobalMethods methods, IntSupplier intSupplier)
         {
-            instance = methods;
-            identityHashCode.set(seed, constant);
+            unsafeSet(methods, new IdentityHashCode(intSupplier));
+        }
+
+        public static void unsafeSet(InterceptorOfGlobalMethods methods, ToIntFunction<Object> identityHashCode)
+        {
+            InterceptorOfSystemMethods.Global.unsafeSet(methods, identityHashCode);
+            Global.methods = methods;
         }
     }
 
-    static class IdentityHashCode
+    static class IdentityHashCode implements ToIntFunction<Object>
     {
-        private static final int LCG_MULTIPLIER = 22695477;
-        private int constant = 1;
-        private int nextId;
-        private final WeakIdentityHashMap<Object, Integer> saved = new WeakIdentityHashMap<>();
-
-        synchronized void set(int nextId, int constant)
+        static class LCGRandom implements IntSupplier
         {
-            this.nextId = nextId;
-            this.constant = constant == 0 ? 1 : constant;
+            private static final int LCG_MULTIPLIER = 22695477;
+            private final int constant;
+            private int nextId;
+
+            public LCGRandom(int constant)
+            {
+                this.constant = constant == 0 ? 1 : constant;
+            }
+
+            @Override
+            public int getAsInt()
+            {
+                int id = nextId;
+                nextId = (id * LCG_MULTIPLIER) + constant;
+                id ^= id >> 16;
+                return id;
+            }
         }
 
-        public synchronized int get(Object value)
+        private final IntSupplier nextId;
+        private final WeakIdentityHashMap<Object, Integer> saved = new WeakIdentityHashMap<>();
+
+        public IdentityHashCode(IntSupplier nextId)
+        {
+            this.nextId = nextId;
+        }
+
+        public synchronized int applyAsInt(Object value)
         {
             Integer id = saved.get(value);
             if (id == null)
             {
-                id = nextId;
-                nextId = (id * LCG_MULTIPLIER) + constant;
-                id ^= id >> 16;
+                id = nextId.getAsInt();
                 saved.put(value, id);
             }
             return id;
         }
     }
+
 }

@@ -21,6 +21,8 @@ package org.apache.cassandra.simulator.systems;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +43,7 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION, inner = INTERFACES)
 public interface InterceptedWait extends NotifyThreadPaused
 {
-    enum Kind { SLEEP, TIMED_WAIT, UNBOUNDED_WAIT, NEMESIS }
+    enum Kind { SLEEP_UNTIL, WAIT_UNTIL, UNBOUNDED_WAIT, NEMESIS }
 
     interface TriggerListener
     {
@@ -63,6 +65,12 @@ public interface InterceptedWait extends NotifyThreadPaused
      * true if the signal has already been triggered by another simulation action
      */
     boolean isTriggered();
+
+    /**
+     * If kind() == TIMED_WAIT or ABSOLUTE_TIMED_WAIT this returns the relative and absolute
+     * period to wait in nanos
+     */
+    long waitTime();
 
     /**
      * Signal the waiter immediately, and have the caller wait until its simulation has terminated.
@@ -99,13 +107,15 @@ public interface InterceptedWait extends NotifyThreadPaused
         final InterceptorOfConsequences interceptedBy;
         final Condition propagateSignal;
         final List<TriggerListener> onTrigger = new ArrayList<>(3);
+        final long waitTime;
         boolean isTriggered;
         boolean isDone;
         boolean hasExited;
 
-        public InterceptedConditionWait(Kind kind, InterceptibleThread waiting, CaptureSites captureSites, Condition propagateSignal)
+        public InterceptedConditionWait(Kind kind, long waitTime, InterceptibleThread waiting, CaptureSites captureSites, Condition propagateSignal)
         {
             this.kind = kind;
+            this.waitTime = waitTime;
             this.waiting = waiting;
             this.captureSites = captureSites;
             this.interceptedBy = waiting.interceptedBy();
@@ -120,7 +130,7 @@ public interface InterceptedWait extends NotifyThreadPaused
             if (hasExited)
             {
                 logger.error("{} exited without trigger {}", waiting, captureSites == null ? new CaptureSites(waiting, true) : captureSites);
-                failWithOOM();
+                throw failWithOOM();
             }
 
             waiting.beforeInvocation(interceptor, this);
@@ -177,6 +187,12 @@ public interface InterceptedWait extends NotifyThreadPaused
             return kind;
         }
 
+        @Override
+        public long waitTime()
+        {
+            return waitTime;
+        }
+
         public boolean isTriggered()
         {
             return isSignalled();
@@ -224,6 +240,20 @@ public interface InterceptedWait extends NotifyThreadPaused
             return false;
         }
 
+        // ignore return value; always false as can only represent artificial (intercepted) signaled status
+        public boolean awaitUninterruptibly(long time, TimeUnit units)
+        {
+            try
+            {
+                super.awaitUninterruptibly(time, units);
+            }
+            finally
+            {
+                hasExited = true;
+            }
+            return false;
+        }
+
         public Condition await() throws InterruptedException
         {
             try
@@ -252,7 +282,7 @@ public interface InterceptedWait extends NotifyThreadPaused
 
         public String toString()
         {
-            return captureSites == null ? "" : captureSites.toString();
+            return captureSites == null ? "" : "[" + captureSites + ']';
         }
     }
 
@@ -286,20 +316,25 @@ public interface InterceptedWait extends NotifyThreadPaused
             this.wakeupSite = waking.getStackTrace();
         }
 
-        public String toString()
+        public String toString(Predicate<StackTraceElement> include)
         {
             String tail;
             if (wakeupSite != null)
-                tail = Threads.prettyPrint(wakeupSite, true, printNowTrace ? "]# by[" : waitSite != null ? " by[" : "by[", "; ", "]");
+                tail = Threads.prettyPrint(Stream.of(wakeupSite).filter(include), true, printNowTrace ? "]# by[" : waitSite != null ? " by[" : "by[", "; ", "]");
             else if (printNowTrace)
                 tail = "]#";
             else
                 tail = "";
             if (printNowTrace)
-                tail = Threads.prettyPrintStackTrace(waiting, true, waitSite != null ? " #[" : "#[", "; ", tail);
+                tail = Threads.prettyPrint(Stream.of(waiting.getStackTrace()).filter(include), true, waitSite != null ? " #[" : "#[", "; ", tail);
             if (waitSite != null)
-                tail =Threads.prettyPrint(waitSite, true, "", "; ", tail);
+                tail =Threads.prettyPrint(Stream.of(waitSite).filter(include), true, "", "; ", tail);
             return tail;
+        }
+
+        public String toString()
+        {
+            return toString(ignore -> true);
         }
     }
 

@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
@@ -37,18 +41,21 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
+import org.apache.cassandra.simulator.ActionListener;
 import org.apache.cassandra.simulator.ActionPlan;
-import org.apache.cassandra.simulator.ActionSchedulers;
-import org.apache.cassandra.simulator.ActionSequence;
+import org.apache.cassandra.simulator.RunnableActionScheduler;
+import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.cluster.KeyspaceActions;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
+import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.Boolean.TRUE;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.simulator.Debug.EventType.PARTITION;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
@@ -145,6 +152,9 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
 
     final ClusterActions.Options clusterOptions;
     final float readRatio;
+    final IntRange withinKeyConcurrency;
+    final int concurrency;
+    final IntRange simulateKeyForSeconds;
     final ConsistencyLevel serialConsistency;
     final Debug debug;
     final List<HistoryChecker> historyCheckers = new ArrayList<>();
@@ -154,25 +164,26 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
     final AtomicInteger failedWrites = new AtomicInteger();
     final long seed;
     final int[] primaryKeys;
-    final int actionsPerKey;
 
     public PairOfSequencesPaxosSimulation(SimulatedSystems simulated,
                                           Cluster cluster,
                                           ClusterActions.Options clusterOptions,
                                           float readRatio,
-                                          ConsistencyLevel serialConsistency,
-                                          ActionSchedulers schedulers,
-                                          Debug debug,
-                                          long seed, int[] primaryKeys, int actionsPerKey)
+                                          int concurrency, IntRange simulateKeyForSeconds, IntRange withinKeyConcurrency,
+                                          ConsistencyLevel serialConsistency, RunnableActionScheduler scheduler, Debug debug,
+                                          long seed, int[] primaryKeys,
+                                          long runForNanos, LongSupplier jitter)
     {
-        super(simulated, cluster, schedulers);
+        super(simulated, cluster, scheduler, runForNanos, jitter);
         this.readRatio = readRatio;
+        this.concurrency = concurrency;
+        this.simulateKeyForSeconds = simulateKeyForSeconds;
+        this.withinKeyConcurrency = withinKeyConcurrency;
         this.serialConsistency = serialConsistency;
         this.clusterOptions = clusterOptions;
         this.debug = debug;
         this.seed = seed;
         this.primaryKeys = primaryKeys;
-        this.actionsPerKey = actionsPerKey;
     }
 
     public ActionPlan plan()
@@ -180,55 +191,125 @@ public class PairOfSequencesPaxosSimulation extends PaxosSimulation
         ActionPlan plan = new KeyspaceActions(simulated, KEYSPACE, TABLE, CREATE_TABLE, cluster,
                                               clusterOptions, serialConsistency, this, primaryKeys, debug).plan();
 
-        plan = plan.encapsulate(new ActionPlan(
+        plan = plan.encapsulate(ActionPlan.setUpTearDown(
             ActionList.of(
                 cluster.stream().map(i -> simulated.run("Insert Partitions", i, executeForPrimaryKeys(INSERT1, primaryKeys)))
             ),
-            emptyList(),
             ActionList.of(
                 cluster.stream().map(i -> simulated.run("Delete Partitions", i, executeForPrimaryKeys(DELETE1, primaryKeys)))
             )
         ));
 
-        List<ActionSequence> interleave = new ArrayList<>();
+        final int nodes = cluster.size();
         for (int primaryKey : primaryKeys)
+            historyCheckers.add(new HistoryChecker(primaryKey));
+
+        List<Supplier<Action>> primaryKeyActions = new ArrayList<>();
+        for (int pki = 0 ; pki < primaryKeys.length ; ++pki)
         {
-            List<ActionSequence> tmp = new ArrayList<>();
-            HistoryChecker historyChecker = new HistoryChecker(primaryKey, actionsPerKey);
-            historyCheckers.add(historyChecker);
-            for (int nodei = 0, nodes = cluster.size() ; nodei < nodes ; ++nodei)
+            int primaryKey = primaryKeys[pki];
+            HistoryChecker historyChecker = historyCheckers.get(pki);
+            Supplier<Action> supplier = new Supplier<Action>()
             {
-                int node = 1 + Math.abs((nodei + primaryKey) % nodes);
-                IInvokableInstance instance = cluster.get(node);
-                List<Action> nodeActions = new ArrayList<>();
-                for (int i = node - 1; i < actionsPerKey; i += nodes)
+                int i = 0;
+
+                @Override
+                public Action get()
                 {
+                    int node = simulated.random.uniform(1, nodes + 1);
+                    IInvokableInstance instance = cluster.get(node);
                     switch (serialConsistency)
                     {
+                        default: throw new AssertionError();
                         case LOCAL_SERIAL:
                             if (simulated.snitch.dcOf(node) > 0)
                             {
                                 // perform some queries against these nodes but don't expect them to be linearizable
-                                nodeActions.add(new NonVerifyingOperation(i, instance, serialConsistency, primaryKey, historyChecker));
-                                break;
+                                return new NonVerifyingOperation(i++, instance, serialConsistency, primaryKey, historyChecker);
                             }
                         case SERIAL:
-                            nodeActions.add(simulated.random.decide(readRatio)
-                                            ? new VerifyingOperation(i, instance, serialConsistency, primaryKey, historyChecker)
-                                            : new ModifyingOperation(i, instance, ANY, serialConsistency, primaryKey, historyChecker));
+                            return simulated.random.decide(readRatio)
+                                   ? new VerifyingOperation(i++, instance, serialConsistency, primaryKey, historyChecker)
+                                   : new ModifyingOperation(i++, instance, ANY, serialConsistency, primaryKey, historyChecker);
                     }
                 }
 
-                tmp.add(ActionSequence.strictSequential(nodeActions));
+                @Override
+                public String toString()
+                {
+                    return Integer.toString(primaryKey);
+                }
+            };
+
+            final ActionListener listener = debug.debug(PARTITION, simulated.time, cluster, KEYSPACE, primaryKey);
+            if (listener != null)
+            {
+                Supplier<Action> wrap = supplier;
+                supplier = new Supplier<Action>()
+                {
+                    @Override
+                    public Action get()
+                    {
+                        Action action = wrap.get();
+                        action.register(listener);
+                        return action;
+                    }
+
+                    @Override
+                    public String toString()
+                    {
+                        return wrap.toString();
+                    }
+                };
             }
 
-            interleave.addAll(tmp);
-            debug.debug(PARTITION, tmp, cluster, KEYSPACE, primaryKey);
+            primaryKeyActions.add(supplier);
         }
+
+        List<Integer> available = IntStream.range(0, primaryKeys.length).boxed().collect(Collectors.toList());
+        Action stream = Actions.infiniteStream(concurrency, new Supplier<Action>() {
+            @Override
+            public Action get()
+            {
+                int i = simulated.random.uniform(0, available.size());
+                int next = available.get(i);
+                available.set(i, available.get(available.size() - 1));
+                available.remove(available.size() - 1);
+                long untilNanos = simulated.time.nanoTime() + SECONDS.toNanos(simulateKeyForSeconds.select(simulated.random));
+                int concurrency = withinKeyConcurrency.select(simulated.random);
+                Supplier<Action> supplier = primaryKeyActions.get(next);
+                // while this stream is finite, it participates in an infinite stream via its parent, so we want to permit termination while it's running
+                return Actions.infiniteStream(concurrency, new Supplier<Action>()
+                {
+                    @Override
+                    public Action get()
+                    {
+                        if (simulated.time.nanoTime() >= untilNanos)
+                        {
+                            available.add(next);
+                            return null;
+                        }
+                        return supplier.get();
+                    }
+
+                    @Override
+                    public String toString()
+                    {
+                        return supplier.toString();
+                    }
+                });
+            }
+
+            @Override
+            public String toString()
+            {
+                return "Primary Key Actions";
+            }
+        });
 
         return simulated.execution.plan()
                                   .encapsulate(plan)
-                                  .encapsulate(new ActionPlan(ActionList.empty(), interleave, ActionList.empty()));
+                                  .encapsulate(ActionPlan.interleave(singletonList(ActionList.of(stream))));
     }
 
     private IIsolatedExecutor.SerializableRunnable executeForPrimaryKeys(String cql, int[] primaryKeys)

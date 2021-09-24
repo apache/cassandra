@@ -28,7 +28,7 @@ public class NotInterceptedSyncCondition extends Awaitable.AbstractAwaitable imp
     private volatile boolean isSignalled;
 
     @Override
-    public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
+    public synchronized boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
     {
         while (true)
         {

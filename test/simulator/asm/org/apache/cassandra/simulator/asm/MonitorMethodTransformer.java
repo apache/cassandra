@@ -34,7 +34,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
 
 import static org.apache.cassandra.simulator.asm.TransformationKind.MONITOR;
-import static org.apache.cassandra.simulator.asm.TransformationKind.SYNCHRONIZED;
 
 /**
  * For synchronized methods, we generate a new method that contains the source method's body, and the original method
@@ -43,7 +42,7 @@ import static org.apache.cassandra.simulator.asm.TransformationKind.SYNCHRONIZED
 class MonitorMethodTransformer extends MethodNode
 {
     private final String className;
-    private final ClassTransformer transformer;
+    private final MethodWriterSink methodWriterSink;
     private final ChanceSupplier monitorDelayChance;
     private final String baseName;
     private final boolean isInstanceMethod;
@@ -51,15 +50,14 @@ class MonitorMethodTransformer extends MethodNode
 
     int maxLocalParams; // double counts long/double to match asm spec
 
-    public MonitorMethodTransformer(ClassTransformer transformer, String className, int api, int access, String name, String descriptor, String signature, String[] exceptions, ChanceSupplier monitorDelayChance)
+    public MonitorMethodTransformer(MethodWriterSink methodWriterSink, String className, int api, int access, String name, String descriptor, String signature, String[] exceptions, ChanceSupplier monitorDelayChance)
     {
         super(api, access, name, descriptor, signature, exceptions);
-        this.transformer = transformer;
+        this.methodWriterSink = methodWriterSink;
         this.className = className;
         this.baseName = name;
         this.isInstanceMethod = (access & Opcodes.ACC_STATIC) == 0;
         this.monitorDelayChance = monitorDelayChance;
-        transformer.witness(SYNCHRONIZED);
     }
 
     @Override
@@ -84,6 +82,7 @@ class MonitorMethodTransformer extends MethodNode
         return returnCode;
     }
 
+    // TODO (cleanup): this _should_ be possible to determine purely from the method signature
     int loadParamsAndReturnInvokeCode()
     {
         if (isInstanceMethod)
@@ -143,14 +142,14 @@ class MonitorMethodTransformer extends MethodNode
     void invokePreMonitorExit()
     {
         pushRef();
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "preMonitorExit", "(Ljava/lang/Object;)Ljava/lang/Object;", false));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "preMonitorExit", "(Ljava/lang/Object;)Ljava/lang/Object;", false));
     }
 
     void invokePreMonitorEnter()
     {
         pushRef();
         instructions.add(new LdcInsnNode(monitorDelayChance.get()));
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "preMonitorEnter", "(Ljava/lang/Object;F)Ljava/lang/Object;", false));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "preMonitorEnter", "(Ljava/lang/Object;F)Ljava/lang/Object;", false));
     }
 
     void invokeMonitor(int insn)
@@ -203,8 +202,8 @@ class MonitorMethodTransformer extends MethodNode
     {
         access &= ~Opcodes.ACC_SYNCHRONIZED;
         access |= Opcodes.ACC_SYNTHETIC;
-        name = baseName + "$original";
-        transformer.write(null, this);
+        name = baseName + "$unsync";
+        methodWriterSink.writeMethod(this);
     }
 
     // alternative approach (with writeInnerTryCatchSynchronized)
@@ -228,7 +227,7 @@ class MonitorMethodTransformer extends MethodNode
         instructions.add(new MethodInsnNode(invokeCode, className, baseName + "$catch", desc));
         instructions.add(new InsnNode(returnCode()));
         instructions.add(getLabelNode(end));
-        transformer.write(null, this);
+        methodWriterSink.writeMethod(this);
     }
 
     // alternative approach (with writeOuterUnsynchronized)
@@ -248,7 +247,7 @@ class MonitorMethodTransformer extends MethodNode
         tryCatchBlocks.add(new TryCatchBlockNode(getLabelNode(start), getLabelNode(normal), getLabelNode(except), null));
         instructions.add(getLabelNode(start));
         int invokeCode = loadParamsAndReturnInvokeCode();
-        instructions.add(new MethodInsnNode(invokeCode, className, baseName + "$original", desc));
+        instructions.add(new MethodInsnNode(invokeCode, className, baseName + "$unsync", desc));
         instructions.add(getLabelNode(normal));
         invokePreMonitorExit();
         instructions.add(new InsnNode(returnCode()));
@@ -259,7 +258,7 @@ class MonitorMethodTransformer extends MethodNode
         instructions.add(new IntInsnNode(Opcodes.ALOAD, maxLocalParams));
         instructions.add(new InsnNode(Opcodes.ATHROW));
         instructions.add(getLabelNode(end));
-        transformer.write(MONITOR, this);
+        methodWriterSink.writeSyntheticMethod(MONITOR, this);
     }
 
     void writeTryCatchMonitorEnterExit()
@@ -290,7 +289,7 @@ class MonitorMethodTransformer extends MethodNode
             // try1 { val = original();
             instructions.add(getLabelNode(inmonitor));
             int invokeCode = loadParamsAndReturnInvokeCode();
-            instructions.add(new MethodInsnNode(invokeCode, className, baseName + "$original", desc));
+            instructions.add(new MethodInsnNode(invokeCode, className, baseName + "$unsync", desc));
             {
                 // try2 { preMonitorExit(); monitorexit; return val; }
                 instructions.add(getLabelNode(normal));
@@ -326,15 +325,13 @@ class MonitorMethodTransformer extends MethodNode
             instructions.add(new InsnNode(Opcodes.ATHROW));
         }
         instructions.add(getLabelNode(end));
-        transformer.write(MONITOR, this);
+        methodWriterSink.writeSyntheticMethod(MONITOR, this);
     }
 
     @Override
     public void visitEnd()
     {
         writeOriginal();
-//        writeInnerTryCatchSynchronized();
-//        writeOuterUnsynchronized();
         writeTryCatchMonitorEnterExit();
         super.visitEnd();
     }

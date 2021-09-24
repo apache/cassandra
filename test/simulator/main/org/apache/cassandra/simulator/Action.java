@@ -19,108 +19,153 @@
 package org.apache.cassandra.simulator;
 
 import java.io.Serializable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 
+import com.google.common.base.Preconditions;
+
 import io.netty.util.internal.DefaultPriorityQueue;
 import io.netty.util.internal.PriorityQueue;
 import io.netty.util.internal.PriorityQueueNode;
+import org.apache.cassandra.simulator.Ordered.StrictlyOrdered;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.simulator.Action.Modifier.*;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
+import static org.apache.cassandra.simulator.Action.Phase.CANCELLED;
+import static org.apache.cassandra.simulator.Action.Phase.CONSEQUENCE;
+import static org.apache.cassandra.simulator.Action.Phase.FINISHED;
+import static org.apache.cassandra.simulator.Action.Phase.INVALIDATED;
+import static org.apache.cassandra.simulator.Action.Phase.NASCENT;
+import static org.apache.cassandra.simulator.Action.Phase.STARTED;
+import static org.apache.cassandra.simulator.Action.Phase.WITHHELD;
 import static org.apache.cassandra.simulator.Action.RegisteredType.CHILD;
 import static org.apache.cassandra.simulator.Action.RegisteredType.LISTENER;
+import static org.apache.cassandra.simulator.ActionListener.Before.DROP;
+import static org.apache.cassandra.simulator.ActionListener.Before.INVALIDATE;
+import static org.apache.cassandra.simulator.ActionListener.Before.EXECUTE;
+import static org.apache.cassandra.simulator.utils.CompactLists.append;
+import static org.apache.cassandra.simulator.utils.CompactLists.remove;
+import static org.apache.cassandra.simulator.utils.CompactLists.safeForEach;
 
-public abstract class Action implements PriorityQueueNode, Comparable<Action>
+public abstract class Action implements PriorityQueueNode
 {
     private static final boolean DEBUG = Action.class.desiredAssertionStatus();
 
     public enum Modifier
     {
-        // TODO: introduce scales of delay?
-        // Delays are ordinarily imposed at random, but some operations should always be delayed (e.g. timeouts)
-        ALWAYS_DELAY(false),
+        /**
+         * Never drop an action. Primarily intended to transitively mark an action's descendants as
+         * required to succeed (e.g. in the case of repair and other cluster actions that are brittle)
+         */
+        RELIABLE('r', true),
 
-        // Never drop the action
-        RELIABLE(true),
+        /**
+         * Mark an action to be discarded, which may result in some alternative action being undertaken.
+         * This marker is only to ensure correctness, as the simulator will fail if an action is performed
+         * that is marked DROP and RELIABLE.
+         */
+        DROP('f', false),
 
-        // a general purpose mechanism for withholding actions until all other actions have had an opportunity to run
-        // (intended primarily for TIMEOUT+NO_TIMEOUT, but may be used elsewhere)
-        // this is a very similar feature to Ordered, but it was easier to model this way, as the predecessors are
-        // all other child actions in the entire transitive closure of operations, with the premise that the action
-        // will no longer be valid by the time it has an opportunity run
-        WITHHOLD(false),
+        // indicates some scheduler delay should be added to the execution time of this action
+        // TODO (feature): support per node scheduler delay to simulate struggling nodes
+        THREAD_SIGNAL('t', false),
+
+        /**
+         * a general purpose mechanism for withholding actions until all other actions have had an opportunity to run
+         * (intended primarily for TIMEOUT+NO_TIMEOUTS, but may be used elsewhere)
+         * this is a very similar feature to Ordered, but it was easier to model this way, as the predecessors are
+         * all other child actions in the entire transitive closure of operations, with the premise that the action
+         * will no longer be valid by the time it has an opportunity run
+         */
+        WITHHOLD((char)0, false),
 
         // Mark operations as a THREAD_TIMEOUT, and parent operations as forbidding such timeouts (unless all else has failed)
-        // TODO (now): use the time provided with submit to influence the time of the timeout?
-        // TODO (now): invert NO_TIMEOUTS as we want default behaviour to be NO_TIMEOUTS?
-        NO_TIMEOUTS(true, null, true), TIMEOUT(false, NO_TIMEOUTS),
+        NO_TIMEOUTS('n', true, null, true), TIMEOUT('t', false, NO_TIMEOUTS),
 
         /**
          * All children of this action should be performed in strict order wrt the parent's consequences
          * i.e. this is the continuation version of {@link #STRICT_CHILD_ORDER}
          * this is a bit clunky, but not the end of the world
          */
-        STRICT_CHILD_OF_PARENT_ORDER(false),
+        STRICT_CHILD_OF_PARENT_ORDER('c', false),
 
         /**
          * All children of this action should be performed in strict order, which means not only that
          * they must be performed in the provided order, but all of their consequences must finish before
          * the next sibling is permitted to run
          */
-        STRICT_CHILD_ORDER(true, null, STRICT_CHILD_OF_PARENT_ORDER),
+        STRICT_CHILD_ORDER('s', true, null, STRICT_CHILD_OF_PARENT_ORDER),
 
         /**
          * InfiniteLoopExecutors, when started, should be treated as detached from the action that happens to start them
          * so the child action is considered to be orphaned, and not registered or counted against its parent action
          */
-        ORPHAN(false),
+        ORPHAN('o', false),
 
         /**
-         * Recurring scheduled tasks, that the scheduler should discount when determining if has terminated
+         * Must be combined with ORPHAN. Unlinks an Action from its direct parent, attaching it as a child of its
+         * grandparent. This is used to support streams of streams.
          */
-        DAEMON(false),
+        ORPHAN_TO_GRANDPARENT((char)0, false),
+
+        /**
+         * Recurring tasks, that the schedule may discount when determining if has terminated
+         */
+        STREAM((char)0, false),
+
+        /**
+         * Recurring scheduled tasks, that the schedule should discount when determining if has terminated
+         */
+        DAEMON((char)0, false),
 
         /**
          * Informational messages produced for logging only
          */
-        INFO(false),
+        INFO((char)0, false),
 
         /**
-         * A wakeup action messages produced for logging only
+         * A thread wakeup action that is ordinarily filtered from logging.
          */
-        WAKEUP(false);
+        WAKEUP('w', false),
 
+        /**
+         * Show this action in the chain of origin actions
+         */
+        DISPLAY_ORIGIN('d', false);
+
+        final char displayId;
         final boolean heritable;
         final Modifier withholdIfPresent;
         final Modifier inheritIfContinuation;
 
         private Modifiers asSet;
 
-        Modifier(boolean heritable)
+        Modifier(char displayId, boolean heritable)
         {
-            this(heritable, null);
+            this(displayId, heritable, null);
         }
 
-        Modifier(boolean heritable, Modifier withholdIfPresent)
+        Modifier(char displayId, boolean heritable, Modifier withholdIfPresent)
         {
-            this(heritable, withholdIfPresent, null);
+            this(displayId, heritable, withholdIfPresent, null);
         }
 
-        Modifier(boolean heritable, Modifier withholdIfPresent, boolean inheritIfContinuation)
+        Modifier(char displayId, boolean heritable, Modifier withholdIfPresent, boolean inheritIfContinuation)
         {
+            this.displayId = displayId;
             this.heritable = heritable;
             this.withholdIfPresent = withholdIfPresent;
             this.inheritIfContinuation = inheritIfContinuation ? this : null;
         }
 
-        Modifier(boolean heritable, Modifier withholdIfPresent, Modifier inheritIfContinuation)
+        Modifier(char displayId, boolean heritable, Modifier withholdIfPresent, Modifier inheritIfContinuation)
         {
+            this.displayId = displayId;
             this.heritable = heritable;
             this.withholdIfPresent = withholdIfPresent;
             this.inheritIfContinuation = inheritIfContinuation;
@@ -137,17 +182,28 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
     public static class Modifiers implements Serializable
     {
         public static final Modifiers NONE = of();
-        public static final Modifiers INFO = of(Modifier.INFO);
-        public static final Modifiers RELIABLE = of(Modifier.RELIABLE);
-        public static final Modifiers STRICT = of(STRICT_CHILD_ORDER, Modifier.RELIABLE);
-        public static final Modifiers TIMEOUT = of(Modifier.TIMEOUT, Modifier.ALWAYS_DELAY, Modifier.RELIABLE);
-        public static final Modifiers NO_TIMEOUTS = of(Modifier.NO_TIMEOUTS);
+        public static final Modifiers INFO = Modifier.INFO.asSet();
+        public static final Modifiers RELIABLE = Modifier.RELIABLE.asSet();
+        public static final Modifiers DROP = Modifier.DROP.asSet();
+        public static final Modifiers STREAM = of(Modifier.STREAM);
+        public static final Modifiers INFINITE_STREAM = of(Modifier.STREAM, DAEMON);
+        public static final Modifiers STREAM_ITEM = of(Modifier.STREAM, ORPHAN, ORPHAN_TO_GRANDPARENT);
+        public static final Modifiers INFINITE_STREAM_ITEM = of(Modifier.STREAM, DAEMON, ORPHAN, ORPHAN_TO_GRANDPARENT);
+
+        public static final Modifiers START_TASK = of(THREAD_SIGNAL);
+        public static final Modifiers START_THREAD = of(THREAD_SIGNAL);
+        public static final Modifiers START_INFINITE_LOOP = of(ORPHAN, THREAD_SIGNAL);
+        public static final Modifiers START_SCHEDULED_TASK = of(THREAD_SIGNAL);
+        public static final Modifiers START_TIMEOUT_TASK = of(Modifier.TIMEOUT, THREAD_SIGNAL);
+        public static final Modifiers START_DAEMON_TASK = of(ORPHAN, Modifier.DAEMON, THREAD_SIGNAL);
+
+        public static final Modifiers WAKE_UP_THREAD = of(THREAD_SIGNAL, WAKEUP);
+
+        public static final Modifiers STRICT = of(STRICT_CHILD_ORDER);
+        public static final Modifiers NO_TIMEOUTS = Modifier.NO_TIMEOUTS.asSet();
+
         public static final Modifiers RELIABLE_NO_TIMEOUTS = of(Modifier.NO_TIMEOUTS, Modifier.RELIABLE);
-        public static final Modifiers SCHEDULED = of(Modifier.RELIABLE, ALWAYS_DELAY);
-        public static final Modifiers DAEMON = of(ORPHAN, Modifier.DAEMON, Modifier.RELIABLE, ALWAYS_DELAY);
-        public static final Modifiers START_INFINITE_LOOP = of(ORPHAN, Modifier.RELIABLE);
-        public static final Modifiers WAKE_UP_THREAD = of(Modifier.RELIABLE, WAKEUP);
-        public static final Modifiers WAKE_UP_THREAD_LATER = of(Modifier.RELIABLE, WAKEUP, ALWAYS_DELAY);
+        public static final Modifiers DISPLAY_ORIGIN = of(Modifier.DISPLAY_ORIGIN);
 
         public static Modifiers of()
         {
@@ -252,17 +308,34 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
 
     enum RegisteredType { LISTENER, CHILD }
 
+    enum Phase
+    {
+        NASCENT,
+        WITHHELD,
+        CONSEQUENCE,
+        READY_TO_SCHEDULE,
+        SEQUENCED_PRE_SCHEDULED,
+        SCHEDULED,
+        SEQUENCED_POST_SCHEDULED,
+        RUNNABLE,
+        STARTED,
+        FINISHED,
+        CANCELLED,
+        INVALIDATED
+    }
+
     // configuration/status
     private final Object description;
-    private final OrderOn orderOn;
+    private OrderOns orderOn;
     private Modifiers self, transitive;
-    private boolean isStarted, isFinished, isInvalidated;
+    private Phase phase = NASCENT;
+    Ordered ordered;
 
     /** The listeners (and, if DEBUG, children) we have already registered */
     private final Map<Object, RegisteredType> registered = new IdentityHashMap<>(2);
 
     /** The list of listeners (for deterministic evaluation order) to notify on any event */
-    final List<ActionListener> listeners = new ArrayList<>(2);
+    private List<ActionListener> listeners;
 
     /** The immediate parent, and furthest ancestor of this Action */
     protected Action parent, origin = this;
@@ -274,18 +347,22 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
      * Consequences marked WITHHOLD are kept in their parent (or parent thread's) {@code withheld} queue until all
      * other immediate children have <i>transitively</i> terminated their execution
      */
-    private Queue<Action> withheld;
+    private DefaultPriorityQueue<Action> withheld;
 
     // scheduler and scheduled state
-    protected ActionScheduler scheduler;
+    protected RunnableActionScheduler scheduler;
+
+    private long deadline; // some actions have an associated wall clock time to execute and are first scheduled by this
+    private double priority; // all actions eventually get prioritised for execution in some order "now"
+
+    // used to track the index and priority queue we're being managed for execution by (either by scheduledAt or priority)
     private PriorityQueue<?> scheduledIn;
-    private double scheduledPriority;
     private int scheduledIndex = -1;
 
-    public Action(Object description)
-    {
-        this(description, NONE, NONE);
-    }
+    // used to track the scheduledAt of events we have moved to actively scheduling/prioritising
+    private PriorityQueue<?> savedIn;
+    private int savedIndex = -1;
+
     public Action(Object description, Modifiers self)
     {
         this(description, self, NONE);
@@ -295,7 +372,7 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
         this(description, OrderOn.NONE, self, transitive);
     }
 
-    public Action(Object description, OrderOn orderOn, Modifiers self, Modifiers transitive)
+    public Action(Object description, OrderOns orderOn, Modifiers self, Modifiers transitive)
     {
         this.description = description;
         if (orderOn == null || self == null || transitive == null)
@@ -310,7 +387,8 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
     {
         return description;
     }
-    public OrderOn orderOn() { return orderOn; }
+    public OrderOns orderOns() { return orderOn; }
+    public Phase phase() { return phase; }
     public Modifiers self() { return self; }
     public Modifiers transitive() { return transitive; }
     public boolean is(Modifier modifier)
@@ -330,15 +408,15 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
 
     public boolean isStarted()
     {
-        return isStarted;
+        return phase.compareTo(STARTED) >= 0;
     }
     public boolean isFinished()
     {
-        return isFinished;
+        return phase.compareTo(FINISHED) >= 0;
     }
     public boolean isInvalidated()
     {
-        return isInvalidated;
+        return phase.compareTo(INVALIDATED) >= 0;
     }
 
     public Action parent()
@@ -348,6 +426,202 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
     public int childCount()
     {
         return childCount;
+    }
+
+    /**
+     * Main implementation of {@link #perform()}, that must be completed by an extending classes.
+     *
+     * Does not need to handle consequences, registration etc.
+     *
+     * @return the action consequences
+     */
+    protected abstract ActionList performSimple();
+
+    /**
+     * Invokes {@link #performSimple} before invoking {@link #performed}.
+     *
+     * May be overridden by an extending classes that does not finish immediately (e.g, SimulatedAction).
+     *
+     * MUST handle consequences, registration etc by invoking performed() on its results before returning,
+     * to register children and record the action's state
+     *
+     * @return the action consequences
+     */
+    protected ActionList performAndRegister()
+    {
+        return performed(performSimple(), true, true);
+    }
+
+    /**
+     * Invoke the action, and return its consequences, i.e. any follow up actions.
+     */
+    public final ActionList perform()
+    {
+        Preconditions.checkState(!(is(RELIABLE) && is(Modifier.DROP)));
+        Throwable fail = safeForEach(listeners, ActionListener::before, this, is(Modifier.DROP) ? DROP : EXECUTE);
+        if (fail != null)
+        {
+            invalidate(false);
+            Throwables.maybeFail(fail);
+        }
+
+        if (DEBUG && parent != null && parent.registered.get(this) != CHILD) throw new AssertionError();
+
+        ActionList next = performAndRegister();
+        next.forEach(Action::setConsequence);
+
+        if (is(STRICT_CHILD_ORDER)) next.setStrictlySequentialOn(this);
+        else if (is(STRICT_CHILD_OF_PARENT_ORDER)) next.setStrictlySequentialOn(parent);
+
+        return next;
+    }
+
+    /**
+     * To be invoked on the results of {@link #performSimple()} by its implementations.
+     * We invite the implementation to invoke it so that it may control state either side of its invocation.
+     *
+     * {@link #register(ActionList)}'s the consequences, restores any old withheld actions,
+     * and updates this Action's internal state.
+     *
+     * @return the provided actions, minus any withheld
+     */
+    protected ActionList performed(ActionList consequences, boolean isStart, boolean isFinish)
+    {
+        assert isStarted() != isStart;
+        assert !isFinished();
+
+        consequences = register(consequences);
+        assert !consequences.anyMatch(c -> c.is(WITHHOLD));
+
+        if (isFinish) finishedSelf();
+        else if (isStart) phase = STARTED;
+
+        return restoreWithheld(consequences);
+    }
+
+    /**
+     * Similar to cancel() but invoked under abnormal termination
+     */
+    public void invalidate()
+    {
+        invalidate(INVALIDATED);
+    }
+
+    /**
+     * To be invoked when this action has become redundant.
+     *  - Marks itself invalidated
+     *  - Notifies its listeners (which may remove it from any ordered sequences in the ActionSchedule)
+     *  - If present, clears itself directly from:
+     *    - its parent's withholding space
+     *    - the schedule's priority queue
+     */
+    public void cancel()
+    {
+        assert !isStarted();
+        invalidate(CANCELLED);
+    }
+
+    private void invalidate(Phase advanceTo)
+    {
+        if (phase.compareTo(CANCELLED) >= 0)
+            return;
+
+        advanceTo(advanceTo);
+        Throwable fail = safeForEach(listeners, ActionListener::before, this, INVALIDATE);
+        fail = Throwables.merge(fail, safeInvalidate(phase == CANCELLED));
+        invalidate(phase == CANCELLED);
+        finishedSelf();
+        Throwables.maybeFail(fail);
+    }
+
+    protected Throwable safeInvalidate(boolean isCancellation)
+    {
+        return null;
+    }
+
+    private void invalidate(boolean isCancellation)
+    {
+        if (parent != null && parent.withheld != null && is(WITHHOLD))
+        {
+            if (parent.withheld.remove(this))
+                parent.cleanupWithheld();
+        }
+        if (scheduledIndex >= 0) scheduledIn.remove(this);
+        if (savedIndex >= 0) savedIn.remove(this);
+        if (ordered != null) ordered.invalidate(isCancellation);
+    }
+
+    /**
+     * Register consequences of this action, i.e.:
+     *  - attach a scheduler to them for prioritising when they are permitted to execute
+     *  - pass them to any listeners as consequences
+     *  - count them as children, and mark ourselves as parent, so that we may track transitive completion
+     *  - withhold any actions that are so marked, to be {@link #restoreWithheld}d once we have transitively completed
+     *    all non-withheld actions.
+     */
+    protected ActionList register(ActionList consequences)
+    {
+        assert !isFinished();
+        if (consequences.isEmpty())
+            return consequences;
+
+        scheduler.attachTo(consequences);
+        Throwable fail = safeForEach(listeners, ActionListener::consequences, consequences);
+        if (fail != null)
+        {
+            invalidate(false);
+            Throwables.merge(fail, consequences.safeForEach(Action::invalidate));
+            Throwables.maybeFail(fail);
+        }
+
+        boolean withhold = false;
+        int orphanCount = 0;
+        for (int i = 0 ; i < consequences.size() ; ++i)
+        {
+            Action child = consequences.get(i);
+            if (child.is(ORPHAN))
+            {
+                Preconditions.checkState(!child.is(WITHHOLD));
+                ++orphanCount;
+                if (parent != null && child.is(ORPHAN_TO_GRANDPARENT))
+                {
+                    ++parent.childCount;
+                    parent.registerChild(child);
+                }
+            }
+            else
+            {
+                child.inherit(transitive);
+                if (child.is(WITHHOLD))
+                {
+                    // this could be supported in principle by applying the ordering here, but it would be
+                    // some work to ensure it doesn't lead to deadlocks so for now just assert we don't use it
+                    Preconditions.checkState(!is(STRICT_CHILD_ORDER) && !is(STRICT_CHILD_OF_PARENT_ORDER));
+                    withhold = true;
+                    addWithheld(child);
+                }
+
+                registerChild(child);
+            }
+        }
+
+        int addChildCount = consequences.size() - orphanCount;
+        childCount += addChildCount;
+
+        if (!withhold)
+            return consequences;
+
+        return consequences.filter(child -> !child.is(WITHHOLD));
+    }
+
+    // setup the child relationship, but do not update childCount
+    private void registerChild(Action child)
+    {
+        assert child.parent == null;
+        child.parent = this;
+        if (is(Modifier.DISPLAY_ORIGIN)) child.origin = this;
+        else if (origin != this) child.origin = origin;
+        if (DEBUG && !register(child, CHILD)) throw new AssertionError();
     }
 
     private boolean register(Object object, RegisteredType type)
@@ -361,75 +635,54 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
     public void register(ActionListener listener)
     {
         if (register(listener, LISTENER))
-            listeners.add(listener);
+            listeners = append(listeners, listener);
     }
 
-    /**
-     * Register consequences of this action, i.e.:
-     *  - attach a scheduler to them for prioritising when they are permitted to execute
-     *  - pass them to any listeners as consequences
-     *  - count them as children, and mark ourselves as parent, so that we may track transitive completion
-     *  - withhold any actions that are so marked, to be {@link #restore}d once we have transitively completed
-     *    all non-withheld actions.
-     */
-    protected ActionList register(ActionList consequences)
+    private boolean deregister(Object object, RegisteredType type)
     {
-        assert !isFinished();
-        if (consequences.isEmpty())
-            return consequences;
+        return registered.remove(object, type);
+    }
 
-        scheduler.attachTo(consequences);
-        listeners.forEach(l -> l.consequences(consequences));
+    public void deregister(ActionListener listener)
+    {
+        if (deregister(listener, LISTENER))
+            listeners = remove(listeners, listener);
+    }
 
-        boolean withhold = false;
-        int orphanCount = 0;
-        for (int i = 0 ; i < consequences.size() ; ++i)
-        {
-            Action child = consequences.get(i);
-            if (child.is(ORPHAN)) ++orphanCount;
-            else
-            {
-                child.inherit(transitive);
-                if (child.is(WITHHOLD))
-                {
-                    withhold = true;
-                    if (withheld == null)
-                        withheld = new ArrayDeque<>();
-                    withheld.add(child);
-                }
-
-                assert child.parent == null;
-                child.parent = this;
-                child.origin = origin;
-
-                if (DEBUG && !register(child, CHILD)) throw new AssertionError();
-            }
-        }
-
-        int addChildCount = consequences.size() - orphanCount;
-        childCount += addChildCount;
-
-        if (!withhold)
-            return consequences;
-
-        return consequences.filter(child -> !child.is(WITHHOLD));
+    private void addWithheld(Action action)
+    {
+        if (withheld == null)
+            withheld = new DefaultPriorityQueue<>(Action::compareByPriority, 2);
+        action.advanceTo(WITHHELD);
+        action.saveIn(withheld);
     }
 
     /**
      * Restore withheld (by ourselves or a parent) actions, when no other outstanding actions remain
      */
-    public ActionList restore(ActionList consequences)
+    public ActionList restoreWithheld(ActionList consequences)
     {
         if (withheld != null && childCount == withheld.size())
         {
-            consequences = consequences.andThen(ActionList.of(withheld));
-            withheld = null;
-            if (parent != null)
-                consequences = parent.restore(consequences);
+            Action next = withheld.poll();
+            cleanupWithheld();
+            consequences = consequences.andThen(next);
         }
         else if (childCount == 0 && parent != null)
-            consequences = parent.restore(consequences);
+        {
+            Action cur = parent;
+            while (cur.childCount == 0 && cur.parent != null)
+                cur = cur.parent;
+            consequences = cur.restoreWithheld(consequences);
+        }
         return consequences;
+    }
+
+    private void cleanupWithheld()
+    {
+        Action cur = this;
+        if (cur.withheld.isEmpty())
+            cur.withheld = null;
     }
 
     /**
@@ -441,141 +694,199 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
      */
     void finishedSelf()
     {
-        assert isFinished();
-        listeners.forEach(l -> l.after(this));
+        if (phase.compareTo(CANCELLED) < 0)
+            advanceTo(FINISHED);
+
+        scheduler = null;
+        if (withheld != null)
+        {
+            Queue<Action> withheld = this.withheld;
+            this.withheld = null;
+            withheld.forEach(Action::cancel);
+        }
+        Throwable fail = safeForEach(listeners, ActionListener::after, this);
         if (childCount == 0)
-            transitivelyFinished();
+            fail = Throwables.merge(fail, transitivelyFinished());
+
+        if (fail != null)
+        {
+            invalidate(false);
+            Throwables.maybeFail(fail);
+        }
     }
 
     /**
      * Invoked once all of the consequences of this action, and of those actions (recursively) have completed.
      */
-    void transitivelyFinished()
+    Throwable transitivelyFinished()
     {
-        assert 0 == childCount && isFinished();
-        if (DEBUG && registered.values().stream().anyMatch(t -> t == CHILD)) throw new AssertionError();
-        listeners.forEach(l -> l.transitivelyAfter(this));
-        if (parent != null)
+        return transitivelyFinished(this);
+    }
+
+    static Throwable transitivelyFinished(Action cur)
+    {
+        Throwable fail = null;
+        while (true)
         {
-            if (DEBUG && CHILD != parent.registered.remove(this)) throw new AssertionError();
-            if (--parent.childCount == 0 && parent.isFinished())
-                parent.transitivelyFinished();
+            Action parent = cur.parent;
+            assert 0 == cur.childCount && cur.isFinished();
+            if (DEBUG && cur.registered.values().stream().anyMatch(t -> t == CHILD)) throw new AssertionError();
+            fail = Throwables.merge(fail, safeForEach(cur.listeners, ActionListener::transitivelyAfter, cur));
+            if (parent == null)
+                break;
+            if (DEBUG && CHILD != parent.registered.remove(cur)) throw new AssertionError();
+            if (--parent.childCount == 0 && parent.isFinished()) cur = parent;
+            else break;
+        }
+        return fail;
+    }
+
+    void orderOn(OrderOn orderOn)
+    {
+        this.orderOn = this.orderOn.with(orderOn);
+    }
+
+    void setupOrdering(ActionSchedule schedule)
+    {
+        if (orderOn.isOrdered())
+        {
+            ordered = orderOn.isStrict() ? new StrictlyOrdered(this, schedule) : new Ordered(this, schedule);
+            for (int i = 0, maxi = orderOn.size(); i < maxi ; ++i)
+                ordered.join(orderOn.get(i));
         }
     }
 
-    /**
-     * Invoke the action, and return its consequences, i.e. any follow up actions.
-     */
-    public final ActionSequence perform()
+    void advanceTo(Phase phase)
     {
-        boolean drop = scheduler.drop(this);
-        listeners.forEach(l -> l.before(this, !drop));
-
-        ActionList next = perform(!drop);
-
-        if (next.isEmpty()) return ActionSequence.empty();
-        else if (is(STRICT_CHILD_ORDER)) return next.strictlySequential(this);
-        else if (is(STRICT_CHILD_OF_PARENT_ORDER)) return next.strictlySequential(parent);
-        else return next.unordered();
+        Preconditions.checkArgument(phase.compareTo(this.phase) > 0);
+        this.phase = phase;
     }
 
-    /**
-     * Main implementation of {@link #perform()}, to be completed by extending classes
-     *
-     * MUST invoke performed() on its results before returning, to register children and record the action's state
-     * @param perform whether to perform the embodied action, or to drop it (and produce any relevant actions)
-     * @return the consequences
-     */
-    protected abstract ActionList perform(boolean perform);
-
-    /**
-     * To be invoked on the results of {@link #perform(boolean)} by its implementations.
-     * We invite the implementation to invoke it so that it may control state either side of its invocation.
-     *
-     * {@link #register(ActionList)}'s the consequences, restores any old withheld actions,
-     * and updates this Action's internal state.
-     *
-     * @return the provided actions, minus any withheld
-     */
-    protected ActionList performed(ActionList consequences, boolean isStart, boolean isFinish)
+    void addTo(PriorityQueue<Action> byDeadline)
     {
-        assert isStarted != isStart;
-        assert !isFinished;
-
-        consequences = register(consequences);
-        assert consequences.stream().noneMatch(c -> c.is(WITHHOLD));
-
-        if (isStart) isStarted = true;
-        if (isFinish)
-        {
-            isFinished = true;
-            if (withheld != null)
-            {
-                Queue<Action> withheld = this.withheld;
-                this.withheld = null;
-                withheld.forEach(Action::invalidate);
-            }
-            finishedSelf();
-        }
-
-        return restore(consequences);
+        Preconditions.checkState(scheduledIndex < 0);
+        scheduledIn = byDeadline;
+        byDeadline.add(this);
     }
 
-    /**
-     * To be invoked when this action has become redundant.
-     *  - Marks itself invalidated
-     *  - Notifies its listeners (which may remove it from any ordered sequences in the ActionSchedule)
-     *  - If present, clears itself directly from:
-     *    - its parent's withholding space
-     *    - the schedule's priority queue
-     */
-    public void invalidate()
+    void saveIn(PriorityQueue<Action> saveIn)
     {
-        assert !isStarted();
-        isStarted = isFinished = isInvalidated = true;
-        listeners.forEach(ActionListener::invalidated);
-        if (parent.withheld != null && is(WITHHOLD))
-            parent.withheld.remove(this);
-        if (scheduledIn != null)
-            scheduledIn.remove(this);
-        finishedSelf();
+        Preconditions.checkState(savedIndex < 0);
+        savedIn = saveIn;
+        saveIn.add(this);
     }
 
-    void setScheduler(ActionScheduler scheduler)
+    void setScheduler(RunnableActionScheduler scheduler)
     {
-        if (this.scheduler != null)
-            throw new IllegalStateException();
+        Preconditions.checkState(this.scheduler == null);
+        Preconditions.checkState(this.phase == NASCENT);
         this.scheduler = scheduler;
     }
 
-    public void schedule(PriorityQueue<Action> into)
+    void setConsequence()
     {
-        scheduledPriority = scheduler.priority(this);
-        scheduledIn = into;
-        into.add(this);
+        advanceTo(CONSEQUENCE);
+    }
+
+    void schedule(SimulatedTime time, FutureActionScheduler future)
+    {
+        setPriority(scheduler.priority());
+        if (deadline == 0) deadline = time.nanoTime();
+        if (is(THREAD_SIGNAL))
+            deadline += future.schedulerDelayNanos();
+    }
+
+    public void setDeadline(long deadlineNanos)
+    {
+        Preconditions.checkState(deadline == 0);
+        Preconditions.checkArgument(deadlineNanos >= deadline);
+        deadline = deadlineNanos;
+    }
+
+    void setPriority(double priority)
+    {
+        this.priority = priority;
+    }
+
+    public long deadline()
+    {
+        if (deadline < 0) throw new AssertionError();
+        return deadline;
+    }
+
+    public double priority()
+    {
+        return priority;
     }
 
     @Override
     public int priorityQueueIndex(DefaultPriorityQueue<?> queue)
     {
-        return scheduledIndex;
+        if (queue == scheduledIn) return scheduledIndex;
+        else if (queue == savedIn) return savedIndex;
+        else return -1;
     }
 
     @Override
     public void priorityQueueIndex(DefaultPriorityQueue<?> queue, int i)
     {
-        this.scheduledIndex = i;
+        if (queue == scheduledIn) { scheduledIndex = i; if (i < 0) scheduledIn = null; }
+        else if (queue == savedIn) { savedIndex = i; if (i < 0) savedIn = null; }
+        else throw new IllegalStateException();
     }
 
-    @Override
-    public int compareTo(Action that)
+    public int compareByDeadline(Action that)
     {
-        return Double.compare(this.scheduledPriority, that.scheduledPriority);
+        return Long.compare(this.deadline, that.deadline);
+    }
+
+    public int compareByPriority(Action that)
+    {
+        return Double.compare(this.priority, that.priority);
+    }
+
+    private String describeModifiers()
+    {
+        StringBuilder builder = new StringBuilder("[");
+        for (Modifier modifier : self.contents)
+        {
+            if (modifier.displayId == 0)
+                continue;
+
+            if (!transitive.is(modifier)) builder.append(modifier.displayId);
+            else builder.append(Character.toUpperCase(modifier.displayId));
+        }
+
+        boolean hasTransitiveOnly = false;
+        for (Modifier modifier : transitive.contents)
+        {
+            if (modifier.displayId == 0)
+                continue;
+
+            if (!self.is(modifier))
+            {
+                if (!hasTransitiveOnly)
+                {
+                    hasTransitiveOnly = true;
+                    builder.append('(');
+                }
+                builder.append(modifier.displayId);
+            }
+        }
+
+        if (builder.length() == 1)
+            return "";
+
+        if (hasTransitiveOnly)
+            builder.append(')');
+        builder.append(']');
+
+        return builder.toString();
     }
 
     public String toString()
     {
-        return description() + (origin != this ? " for " + origin : "");
+        return describeModifiers() + description() + (origin != this ? " for " + origin : "");
     }
 
     public String describeCurrentState()
@@ -613,4 +924,5 @@ public abstract class Action implements PriorityQueueNode, Comparable<Action>
 
         return sb;
     }
+
 }

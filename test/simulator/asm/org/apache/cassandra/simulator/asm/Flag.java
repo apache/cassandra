@@ -16,36 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator;
+package org.apache.cassandra.simulator.asm;
 
-import java.util.concurrent.atomic.AtomicLong;
-
-public class ActionSchedulerSequential extends ActionScheduler
+public enum Flag
 {
-    private final AtomicLong id = new AtomicLong();
-
-    @Override
-    protected double delayed(Action action)
-    {
-        return id.incrementAndGet();
-    }
-
-    @Override
-    protected boolean decideIfDrop()
-    {
-        return false;
-    }
-
-    @Override
-    protected boolean decideIfDelay()
-    {
-        return false;
-    }
-
-    @Override
-    public boolean decideIfPermitTimeouts()
-    {
-        return false;
-    }
+    GLOBAL_CLOCK, MONITORS, LOCK_SUPPORT, GLOBAL_METHODS, DETERMINISTIC, NO_PROXY_METHODS, NEMESIS
 }
-

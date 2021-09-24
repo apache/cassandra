@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.systems;
 
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -30,7 +31,7 @@ public interface InterceptorOfConsequences
     void beforeInvocation(InterceptibleThread realThread);
     void interceptMessage(IInvokableInstance from, IInvokableInstance to, IMessage message);
     void interceptWakeup(InterceptedWait wakeup, InterceptorOfConsequences waitWasInterceptedBy);
-    void interceptExecution(InterceptedExecution invoke, InterceptingExecutor executor);
+    void interceptExecution(InterceptedExecution invoke, OrderOn orderOn);
     void interceptWait(InterceptedWait wakeupWith);
-    void interceptTermination();
+    void interceptTermination(boolean isThreadTermination);
 }

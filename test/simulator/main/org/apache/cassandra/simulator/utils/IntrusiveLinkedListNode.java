@@ -16,9 +16,26 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator;
+package org.apache.cassandra.simulator.utils;
 
-public interface ActionSchedulers
+public abstract class IntrusiveLinkedListNode
 {
-    void attachTo(ActionList list);
+    IntrusiveLinkedListNode prev;
+    IntrusiveLinkedListNode next;
+
+    protected boolean isFree()
+    {
+        return next == null;
+    }
+
+    protected void remove()
+    {
+        if (next != null)
+        {
+            prev.next = next;
+            next.prev = prev;
+            next = null;
+            prev = null;
+        }
+    }
 }

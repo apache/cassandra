@@ -17,70 +17,54 @@
  */
 package org.apache.cassandra.simulator.cluster;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.Action;
-import org.apache.cassandra.simulator.Actions.SimpleAction;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.TopologyChangeValidator;
+import org.apache.cassandra.simulator.systems.NonInterceptible;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
 import static org.apache.cassandra.simulator.ActionListener.runAfterTransitiveClosure;
 
-abstract class OnClusterChangeTopology extends SimpleAction implements Consumer<Action>
+abstract class OnClusterChangeTopology extends Action implements Consumer<Action>
 {
     final KeyspaceActions actions;
-    final int[] membersOfRing; // nodes that are members of the ring after the action completes
-    final int[] membersOfQuorumDcs; // if actions are performed at LOCAL_SERIAL/LOCAL, only those in membersOfRing in the local DC
-    final int quorumRfBefore;
-    final int quorumRfAfter;
-    int[] overlappingKeys;
+
+    final int[] participatingKeys;
+    final Topology before;
+    final Topology after;
 
     final TopologyChangeValidator validator;
 
-    public OnClusterChangeTopology(Object description, KeyspaceActions actions, int[] membersOfRing, int[] membersOfQuorumDcs, int quorumRfBefore, int quorumRfAfter)
+    public OnClusterChangeTopology(Object description, KeyspaceActions actions, Topology before, Topology after, int[] participatingKeys)
     {
-        this(description, actions, STRICT, RELIABLE, membersOfRing, membersOfQuorumDcs, quorumRfBefore, quorumRfAfter);
+        this(description, actions, STRICT, RELIABLE, before, after, participatingKeys);
     }
 
-    public OnClusterChangeTopology(Object description, KeyspaceActions actions, Modifiers self, Modifiers children, int[] membersOfRing, int[] membersOfQuorumDcs, int quorumRfBefore, int quorumRfAfter)
+    public OnClusterChangeTopology(Object description, KeyspaceActions actions, Modifiers self, Modifiers children, Topology before, Topology after, int[] participatingKeys)
     {
         super(description, self, children);
         this.actions = actions;
-        this.membersOfRing = membersOfRing;
-        this.membersOfQuorumDcs = membersOfQuorumDcs;
-        this.quorumRfBefore = quorumRfBefore;
-        this.quorumRfAfter = quorumRfAfter;
+        this.participatingKeys = participatingKeys;
+        this.before = before;
+        this.after = after;
         this.validator = actions.listener.newTopologyChangeValidator(this);
         register(runAfterTransitiveClosure(this));
     }
 
     void before(IInvokableInstance instance)
     {
-        overlappingKeys = instance.unsafeApplyOnThisThread((keyspace, table, primaryKeys) -> {
-            TableMetadata metadata = Keyspace.open(keyspace).getColumnFamilyStore(table).metadata.get();
-            Collection<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(keyspace);
-            return Arrays.stream(primaryKeys)
-                         .mapToObj(pk -> metadata.partitioner.decorateKey(Int32Type.instance.decompose(pk)))
-                         .filter(pk -> ranges.stream().anyMatch(r -> r.contains(pk.getToken())))
-                         .mapToInt(pk -> Int32Type.instance.compose(pk.getKey()))
-                         .toArray();
-        }, actions.keyspace, actions.table, actions.primaryKeys);
-        int[][] replicasForKeys = actions.replicasForKeys(actions.keyspace, actions.table, overlappingKeys, membersOfQuorumDcs);
-        validator.before(overlappingKeys, replicasForKeys, quorumRfBefore);
+        NonInterceptible.execute(() -> {
+            actions.validateReplicasForKeys(instance, actions.keyspace, actions.table, before);
+            validator.before(before, participatingKeys);
+        });
     }
 
     public void accept(Action ignore)
     {
-        validator.after(actions.replicasForKeys(actions.keyspace, actions.table, overlappingKeys, membersOfQuorumDcs), quorumRfAfter);
+        validator.after(after);
     }
+
 }

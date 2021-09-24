@@ -75,11 +75,17 @@ public class SimulatedSnitch extends NodeLookup
 
     final int[] numInDcs;
     final String[] nameOfDcs;
+
     public SimulatedSnitch(int[] nodeToDc, int[] numInDcs)
     {
         super(nodeToDc);
         this.nameOfDcs = IntStream.range(0, numInDcs.length).mapToObj(i -> "dc" + i).toArray(String[]::new);
         this.numInDcs = numInDcs;
+    }
+
+    public int dcCount()
+    {
+        return nameOfDcs.length;
     }
 
     public String nameOfDc(int i)
@@ -100,10 +106,16 @@ public class SimulatedSnitch extends NodeLookup
         });
     }
 
+    public Instance get()
+    {
+        return new Instance();
+    }
+
     public void setup(Cluster cluster)
     {
         Function<InetSocketAddress, String> lookup = Cluster.getUniqueAddressLookup(cluster, i -> nameOfDcs[dcOf(i.config().num())])::get;
         cluster.forEach(i -> i.unsafeAcceptOnThisThread(Instance::setup, lookup));
+        Instance.setup(lookup);
     }
 
     private static int asInt(Replica address)

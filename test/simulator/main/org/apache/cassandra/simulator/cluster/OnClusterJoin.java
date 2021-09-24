@@ -27,13 +27,13 @@ class OnClusterJoin extends OnClusterChangeTopology
 {
     final int joining;
 
-    OnClusterJoin(KeyspaceActions actions, int[] membersOfRing, int[] membersOfQuorum, int joining, int quorumRf)
+    OnClusterJoin(KeyspaceActions actions, Topology before, Topology during, Topology after, int joining)
     {
-        super(lazy(() -> String.format("node%d Joining", joining)), actions, membersOfRing, membersOfQuorum, quorumRf, quorumRf);
+        super(lazy(() -> String.format("node%d Joining", joining)), actions, before, after, during.pendingKeys());
         this.joining = joining;
     }
 
-    public ActionList performInternal()
+    public ActionList performSimple()
     {
         IInvokableInstance joinInstance = actions.cluster.get(joining);
         before(joinInstance);

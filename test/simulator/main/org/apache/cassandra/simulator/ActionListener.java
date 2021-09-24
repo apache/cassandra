@@ -18,27 +18,25 @@
 
 package org.apache.cassandra.simulator;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 public interface ActionListener
 {
+    enum Before { EXECUTE, DROP, INVALIDATE }
+
     /**
      * Immediately before the action is first executed
      * @param action the action we are about to perform
-     * @param performing if the action is to be performed (rather than dropped)
+     * @param before if the action is to be performed (rather than dropped)
      */
-    default void before(Action action, boolean performing) {}
+    default void before(Action action, Before before) {}
 
     /**
      * Immediately after the action is first executed (or dropped)
      * @param consequences the actions that result from the execution
      */
     default void consequences(ActionList consequences) {}
-
-    /**
-     * The action is no longer valid
-     */
-    default void invalidated() {}
 
     /**
      * If an ActionThread, after termination; otherwise immediately after invoked
@@ -142,9 +140,9 @@ public interface ActionListener
         }
 
         @Override
-        public void before(Action action, boolean performing)
+        public void before(Action action, Before before)
         {
-            wrap.before(action, performing);
+            wrap.before(action, before);
         }
 
         @Override
@@ -163,6 +161,40 @@ public interface ActionListener
         public void transitivelyAfter(Action finished)
         {
             wrap.transitivelyAfter(finished);
+        }
+    }
+
+    public static class Combined implements ActionListener
+    {
+        final List<ActionListener> combined;
+
+        public Combined(List<ActionListener> combined)
+        {
+            this.combined = combined;
+        }
+
+        @Override
+        public void before(Action action, Before before)
+        {
+            combined.forEach(listener -> listener.before(action, before));
+        }
+
+        @Override
+        public void consequences(ActionList consequences)
+        {
+            combined.forEach(listener -> listener.consequences(consequences));
+        }
+
+        @Override
+        public void after(Action finished)
+        {
+            combined.forEach(listener -> listener.after(finished));
+        }
+
+        @Override
+        public void transitivelyAfter(Action finished)
+        {
+            combined.forEach(listener -> listener.transitivelyAfter(finished));
         }
     }
 }

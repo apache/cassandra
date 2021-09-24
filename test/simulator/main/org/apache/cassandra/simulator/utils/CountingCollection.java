@@ -16,40 +16,39 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator;
+package org.apache.cassandra.simulator.utils;
 
-// TODO (now): loguniform version
-public class ActionSchedulersUniform extends ActionSchedulersRandom
+import java.util.AbstractCollection;
+import java.util.Iterator;
+
+public class CountingCollection<T> extends AbstractCollection<T>
 {
-    class Uniform extends Inner
+    int count;
+
+    @Override
+    public boolean add(T t)
     {
-        Uniform(double min, double range)
-        {
-            super(min, range);
-        }
-
-        @Override
-        protected double delayed(Action action)
-        {
-            return random.uniformDouble() * range + min;
-        }
-
-        @Override
-        protected ActionScheduler inner(double min, double range)
-        {
-            return new Uniform(min, range);
-        }
-    }
-
-    public ActionSchedulersUniform(RandomSource random, float delayChance, float dropChance, float timeoutChance, SplitRange splitRange)
-    {
-        super(random, delayChance, dropChance, timeoutChance, splitRange);
+        ++count;
+        return true;
     }
 
     @Override
-    protected ActionScheduler root()
+    public boolean remove(Object o)
     {
-        return new Uniform(0d, 1d);
+        if (count == 0) throw new AssertionError();
+        --count;
+        return true;
+    }
+
+    @Override
+    public Iterator<T> iterator()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int size()
+    {
+        return count;
     }
 }
-

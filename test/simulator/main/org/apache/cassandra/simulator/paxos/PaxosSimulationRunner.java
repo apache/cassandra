@@ -127,6 +127,7 @@ public class PaxosSimulationRunner extends SimulationRunner
 
     // be sure to invoke with: -XX:ActiveProcessorCount= and -Xmx for reproducibility
     // -XX:Tier4CompileThreshold=1000 -XX:-TieredCompilation for significantly reduced CPU utilisation
+    // -XX:ReservedCodeCacheSize=128M for compiler to have enouvh room
     public static void main(String[] args) throws IOException
     {
         Cli.<SimulationRunner.ICommand<PaxosClusterSimulation.Builder>>builder("paxos")

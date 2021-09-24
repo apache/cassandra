@@ -22,18 +22,19 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.Actions.ReliableAction;
 
 import static java.util.stream.IntStream.range;
+import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 
-public class OnClusterRepairRanges extends Actions.ReliableAction
+public class OnClusterRepairRanges extends ReliableAction
 {
-    public OnClusterRepairRanges(KeyspaceActions actions, int[] on, List<Map.Entry<String, String>> ranges)
+    public OnClusterRepairRanges(KeyspaceActions actions, int[] on, boolean repairPaxos, boolean repairOnlyPaxos, List<Map.Entry<String, String>> ranges)
     {
-        super("Repair ranges", RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS,
+        super("Repair ranges", NONE, RELIABLE_NO_TIMEOUTS,
               () -> ActionList.of(range(0, on.length)
                               .mapToObj(
-                                    i -> new OnInstanceRepair(actions, on[i], ranges.get(i), true))));
+                                    i -> new OnInstanceRepair(actions, on[i], repairPaxos, repairOnlyPaxos, ranges.get(i), true))));
     }
 }

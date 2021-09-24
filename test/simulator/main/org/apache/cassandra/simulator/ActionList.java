@@ -22,11 +22,15 @@ import java.util.AbstractCollection;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Iterators;
+
+import org.apache.cassandra.simulator.OrderOn.StrictSequential;
+import org.apache.cassandra.utils.Throwables;
 
 import static java.util.Arrays.copyOf;
 
@@ -100,30 +104,39 @@ public class ActionList extends AbstractCollection<Action>
         return new ActionList(result);
     }
 
-    public ActionSequence strictlySequential()
+    public ActionList setStrictlySequential()
     {
-        return ActionSequence.strictSequential(actions);
+        return setStrictlySequentialOn(this);
     }
 
-    public ActionSequence strictlySequential(Object on)
+    public ActionList setStrictlySequentialOn(Object on)
     {
-        return ActionSequence.strictSequential(on, actions);
+        if (isEmpty()) return this;
+        StrictSequential orderOn = new StrictSequential(on);
+        forEach(a -> a.orderOn(orderOn));
+        return this;
     }
 
-    public ActionSequence unordered()
+    public Throwable safeForEach(Consumer<Action> forEach)
     {
-        return ActionSequence.unordered(actions);
-    }
-
-    public ActionSequence ordered(OrderOn on)
-    {
-        return new ActionSequence(on, actions);
+        Throwable result = null;
+        for (Action action : actions)
+        {
+            try
+            {
+                forEach.accept(action);
+            }
+            catch (Throwable t)
+            {
+                result = Throwables.merge(result, t);
+            }
+        }
+        return result;
     }
 
     public String toString()
     {
         return Arrays.toString(actions);
     }
-
 }
 

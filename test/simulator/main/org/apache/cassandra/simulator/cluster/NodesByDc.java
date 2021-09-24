@@ -147,6 +147,14 @@ class NodesByDc
         return result;
     }
 
+    int[] toArray(int dcIndex)
+    {
+        int size = dcSizes[dcIndex];
+        int[] result = new int[size];
+        System.arraycopy(dcs[dcIndex], 0, result, 0, size);
+        return result;
+    }
+
     boolean isEmpty()
     {
         return size == 0;

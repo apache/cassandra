@@ -26,11 +26,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 /**
- * Generate a new static method in the class with a randomly generated constant chance of triggering the nemesis.
- * Generate also the invocation of this method at the relevant point(s).
- *
- * A static method with no parameters or return values is created, so that only the method invocation instruction is
- * needed in the original method, simplifying the transformation.
+ * Generate a new hashCode method in the class that invokes a deterministic hashCode generator
  */
 class Hashcode extends MethodNode
 {
@@ -41,7 +37,7 @@ class Hashcode extends MethodNode
         maxStack = 1;
         instructions.add(new LabelNode());
         instructions.add(new IntInsnNode(Opcodes.ALOAD, 0));
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", "identityHashCode", "(Ljava/lang/Object;)I", false));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "identityHashCode", "(Ljava/lang/Object;)I", false));
         instructions.add(new LabelNode());
         instructions.add(new InsnNode(Opcodes.IRETURN));
     }

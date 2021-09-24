@@ -24,6 +24,6 @@ import java.util.List;
 public enum TransformationKind
 {
     MONITOR, SYNCHRONIZED, LOCK_SUPPORT, GLOBAL_METHOD, SIGNAL_NEMESIS, FIELD_NEMESIS, SYNTHETIC_METHOD, HASHCODE,
-    IDENTITY_HASH_MAP;
+    IDENTITY_HASH_MAP, CONCURRENT_HASH_MAP, SHADOW;
     static final List<TransformationKind> VALUES = Arrays.asList(values());
 }

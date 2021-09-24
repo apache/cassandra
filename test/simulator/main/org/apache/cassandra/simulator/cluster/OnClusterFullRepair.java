@@ -23,7 +23,6 @@ import java.util.function.Consumer;
 
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions.SimpleAction;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.RepairValidator;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
@@ -31,33 +30,33 @@ import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
 import static org.apache.cassandra.simulator.ActionListener.runAfterTransitiveClosure;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 
-class OnClusterFullRepair extends SimpleAction implements Consumer<Action>
+class OnClusterFullRepair extends Action implements Consumer<Action>
 {
     final KeyspaceActions actions;
-    final int[] membersOfRing;
-    final int[] membersOfQuorumDcs;
-    final int quorumRf;
+    final Topology topology;
     final boolean force;
     final RepairValidator validator;
+    final boolean repairPaxos;
+    final boolean repairOnlyPaxos;
 
-    public OnClusterFullRepair(KeyspaceActions actions, int[] membersOfRing, int[] membersOfQuorumDcs, int quorumRf, boolean force)
+    public OnClusterFullRepair(KeyspaceActions actions, Topology topology, boolean repairPaxos, boolean repairOnlyPaxos, boolean force)
     {
-        super(lazy(() -> "Full Repair on " + Arrays.toString(membersOfRing)), STRICT, RELIABLE_NO_TIMEOUTS);
+        super(lazy(() -> "Full Repair on " + Arrays.toString(topology.membersOfRing)), STRICT, RELIABLE_NO_TIMEOUTS);
         this.actions = actions;
         // STRICT to ensure repairs do not run simultaneously, as seems not to be permitted even for non-overlapping ranges?
-        this.membersOfRing = membersOfRing;
-        this.membersOfQuorumDcs = membersOfQuorumDcs;
-        this.quorumRf = quorumRf;
+        this.topology = topology;
+        this.repairPaxos = repairPaxos;
+        this.repairOnlyPaxos = repairOnlyPaxos;
         this.force = force;
         this.validator = actions.listener.newRepairValidator(this);
         register(runAfterTransitiveClosure(this));
     }
 
-    protected ActionList performInternal()
+    protected ActionList performSimple()
     {
-        int[] primaryKeys = actions.primaryKeys;
-        validator.before(primaryKeys, actions.replicasForKeys(actions.keyspace, actions.table, primaryKeys, membersOfQuorumDcs), quorumRf);
-        return actions.on((i) -> new OnInstanceRepair(actions, i, force), membersOfRing);
+        actions.validateReplicasForKeys(actions.cluster.get(topology.membersOfQuorum[0]), actions.keyspace, actions.table, topology);
+        validator.before(topology, repairPaxos, repairOnlyPaxos);
+        return actions.on(i -> new OnInstanceRepair(actions, i, repairPaxos, repairOnlyPaxos, force), topology.membersOfRing);
     }
 
     public void accept(Action ignore)

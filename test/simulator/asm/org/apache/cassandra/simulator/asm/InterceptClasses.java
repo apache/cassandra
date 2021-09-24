@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.simulator.asm;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,15 +32,13 @@ import java.util.regex.Pattern;
 
 import org.objectweb.asm.Opcodes;
 
-// TODO (future): some kind of analysis on which monitors we actually care about
-// TODO (future): embed monitor support into the classes themselves to improve performance
-// TODO (future): confirm that those classes we weave monitor-access for only extend other classes we also weave monitor access for
-// TODO (future): confirm that those classes we weave monitor access for only take monitors on types we also weave monitor access for (and vice versa)
+// TODO (completeness): confirm that those classes we weave monitor-access for only extend other classes we also weave monitor access for
+// TODO (completeness): confirm that those classes we weave monitor access for only take monitors on types we also weave monitor access for (and vice versa)
 public class InterceptClasses implements BiFunction<String, byte[], byte[]>
 {
     public static final int BYTECODE_VERSION = Opcodes.ASM7;
 
-    // TODO: use annotations for this too?
+    // TODO (cleanup): use annotations
     private static final Pattern MONITORS = Pattern.compile( "org[/.]apache[/.]cassandra[/.]utils[/.]concurrent[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]concurrent[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]simulator[/.]test.*" +
@@ -45,12 +46,15 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]Keyspace.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]SystemKeyspace.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]streaming[/.].*" +
+                                                            "|org[/.]apache[/.]cassandra[/.]db.streaming[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]distributed[/.]impl[/.]DirectStreamingConnectionFactory.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]commitlog[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]service[/.]paxos[/.].*");
 
     private static final Pattern GLOBAL_METHODS = Pattern.compile("org[/.]apache[/.]cassandra[/.](?!simulator[/.]).*" +
-                                                                 "|org[/.]apache[/.]cassandra[/.]simulator[/.]test[/.].*");
+                                                                  "|org[/.]apache[/.]cassandra[/.]simulator[/.]test[/.].*" +
+                                                                  "|org[/.]apache[/.]cassandra[/.]simulator[/.]cluster[/.].*" +
+                                                                  "|io[/.]netty[/.]util[/.]concurrent[/.]FastThreadLocal"); // intercept IdentityHashMap for execution consistency
     private static final Pattern NEMESIS = GLOBAL_METHODS;
     private static final Set<String> WARNED = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
@@ -89,14 +93,28 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     @Override
     public synchronized byte[] apply(String name, byte[] bytes)
     {
+        if (bytes == null)
+            return maybeSynthetic(name);
+
         Hashcode hashcode = insertHashCode(name);
 
         name = dotsToSlashes(name);
-        boolean monitors = MONITORS.matcher(name).matches();
-        boolean factories = GLOBAL_METHODS.matcher(name).matches();
-        boolean nemesis = NEMESIS.matcher(name).matches();
+        EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
+        if (MONITORS.matcher(name).matches())
+        {
+            flags.add(Flag.MONITORS);
+        }
+        if (GLOBAL_METHODS.matcher(name).matches())
+        {
+            flags.add(Flag.GLOBAL_METHODS);
+            flags.add(Flag.LOCK_SUPPORT);
+        }
+        if (NEMESIS.matcher(name).matches())
+        {
+            flags.add(Flag.NEMESIS);
+        }
 
-        if (!factories && !nemesis && !monitors && hashcode == null)
+        if (flags.isEmpty() && hashcode == null)
             return bytes;
 
         Cached prev = cache.get(name);
@@ -107,7 +125,7 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
             return prev.cached;
         }
 
-        ClassTransformer transformer = new ClassTransformer(api, name, monitors ? monitorDelayChance : null, factories, nemesis ? new NemesisGenerator(api, name, nemesisChance) : null, nemesisFieldSelector, hashcode);
+        ClassTransformer transformer = new ClassTransformer(api, name, flags, monitorDelayChance, new NemesisGenerator(api, name, nemesisChance), nemesisFieldSelector, hashcode);
         transformer.readAndTransform(bytes);
 
         if (!transformer.isTransformed())
@@ -191,4 +209,43 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
         }
         return null;
     }
+
+    static final String shadowRootExternalType = "org.apache.cassandra.simulator.systems.InterceptibleConcurrentHashMap";
+    static final String shadowRootType = "org/apache/cassandra/simulator/systems/InterceptibleConcurrentHashMap";
+    static final String originalRootType = Utils.toInternalName(ConcurrentHashMap.class);
+    static final String shadowOuterTypePrefix = shadowRootType + '$';
+    static final String originalOuterTypePrefix = originalRootType + '$';
+
+    protected byte[] maybeSynthetic(String name)
+    {
+        if (!name.startsWith(shadowRootExternalType))
+            return null;
+
+        try
+        {
+            String originalType, shadowType = Utils.toInternalName(name);
+            if (!shadowType.startsWith(shadowOuterTypePrefix))
+                originalType = originalRootType;
+            else
+                originalType = originalOuterTypePrefix + name.substring(shadowOuterTypePrefix.length());
+
+            EnumSet<Flag> flags = EnumSet.of(Flag.GLOBAL_METHODS, Flag.MONITORS, Flag.LOCK_SUPPORT);
+            if (NEMESIS.matcher(name).matches()) flags.add(Flag.NEMESIS);
+            NemesisGenerator nemesis = new NemesisGenerator(api, name, nemesisChance);
+
+            ShadowingTransformer transformer;
+            transformer = new ShadowingTransformer(InterceptClasses.BYTECODE_VERSION,
+                                                   originalType, shadowType, originalRootType, shadowRootType,
+                                                   originalOuterTypePrefix, shadowOuterTypePrefix,
+                                                   flags, monitorDelayChance, nemesis, nemesisFieldSelector, null);
+            transformer.readAndTransform(Utils.readDefinition(originalType + ".class"));
+            return transformer.toBytes();
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+
+    }
+
 }

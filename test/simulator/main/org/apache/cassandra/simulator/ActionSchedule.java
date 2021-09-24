@@ -18,39 +18,48 @@
 
 package org.apache.cassandra.simulator;
 
-import java.util.AbstractCollection;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Spliterator;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.util.internal.DefaultPriorityQueue;
 import io.netty.util.internal.PriorityQueue;
+import org.apache.cassandra.simulator.OrderOn.OrderOnId;
+import org.apache.cassandra.simulator.Ordered.Sequence;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
+import org.apache.cassandra.simulator.utils.SafeCollections;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.Throwables;
 
-import static java.util.Collections.newSetFromMap;
-import static java.util.Spliterators.spliteratorUnknownSize;
 import static org.apache.cassandra.simulator.Action.Modifier.DAEMON;
+import static org.apache.cassandra.simulator.Action.Modifier.STREAM;
+import static org.apache.cassandra.simulator.Action.Phase.CONSEQUENCE;
+import static org.apache.cassandra.simulator.Action.Phase.READY_TO_SCHEDULE;
+import static org.apache.cassandra.simulator.Action.Phase.RUNNABLE;
+import static org.apache.cassandra.simulator.Action.Phase.SCHEDULED;
+import static org.apache.cassandra.simulator.Action.Phase.SEQUENCED_POST_SCHEDULED;
+import static org.apache.cassandra.simulator.Action.Phase.SEQUENCED_PRE_SCHEDULED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.SimulatorUtils.dumpStackTraces;
 
 /**
+ * TODO (now): support teleporting into the future to simulate extreme stalls or other weirdness
+ * TODO (feature): support total stalls on specific nodes
+ *
  * This class coordinates the running of actions that have been planned by an ActionPlan, or are the consequences
  * of actions that have been executed by such a plan. This coordination includes enforcing all {@link OrderOn}
  * criteria, and running DAEMON (recurring scheduled) tasks.
@@ -60,489 +69,323 @@ import static org.apache.cassandra.simulator.SimulatorUtils.dumpStackTraces;
  * all descendants have executed (with the aim of it ordinarily being invalidated before this happens), and this
  * is not imposed here because it would be more complicated to manage.
  */
-public class ActionSchedule implements Iterator<Object>
+public class ActionSchedule implements CloseableIterator<Object>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ActionSequence.class);
+    private static final Logger logger = LoggerFactory.getLogger(ActionList.class);
 
-    private static final boolean DEBUG = ActionSchedule.class.desiredAssertionStatus();
+    public enum Mode { TIME_LIMITED, STREAM_LIMITED, UNLIMITED }
 
-    /**
-     * A sequence is used to model STRICT execution order imposed on certain actions that are not able
-     * to reliably complete if their actions are re-ordered, and to implement thread executor order,
-     * both for sequential executors and for ensuring executors with a given concurrency level do not
-     * exceed that concurrency level.
-     */
-    static class Sequence
+    public static class Work
     {
-        final OrderOn on;
-        final int concurrency;
-        /** The tasks we are currently permitting to run (but may not be running due to membership of other sequences) */
-        final Collection<Ordered> maybeRunning;
-        /** The tasks we have pending */
-        final OrderedQueue<Ordered> next = new OrderedQueue<>();
+        final Mode mode;
+        final long runForNanos;
+        final RunnableActionScheduler runnableScheduler;
+        final List<ActionList> actors;
 
-        Sequence(OrderOn on)
+        public Work(Mode mode, RunnableActionScheduler runnableScheduler, List<ActionList> actors)
         {
-            this.on = on;
-            this.concurrency = on.concurrency();
-            this.maybeRunning = !DEBUG ? new CountingCollection<>()
-                                       : concurrency == 1
-                                         ? new ArrayList<>(1)
-                                         : new LinkedHashSet<>();
+            this(mode, -1, runnableScheduler, actors);
+            Preconditions.checkArgument(mode != TIME_LIMITED);
         }
 
-        <O extends Ordered> void addInternal(O add, Function<O, List<Sequence>> memberOf)
+        public Work(long runForNanos, RunnableActionScheduler runnableScheduler, List<ActionList> actors)
         {
-            memberOf.apply(add).add(this);
-            if (maybeRunning.size() < concurrency)
-            {
-                maybeRunning.add(add);
-            }
-            else
-            {
-                next.add(add);
-                add.predecessors.add(this); // we don't submit, as we may yet be added to other sequences that prohibit our execution
-            }
+            this(TIME_LIMITED, runForNanos, runnableScheduler, actors);
+            Preconditions.checkArgument(runForNanos > 0);
         }
 
-        void add(OrderedAction add)
+        public Work(Mode mode, long runForNanos, RunnableActionScheduler runnableScheduler, List<ActionList> actors)
         {
-            add(add, o -> o.memberOf);
-        }
-
-        void addStrict(StrictlyOrderedAction add)
-        {
-            add(add, o -> o.strictMemberOf);
-        }
-
-        <O extends OrderedAction> void add(O add, Function<O, List<Sequence>> memberOf)
-        {
-            addInternal(add, memberOf);
-        }
-
-        void add(List<OrderedAction> add)
-        {
-            add(add, o -> o.memberOf);
-        }
-
-        void addStrict(List<StrictlyOrderedAction> add)
-        {
-            add(add, o -> o.strictMemberOf);
-        }
-
-        <O extends OrderedAction> void add(List<O> add, Function<O, List<Sequence>> memberOf)
-        {
-            for (int i = 0, size = add.size() ; i < size ; ++i)
-                addInternal(add.get(i), memberOf);
-        }
-
-        /**
-         * Mark a task complete, and maybe schedule another from {@link #next}
-         */
-        void complete(OrderedAction completed, ActionSchedule schedule)
-        {
-            if (!maybeRunning.remove(completed))
-                throw new IllegalStateException();
-
-            if (next.isEmpty() && maybeRunning.isEmpty())
-            {
-                schedule.sequences.remove(on);
-            }
-            else
-            {
-                Ordered next = this.next.poll();
-                if (next != null)
-                {
-                    if (!next.predecessors.remove(this))
-                        throw new IllegalStateException();
-                    maybeRunning.add(next);
-                    next.maybeAddToSchedule();
-                }
-            }
-        }
-
-        public String toString()
-        {
-            return on.toString();
-        }
-    }
-
-    abstract static class Ordered
-    {
-        final ActionSchedule schedule;
-        /** Those sequences that contain tasks that must complete before we can execute */
-        final Collection<Sequence> predecessors = !DEBUG ? new CountingCollection<>() : newSetFromMap(new IdentityHashMap<>());
-        Ordered prev;
-        Ordered next;
-
-        protected Ordered(ActionSchedule schedule)
-        {
-            this.schedule = schedule;
-        }
-
-        void maybeAddToSchedule()
-        {
-            if (predecessors.isEmpty())
-                addToSchedule();
-        }
-
-        abstract void addToSchedule();
-
-        void remove()
-        {
-            prev.next = next;
-            next.prev = prev;
-        }
-    }
-
-    /**
-     * A simple intrusive double-linked list for maintaining a list of tasks,
-     * useful for invalidating queued ordered tasks
-     */
-    @SuppressWarnings("unchecked")
-    static class OrderedQueue<O extends Ordered> extends Ordered
-    {
-        protected OrderedQueue()
-        {
-            super(null);
-            prev = next = this;
-        }
-
-        void add(O add)
-        {
-            Ordered after = this;
-            Ordered before = prev;
-            add.next = after;
-            add.prev = before;
-            before.next = add;
-            after.prev = add;
-        }
-
-        O poll()
-        {
-            if (isEmpty())
-                return null;
-
-            Ordered next = this.next;
-            next.remove();
-            return (O) next;
-        }
-
-        boolean isEmpty()
-        {
-            return next == this;
-        }
-
-        Stream<O> stream()
-        {
-            Iterator<O> iterator = new Iterator<O>()
-            {
-                Ordered next = OrderedQueue.this.next;
-
-                @Override
-                public boolean hasNext()
-                {
-                    return next != OrderedQueue.this;
-                }
-
-                @Override
-                public O next()
-                {
-                    O result = (O)next;
-                    next = next.next;
-                    return result;
-                }
-            };
-
-            return StreamSupport.stream(spliteratorUnknownSize(iterator, Spliterator.IMMUTABLE), false);
-        }
-
-        @Override
-        void addToSchedule()
-        {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    /**
-     * Represents an action that may not run before certain other actions
-     * have been executed, excluding child tasks that are not continuations
-     * (i.e. required threads/tasks to terminate their execution, but not
-     * any other child or transitive child actions)
-     */
-    static class OrderedAction extends Ordered implements ActionListener
-    {
-        /** The sequences we participate in, in a non-strict fashion */
-        final List<Sequence> memberOf = new ArrayList<>(1);
-        /** The underlying action waiting to execute */
-        final Action action;
-        /** State tracking to assert correct behaviour */
-        boolean isStarted, isComplete;
-
-        OrderedAction(Action action, ActionSchedule schedule)
-        {
-            super(schedule);
-            this.action = action;
-            action.register(this);
-        }
-
-        void addToSchedule()
-        {
-            assert !isStarted;
-            assert !isComplete;
-
-            assert memberOf.stream().allMatch(m -> m.maybeRunning.contains(this));
-            schedule.addNow(action);
-        }
-
-        public String toString()
-        {
-            return action.toString();
-        }
-
-        public void before(Action performed, boolean performing)
-        {
-            assert performed == action;
-            assert !isStarted;
-            isStarted = true;
-        }
-
-        @Override
-        public void after(Action performed)
-        {
-            assert isStarted;
-            assert !isComplete;
-            isComplete = true;
-            memberOf.forEach(m -> m.complete(this, schedule));
-        }
-
-        @Override
-        public void invalidated()
-        {
-            if (predecessors.isEmpty()) after(null);
-            else remove();
-        }
-    }
-
-    /**
-     * Represents an action that may not run before all child actions
-     * have been executed, transitively (i.e. child of child, ad infinitum).
-     */
-    static class StrictlyOrderedAction extends OrderedAction implements ActionListener
-    {
-        /** The sequences we participate in, in a strict fashion */
-        final List<Sequence> strictMemberOf = new ArrayList<>(1);
-        boolean isCompleteStrict;
-
-        StrictlyOrderedAction(Action action, ActionSchedule schedule)
-        {
-            super(action, schedule);
-        }
-
-        void addToSchedule()
-        {
-            assert !isCompleteStrict;
-            assert strictMemberOf.stream().allMatch(m -> m.maybeRunning.contains(this));
-            super.addToSchedule();
-        }
-
-        public void transitivelyAfter(Action finished)
-        {
-            assert !isCompleteStrict;
-            isCompleteStrict = true;
-            strictMemberOf.forEach(m -> m.complete(this, schedule));
+            this.mode = mode;
+            this.runForNanos = runForNanos;
+            this.actors = actors;
+            this.runnableScheduler = runnableScheduler;
         }
     }
 
     final SimulatedTime time;
-    final Map<OrderOn, Sequence> sequences = new IdentityHashMap<>();
-    final PriorityQueue<Action> scheduled = new DefaultPriorityQueue<>(Action::compareTo, 1024);
+    final FutureActionScheduler scheduler;
+    final LongSupplier schedulerJitter; // we will prioritise all actions scheduled to run within this period of the current oldest action
+    // Action flow is:
+    //    perform() -> [withheld]
+    //              -> consequences
+    //              -> [pendingDaemonWave | <invalidate daemon>]
+    //              -> [sequences (if ordered and SEQUENCE_EAGERLY)]
+    //              -> [scheduled]
+    //              -> [sequences (if ordered and !SEQUENCE_EAGERLY)]
+    //              -> runnable + [runnableByScheduledAt]
+    final Map<OrderOn, Sequence> sequences = new HashMap<>();
+    // queue of items that are not yet runnable sorted by deadline
+    final PriorityQueue<Action> scheduled = new DefaultPriorityQueue<>(Action::compareByDeadline, 128);
+    // queue of items that are runnable (i.e. within scheduler jitter of min deadline) sorted by their execution order (i.e. priority)
+    final PriorityQueue<Action> runnable = new DefaultPriorityQueue<>(Action::compareByPriority, 128);
+    // auxillary queue of items that are runnable so that we may track the time span covered by runnable items we are randomising execution of
+    final PriorityQueue<Action> runnableByDeadline = new DefaultPriorityQueue<>(Action::compareByDeadline, 128);
 
-    // release daemons in waves, so we can simplify checking if they're all that's running
+    private Mode mode;
+
+    // if running in TIME_LIMITED mode, stop ALL streams (finite or infinite) and daemon tasks once we pass this point
+    private long runUntilNanos;
+
+    // if running in STREAM_LIMITED mode, stop infinite streams once we have no more finite streams to process
+    private int activeFiniteStreamCount;
+
+    // If running in UNLIMITED mode, release daemons (recurring tasks) in waves,
+    // so we can simplify checking if they're all that's running
+    // TODO (cleanup): we can do better than this, probably most straightforwardly by ensuring daemon actions
+    //                 have a consistent but unique id(), and managing the set of these.
     private int activeDaemonWaveCount;
     private int pendingDaemonWaveCountDown;
-    private final List<Action> pendingDaemonWave = new ArrayList<>();
+    private DefaultPriorityQueue<Action> pendingDaemonWave;
 
-    public ActionSchedule(SimulatedTime time, ActionSchedulers scheduler, List<ActionSequence> actors)
+    private final Iterator<Work> moreWork;
+
+    public ActionSchedule(SimulatedTime time, FutureActionScheduler futureScheduler, LongSupplier schedulerJitter, Work ... moreWork)
     {
-        actors.forEach(time::initialize);
-        actors.forEach(scheduler::attachTo);
-        actors.forEach(this::add);
+        this(time, futureScheduler, schedulerJitter, Arrays.asList(moreWork).iterator());
+    }
+
+    public ActionSchedule(SimulatedTime time, FutureActionScheduler futureScheduler, LongSupplier schedulerJitter, Iterator<Work> moreWork)
+    {
         this.time = time;
+        this.scheduler = futureScheduler;
+        this.schedulerJitter = schedulerJitter;
+        this.moreWork = moreWork;
+        moreWork();
     }
 
-    void add(Action add)
+    void add(Action action)
     {
-        if (add.orderOn().concurrency() == Integer.MAX_VALUE)
-            addNow(add);
-        else if (add.orderOn().isStrict())
-            addToSequence(add, StrictlyOrderedAction::new, Sequence::addStrict).maybeAddToSchedule();
-        else
-            addToSequence(add, OrderedAction::new, Sequence::add).maybeAddToSchedule();
-    }
+        Preconditions.checkState(action.phase() == CONSEQUENCE);
+        action.schedule(time, scheduler);
+        action.setupOrdering(this);
+        if (action.is(STREAM) && !action.is(DAEMON))
+            ++activeFiniteStreamCount;
 
-    private <T extends OrderedAction> T addToSequence(Action add,
-                                                      BiFunction<Action, ActionSchedule, T> factory,
-                                                      BiConsumer<Sequence, T> adder)
-    {
-        T ordered = factory.apply(add, this);
-        if (add.orderOn().isOrdered())
-            adder.accept(sequences.computeIfAbsent(add.orderOn(), Sequence::new), ordered);
-        return ordered;
-    }
-
-    void add(ActionSequence add)
-    {
-        if (add.anyMatch(a -> a.is(DAEMON)))
+        switch (mode)
         {
-            add.forEach(a -> { if (a.is(DAEMON)) pendingDaemonWave.add(a); });
-            add = add.filter(a -> !a.is(DAEMON));
+            default: throw new AssertionError();
+            case TIME_LIMITED:
+                if (time.nanoTime() >= runUntilNanos && (action.is(DAEMON) || action.is(STREAM)))
+                {
+                    action.cancel();
+                    return;
+                }
+                break;
+            case STREAM_LIMITED:
+                if (activeFiniteStreamCount == 0 && action.is(DAEMON))
+                {
+                    action.cancel();
+                    return;
+                }
+                break;
+            case UNLIMITED:
+                if (action.is(STREAM)) throw new IllegalStateException();
+                if (action.is(DAEMON))
+                {
+                    action.saveIn(pendingDaemonWave);
+                    action.advanceTo(READY_TO_SCHEDULE);
+                    return;
+                }
+                break;
         }
+        action.advanceTo(READY_TO_SCHEDULE);
+        advance(action);
+    }
 
+    void advance(Action action)
+    {
+        switch (action.phase())
+        {
+            default:
+                throw new AssertionError();
+
+            case CONSEQUENCE:
+                    // this should only happen if we invalidate an Ordered action that tries to
+                    // enqueue one of the actions we are in the middle of scheduling for the first time
+                    return;
+
+            case READY_TO_SCHEDULE:
+                if (action.ordered != null && action.ordered.waitPreScheduled())
+                {
+                    action.advanceTo(SEQUENCED_PRE_SCHEDULED);
+                    return;
+                }
+
+            case SEQUENCED_PRE_SCHEDULED:
+                if (action.deadline() > time.nanoTime())
+                {
+                    action.addTo(scheduled);
+                    action.advanceTo(SCHEDULED);
+                    return;
+                }
+
+            case SCHEDULED:
+                if (action.ordered != null && action.ordered.waitPostScheduled())
+                {
+                    action.advanceTo(SEQUENCED_POST_SCHEDULED);
+                    return;
+                }
+
+            case SEQUENCED_POST_SCHEDULED:
+                action.addTo(runnable);
+                action.saveIn(runnableByDeadline);
+                action.advanceTo(RUNNABLE);
+        }
+    }
+
+    void add(ActionList add)
+    {
         if (add.isEmpty())
             return;
 
-        if (!add.orderOn.isOrdered())
-        {
-            for (int i = 0, size = add.size() ; i < size ; ++i)
-                add(add.get(i));
-        }
-        else if (add.orderOn.isStrict())
-            addToSequence(add, StrictlyOrderedAction::new, StrictlyOrderedAction::new, Sequence::addStrict, Sequence::addStrict);
-        else
-            addToSequence(add, OrderedAction::new, StrictlyOrderedAction::new, Sequence::addStrict, Sequence::add);
-    }
-
-    private <O extends OrderedAction, S extends O> void addToSequence(ActionSequence add,
-                                                                      BiFunction<Action, ActionSchedule, O> factory,
-                                                                      BiFunction<Action, ActionSchedule, S> strictFactory,
-                                                                      BiConsumer<Sequence, S> strictAdder,
-                                                                      BiConsumer<Sequence, List<O>> listAdder)
-    {
-        List<O> ordereds = new ArrayList<>(add.size());
-        for (int i = 0, size = add.size() ; i < size ; ++i)
-        {
-            Action a = add.get(i);
-            ordereds.add(a.orderOn().isOrdered() && a.orderOn().isStrict()
-                    ? addToSequence(a, strictFactory, strictAdder)
-                    : addToSequence(a, factory, Sequence::add));
-        }
-
-        if (add.orderOn.isOrdered())
-            listAdder.accept(sequences.computeIfAbsent(add.orderOn, Sequence::new), ordereds);
-
-        ordereds.forEach(OrderedAction::maybeAddToSchedule);
-    }
-
-    private void addNow(Action action)
-    {
-        if (action == null)
-            return;
-
-        action.schedule(scheduled);
+        add.forEach(this::add);
     }
 
     public boolean hasNext()
     {
-        if (!scheduled.isEmpty())
+        if (!runnable.isEmpty() || !scheduled.isEmpty())
             return true;
+
+        while (moreWork())
+        {
+            if (!runnable.isEmpty() || !scheduled.isEmpty())
+                return true;
+        }
 
         if (!sequences.isEmpty())
         {
-            // TODO: detection of which action is blocking progress, and logging of its stack trace only
-            if (DEBUG)
+            // TODO (feature): detection of which action is blocking progress, and logging of its stack trace only
+            Stream<Action> actions;
+            if (Ordered.DEBUG)
             {
                 logger.error("Simulation failed to make progress; blocked task graph:");
-                sequences.values()
-                         .stream()
-                         .flatMap(s -> Stream.concat(s.maybeRunning.stream(), s.next.stream()))
-                         .filter(o -> o instanceof OrderedAction)
-                         .map(o -> ((OrderedAction)o).action)
-                         .filter(Action::isStarted)
-                         .distinct()
-                         .sorted(Comparator.comparingLong(a -> ((long) ((a.isStarted() ? 1 : 0) + (a.isFinished() ? 2 : 0)) << 32) | a.childCount()))
-                         .forEach(a -> logger.error(a.describeCurrentState()));
+                actions = sequences.values()
+                                   .stream()
+                                   .flatMap(s -> Stream.concat(s.maybeRunning.stream(), s.next.stream()))
+                                   .map(o -> o.ordered().action);
             }
             else
             {
-                logger.error("Simulation failed to make progress; blocked tasks:");
-                sequences.values()
-                         .stream()
-                         .map(s -> s.on instanceof OrderOn.Sequential ? ((OrderOn.Sequential) s.on).id : null)
-                         .filter(Objects::nonNull)
-                         .flatMap(s -> s instanceof ActionList ? ((ActionList) s).stream() : Stream.empty())
-                         .filter(Action::isStarted)
-                         .distinct()
-                         .sorted(Comparator.comparingLong(a -> ((long) ((a.isStarted() ? 1 : 0) + (a.isFinished() ? 2 : 0)) << 32) | a.childCount()))
-                         .forEach(a -> logger.error(a.describeCurrentState()));
+                logger.error("Simulation failed to make progress. Run with assertions enabled to see the blocked task graph. Blocked tasks:");
+                actions = sequences.values()
+                                   .stream()
+                                   .filter(s -> s.on instanceof OrderOnId)
+                                   .map(s -> ((OrderOnId) s.on).id)
+                                   .flatMap(s -> s instanceof ActionList ? ((ActionList) s).stream() : Stream.empty());
                 logger.error("Run with assertions enabled to see the blocked task graph.");
             }
+
+            actions.filter(Action::isStarted)
+                   .distinct()
+                   .sorted(Comparator.comparingLong(a -> ((long) ((a.isStarted() ? 1 : 0) + (a.isFinished() ? 2 : 0)) << 32) | a.childCount()))
+                   .forEach(a -> logger.error(a.describeCurrentState()));
+
             logger.error("Thread stack traces:");
             dumpStackTraces(logger);
-            failWithOOM();
+            throw failWithOOM();
         }
 
         return false;
     }
 
+    private boolean moreWork()
+    {
+        if (!moreWork.hasNext())
+            return false;
+
+        Work work = moreWork.next();
+        this.runUntilNanos = work.runForNanos < 0 ? -1 : time.nanoTime() + work.runForNanos;
+        Mode oldMode = mode;
+        mode = work.mode;
+        if (oldMode != work.mode)
+        {
+            if (work.mode == UNLIMITED)
+            {
+                this.pendingDaemonWave = new DefaultPriorityQueue<>(Action::compareByPriority, 128);
+            }
+            else if (oldMode == UNLIMITED)
+            {
+                while (!pendingDaemonWave.isEmpty())
+                    advance(pendingDaemonWave.poll());
+                pendingDaemonWave = null;
+            }
+        }
+        work.actors.forEach(work.runnableScheduler::attachTo);
+        work.actors.forEach(a -> a.forEach(Action::setConsequence));
+        work.actors.forEach(this::add);
+        return true;
+    }
+
     public Object next()
     {
-        time.tick();
+        if (!scheduled.isEmpty())
+        {
+            long scheduleUntil = (runnableByDeadline.isEmpty() ? time.nanoTime() : runnableByDeadline.peek().deadline())
+                                 + schedulerJitter.getAsLong();
 
-        Action perform = scheduled.poll();
+            while (!scheduled.isEmpty() && (runnable.isEmpty() || scheduled.peek().deadline() <= scheduleUntil))
+                advance(scheduled.poll());
+        }
+
+        Action perform = runnable.poll();
         if (perform == null)
             throw new NoSuchElementException();
 
-        if (perform.is(DAEMON) && --activeDaemonWaveCount == 0)
-        {
-            // TODO: configurable ratio + random time to elapse
-            pendingDaemonWaveCountDown = Math.max(128, 16 * (scheduled.size() + pendingDaemonWave.size()));
-        }
-        else if (activeDaemonWaveCount == 0 && --pendingDaemonWaveCountDown <= 0)
-        {
-            activeDaemonWaveCount = pendingDaemonWave.size();
-            pendingDaemonWave.forEach(this::add);
-            pendingDaemonWave.clear();
-            if (activeDaemonWaveCount == 0) pendingDaemonWaveCountDown = Math.max(128, 16 * scheduled.size());
-        }
+        if (!runnableByDeadline.remove(perform) && perform.deadline() > 0)
+            throw new IllegalStateException();
+        time.tick(perform.deadline());
+        maybeScheduleDaemons(perform);
 
-        // TODO (now): separate thread to detect stalled progress
-        // TODO (future): detection of monitor or other scheduling deadlock
-        ActionSequence consequences = perform.perform();
+        ActionList consequences = perform.perform();
         add(consequences);
+        if (perform.is(STREAM) && !perform.is(DAEMON))
+            --activeFiniteStreamCount;
 
         return Pair.of(perform, consequences);
     }
 
-    static class CountingCollection<T> extends AbstractCollection<T>
+    private void maybeScheduleDaemons(Action perform)
     {
-        int count;
-
-        @Override
-        public boolean add(T t)
+        if (pendingDaemonWave != null)
         {
-            ++count;
-            return true;
+            if (perform.is(DAEMON) && --activeDaemonWaveCount == 0)
+            {
+                pendingDaemonWaveCountDown = Math.max(128, 16 * (scheduled.size() + pendingDaemonWave.size()));
+            }
+            else if (activeDaemonWaveCount == 0 && --pendingDaemonWaveCountDown <= 0)
+            {
+                activeDaemonWaveCount = pendingDaemonWave.size();
+                while (!pendingDaemonWave.isEmpty())
+                    advance(pendingDaemonWave.poll());
+                if (activeDaemonWaveCount == 0) pendingDaemonWaveCountDown = Math.max(128, 16 * scheduled.size());
+            }
         }
+    }
 
-        @Override
-        public boolean remove(Object o)
-        {
-            if (count == 0) throw new AssertionError();
-            --count;
-            return true;
-        }
+    public void close()
+    {
+        if (sequences.isEmpty() && scheduled.isEmpty() && runnable.isEmpty()
+            && (pendingDaemonWave == null || pendingDaemonWave.isEmpty()) && !moreWork.hasNext())
+            return;
 
-        @Override
-        public Iterator<T> iterator()
-        {
-            throw new UnsupportedOperationException();
-        }
+        List<Sequence> invalidateSequences = new ArrayList<>(this.sequences.values());
+        List<Action> invalidateActions = new ArrayList<>(scheduled.size() + runnable.size() + (pendingDaemonWave == null ? 0 : pendingDaemonWave.size()));
+        invalidateActions.addAll(scheduled);
+        invalidateActions.addAll(runnable);
+        if (pendingDaemonWave != null)
+            invalidateActions.addAll(pendingDaemonWave);
+        while (moreWork.hasNext())
+            moreWork.next().actors.forEach(invalidateActions::addAll);
 
-        @Override
-        public int size()
-        {
-            return count;
-        }
+        Throwable fail = SafeCollections.safeForEach(invalidateSequences, Sequence::invalidatePending);
+        fail = Throwables.merge(fail, SafeCollections.safeForEach(invalidateActions, Action::invalidate));
+        scheduled.clear();
+        runnable.clear();
+        runnableByDeadline.clear();
+        if (pendingDaemonWave != null)
+            pendingDaemonWave.clear();
+        sequences.clear();
+        Throwables.maybeFail(fail);
     }
 }

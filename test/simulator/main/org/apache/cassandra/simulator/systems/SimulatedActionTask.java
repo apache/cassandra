@@ -18,36 +18,41 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedTaskExecution;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
 
-public class SimulatedActionTask extends SimulatedAction
+public class SimulatedActionTask extends SimulatedAction implements Runnable
 {
-    final InterceptedExecution task;
+    InterceptedExecution task;
 
-    public SimulatedActionTask(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, InterceptedExecution task)
+    public SimulatedActionTask(Object description, Modifiers self, Modifiers transitive, Verb forVerb, SimulatedSystems simulated, InterceptedExecution task)
     {
-        this(description, TASK, OrderOn.NONE, self, transitive, null, simulated, task);
+        this(description, TASK, OrderOn.NONE, self, transitive, Collections.emptyMap(), forVerb, simulated, task);
     }
 
-    public SimulatedActionTask(Object description, Kind kind, OrderOn orderOn, Modifiers self, Modifiers transitive, Map<Verb, Modifiers> verbModifiers, SimulatedSystems simulated, InterceptedExecution task)
+    public SimulatedActionTask(Object description, Kind kind, OrderOn orderOn, Modifiers self, Modifiers transitive, Map<Verb, Modifiers> verbModifiers, Verb forVerb, SimulatedSystems simulated, InterceptedExecution task)
     {
-        super(description, kind, orderOn, self, transitive, verbModifiers, simulated);
+        super(description, kind, orderOn, self, transitive, verbModifiers, forVerb, simulated);
         this.task = task;
+        task.onCancel(this);
     }
 
     public SimulatedActionTask(Object description, Modifiers self, Modifiers children, SimulatedSystems simulated, IInvokableInstance on, SerializableRunnable run)
     {
-        super(description, self, children, simulated);
+        super(description, self, children, null, simulated);
         this.task = unsafeAsTask(on, asSafeRunnable(on, run), simulated.failures);
+        task.onCancel(this);
     }
 
     protected static Runnable asSafeRunnable(IInvokableInstance on, SerializableRunnable run)
@@ -72,5 +77,42 @@ public class SimulatedActionTask extends SimulatedAction
     protected InterceptedExecution task()
     {
         return task;
+    }
+
+    @Override
+    protected ActionList performAndRegister()
+    {
+        try
+        {
+            return super.performAndRegister();
+        }
+        finally
+        {
+            task = null;
+        }
+    }
+
+    @Override
+    protected Throwable safeInvalidate(boolean isCancellation)
+    {
+        try
+        {
+            task.onCancel(null);
+            task.cancel();
+            task = null;
+            return super.safeInvalidate(isCancellation);
+        }
+        catch (Throwable t)
+        {
+            return Throwables.merge(t, super.safeInvalidate(isCancellation));
+        }
+    }
+
+    @Override
+    public void run()
+    {
+        // cancellation invoked by the task
+        task = null;
+        super.cancel();
     }
 }
