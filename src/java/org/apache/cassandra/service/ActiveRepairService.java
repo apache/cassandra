@@ -95,6 +95,8 @@ import org.apache.cassandra.utils.UUIDGen;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
+import static org.apache.cassandra.net.Verb.SYNC_RSP;
+import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -731,19 +733,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         RepairSession session = sessions.get(desc.sessionId);
         if (session == null)
             return;
-        switch (message.verb())
+
+        if (message.verb() == VALIDATION_RSP)
         {
-            case VALIDATION_RSP:
-                ValidationResponse validation = (ValidationResponse) message.payload;
-                session.validationComplete(desc, message.from(), validation.trees);
-                break;
-            case SYNC_RSP:
-                // one of replica is synced.
-                SyncResponse sync = (SyncResponse) message.payload;
-                session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
-                break;
-            default:
-                break;
+            ValidationResponse validation = (ValidationResponse) message.payload;
+            session.validationComplete(desc, message.from(), validation.trees);
+        }
+        else if (message.verb() == SYNC_RSP)
+        {
+            // one of replica is synced.
+            SyncResponse sync = (SyncResponse) message.payload;
+            session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
         }
     }
 
