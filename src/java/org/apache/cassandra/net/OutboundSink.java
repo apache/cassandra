@@ -18,6 +18,7 @@
 package org.apache.cassandra.net;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -27,7 +28,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  *
  * Default sink {@link Sink} used by {@link MessagingService} is {@link MessagingService#doSend(Message, InetAddressAndPort, ConnectionType)}, which proceeds to
  * send messages over the network, but it can be overridden to filter out certain messages, record the fact
- * of attempted delivery, or delay they delivery.
+ * of attempted delivery, delay the delivery, or perform some action after delivery occurs.
  *
  * This facility is most useful for test code.
  */
@@ -56,6 +57,24 @@ public class OutboundSink
         }
     }
 
+    private static class PostSink implements Sink
+    {
+        final BiConsumer<Message<?>, InetAddressAndPort> postSink;
+        final Sink sink;
+
+        private PostSink(BiConsumer<Message<?>, InetAddressAndPort> postSink, Sink sink)
+        {
+            this.postSink = postSink;
+            this.sink = sink;
+        }
+
+        public void accept(Message<?> message, InetAddressAndPort to, ConnectionType connectionType)
+        {
+            sink.accept(message, to, connectionType);
+            postSink.accept(message, to);
+        }
+    }
+
     private volatile Sink sink;
     private static final AtomicReferenceFieldUpdater<OutboundSink, Sink> sinkUpdater
         = AtomicReferenceFieldUpdater.newUpdater(OutboundSink.class, Sink.class, "sink");
@@ -73,6 +92,18 @@ public class OutboundSink
     public void add(BiPredicate<Message<?>, InetAddressAndPort> allow)
     {
         sinkUpdater.updateAndGet(this, sink -> new Filtered(allow, sink));
+    }
+
+    /**
+     * Add a method that gets called after {@link OutboundSink#accept(Message, InetAddressAndPort, ConnectionType)}.
+     *
+     * <p>This is useful if you want to perform additional work after a message has been sent to the sink.</p>
+     *
+     * @param post the method to call after {@link OutboundSink#accept}.
+     */
+    public void addPost(BiConsumer<Message<?>, InetAddressAndPort> post)
+    {
+        sinkUpdater.updateAndGet(this, sink -> new PostSink(post, sink));
     }
 
     public void remove(BiPredicate<Message<?>, InetAddressAndPort> allow)

@@ -19,10 +19,14 @@ package org.apache.cassandra.net;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -99,103 +103,105 @@ import static org.apache.cassandra.schema.MigrationManager.MigrationsSerializer;
 /**
  * Note that priorities except P0 are presently unused.  P0 corresponds to urgent, i.e. what used to be the "Gossip" connection.
  */
-public enum Verb
+public class Verb
 {
-    MUTATION_RSP           (60,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    MUTATION_REQ           (0,   P3, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> MutationVerbHandler.instance,        MUTATION_RSP        ),
-    HINT_RSP               (61,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    HINT_REQ               (1,   P4, writeTimeout,    MUTATION,          () -> HintMessage.serializer,               () -> HintVerbHandler.instance,            HINT_RSP            ),
-    READ_REPAIR_RSP        (62,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    READ_REPAIR_REQ        (2,   P1, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> ReadRepairVerbHandler.instance,      READ_REPAIR_RSP     ),
-    BATCH_STORE_RSP        (65,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    BATCH_STORE_REQ        (5,   P3, writeTimeout,    MUTATION,          () -> Batch.serializer,                     () -> BatchStoreVerbHandler.instance,      BATCH_STORE_RSP     ),
-    BATCH_REMOVE_RSP       (66,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    BATCH_REMOVE_REQ       (6,   P3, writeTimeout,    MUTATION,          () -> UUIDSerializer.serializer,            () -> BatchRemoveVerbHandler.instance,     BATCH_REMOVE_RSP    ),
+    private static final List<Verb> verbs = new ArrayList<>();
 
-    PAXOS_PREPARE_RSP      (93,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> PrepareResponse.serializer,           () -> ResponseVerbHandler.instance                             ),
-    PAXOS_PREPARE_REQ      (33,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> PrepareVerbHandler.instance,         PAXOS_PREPARE_RSP   ),
-    PAXOS_PROPOSE_RSP      (94,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> BooleanSerializer.serializer,         () -> ResponseVerbHandler.instance                             ),
-    PAXOS_PROPOSE_REQ      (34,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> ProposeVerbHandler.instance,         PAXOS_PROPOSE_RSP   ),
-    PAXOS_COMMIT_RSP       (95,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    PAXOS_COMMIT_REQ       (35,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> CommitVerbHandler.instance,          PAXOS_COMMIT_RSP    ),
+    public static List<Verb> getValues()
+    {
+        return ImmutableList.copyOf(verbs);
+    }
 
-    TRUNCATE_RSP           (79,  P0, truncateTimeout, REQUEST_RESPONSE,  () -> TruncateResponse.serializer,          () -> ResponseVerbHandler.instance                             ),
-    TRUNCATE_REQ           (19,  P0, truncateTimeout, MUTATION,          () -> TruncateRequest.serializer,           () -> TruncateVerbHandler.instance,        TRUNCATE_RSP        ),
+    public static Verb MUTATION_RSP           = new Verb("MUTATION_RSP",           60,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance);
+    public static Verb MUTATION_REQ           = new Verb("MUTATION_REQ",           0,   P3, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> MutationVerbHandler.instance,        MUTATION_RSP);
+    public static Verb HINT_RSP               = new Verb("HINT_RSP",               61,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb HINT_REQ               = new Verb("HINT_REQ",               1,   P4, writeTimeout,    MUTATION,          () -> HintMessage.serializer,               () -> HintVerbHandler.instance,            HINT_RSP            );
+    public static Verb READ_REPAIR_RSP        = new Verb("READ_REPAIR_RSP",        62,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb READ_REPAIR_REQ        = new Verb("READ_REPAIR_REQ",        2,   P1, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> ReadRepairVerbHandler.instance,      READ_REPAIR_RSP     );
+    public static Verb BATCH_STORE_RSP        = new Verb("BATCH_STORE_RSP",        65,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb BATCH_STORE_REQ        = new Verb("BATCH_STORE_REQ",        5,   P3, writeTimeout,    MUTATION,          () -> Batch.serializer,                     () -> BatchStoreVerbHandler.instance,      BATCH_STORE_RSP     );
+    public static Verb BATCH_REMOVE_RSP       = new Verb("BATCH_REMOVE_RSP",       66,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb BATCH_REMOVE_REQ       = new Verb("BATCH_REMOVE_REQ",       6,   P3, writeTimeout,    MUTATION,          () -> UUIDSerializer.serializer,            () -> BatchRemoveVerbHandler.instance,     BATCH_REMOVE_RSP    );
 
-    COUNTER_MUTATION_RSP   (84,  P1, counterTimeout,  REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    COUNTER_MUTATION_REQ   (24,  P2, counterTimeout,  COUNTER_MUTATION,  () -> CounterMutation.serializer,           () -> CounterMutationVerbHandler.instance, COUNTER_MUTATION_RSP),
+    public static Verb PAXOS_PREPARE_RSP      = new Verb("PAXOS_PREPARE_RSP",      93,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> PrepareResponse.serializer,           () -> ResponseVerbHandler.instance                             );
+    public static Verb PAXOS_PREPARE_REQ      = new Verb("PAXOS_PREPARE_REQ",      33,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> PrepareVerbHandler.instance,         PAXOS_PREPARE_RSP   );
+    public static Verb PAXOS_PROPOSE_RSP      = new Verb("PAXOS_PROPOSE_RSP",      94,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> BooleanSerializer.serializer,         () -> ResponseVerbHandler.instance                             );
+    public static Verb PAXOS_PROPOSE_REQ      = new Verb("PAXOS_PROPOSE_REQ",      34,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> ProposeVerbHandler.instance,         PAXOS_PROPOSE_RSP   );
+    public static Verb PAXOS_COMMIT_RSP       = new Verb("PAXOS_COMMIT_RSP",       95,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb PAXOS_COMMIT_REQ       = new Verb("PAXOS_COMMIT_REQ",       35,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> CommitVerbHandler.instance,          PAXOS_COMMIT_RSP    );
 
-    READ_RSP               (63,  P2, readTimeout,     REQUEST_RESPONSE,  () -> ReadResponse.serializer,              () -> ResponseVerbHandler.instance                             ),
-    READ_REQ               (3,   P3, readTimeout,     READ,              () -> ReadCommand.serializer,               () -> ReadCommandVerbHandler.instance,     READ_RSP            ),
-    RANGE_RSP              (69,  P2, rangeTimeout,    REQUEST_RESPONSE,  () -> ReadResponse.serializer,              () -> ResponseVerbHandler.instance                             ),
-    RANGE_REQ              (9,   P3, rangeTimeout,    READ,              () -> ReadCommand.serializer,               () -> ReadCommandVerbHandler.instance,     RANGE_RSP           ),
-    MULTI_RANGE_RSP        (67,  P2, rangeTimeout,    REQUEST_RESPONSE,  () -> MultiRangeReadResponse.serializer,    () -> ResponseVerbHandler.instance                             ),
-    MULTI_RANGE_REQ        (7,   P3, rangeTimeout,    READ,              () -> MultiRangeReadCommand.serializer,     () -> ReadCommandVerbHandler.instance,     MULTI_RANGE_RSP     ),
+    public static Verb TRUNCATE_RSP           = new Verb("TRUNCATE_RSP",           79,  P0, truncateTimeout, REQUEST_RESPONSE,  () -> TruncateResponse.serializer,          () -> ResponseVerbHandler.instance                             );
+    public static Verb TRUNCATE_REQ           = new Verb("TRUNCATE_REQ",           19,  P0, truncateTimeout, MUTATION,          () -> TruncateRequest.serializer,           () -> TruncateVerbHandler.instance,        TRUNCATE_RSP        );
 
-    GOSSIP_DIGEST_SYN      (14,  P0, longTimeout,     GOSSIP,            () -> GossipDigestSyn.serializer,           () -> GossipDigestSynVerbHandler.instance                      ),
-    GOSSIP_DIGEST_ACK      (15,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck.serializer,           () -> GossipDigestAckVerbHandler.instance                      ),
-    GOSSIP_DIGEST_ACK2     (16,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck2.serializer,          () -> GossipDigestAck2VerbHandler.instance                     ),
-    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> GossipShutdownVerbHandler.instance                       ),
+    public static Verb COUNTER_MUTATION_RSP   = new Verb("COUNTER_MUTATION_RSP",   84,  P1, counterTimeout,  REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb COUNTER_MUTATION_REQ   = new Verb("COUNTER_MUTATION_REQ",   24,  P2, counterTimeout,  COUNTER_MUTATION,  () -> CounterMutation.serializer,           () -> CounterMutationVerbHandler.instance, COUNTER_MUTATION_RSP);
 
-    ECHO_RSP               (91,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    ECHO_REQ               (31,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> EchoVerbHandler.instance,            ECHO_RSP            ),
-    PING_RSP               (97,  P1, pingTimeout,     GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    PING_REQ               (37,  P1, pingTimeout,     GOSSIP,            () -> PingRequest.serializer,               () -> PingVerbHandler.instance,            PING_RSP            ),
+    public static Verb READ_RSP               = new Verb("READ_RSP",               63,  P2, readTimeout,     REQUEST_RESPONSE,  () -> ReadResponse.serializer,              () -> ResponseVerbHandler.instance                             );
+    public static Verb READ_REQ               = new Verb("READ_REQ",               3,   P3, readTimeout,     READ,              () -> ReadCommand.serializer,               () -> ReadCommandVerbHandler.instance,     READ_RSP            );
+    public static Verb RANGE_RSP              = new Verb("RANGE_RSP",              69,  P2, rangeTimeout,    REQUEST_RESPONSE,  () -> ReadResponse.serializer,              () -> ResponseVerbHandler.instance                             );
+    public static Verb RANGE_REQ              = new Verb("RANGE_REQ",              9,   P3, rangeTimeout,    READ,              () -> ReadCommand.serializer,               () -> ReadCommandVerbHandler.instance,     RANGE_RSP           );
+    public static Verb MULTI_RANGE_RSP        = new Verb("MULTI_RANGE_RSP",        67,  P2, rangeTimeout,    REQUEST_RESPONSE,  () -> MultiRangeReadResponse.serializer,    () -> ResponseVerbHandler.instance                             );
+    public static Verb MULTI_RANGE_REQ        = new Verb("MULTI_RANGE_REQ",        7,   P3, rangeTimeout,    READ,              () -> MultiRangeReadCommand.serializer,     () -> ReadCommandVerbHandler.instance,     MULTI_RANGE_RSP     );
 
-    // P1 because messages can be arbitrarily large or aren't crucial
-    SCHEMA_PUSH_RSP        (98,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    SCHEMA_PUSH_REQ        (18,  P1, rpcTimeout,      MIGRATION,         () -> MigrationsSerializer.instance,        () -> SchemaPushVerbHandler.instance,      SCHEMA_PUSH_RSP     ),
-    SCHEMA_PULL_RSP        (88,  P1, rpcTimeout,      MIGRATION,         () -> MigrationsSerializer.instance,        () -> ResponseVerbHandler.instance                             ),
-    SCHEMA_PULL_REQ        (28,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaPullVerbHandler.instance,      SCHEMA_PULL_RSP     ),
-    SCHEMA_VERSION_RSP     (80,  P1, rpcTimeout,      MIGRATION,         () -> UUIDSerializer.serializer,            () -> ResponseVerbHandler.instance                             ),
-    SCHEMA_VERSION_REQ     (20,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaVersionVerbHandler.instance,   SCHEMA_VERSION_RSP  ),
+    public static Verb GOSSIP_DIGEST_SYN      = new Verb("GOSSIP_DIGEST_SYN",      14,  P0, longTimeout,     GOSSIP,            () -> GossipDigestSyn.serializer,           () -> GossipDigestSynVerbHandler.instance                      );
+    public static Verb GOSSIP_DIGEST_ACK      = new Verb("GOSSIP_DIGEST_ACK",      15,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck.serializer,           () -> GossipDigestAckVerbHandler.instance                      );
+    public static Verb GOSSIP_DIGEST_ACK2     = new Verb("GOSSIP_DIGEST_ACK2",     16,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck2.serializer,          () -> GossipDigestAck2VerbHandler.instance                     );
+    public static Verb GOSSIP_SHUTDOWN        = new Verb("GOSSIP_SHUTDOWN",        29,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> GossipShutdownVerbHandler.instance                       );
+
+    public static Verb ECHO_RSP               = new Verb("ECHO_RSP",               91,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb ECHO_REQ               = new Verb("ECHO_REQ",               31,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> EchoVerbHandler.instance,            ECHO_RSP            );
+    public static Verb PING_RSP               = new Verb("PING_RSP",               97,  P1, pingTimeout,     GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb PING_REQ               = new Verb("PING_REQ",               37,  P1, pingTimeout,     GOSSIP,            () -> PingRequest.serializer,               () -> PingVerbHandler.instance,            PING_RSP            );
+
+    // public static Verb P1 because messages can be arbitrarily large or aren't crucial
+    public static Verb SCHEMA_PUSH_RSP        = new Verb("SCHEMA_PUSH_RSP",        98,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb SCHEMA_PUSH_REQ        = new Verb("SCHEMA_PUSH_REQ",        18,  P1, rpcTimeout,      MIGRATION,         () -> MigrationsSerializer.instance,        () -> SchemaPushVerbHandler.instance,      SCHEMA_PUSH_RSP     );
+    public static Verb SCHEMA_PULL_RSP        = new Verb("SCHEMA_PULL_RSP",        88,  P1, rpcTimeout,      MIGRATION,         () -> MigrationsSerializer.instance,        () -> ResponseVerbHandler.instance                             );
+    public static Verb SCHEMA_PULL_REQ        = new Verb("SCHEMA_PULL_REQ",        28,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaPullVerbHandler.instance,      SCHEMA_PULL_RSP     );
+    public static Verb SCHEMA_VERSION_RSP     = new Verb("SCHEMA_VERSION_RSP",     80,  P1, rpcTimeout,      MIGRATION,         () -> UUIDSerializer.serializer,            () -> ResponseVerbHandler.instance                             );
+    public static Verb SCHEMA_VERSION_REQ     = new Verb("SCHEMA_VERSION_REQ",     20,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaVersionVerbHandler.instance,   SCHEMA_VERSION_RSP  );
 
     // repair; mostly doesn't use callbacks and sends responses as their own request messages, with matching sessions by uuid; should eventually harmonize and make idiomatic
-    REPAIR_RSP             (100, P1, rpcTimeout,      REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    VALIDATION_RSP         (102, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    VALIDATION_REQ         (101, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    SYNC_RSP               (104, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    SYNC_REQ               (103, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    PREPARE_MSG            (105, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    SNAPSHOT_MSG           (106, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SnapshotMessage.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    CLEANUP_MSG            (107, P1, rpcTimeout,      ANTI_ENTROPY,      () -> CleanupMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    PREPARE_CONSISTENT_RSP (109, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareConsistentResponse.serializer, () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    PREPARE_CONSISTENT_REQ (108, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareConsistentRequest.serializer,  () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FINALIZE_PROPOSE_MSG   (110, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FinalizePropose.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FINALIZE_PROMISE_MSG   (111, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FinalizePromise.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FINALIZE_COMMIT_MSG    (112, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FinalizeCommit.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FAILED_SESSION_MSG     (113, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    STATUS_RSP             (115, P1, rpcTimeout,      ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    STATUS_REQ             (114, P1, rpcTimeout,      ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
+    public static Verb REPAIR_RSP             = new Verb("REPAIR_RSP",             100, P1, rpcTimeout,      REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb VALIDATION_RSP         = new Verb("VALIDATION_RSP",         102, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb VALIDATION_REQ         = new Verb("VALIDATION_REQ",         101, P1, rpcTimeout,      ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb SYNC_RSP               = new Verb("SYNC_RSP",               104, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb SYNC_REQ               = new Verb("SYNC_REQ",               103, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb PREPARE_MSG            = new Verb("PREPARE_MSG",            105, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb SNAPSHOT_MSG           = new Verb("SNAPSHOT_MSG",           106, P1, rpcTimeout,      ANTI_ENTROPY,      () -> SnapshotMessage.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb CLEANUP_MSG            = new Verb("CLEANUP_MSG",            107, P1, rpcTimeout,      ANTI_ENTROPY,      () -> CleanupMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb PREPARE_CONSISTENT_RSP = new Verb("PREPARE_CONSISTENT_RSP", 109, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareConsistentResponse.serializer, () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb PREPARE_CONSISTENT_REQ = new Verb("PREPARE_CONSISTENT_REQ", 108, P1, rpcTimeout,      ANTI_ENTROPY,      () -> PrepareConsistentRequest.serializer,  () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb FINALIZE_PROPOSE_MSG   = new Verb("FINALIZE_PROPOSE_MSG",   110, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FinalizePropose.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb FINALIZE_PROMISE_MSG   = new Verb("FINALIZE_PROMISE_MSG",   111, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FinalizePromise.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb FINALIZE_COMMIT_MSG    = new Verb("FINALIZE_COMMIT_MSG",    112, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FinalizeCommit.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb FAILED_SESSION_MSG     = new Verb("FAILED_SESSION_MSG",     113, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb STATUS_RSP             = new Verb("STATUS_RSP",             115, P1, rpcTimeout,      ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
+    public static Verb STATUS_REQ             = new Verb("STATUS_REQ",             114, P1, rpcTimeout,      ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          );
 
-    REPLICATION_DONE_RSP   (82,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    REPLICATION_DONE_REQ   (22,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ReplicationDoneVerbHandler.instance, REPLICATION_DONE_RSP),
-    SNAPSHOT_RSP           (87,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    SNAPSHOT_REQ           (27,  P0, rpcTimeout,      MISC,              () -> SnapshotCommand.serializer,           () -> SnapshotVerbHandler.instance,        SNAPSHOT_RSP        ),
+    public static Verb REPLICATION_DONE_RSP   = new Verb("REPLICATION_DONE_RSP",   82,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb REPLICATION_DONE_REQ   = new Verb("REPLICATION_DONE_REQ",   22,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ReplicationDoneVerbHandler.instance, REPLICATION_DONE_RSP);
+    public static Verb SNAPSHOT_RSP           = new Verb("SNAPSHOT_RSP",           87,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb SNAPSHOT_REQ           = new Verb("SNAPSHOT_REQ",           27,  P0, rpcTimeout,      MISC,              () -> SnapshotCommand.serializer,           () -> SnapshotVerbHandler.instance,        SNAPSHOT_RSP        );
 
     // generic failure response
-    FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),
+    public static Verb FAILURE_RSP            = new Verb("FAILURE_RSP",            99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             );
 
     // dummy verbs
-    _TRACE                 (30,  P1, rpcTimeout,      TRACING,           () -> NoPayload.serializer,                 () -> null                                                     ),
-    _SAMPLE                (42,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> NoPayload.serializer,                 () -> null                                                     ),
-    _TEST_1                (10,  P0, writeTimeout,    IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     ),
-    _TEST_2                (11,  P1, rpcTimeout,      IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     ),
+    public static Verb _TRACE                 = new Verb("_TRACE",                 30,  P1, rpcTimeout,      TRACING,           () -> NoPayload.serializer,                 () -> null                                                     );
+    public static Verb _SAMPLE                = new Verb("_SAMPLE",                42,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> NoPayload.serializer,                 () -> null                                                     );
+    public static Verb _TEST_1                = new Verb("_TEST_1",                10,  P0, writeTimeout,    IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     );
+    public static Verb _TEST_2                = new Verb("_TEST_2",                11,  P1, rpcTimeout,      IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     );
 
     @Deprecated
-    REQUEST_RSP            (4,   P1, rpcTimeout,      REQUEST_RESPONSE,  () -> null,                                 () -> ResponseVerbHandler.instance                             ),
+    public static Verb REQUEST_RSP            = new Verb("REQUEST_RSP",            4,   P1, rpcTimeout,      REQUEST_RESPONSE,  () -> null,                                 () -> ResponseVerbHandler.instance                             );
     @Deprecated
-    INTERNAL_RSP           (23,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> ResponseVerbHandler.instance                             ),
+    public static Verb INTERNAL_RSP           = new Verb("INTERNAL_RSP",           23,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> ResponseVerbHandler.instance                             );
 
-    // largest used ID: 116
+    // largest used public static Verb ID: 116
 
     // CUSTOM VERBS
-    UNUSED_CUSTOM_VERB     (CUSTOM,
-                            0,   P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> null                                                     ),
-
-    ;
-
-    public static final List<Verb> VERBS = ImmutableList.copyOf(Verb.values());
+    public static Verb UNUSED_CUSTOM_VERB     = new Verb("UNUSED_CUSTOM_VERB", CUSTOM,         0,   P1, rpcTimeout,      INTERNAL_RESPONSE, null,                                 () -> null                                                     );
 
     public enum Priority
     {
@@ -212,6 +218,7 @@ public enum Verb
         CUSTOM
     }
 
+    private final String name;
     public final int id;
     public final Priority priority;
     public final Stage stage;
@@ -229,38 +236,37 @@ public enum Verb
      * NOTE: we use a Supplier to avoid loading the dependent classes until necessary.
      */
     private final Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer;
-    private final Supplier<? extends IVerbHandler<?>> handler;
+    private Supplier<? extends IVerbHandler<?>> handler;
 
     final Verb responseVerb;
 
     private final ToLongFunction<TimeUnit> expiration;
-
 
     /**
      * Verbs it's okay to drop if the request has been queued longer than the request timeout.  These
      * all correspond to client requests or something triggered by them; we don't want to
      * drop internal messages like bootstrap or repair notifications.
      */
-    Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
+    Verb(String name, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
     {
-        this(id, priority, expiration, stage, serializer, handler, null);
+        this(name, id, priority, expiration, stage, serializer, handler, null);
     }
 
-    Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
+    Verb(String name, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
     {
-        this(NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb);
+        this(name, NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb);
     }
 
-    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
+    Verb(String name, Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
     {
-        this(kind, id, priority, expiration, stage, serializer, handler, null);
+        this(name, kind, id, priority, expiration, stage, serializer, handler, null);
     }
 
-    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
+    Verb(String name, Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
     {
         this.stage = stage;
         if (id < 0)
-            throw new IllegalArgumentException("Verb id must be non-negative, got " + id + " for verb " + name());
+            throw new IllegalArgumentException("Verb id must be non-negative, got " + id + " for verb " + name);
 
         if (kind == CUSTOM)
         {
@@ -274,12 +280,15 @@ public enum Verb
                 throw new AssertionError("Invalid verb id " + id + " - we only allow ids between 0 and " + (CUSTOM_VERB_START - MAX_CUSTOM_VERB_ID));
             this.id = id;
         }
+        this.name = name;
         this.priority = priority;
         this.serializer = serializer;
         this.handler = handler;
         this.responseVerb = responseVerb;
         this.expiration = expiration;
         this.kind = kind;
+
+         verbs.add(this);
     }
 
     public <In, Out> IVersionedAsymmetricSerializer<In, Out> serializer()
@@ -356,6 +365,17 @@ public enum Verb
         return original;
     }
 
+    @Override
+    public String toString()
+    {
+        return name();
+    }
+
+    public String name()
+    {
+        return name;
+    }
+
     // This is the largest number we can store in 2 bytes using VIntCoding (1 bit per byte is used to indicate if there is more data coming).
     // When generating ids we count *down* from this number
     private static final int CUSTOM_VERB_START = (1 << (7 * 2)) - 1;
@@ -365,12 +385,12 @@ public enum Verb
     private static final int MAX_CUSTOM_VERB_ID = 1000;
 
     private static final Verb[] idToVerbMap;
-    private static final Verb[] idToCustomVerbMap;
-    private static final int minCustomId;
+    private static volatile Verb[] idToCustomVerbMap;
+    private static volatile int minCustomId;
 
     static
     {
-        Verb[] verbs = values();
+        List<Verb> verbs = getValues();
         int max = -1;
         int minCustom = Integer.MAX_VALUE;
         for (Verb v : verbs)
@@ -406,8 +426,7 @@ public enum Verb
                     break;
                 case CUSTOM:
                     int relativeId = idForCustomVerb(v.id);
-                    if (customIdMap[relativeId] != null)
-                        throw new IllegalArgumentException("cannot have two custom verbs that map to the same id: " + v + " and " + customIdMap[relativeId]);
+                    assertCustomIdIsUnused(customIdMap, relativeId, v.name);
                     customIdMap[relativeId] = v;
                     break;
                 default:
@@ -417,6 +436,12 @@ public enum Verb
 
         idToVerbMap = idMap;
         idToCustomVerbMap = customIdMap;
+    }
+
+    private static void assertCustomIdIsUnused(Verb[] customIdMap, int id, String name)
+    {
+        if (id < customIdMap.length && customIdMap[id] != null)
+            throw new IllegalArgumentException("cannot have two custom verbs that map to the same id: " + name + " and " + customIdMap[id]);
     }
 
     public static Verb fromId(int id)
@@ -434,11 +459,80 @@ public enum Verb
     }
 
     /**
-     * calculate an id for a custom verb
+     * Convert to/from relative and absolute id for a custom verb.
+     *
+     * <pre>{@code
+     *          relId = idForCustomVerb(absId)
+     *          absId = idForCustomVerb(relId).
+     * }</pre>
+     *
+     * <p>Relative ids can be used for indexing idToCustomVerbMap. Absolute ids exist to distinguish
+     * regular verbs from custom verbs in the id space.</p>
+     *
+     * @param id the relative or absolute id.
+     * @return a relative id if {@code id} is absolute, or absolute id if {@code id} is relative.
      */
     private static int idForCustomVerb(int id)
     {
         return CUSTOM_VERB_START - id;
+    }
+
+    /**
+     * Add a new custom verb to the list of verbs.
+     *
+     * <p>While we could dynamically generate an {@code id} for callers, it's safer to have users
+     * explicitly control the id space since it prevents nodes with different versions disagreeing on which
+     * verb has which id, e.g. during upgrade.</p>
+     *
+     * @param name the name of the new verb.
+     * @param id the identifier for this custom verb (must be relative id and >= 0 && <= MAX_CUSTOM_VERB_ID).
+     * @param priority the priority of the new verb.
+     * @param expiration an optional timeout for this verb. @see VerbTimeouts.
+     * @param stage The stage this verb should execute in.
+     * @param serializer A method to serialize this verb
+     * @param handler A method to handle this verb when received by the network
+     * @param responseVerb The verb to respond with (optional)
+     * @return A Verb for the newly added verb.
+     */
+    public static synchronized Verb addCustomVerb(String name, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
+    {
+        assertNameIsUnused(name);
+        assertCustomIdIsUnused(idToCustomVerbMap, id, name);
+        Verb verb = new Verb(name, CUSTOM, id, priority, expiration, stage, serializer, handler, responseVerb);
+
+        int absoluteId = idForCustomVerb(id);
+        minCustomId = Math.min(absoluteId, minCustomId);
+
+        Verb[] newMap = Arrays.copyOf(idToCustomVerbMap, CUSTOM_VERB_START - minCustomId + 1);
+        System.arraycopy(idToCustomVerbMap, 0, newMap, 0, idToCustomVerbMap.length);
+        newMap[id] = verb;
+        idToCustomVerbMap = newMap;
+
+        return verb;
+    }
+
+    // Callers must take care of synchronizing to protect against concurrent updates to verbs.
+    private static void assertNameIsUnused(String name)
+    {
+        if (verbs.stream().map(v -> v.name).collect(Collectors.toList()).contains(name))
+            throw new IllegalArgumentException("Verb name '" + name + "' already exists");
+    }
+
+    /**
+     * Decorates the specified verb handler with the provided method.
+     *
+     * <p>An example use case is to run a custom method after every write request.</p>
+     *
+     * @param verbs the list of verbs whose handlers should be wrapped by {@code decoratorFn}.
+     * @param decoratorFn the method that decorates the handlers in verbs.
+     */
+    public static synchronized void decorateHandler(List<Verb> verbs, Function<IVerbHandler<?>, IVerbHandler<?>> decoratorFn)
+    {
+        for (Verb v : verbs)
+        {
+            IVerbHandler<?> handler = v.handler();
+            v.handler = () -> decoratorFn.apply(handler);
+        }
     }
 }
 
