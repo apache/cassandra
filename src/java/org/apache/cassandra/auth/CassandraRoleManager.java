@@ -264,13 +264,18 @@ public class CassandraRoleManager implements IRoleManager
                .collect(Collectors.toSet());
     }
 
+    /**
+     * We hard-code this query to Quorum regardless of the role or auth credentials of the queryer given the nature of
+     * this query: we expect to know *all* roles across the entire cluster when we query this, not just local quorum or
+     * on a single node.
+     */
     public Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException
     {
         ImmutableSet.Builder<RoleResource> builder = ImmutableSet.builder();
         UntypedResultSet rows = process(String.format("SELECT role from %s.%s",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES),
-                                        CassandraAuthorizer.authReadConsistencyLevel());
+                                        ConsistencyLevel.QUORUM);
         rows.forEach(row -> builder.add(RoleResource.role(row.getString("role"))));
         return builder.build();
     }
