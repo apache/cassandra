@@ -1483,8 +1483,7 @@ public class ViewTest extends CQLTester
         assertRows(execute("SELECT * FROM mv"));
 
         // check that the view builder finishes and that the view is still empty after that
-        Util.spinAssertEquals(0, ViewTest::runningCompactions, 60);
-        assertTrue(SystemKeyspace.isViewBuilt(KEYSPACE, "mv"));
+        Util.spinAssertEquals(true, () -> SystemKeyspace.isViewBuilt(KEYSPACE, "mv"), 60);
         waitForViewMutations();
         assertRows(execute("SELECT * FROM mv"));
     }
