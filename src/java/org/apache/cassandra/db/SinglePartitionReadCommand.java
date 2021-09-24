@@ -1051,10 +1051,10 @@ public class SinglePartitionReadCommand extends ReadCommand
         // Static rows do not have row deletion or primary key liveness info
         if (!row.isStatic())
         {
-            // If the row has been delete or is part of a range deletion we know that we have enough information and can
+            // If the row has been deleted or is part of a range deletion we know that we have enough information and can
             // stop at this point.
-            // Note that deleted rows in compact table (non static) do not have a row deletion. Instead there single column
-            // cell is deleted. By consequence this check will not work for those but the row will appears as complete later on
+            // Note that deleted rows in compact tables (non static) do not have a row deletion. Single column
+            // cells are deleted instead. By consequence this check will not work for those, but the row will appear as complete later on
             // in the method.
             if (!row.deletion().isLive() && row.deletion().time().deletes(sstableTimestamp))
                 return true;
