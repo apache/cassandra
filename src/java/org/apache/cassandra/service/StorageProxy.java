@@ -195,7 +195,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final boolean disableSerialReadLinearizability =
         Boolean.parseBoolean(System.getProperty(DISABLE_SERIAL_READ_LINEARIZABILITY_KEY, "false"));
 
-    public static final PartitionDenylist partitionDenylist = new PartitionDenylist();
+    private static final PartitionDenylist partitionDenylist = new PartitionDenylist();
 
     private StorageProxy()
     {
@@ -309,13 +309,13 @@ public class StorageProxy implements StorageProxyMBean
         {
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
 
-            if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.enableDenylistWrites() && !partitionDenylist.validateKey(keyspaceName, cfName, key.getKey()))
+            if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.enableDenylistWrites() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
             {
                 denylistMetrics.incrementWritesRejected();
                 final byte[] keyBytes  = new byte[key.getKey().remaining()];
                 key.getKey().slice().get(keyBytes);
                 throw new InvalidRequestException(String.format("Unable to CAS write to denylisted partition [0x%s] in %s/%s",
-                                                                Hex.bytesToHex(keyBytes), keyspaceName, cfName));
+                                                                key.toString(), keyspaceName, cfName));
             }
 
             Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () ->
@@ -1079,11 +1079,11 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.enableDenylistWrites())
         {
-            for (IMutation mutation : mutations)
+            for (final IMutation mutation : mutations)
             {
                 for (final TableId tid : mutation.getTableIds())
                 {
-                    if (!partitionDenylist.validateKey(tid, mutation.key().getKey()))
+                    if (!partitionDenylist.isKeyPermitted(tid, mutation.key().getKey()))
                     {
                         denylistMetrics.incrementWritesRejected();
                         final byte[] keyBytes = new byte[mutation.key().getKey().remaining()];
@@ -1791,7 +1791,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (SinglePartitionReadCommand command : group.queries)
             {
-                if (!partitionDenylist.validateKey(command.metadata().id, command.partitionKey().getKey()))
+                if (!partitionDenylist.isKeyPermitted(command.metadata().id, command.partitionKey().getKey()))
                 {
                     denylistMetrics.incrementReadsRejected();
                     final byte[] keyBytes = new byte[command.partitionKey().getKey().remaining()];
@@ -2137,7 +2137,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.enableDenylistRangeReads())
         {
-            final int denylisted = partitionDenylist.validateRange(command.metadata().id, command.dataRange().keyRange());
+            final int denylisted = partitionDenylist.getDeniedKeysInRange(command.metadata().id, command.dataRange().keyRange());
             if (denylisted > 0)
             {
                 denylistMetrics.incrementRangeReadsRejected();
@@ -2881,8 +2881,15 @@ public class StorageProxy implements StorageProxyMBean
         DatabaseDescriptor.setEnableDenylistRangeReads(enabled);
     }
 
+    /**
+     * Actively denies read and write access to the provided Partition Key
+     * @param keyspace Name of keyspace containing the PK you wish to deny access to
+     * @param table Name of table containing the PK you wish to deny access to
+     * @param partitionKeyAsString String representation of the PK you want to deny access to
+     * @return
+     */
     @Override
-    public boolean denylistKey(String keyspace, String table, String keyAsString)
+    public boolean denylistKey(String keyspace, String table, String partitionKeyAsString)
     {
         if (!Schema.instance.getKeyspaces().contains(keyspace))
             return false;
@@ -2891,7 +2898,7 @@ public class StorageProxy implements StorageProxyMBean
         if (cfs == null)
             return false;
 
-        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(keyAsString);
-        return partitionDenylist.denylist(keyspace, table, bytes);
+        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
+        return partitionDenylist.addKeyToDenylist(keyspace, table, bytes);
     }
 }

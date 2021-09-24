@@ -545,7 +545,7 @@ public class Config
 
     public volatile Boolean enable_denylist_range_reads = false;
 
-    public int denylist_refresh_period_seconds = 86400;
+    public int denylist_refresh_seconds = 86400;
 
     public int denylist_initial_load_retry_seconds = 5;
 

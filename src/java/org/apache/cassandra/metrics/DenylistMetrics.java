@@ -24,7 +24,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class DenylistMetrics
 {
-    private final Meter writesRejected;;
+    private final Meter writesRejected;
     private final Meter readsRejected;
     private final Meter rangeReadsRejected;
     private final Meter totalRequestsRejected;

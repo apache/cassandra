@@ -3511,14 +3511,16 @@ public class DatabaseDescriptor
         conf.enable_denylist_range_reads = enabled;
     }
 
-    public static int getDenylistRefreshPeriodSeconds()
+    public static int getDenylistRefreshSeconds()
     {
-        return conf.denylist_refresh_period_seconds;
+        return conf.denylist_refresh_seconds;
     }
 
-    public static void setdenyDenylistRefreshPeriodSeconds(int period)
+    public static void setDenylistRefreshSeconds(int seconds)
     {
-        conf.denylist_refresh_period_seconds = period;
+        if (seconds <= 0)
+            throw new IllegalArgumentException("Expected an integer >= 0 for denylist_refresh_seconds. Got " + seconds);
+        conf.denylist_refresh_seconds = seconds;
     }
 
     public static int getDenylistInitialLoadRetrySeconds()
@@ -3526,22 +3528,24 @@ public class DatabaseDescriptor
         return conf.denylist_initial_load_retry_seconds;
     }
 
-    public static void setdenyDenylistInitialLoadRetrySeconds(int seconds)
+    public static void setDenylistInitialLoadRetrySeconds(int seconds)
     {
+        if (seconds <= 0)
+            throw new IllegalArgumentException("Expected an integer >= 0 for denylist_initial_load_retry_seconds. Got " + seconds);
         conf.denylist_initial_load_retry_seconds = seconds;
     }
 
-    public static int maxdenyDenylistKeysPerTable()
+    public static int maxDenylistKeysPerTable()
     {
         return conf.max_denylist_keys_per_table;
     }
 
-    public static int maxdenyDenylistKeysTotal()
+    public static int maxDenylistKeysTotal()
     {
         return conf.max_denylist_keys_total;
     }
 
-    public static ConsistencyLevel denylistConsistencyLevel()
+    public static ConsistencyLevel getDenylistConsistencyLevel()
     {
         return conf.denylist_consistency_level;
     }

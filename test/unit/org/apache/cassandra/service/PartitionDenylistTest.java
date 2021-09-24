@@ -63,7 +63,7 @@ public class PartitionDenylistTest
         DatabaseDescriptor.setEnablePartitionDenylist(true);
         DatabaseDescriptor.setEnableDenylistRangeReads(true);
         DatabaseDescriptor.setDenylistConsistencyLevel(ConsistencyLevel.ONE);
-        DatabaseDescriptor.setdenyDenylistRefreshPeriodSeconds(1);
+        DatabaseDescriptor.setDenylistRefreshSeconds(1);
         StorageService.instance.initServer(0);
     }
 
