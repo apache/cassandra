@@ -28,6 +28,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.math3.distribution.WeibullDistribution;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class LongSharedExecutorPoolTest
@@ -96,7 +97,7 @@ public class LongSharedExecutorPoolTest
         }
     }
 
-    @Test
+    @Test @Ignore // see CASSANDRA-16497. re-evaluate SEPThreadpools post 4.0
     public void testPromptnessOfExecution() throws InterruptedException, ExecutionException
     {
         testPromptnessOfExecution(TimeUnit.MINUTES.toNanos(2L), 0.5f);
