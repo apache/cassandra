@@ -1,4 +1,5 @@
 4.1
+ * Avoid token cache invalidation for removing a non-member node (CASSANDRA-15290)
  * Allow configuration of consistency levels on auth operations (CASSANDRA-12988)
  * Add number of sstables in a compaction to compactionstats output (CASSANDRA-16844)
  * Upgrade Caffeine to 2.9.2 (CASSANDRA-15153)
