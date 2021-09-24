@@ -94,20 +94,20 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
 
     private final Timer allLatency;
     public final ConcurrentHashMap<String, DCLatencyRecorder> dcLatency;
-    public final EnumMap<Verb, Timer> internalLatency;
+    public final Map<Verb, Timer> internalLatency = new HashMap<>();
 
     // total dropped message counts for server lifetime
-    private final Map<Verb, DroppedForVerb> droppedMessages = new EnumMap<>(Verb.class);
+    private final Map<Verb, DroppedForVerb> droppedMessages = new HashMap<>();
 
     public MessagingMetrics()
     {
         allLatency = Metrics.timer(factory.createMetricName("CrossNodeLatency"));
         dcLatency = new ConcurrentHashMap<>();
-        internalLatency = new EnumMap<>(Verb.class);
-        for (Verb verb : Verb.VERBS)
+        for (Verb verb : Verb.getValues())
+        {
             internalLatency.put(verb, Metrics.timer(factory.createMetricName(verb + "-WaitLatency")));
-        for (Verb verb : Verb.values())
             droppedMessages.put(verb, new DroppedForVerb(verb));
+        }
     }
 
     public DCLatencyRecorder internodeLatencyRecorder(InetAddressAndPort from)

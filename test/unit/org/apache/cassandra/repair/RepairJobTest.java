@@ -70,6 +70,9 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 
+import static org.apache.cassandra.net.Verb.SNAPSHOT_MSG;
+import static org.apache.cassandra.net.Verb.SYNC_REQ;
+import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
 import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -212,9 +215,9 @@ public class RepairJobTest
         // RepairJob should send out SNAPSHOTS -> VALIDATIONS -> done
         List<Verb> expectedTypes = new ArrayList<>();
         for (int i = 0; i < 3; i++)
-            expectedTypes.add(Verb.SNAPSHOT_MSG);
+            expectedTypes.add(SNAPSHOT_MSG);
         for (int i = 0; i < 3; i++)
-            expectedTypes.add(Verb.VALIDATION_REQ);
+            expectedTypes.add(VALIDATION_REQ);
 
         assertThat(observedMessages).extracting(Message::verb).containsExactlyElementsOf(expectedTypes);
     }
@@ -287,7 +290,7 @@ public class RepairJobTest
         assertThat(messages)
             .hasSize(2)
             .extracting(Message::verb)
-            .containsOnly(Verb.SYNC_REQ);
+            .containsOnly(SYNC_REQ);
     }
 
     @Test
@@ -815,21 +818,19 @@ public class RepairJobTest
                 messageCapture.add(message);
             }
 
-            switch (message.verb())
+            if (message.verb() == SNAPSHOT_MSG)
             {
-                case SNAPSHOT_MSG:
-                    MessagingService.instance().callbacks.removeAndRespond(message.id(), to, message.emptyResponse());
-                    break;
-                case VALIDATION_REQ:
-                    session.validationComplete(sessionJobDesc, to, mockTrees.get(to));
-                    break;
-                case SYNC_REQ:
-                    SyncRequest syncRequest = (SyncRequest) message.payload;
-                    session.syncComplete(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst),
-                                         true, Collections.emptyList());
-                    break;
-                default:
-                    break;
+                MessagingService.instance().callbacks.removeAndRespond(message.id(), to, message.emptyResponse());
+            }
+            else if (message.verb() == VALIDATION_REQ)
+            {
+                session.validationComplete(sessionJobDesc, to, mockTrees.get(to));
+            }
+            else if (message.verb() == SYNC_REQ)
+            {
+                SyncRequest syncRequest = (SyncRequest) message.payload;
+                session.syncComplete(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst),
+                                     true, Collections.emptyList());
             }
             return false;
         });
