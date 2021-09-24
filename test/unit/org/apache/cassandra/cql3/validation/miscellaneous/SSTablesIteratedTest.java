@@ -1589,7 +1589,7 @@ public class SSTablesIteratedTest extends CQLTester
         execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1000", 1, 1);
         execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1001", 2, 1);
         execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1002", 3, 1);
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1002", 4, 1);
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 1003", 4, 1);
         flush();
         execute("INSERT INTO %s (pk, v) VALUES (?, ?) USING TIMESTAMP 2000", 1, 2);
         execute("UPDATE %s USING TIMESTAMP 2001 SET v = ? WHERE pk = ?", 2, 2);
@@ -1598,8 +1598,47 @@ public class SSTablesIteratedTest extends CQLTester
         flush();
 
         executeAndCheck("SELECT * FROM %s WHERE pk = 1", 1, row(1, 2));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 1", 1, row(2));
         executeAndCheck("SELECT * FROM %s WHERE pk = 2", 1, row(2, 2));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 2", 1, row(2));
         executeAndCheck("SELECT * FROM %s WHERE pk = 3", 1);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3", 1);
         executeAndCheck("SELECT * FROM %s WHERE pk = 4", 1);
+        executeAndCheck("SELECT v FROM %s WHERE pk = 4", 1);
+    }
+
+    @Test
+    public void testNonCompositeCompactTableWithMultipleRegularColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 1, 1);
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?) USING TIMESTAMP 1001", 2, 1, 1);
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?) USING TIMESTAMP 1002", 3, 1, 1);
+        execute("INSERT INTO %s (pk, v1, V2) VALUES (?, ?, ?) USING TIMESTAMP 1003", 4, 1, 1);
+        execute("INSERT INTO %s (pk, v1, V2) VALUES (?, ?, ?) USING TIMESTAMP 1004", 5, 1, 1);
+        flush();
+        execute("INSERT INTO %s (pk, v1) VALUES (?, ?) USING TIMESTAMP 2000", 1, 2);
+        execute("UPDATE %s USING TIMESTAMP 2001 SET v1 = ? WHERE pk = ?", 2, 2);
+        execute("DELETE FROM %s USING TIMESTAMP 2002 WHERE pk = ?", 3);
+        execute("DELETE v1 FROM %s USING TIMESTAMP 2003 WHERE pk = ?", 4);
+        execute("DELETE v1, v2 FROM %s USING TIMESTAMP 2004 WHERE pk = ?", 5);
+        flush();
+
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1", 2, row(1, 2, 1));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1", 2, row(2));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 1", 2, row(1));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 2", 2, row(2, 2, 1));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 2", 2, row(2));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 2", 2, row(1));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 3", 1);
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 3", 1);
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 3", 1);
+        executeAndCheck("SELECT * FROM %s WHERE pk = 4", 2, row(4, null, 1));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 4", 2, row((Integer) null));
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 4", 2, row(1));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 5", 1);
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 5", 1);
+        executeAndCheck("SELECT v2 FROM %s WHERE pk = 5", 1);
     }
 }
