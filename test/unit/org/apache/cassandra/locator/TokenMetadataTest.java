@@ -19,12 +19,15 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
@@ -347,5 +350,44 @@ public class TokenMetadataTest
         assertEquals(0, tokenMetadata.getSizeOfAllEndpoints());
         assertEquals(0, tokenMetadata.getSizeOfLeavingEndpoints());
         assertEquals(0, tokenMetadata.getSizeOfMovingEndpoints());
+    }
+
+
+    @Test
+    public void testRemoveEndpointTokenChange() throws Exception
+    {
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+
+        Collection<Token> tokens = new HashSet<>();
+        tokens.add(DatabaseDescriptor.getPartitioner().getRandomToken());
+        tokens.add(DatabaseDescriptor.getPartitioner().getRandomToken());
+
+        InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.1");
+        InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
+
+        Multimap<InetAddressAndPort, Token> endpointTokens = HashMultimap.create();
+        for (Token token : tokens)
+            endpointTokens.put(ep1, token);
+
+        endpointTokens.put(ep2, DatabaseDescriptor.getPartitioner().getRandomToken());
+
+        long ver = metadata.getRingVersion();
+        metadata.updateNormalTokens(endpointTokens);
+        assertTrue(metadata.getRingVersion() > ver);
+
+        // Remove a normal endpoint
+        assertTrue(metadata.isMember(ep2));
+        ver = metadata.getRingVersion();
+        metadata.removeEndpoint(ep2);
+        assertFalse(metadata.isMember(ep2));
+        assertTrue(metadata.getRingVersion() > ver);
+
+        // Remove a non-exist endpoint (e.g. proxy node is not part of token metadata)
+        InetAddressAndPort ep3 = InetAddressAndPort.getByName("127.0.0.3");
+        assertFalse(metadata.isMember(ep3));
+        ver = metadata.getRingVersion();
+        metadata.removeEndpoint(ep3);
+        assertEquals(ver, metadata.getRingVersion());
     }
 }
