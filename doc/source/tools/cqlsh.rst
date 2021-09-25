@@ -47,6 +47,16 @@ The ``cqlshrc`` file holds configuration options for cqlsh.  By default this is 
 Example config values and documentation can be found in the ``conf/cqlshrc.sample`` file of a tarball installation.  You
 can also view the latest version of `cqlshrc online <https://github.com/apache/cassandra/blob/trunk/conf/cqlshrc.sample>`__.
 
+credentials
+^^^^^^^^^^^
+
+The ``credentials`` file holds authentication credentials for cqlsh.  By default this is in the user's home directory at
+``~/.cassandra/credentials``, but a custom location can be specified with the ``--credentials`` option.
+This file must be owned by the same user running the ``cqlsh``, and it must not be readable by group and other.
+
+Example config values and documentation can be found in the ``conf/credentials.sample`` file of a tarball installation.  You
+can also view the latest version of `credentials online <https://github.com/apache/cassandra/blob/trunk/conf/credentials.sample>`__.
+
 
 Command Line Options
 ^^^^^^^^^^^^^^^^^^^^
@@ -77,6 +87,7 @@ Options:
 ``-p`` ``--password``
   Password to authenticate against Cassandra with, should
   be used in conjunction with ``--user``
+  Insecure. Use ``credentials`` file if you can.
 
 ``-k`` ``--keyspace``
   Keyspace to authenticate to, should be used in conjunction
@@ -93,6 +104,9 @@ Options:
 
 ``--cqlshrc``
   Specify a non-default location for the ``cqlshrc`` file
+
+``--credentials``
+  Specify a non-default location for the ``credentials`` file
 
 ``-e`` ``--execute``
   Execute the given statement, then exit

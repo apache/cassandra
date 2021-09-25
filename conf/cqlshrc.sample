@@ -19,8 +19,8 @@
 
 [authentication]
 ;; If Cassandra has auth enabled, fill out these options
-; username = fred
-; password = !!bang!!$
+;; Path to the credentials file, an initial ~ or ~user is expanded to that user's home directory
+; credentials = ~/.cassandra/credentials
 ; keyspace = ks1
 
 
