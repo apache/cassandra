@@ -22,6 +22,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Stream;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -132,7 +133,7 @@ public class SSTableUtils
         private String cfname = CFNAME;
         private Descriptor dest = null;
         private boolean cleanup = true;
-        private SSTableUniqueIdentifier generation;
+        private SSTableUniqueIdentifier generation = SSTableUniqueIdentifierFactory.instance.defaultBuilder().generator(Stream.empty()).get();
 
         Context() {}
 
