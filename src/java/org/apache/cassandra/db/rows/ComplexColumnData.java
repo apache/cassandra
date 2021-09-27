@@ -72,6 +72,11 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return (Cell<?>) BTree.<Object>find(cells, column.asymmetricCellPathComparator(), path);
     }
 
+    public <R> R reduce(R seed, BTree.ReduceFunction<R, Cell> reducer)
+    {
+        return BTree.reduce(cells, seed, reducer);
+    }
+
     public Cell<?> getCellByIndex(int idx)
     {
         return BTree.findByIndex(cells, idx);
