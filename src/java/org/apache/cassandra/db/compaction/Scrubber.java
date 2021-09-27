@@ -200,7 +200,8 @@ public class Scrubber implements Closeable
                 try
                 {
                     ByteBuffer raw = ByteBufferUtil.readWithShortLength(dataFile);
-                    cfs.metadata.getLocal().partitionKeyType.validate(raw);
+                    if (!cfs.metadata.getLocal().isIndex())
+                        cfs.metadata.getLocal().partitionKeyType.validate(raw);
                     key = sstable.decorateKey(raw);
                 }
                 catch (Throwable th)
@@ -260,7 +261,8 @@ public class Scrubber implements Closeable
                         key = sstable.decorateKey(currentIndexKey);
                         try
                         {
-                            cfs.metadata.getLocal().partitionKeyType.validate(key.getKey());
+                            if (!cfs.metadata.getLocal().isIndex())
+                                cfs.metadata.getLocal().partitionKeyType.validate(key.getKey());
                             dataFile.seek(dataStartFromIndex);
 
                             if (tryAppend(prevKey, key, writer))
