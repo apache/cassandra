@@ -852,6 +852,19 @@ sstable_preemptive_open_interval_in_mb: 50
 # When unset, the default is 200 Mbps or 25 MB/s
 # inter_dc_stream_throughput_outbound_megabits_per_sec: 200
 
+# Server side timeouts for requests. The server will return a timeout exception
+# to the client if it can't complete an operation within the corresponding
+# timeout. Those settings are a protection against:
+#   1) having client wait on an operation that might never terminate due to some
+#      failures.
+#   2) operations that use too much CPU/read too much data (leading to memory build
+#      up) by putting a limit to how long an operation will execute.
+# For this reason, you should avoid putting these settings too high. In other words, 
+# if you are timing out requests because of underlying resource constraints then 
+# increasing the timeout will just cause more problems. Of course putting them too 
+# low is equally ill-advised since clients could get timeouts even for successful 
+# operations just because the timeout setting is too tight.
+
 # How long the coordinator should wait for read operations to complete
 read_request_timeout_in_ms: 5000
 # How long the coordinator should wait for seq or index scans to complete
