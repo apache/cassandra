@@ -30,6 +30,9 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -42,6 +45,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -65,6 +69,9 @@ import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
  */
 public class Message<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(Message.class);
+    private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     public final Header header;
     public final T payload;
 
@@ -1046,7 +1053,8 @@ public class Message<T>
         private static final long TIMESTAMP_WRAPAROUND_GRACE_PERIOD_START  = 0xFFFFFFFFL - MINUTES.toMillis(15L);
         private static final long TIMESTAMP_WRAPAROUND_GRACE_PERIOD_END    =               MINUTES.toMillis(15L);
 
-        private static long calculateCreationTimeNanos(int messageTimestampMillis, MonotonicClockTranslation timeSnapshot, long currentTimeNanos)
+        @VisibleForTesting
+        static long calculateCreationTimeNanos(int messageTimestampMillis, MonotonicClockTranslation timeSnapshot, long currentTimeNanos)
         {
             long currentTimeMillis = timeSnapshot.toMillisSinceEpoch(currentTimeNanos);
             // Reconstruct the message construction time sent by the remote host (we sent only the lower 4 bytes, assuming the
@@ -1064,8 +1072,21 @@ public class Message<T>
             {
                 highBits -= 0x0000000100000000L;
             }
+            // if the message timestamp wrapped, but we still haven't, add one highBit
+            else if (sentLowBits < TIMESTAMP_WRAPAROUND_GRACE_PERIOD_END
+                     && currentLowBits > TIMESTAMP_WRAPAROUND_GRACE_PERIOD_START)
+            {
+                highBits += 0x0000000100000000L;
+            }
 
             long sentTimeMillis = (highBits | sentLowBits);
+
+            if (Math.abs(currentTimeMillis - sentTimeMillis) > MINUTES.toMillis(15))
+            {
+                noSpam1m.warn("Bad timestamp {} generated, overriding with currentTimeMillis = {}", sentTimeMillis, currentTimeMillis);
+                sentTimeMillis = currentTimeMillis;
+            }
+
             return timeSnapshot.fromMillisSinceEpoch(sentTimeMillis);
         }
 

@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 public class FreeRunningClock implements MonotonicClock
 {
     private long nanoTime;
+    private long millisSinceEpoch;
+    private long error;
 
     public FreeRunningClock()
     {
@@ -37,6 +39,13 @@ public class FreeRunningClock implements MonotonicClock
         this.nanoTime = nanoTime;
     }
 
+    public FreeRunningClock(long nanoTime, long millisSinceEpoch, long error)
+    {
+        this.nanoTime = nanoTime;
+        this.millisSinceEpoch = millisSinceEpoch;
+        this.error = error;
+    }
+
     @Override
     public long now()
     {
@@ -46,13 +55,13 @@ public class FreeRunningClock implements MonotonicClock
     @Override
     public long error()
     {
-        return 0;
+        return error;
     }
 
     @Override
     public MonotonicClockTranslation translate()
     {
-        throw new UnsupportedOperationException();
+        return new AbstractEpochSamplingClock.AlmostSameTime(millisSinceEpoch, nanoTime, error);
     }
 
     @Override

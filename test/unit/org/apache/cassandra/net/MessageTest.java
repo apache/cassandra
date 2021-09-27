@@ -38,7 +38,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.utils.FreeRunningClock;
 
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
@@ -281,5 +281,18 @@ public class MessageTest
             assertSame(payload1, noPayload);
         else
             assertEquals(payload1, payload2);
+    }
+
+    @Test
+    public void testCreationTime()
+    {
+        long remoteTime = 1632087572480L; // 10111110000000000000000000000000000000000
+        long localTime  = 1632087572479L; // 10111101111111111111111111111111111111111
+        FreeRunningClock localClock  = new FreeRunningClock(TimeUnit.DAYS.toNanos(1), localTime, 0);
+
+        int remoteCreatedAt = (int) (remoteTime & 0x00000000FFFFFFFFL);
+
+        long localTimeNanos = localClock.now();
+        assertTrue( Message.Serializer.calculateCreationTimeNanos(remoteCreatedAt, localClock.translate(), localTimeNanos) > 0);
     }
 }

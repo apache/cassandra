@@ -22,6 +22,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,13 +136,15 @@ public interface MonotonicClock
         private static final String UPDATE_INTERVAL_PROPERTY = Config.PROPERTY_PREFIX + "NANOTIMETOMILLIS_TIMESTAMP_UPDATE_INTERVAL";
         private static final long UPDATE_INTERVAL_MS = Long.getLong(UPDATE_INTERVAL_PROPERTY, 10000);
 
-        private static class AlmostSameTime implements MonotonicClockTranslation
+        @VisibleForTesting
+        static class AlmostSameTime implements MonotonicClockTranslation
         {
             final long millisSinceEpoch;
             final long monotonicNanos;
             final long error; // maximum error of millis measurement (in nanos)
 
-            private AlmostSameTime(long millisSinceEpoch, long monotonicNanos, long errorNanos)
+            @VisibleForTesting
+            AlmostSameTime(long millisSinceEpoch, long monotonicNanos, long errorNanos)
             {
                 this.millisSinceEpoch = millisSinceEpoch;
                 this.monotonicNanos = monotonicNanos;
