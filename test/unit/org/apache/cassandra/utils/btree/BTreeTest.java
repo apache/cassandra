@@ -458,4 +458,36 @@ public class BTreeTest
             Arrays.fill(numberOfCalls, 0);
         }
     }
+
+    @Test
+    public void testReduce()
+    {
+        List<Integer> input = seq(71);
+        Object[] btree = BTree.build(input, UpdateFunction.noOp());
+
+        List<Integer> result = BTree.<List<Integer>, Integer>reduce(btree, new ArrayList(), (r, i) -> { r.add(i); return r; });
+        assertArrayEquals(input.toArray(), result.toArray());
+
+        // test interrupting after i items
+        for (int i = 1; i < input.size(); i++)
+        {
+            final int max = i;
+            result = BTree.reduce(btree, new ArrayList(), new BTree.ReduceFunction<List<Integer>, Integer>()
+            {
+                public boolean stop(List<Integer> res)
+                {
+                    return res.size() == max;
+                }
+
+                public List<Integer> apply(List<Integer> ret, Integer val)
+                {
+                    ret.add(val);
+                    return ret;
+                }
+            });
+
+            assertArrayEquals(seq(max).toArray(), result.toArray());
+        }
+    }
+
 }

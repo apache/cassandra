@@ -4177,4 +4177,38 @@ public class BTree
             }
         }
     }
+
+    public interface ReduceFunction<ACC, I> extends BiFunction<ACC, I, ACC>
+    {
+        default public boolean stop(ACC res)
+        {
+            return false;
+        }
+    }
+
+    /**
+     * Walk the btree forwards and apply a reduce function. Return the reduced value.
+     */
+    public static <R, V> R reduce(Object[] btree, R seed, ReduceFunction<R, V> function)
+    {
+        boolean isLeaf = isLeaf(btree);
+        int childOffset = isLeaf ? Integer.MAX_VALUE : getChildStart(btree);
+        int limit = isLeaf ? getLeafKeyEnd(btree) : btree.length - 1;
+        for (int i = 0 ; i < limit ; i++)
+        {
+            // we want to visit in iteration order, so we visit our key nodes inbetween our children
+            int idx = isLeaf ? i : (i / 2) + (i % 2 == 0 ? childOffset : 0);
+            Object current = btree[idx];
+            if (idx < childOffset)
+                seed = function.apply(seed, (V)current);
+            else
+                seed = reduce((Object[])current, seed, function);
+
+            if (function.stop(seed))
+                break;
+        }
+
+        return seed;
+    }
+
 }
