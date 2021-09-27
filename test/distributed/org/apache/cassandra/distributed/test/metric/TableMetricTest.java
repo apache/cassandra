@@ -43,7 +43,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -121,7 +120,7 @@ public class TableMetricTest extends TestBaseImpl
         SYSTEM_TABLES = cluster.get(1).callOnInstance(() -> {
             Map<String, Collection<String>> map = new HashMap<>();
             Arrays.asList(SystemKeyspace.metadata(), AuthKeyspace.metadata(), SystemDistributedKeyspace.metadata(),
-                          SchemaKeyspace.metadata(), TraceKeyspace.metadata())
+                          Schema.getSystemKeyspaceMetadata(), TraceKeyspace.metadata())
                   .forEach(meta -> {
                       Set<String> tables = meta.tables.stream().map(t -> t.name).collect(Collectors.toSet());
                       map.put(meta.name, tables);
