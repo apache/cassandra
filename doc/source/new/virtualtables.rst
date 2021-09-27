@@ -294,11 +294,10 @@ The ``sstable_tasks`` could be used to get information about running tasks. It l
 
 ::
 
-  cqlsh:system_views> SELECT * FROM sstable_tasks;
-  keyspace_name | table_name | task_id                              | kind       | progress | total    | unit
-  ---------------+------------+--------------------------------------+------------+----------+----------+-------
-         basic |      wide2 | c3909740-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction | 60418761 | 70882110 | bytes
-         basic |      wide2 | c7556770-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction |  2995623 | 40314679 | bytes
+ cqlsh:system_views> SELECT * FROM sstable_tasks;
+ keyspace_name | table_name | task_id                              | completion_ratio | kind       | progress | sstables | total    | unit
+---------------+------------+--------------------------------------+------------------+------------+----------+----------+----------+-------
+     keyspace1 |  standard1 | 238f6290-1fd4-11ec-8c63-7d65848b040f |         0.212345 | compaction | 16184734 |        2 | 76219177 | bytes
 
 
 As another example, to find how much time is remaining for SSTable tasks, use the following query:
