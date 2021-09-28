@@ -360,7 +360,7 @@ public class PartitionDenylist
 
         // We pull max keys + 1 in order to check below whether we've surpassed the allowable limit or not
         final String readDenylist = String.format("SELECT * FROM %s.%s WHERE ks_name='%s' AND cf_name='%s' LIMIT %d", SystemDistributedKeyspace.NAME, PARTITION_DENYLIST_TABLE,
-                                                  tmd.keyspace, tmd.name, DatabaseDescriptor.maxDenylistKeysPerTable() + 1);
+                                                  tmd.keyspace, tmd.name, DatabaseDescriptor.getMaxDenylistKeysPerTable() + 1);
 
         try
         {
@@ -368,8 +368,8 @@ public class PartitionDenylist
             if (results == null || results.isEmpty())
                 return new DenylistEntry();
 
-            if (results.size() > DatabaseDescriptor.maxDenylistKeysPerTable())
-                logger.error("Partition denylist for {}/{} has exceeded the maximum allowable size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", tmd.keyspace, tmd.name, DatabaseDescriptor.maxDenylistKeysPerTable());
+            if (results.size() > DatabaseDescriptor.getMaxDenylistKeysPerTable())
+                logger.error("Partition denylist for {}/{} has exceeded the maximum allowable size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", tmd.keyspace, tmd.name, DatabaseDescriptor.getMaxDenylistKeysPerTable());
 
             final Set<ByteBuffer> keys = new HashSet<>();
             final NavigableSet<Token> tokens = new TreeSet<>();
@@ -388,18 +388,22 @@ public class PartitionDenylist
         }
     }
 
+    /**
+     * We check in this method whether either a table or the sum of all denylist keys surpass our allowable limits and
+     * warn to the user if we're above our threshold.
+     */
     private Map<TableId, DenylistEntry> getDenylistForAllTables()
     {
         // We pull max keys + 1 in order to check below whether we've surpassed the allowable limit or not
-        final String readDenylist = String.format("SELECT * FROM %s.%s LIMIT %d", SystemDistributedKeyspace.NAME, PARTITION_DENYLIST_TABLE, DatabaseDescriptor.maxDenylistKeysTotal() + 1);
+        final String readDenylist = String.format("SELECT * FROM %s.%s LIMIT %d", SystemDistributedKeyspace.NAME, PARTITION_DENYLIST_TABLE, DatabaseDescriptor.getMaxDenylistKeysTotal() + 1);
         try
         {
             final UntypedResultSet results = process(readDenylist, DatabaseDescriptor.getDenylistConsistencyLevel());
             if (results == null || results.isEmpty())
                 return new HashMap<>();
 
-            if (results.size() > DatabaseDescriptor.maxDenylistKeysTotal())
-                logger.error("Partition denylist has exceeded the maximum allowable total size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", DatabaseDescriptor.maxDenylistKeysTotal());
+            if (results.size() > DatabaseDescriptor.getMaxDenylistKeysTotal())
+                logger.error("Partition denylist has exceeded the maximum allowable total size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", DatabaseDescriptor.getMaxDenylistKeysTotal());
 
             final Map<TableId, Pair<Set<ByteBuffer>, NavigableSet<Token>>> allDenylists = new HashMap<>();
             for (final UntypedResultSet.Row row : results)

@@ -3481,7 +3481,7 @@ public class DatabaseDescriptor
         conf.enable_partition_denylist = enabled;
     }
 
-    public static boolean enableDenylistWrites()
+    public static boolean getDenylistWritesEnabled()
     {
         return conf.enable_denylist_writes;
     }
@@ -3491,7 +3491,7 @@ public class DatabaseDescriptor
         conf.enable_denylist_writes = enabled;
     }
 
-    public static boolean enableDenylistReads()
+    public static boolean getDenylistReadsEnabled()
     {
         return conf.enable_denylist_reads;
     }
@@ -3501,7 +3501,7 @@ public class DatabaseDescriptor
         conf.enable_denylist_reads = enabled;
     }
 
-    public static boolean enableDenylistRangeReads()
+    public static boolean getDenylistRangeReadsEnabled()
     {
         return conf.enable_denylist_range_reads;
     }
@@ -3519,7 +3519,7 @@ public class DatabaseDescriptor
     public static void setDenylistRefreshSeconds(int seconds)
     {
         if (seconds <= 0)
-            throw new IllegalArgumentException("Expected an integer >= 0 for denylist_refresh_seconds. Got " + seconds);
+            throw new IllegalArgumentException("denylist_refresh_seconds must be non-negative.");
         conf.denylist_refresh_seconds = seconds;
     }
 
@@ -3531,19 +3531,10 @@ public class DatabaseDescriptor
     public static void setDenylistInitialLoadRetrySeconds(int seconds)
     {
         if (seconds <= 0)
-            throw new IllegalArgumentException("Expected an integer >= 0 for denylist_initial_load_retry_seconds. Got " + seconds);
+            throw new IllegalArgumentException("denylist_initial_load_retry_seconds must be non-negative.");
         conf.denylist_initial_load_retry_seconds = seconds;
     }
 
-    public static int maxDenylistKeysPerTable()
-    {
-        return conf.max_denylist_keys_per_table;
-    }
-
-    public static int maxDenylistKeysTotal()
-    {
-        return conf.max_denylist_keys_total;
-    }
 
     public static ConsistencyLevel getDenylistConsistencyLevel()
     {
@@ -3553,6 +3544,30 @@ public class DatabaseDescriptor
     public static void setDenylistConsistencyLevel(ConsistencyLevel cl)
     {
         conf.denylist_consistency_level = cl;
+    }
+
+    public static int getMaxDenylistKeysPerTable()
+    {
+        return conf.max_denylist_keys_per_table;
+    }
+
+    public static void setMaxDenylistKeysPerTable(int value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("max_denylist_keys_per_table must be non-negative.");
+        conf.max_denylist_keys_per_table = value;
+    }
+
+    public static int getMaxDenylistKeysTotal()
+    {
+        return conf.max_denylist_keys_total;
+    }
+
+    public static void setMaxDenylistKeysTotal(int value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("Expected an integer >= 0 for max_denylist_keys_total. Got: " + value);
+        conf.max_denylist_keys_total = value;
     }
 
     public static SubnetGroups getClientErrorReportingExclusions()

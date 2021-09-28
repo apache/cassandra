@@ -63,6 +63,7 @@ public interface StorageProxyMBean
 
     @Deprecated
     public int getOtcBacklogExpirationInterval();
+
     public void loadPartitionDenylist();
     public int getPartitionDenylistLoadAttempts();
     public int getPartitionDenylistLoadSuccesses();
@@ -72,6 +73,8 @@ public interface StorageProxyMBean
     public void setEnableDenylistRangeReads(boolean enabled);
     public boolean denylistKey(String keyspace, String cf, String partitionKeyAsString);
     public boolean removeDenylistKey(String keyspace, String cf, String partitionKeyAsString);
+    public void setMaxDenylistKeysPerTable(int value);
+    public void setMaxDenylistKeysTotal(int value);
 
     @Deprecated
     public void setOtcBacklogExpirationInterval(int intervalInMillis);
