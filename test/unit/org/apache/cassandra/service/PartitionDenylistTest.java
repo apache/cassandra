@@ -77,6 +77,12 @@ public class PartitionDenylistTest
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('ccc', 'ddd', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('ddd', 'eee', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('fff', 'ggg', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('ggg', 'hhh', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('hhh', 'iii', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('iii', 'jjj', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('jjj', 'kkk', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
 
         denylist("" + ks_cql + "", "foofoo", "bbb:ccc");
         forceReloadDenylist();
@@ -88,6 +94,10 @@ public class PartitionDenylistTest
         StorageProxy.instance.denylistKey(ks, table, key);
     }
 
+    /**
+     * @return Whether the *attempt* to remove the denylisted key and refresh succeeded. Doesn't necessarily indicate the key
+     * was previously blocked and found.
+     */
     private static boolean removeDenylist(final String ks, final String table, final String key) throws RequestExecutionException
     {
         return StorageProxy.instance.removeDenylistKey(ks, table, key);
@@ -209,51 +219,118 @@ public class PartitionDenylistTest
         process("SELECT * FROM " + ks_cql + ".foofoo", ConsistencyLevel.ONE);
     }
 
-    @Test
-    public void testRemoveFromDenylist() throws InterruptedException
-    {
-        boolean denied = false;
-        try
-        {
-            process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
-        }
-        catch (InvalidRequestException ire)
-        {
-            denied = true;
-        }
-        Assert.assertTrue(denied);
-
-        removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc");
-        forceReloadDenylist();
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
-    }
-
     /**
      * Want to make sure we don't throw anything or explode when people try to remove a key that's not there
      */
     @Test
     public void testRemoveMissingIsGraceful() throws InterruptedException
     {
+        confirmDenied("bbb", "ccc");
+        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+
+        // We expect this to silently not find and succeed at *trying* to remove it
+        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+
+        forceReloadDenylist();
+        confirmAllowed("bbb", "ccc");
+    }
+
+    /**
+     * We need to confirm that the entire cache is reloaded rather than being an additive change; we don't want keys to
+     * persist after their removal and reload from CQL.
+     */
+    @Test
+    public void testRemoveWorksOnReload() throws InterruptedException
+    {
+        denyAllKeys();
+
+        confirmDenied("aaa", "bbb");
+        confirmDenied("eee", "fff");
+        confirmDenied("iii", "jjj");
+
+        // poke a hole in the middle and reload
+        removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
+        forceReloadDenylist();
+
+        confirmAllowed("eee", "fff");
+        confirmDenied("aaa", "bbb");
+        confirmDenied("iii", "jjj");
+    }
+
+    /**
+     * We go through a few steps here:
+     *  1) Add more keys than we're allowed
+     *  2) Confirm that the overflow keys are *not* denied
+     *  3) Raise the allowable limit
+     *  4) Confirm that the overflow keys are now denied (and no longer really "overflow" for that matter)
+     */
+    @Test
+    public void testShrinkAndGrow() throws InterruptedException
+    {
+        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
+        StorageProxy.instance.setMaxDenylistKeysTotal(5);
+        denyAllKeys();
+
+        // Confirm overflowed keys are allowed; first come first served
+        confirmDenied("aaa", "bbb");
+        confirmAllowed("iii", "jjj");
+
+        // Now we raise the limit back up and do nothing else and confirm it's blocked
+        StorageProxy.instance.setMaxDenylistKeysPerTable(1000);
+        StorageProxy.instance.setMaxDenylistKeysTotal(1000);
+        confirmDenied("aaa", "bbb");
+        confirmDenied("iii", "jjj");
+
+        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
+        StorageProxy.instance.setMaxDenylistKeysTotal(5);
+        confirmAllowed("iii", "jjj");
+
+        // Now, we remove the denylist entries for our first 5, drop the limit back down, and confirm those overflowed keys now block
+        removeDenylist("" + ks_cql + "", "foofoo", "aaa:bbb");
+        removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc");
+        removeDenylist("" + ks_cql + "", "foofoo", "ccc:ddd");
+        removeDenylist("" + ks_cql + "", "foofoo", "ddd:eee");
+        removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
+        forceReloadDenylist();
+        confirmDenied("iii", "jjj");
+    }
+
+    private void confirmDenied(String keyOne, String keyTwo)
+    {
         boolean denied = false;
+        String query = String.format("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='%s' and baz='%s'", keyOne, keyTwo);
         try
         {
-            process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+            process(query, ConsistencyLevel.ONE);
         }
         catch (InvalidRequestException ire)
         {
             denied = true;
         }
-        Assert.assertTrue(denied);
+        Assert.assertTrue(String.format("Expected query to be denied but was allowed! %s", query), denied);
+    }
 
-        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
-        // Returns true; the attempt to delete it succeeds, it just doesn't find it.
-        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
-        forceReloadDenylist();
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+    private void confirmAllowed(String keyOne, String keyTwo)
+    {
+        process(String.format("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='%s' and baz='%s'", keyOne, keyTwo), ConsistencyLevel.ONE);
     }
 
     private static void forceReloadDenylist() throws InterruptedException
     {
         StorageProxy.instance.loadPartitionDenylist();
+    }
+
+    private void denyAllKeys() throws InterruptedException
+    {
+        denylist("" + ks_cql + "", "foofoo", "aaa:bbb");
+        denylist("" + ks_cql + "", "foofoo", "bbb:ccc");
+        denylist("" + ks_cql + "", "foofoo", "ccc:ddd");
+        denylist("" + ks_cql + "", "foofoo", "ddd:eee");
+        denylist("" + ks_cql + "", "foofoo", "eee:fff");
+        denylist("" + ks_cql + "", "foofoo", "fff:ggg");
+        denylist("" + ks_cql + "", "foofoo", "ggg:hhh");
+        denylist("" + ks_cql + "", "foofoo", "hhh:iii");
+        denylist("" + ks_cql + "", "foofoo", "iii:jjj");
+        forceReloadDenylist();
     }
 }

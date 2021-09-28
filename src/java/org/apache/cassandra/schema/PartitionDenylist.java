@@ -18,6 +18,20 @@
 
 package org.apache.cassandra.schema;
 
+import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -25,6 +39,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -36,23 +53,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 
@@ -75,36 +75,9 @@ public class PartitionDenylist
     public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
     private final ExecutorService executor = new ThreadPoolExecutor(2, 2, Long.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-    private final LoadingCache<TableId, DenylistEntry> denylist = CacheBuilder.newBuilder()
-            .refreshAfterWrite(DatabaseDescriptor.getDenylistRefreshSeconds(), TimeUnit.SECONDS)
-            .build(new CacheLoader<TableId, DenylistEntry>()
-            {
-                @Override
-                public DenylistEntry load(final TableId tid) throws Exception
-                {
-                    return getDenylistForTable(tid);
-                }
 
-                @Override
-                public ListenableFuture<DenylistEntry> reload(final TableId tid, final DenylistEntry oldValue)
-                {
-                    ListenableFutureTask<DenylistEntry> task = ListenableFutureTask.create(new Callable<DenylistEntry>()
-                    {
-                        @Override
-                        public DenylistEntry call()
-                        {
-                            final DenylistEntry newEntry = getDenylistForTable(tid);
-                            if (newEntry != null)
-                                return newEntry;
-                            if (oldValue != null)
-                                return oldValue;
-                            return new DenylistEntry();
-                        }
-                    });
-                    executor.execute(task);
-                    return task;
-                }
-            });
+    /** We effectively don't use our initial empty cache to denylist until the {@link #load()} call which will replace it */
+    private volatile LoadingCache<TableId, DenylistEntry> denylist = buildEmptyCache();
 
     /**
      * Denylist entry is never mutated once constructed, only replaced with a new entry when the cache is refreshed
@@ -185,30 +158,64 @@ public class PartitionDenylist
                                                               DatabaseDescriptor.getDenylistConsistencyLevel());
     }
 
+    /** Helper method as we need to both build cache on initial init but also on reload of cache contents and params */
+    private LoadingCache<TableId, DenylistEntry> buildEmptyCache()
+    {
+        return CacheBuilder.newBuilder()
+                           .refreshAfterWrite(DatabaseDescriptor.getDenylistRefreshSeconds(), TimeUnit.SECONDS)
+                           .build(new CacheLoader<TableId, DenylistEntry>()
+                           {
+                               @Override
+                               public DenylistEntry load(final TableId tid) throws Exception
+                               {
+                                   return getDenylistForTable(tid);
+                               }
+
+                               @Override
+                               public ListenableFuture<DenylistEntry> reload(final TableId tid, final DenylistEntry oldValue)
+                               {
+                                   ListenableFutureTask<DenylistEntry> task = ListenableFutureTask.create(new Callable<DenylistEntry>()
+                                   {
+                                       @Override
+                                       public DenylistEntry call()
+                                       {
+                                           final DenylistEntry newEntry = getDenylistForTable(tid);
+                                           if (newEntry != null)
+                                               return newEntry;
+                                           if (oldValue != null)
+                                               return oldValue;
+                                           return new DenylistEntry();
+                                       }
+                                   });
+                                   executor.execute(task);
+                                   return task;
+                               }
+                           });
+    }
+
+    /**
+     * We need to fully rebuild a new cache to accommodate deleting items from the denylist and potentially shrinking
+     * the max allowable size in the list. We do not serve queries out of this denylist until it is populated
+     * so as not to introduce a window of having a partially filled cache allow denylisted entries.
+     */
     public boolean load()
     {
         final long start = System.currentTimeMillis();
+
         final Map<TableId, DenylistEntry> allDenylists = getDenylistForAllTables();
         if (allDenylists == null)
             return false;
 
-        // Cache iterators are weakly-consistent
-        // Note: we explicitly don't clear the cache and repopulate it as we don't want a window of time where we
-        // are not denying partitions we need to deny, and it's also simplest to just idempotently replace / add to
-        // the existing cache with whatever new records may have been added.
-        for (final Iterator<TableId> it = denylist.asMap().keySet().iterator(); it.hasNext(); )
-        {
-            final TableId tid = it.next();
-            if (!allDenylists.containsKey(tid))
-                allDenylists.put(tid, new DenylistEntry());
-        }
-        denylist.putAll(allDenylists);
-        logger.info("Loaded partition denylist cache in {}ms", System.currentTimeMillis() - start);
+        // On initial load we have the slight overhead of GC'ing our initial empty cache
+        LoadingCache<TableId, DenylistEntry> newDenylist = buildEmptyCache();
+        newDenylist.putAll(allDenylists);
 
         synchronized (this)
         {
             loadSuccesses++;
         }
+        denylist = newDenylist;
+        logger.info("Loaded partition denylist cache in {}ms", System.currentTimeMillis() - start);
         return true;
     }
 
