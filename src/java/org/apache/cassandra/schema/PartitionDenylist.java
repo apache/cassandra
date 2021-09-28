@@ -220,7 +220,9 @@ public class PartitionDenylist
     }
 
     /**
-     * We expect the caller to confirm that we are working with a valid keyspace and table
+     * We expect the caller to confirm that we are working with a valid keyspace and table. Further, we expect the usage
+     * pattern of this to be one-off key by key, not in a bulk process, so we relead the entire table's deny list entry
+     * on an addition or removal.
      */
     public boolean addKeyToDenylist(final String keyspace, final String table, final ByteBuffer key)
     {
@@ -236,6 +238,11 @@ public class PartitionDenylist
         try
         {
             process(insert, DatabaseDescriptor.getDenylistConsistencyLevel());
+
+            // On insert, we refresh the entire table's deny list data.
+            TableId denyTableId = getTableId(keyspace, table);
+            denylist.put(denyTableId, getDenylistForTable(getTableId(keyspace, table)));
+
             return true;
         }
         catch (final RequestExecutionException e)
@@ -246,7 +253,7 @@ public class PartitionDenylist
     }
 
     /**
-     * We expect the caller to confirm that we are working with a valid keyspace and table
+     * We expect the caller to confirm that we are working with a valid keyspace and table.
      */
     public boolean removeKeyFromDenylist(final String keyspace, final String table, final ByteBuffer key)
     {
@@ -262,6 +269,11 @@ public class PartitionDenylist
         try
         {
             process(delete, DatabaseDescriptor.getDenylistConsistencyLevel());
+
+            // On delete, we refresh the entire table's deny list data.
+            TableId denyTableId = getTableId(keyspace, table);
+            denylist.put(denyTableId, getDenylistForTable(getTableId(keyspace, table)));
+
             return true;
         }
         catch (final RequestExecutionException e)

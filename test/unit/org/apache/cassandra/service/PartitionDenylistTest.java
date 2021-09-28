@@ -70,8 +70,7 @@ public class PartitionDenylistTest
     @Before
     public void setup() throws RequestExecutionException, UnsupportedEncodingException, InterruptedException {
         DatabaseDescriptor.setEnablePartitionDenylist(true);
-        process("TRUNCATE system_distributed.partition_denylist", ConsistencyLevel.ONE);
-        forceReloadDenylist();
+        resetDenylist();
 
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('aaa', 'bbb', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
@@ -84,14 +83,13 @@ public class PartitionDenylistTest
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('iii', 'jjj', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('jjj', 'kkk', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
 
-        denylist("" + ks_cql + "", "foofoo", "bbb:ccc");
-        forceReloadDenylist();
+        denylist("bbb:ccc");
     }
 
 
-    private static void denylist(final String ks, final String table, final String key) throws RequestExecutionException
+    private static void denylist(final String key) throws RequestExecutionException
     {
-        StorageProxy.instance.denylistKey(ks, table, key);
+        StorageProxy.instance.denylistKey("" + ks_cql + "", "foofoo", key);
     }
 
     /**
@@ -118,8 +116,7 @@ public class PartitionDenylistTest
     @Test
     public void testReadUndenylisted() throws RequestExecutionException, InterruptedException, UnsupportedEncodingException
     {
-        process("TRUNCATE system_distributed.partition_denylist", ConsistencyLevel.ONE);
-        forceReloadDenylist();
+        resetDenylist();
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
     }
 
@@ -145,8 +142,7 @@ public class PartitionDenylistTest
     @Test
     public void testWriteUndenylisted() throws RequestExecutionException, InterruptedException, UnsupportedEncodingException
     {
-        process("TRUNCATE system_distributed.partition_denylist", ConsistencyLevel.ONE);
-        forceReloadDenylist();
+        resetDenylist();
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
     }
 
@@ -157,8 +153,9 @@ public class PartitionDenylistTest
         rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
         Assert.assertEquals(1, rows.size());
 
+        // 10 entries total in our table
         rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('bbb', 'ccc')", ConsistencyLevel.ONE);
-        Assert.assertEquals(2, rows.size());
+        Assert.assertEquals(8, rows.size());
 
         rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) >= token('aaa', 'bbb') and token(bar, baz) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
         Assert.assertEquals(1, rows.size());
@@ -206,8 +203,7 @@ public class PartitionDenylistTest
     @Test
     public void testReadInvalidCF() throws Exception
     {
-        denylist("santa", "claus", "hohoho");
-        forceReloadDenylist();
+        denylist("hohoho");
     }
 
     @Test
@@ -231,7 +227,6 @@ public class PartitionDenylistTest
         // We expect this to silently not find and succeed at *trying* to remove it
         Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
 
-        forceReloadDenylist();
         confirmAllowed("bbb", "ccc");
     }
 
@@ -250,7 +245,6 @@ public class PartitionDenylistTest
 
         // poke a hole in the middle and reload
         removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
-        forceReloadDenylist();
 
         confirmAllowed("eee", "fff");
         confirmDenied("aaa", "bbb");
@@ -291,7 +285,6 @@ public class PartitionDenylistTest
         removeDenylist("" + ks_cql + "", "foofoo", "ccc:ddd");
         removeDenylist("" + ks_cql + "", "foofoo", "ddd:eee");
         removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
-        forceReloadDenylist();
         confirmDenied("iii", "jjj");
     }
 
@@ -315,22 +308,24 @@ public class PartitionDenylistTest
         process(String.format("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='%s' and baz='%s'", keyOne, keyTwo), ConsistencyLevel.ONE);
     }
 
-    private static void forceReloadDenylist() throws InterruptedException
+    private void resetDenylist()
     {
+        process("TRUNCATE system_distributed.partition_denylist", ConsistencyLevel.ONE);
+        StorageProxy.instance.setMaxDenylistKeysTotal(1000);
+        StorageProxy.instance.setMaxDenylistKeysPerTable(1000);
         StorageProxy.instance.loadPartitionDenylist();
     }
 
     private void denyAllKeys() throws InterruptedException
     {
-        denylist("" + ks_cql + "", "foofoo", "aaa:bbb");
-        denylist("" + ks_cql + "", "foofoo", "bbb:ccc");
-        denylist("" + ks_cql + "", "foofoo", "ccc:ddd");
-        denylist("" + ks_cql + "", "foofoo", "ddd:eee");
-        denylist("" + ks_cql + "", "foofoo", "eee:fff");
-        denylist("" + ks_cql + "", "foofoo", "fff:ggg");
-        denylist("" + ks_cql + "", "foofoo", "ggg:hhh");
-        denylist("" + ks_cql + "", "foofoo", "hhh:iii");
-        denylist("" + ks_cql + "", "foofoo", "iii:jjj");
-        forceReloadDenylist();
+        denylist("aaa:bbb");
+        denylist("bbb:ccc");
+        denylist("ccc:ddd");
+        denylist("ddd:eee");
+        denylist("eee:fff");
+        denylist("fff:ggg");
+        denylist("ggg:hhh");
+        denylist("hhh:iii");
+        denylist("iii:jjj");
     }
 }

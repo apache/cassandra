@@ -1032,7 +1032,7 @@ slow_query_log_timeout_in_ms: 500
 
 # enable_denylist_writes = true;
 # enable_denylist_reads = true;
-# enable_denylist_range_reads = false;
+# enable_denylist_range_reads = true;
 
 # The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
 # denylist_refresh_seconds = 86400;
