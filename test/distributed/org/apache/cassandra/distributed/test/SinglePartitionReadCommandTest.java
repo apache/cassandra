@@ -157,7 +157,36 @@ public class SinglePartitionReadCommandTest extends TestBaseImpl
                        row(1, "1", null));
             assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL),
                        row((Integer) null));
+        }
+    }
 
+    @Test
+    public void testCompactAndNonCompactTableWithRowOnOneNodeAndRowDeletionOnTheOther() throws Throwable
+    {
+        for (String options : new String[] {"WITH COMPACT STORAGE", ""})
+        {
+            try (Cluster cluster = init(builder().withNodes(2).start()))
+            {
+                cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v int, PRIMARY KEY (pk, ck)) " + options));
+                cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (1, '1', 1) USING TIMESTAMP 1000"));
+                cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (2, '1', 1) USING TIMESTAMP 1001"));
+                cluster.get(1).flush(KEYSPACE);
+                cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 2000 SET v = 2 WHERE pk = 1 AND ck = '1'"));
+                cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (2, '2', 2) USING TIMESTAMP 3001"));
+                cluster.get(1).flush(KEYSPACE);
+
+                cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl USING TIMESTAMP 2001 WHERE pk=2 AND ck='1'"));
+                cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl USING TIMESTAMP 3000 WHERE pk=1 AND ck='1'"));
+                cluster.get(2).flush(KEYSPACE);
+
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL));
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL));
+
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=2 AND ck='1'"), ConsistencyLevel.ALL,
+                           row(2, "2", 2)));
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v FROM %s.tbl WHERE pk=2 AND ck='1'"), ConsistencyLevel.ALL,
+                           row(2)));
+            }
         }
     }
 
@@ -181,6 +210,51 @@ public class SinglePartitionReadCommandTest extends TestBaseImpl
                        row((Integer) null));
             assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v2 FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL),
                        row(1));
+        }
+    }
+
+    @Test
+    public void testCompactAndNonCompactTableWithRowOnOneNodeAndRangeDeletionOnTheOther() throws Throwable
+    {
+        for (String options : new String[] {"WITH COMPACT STORAGE", ""})
+        {
+            try (Cluster cluster = init(builder().withNodes(2).start()))
+            {
+                cluster.schemaChange(
+                        withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v int, PRIMARY KEY (pk, ck)) " + options));
+                cluster.get(1).executeInternal(
+                        withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (1, '1', 1) USING TIMESTAMP 1000"));
+                cluster.get(1).executeInternal(
+                        withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (1, '2', 2) USING TIMESTAMP 1001"));
+                cluster.get(1).executeInternal(
+                        withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (2, '1', 1) USING TIMESTAMP 1001"));
+                cluster.get(1).flush(KEYSPACE);
+                cluster.get(1).executeInternal(
+                        withKeyspace("UPDATE %s.tbl USING TIMESTAMP 2000 SET v = 2 WHERE pk = 1 AND ck = '1'"));
+                cluster.get(1).executeInternal(
+                        withKeyspace("INSERT INTO %s.tbl (pk, ck, v) VALUES (2, '2', 2) USING TIMESTAMP 3001"));
+                cluster.get(1).flush(KEYSPACE);
+
+                cluster.get(2).executeInternal(
+                        withKeyspace("DELETE FROM %s.tbl USING TIMESTAMP 2001 WHERE pk=2 AND ck >= '1' AND ck < '2'"));
+                cluster.get(2).executeInternal(
+                        withKeyspace("DELETE FROM %s.tbl USING TIMESTAMP 3000 WHERE pk=1 AND ck >= '1'"));
+                cluster.get(2).flush(KEYSPACE);
+
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'"),
+                        ConsistencyLevel.ALL));
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v FROM %s.tbl WHERE pk=1 AND ck='1'"),
+                        ConsistencyLevel.ALL));
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1 AND ck='2'"),
+                        ConsistencyLevel.ALL, row(1, "2", 2)));
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v FROM %s.tbl WHERE pk=1 AND ck='2'"),
+                        ConsistencyLevel.ALL, row(2)));
+
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'"),
+                        ConsistencyLevel.ALL, row(2, "2", 2)));
+                assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v FROM %s.tbl WHERE pk=1 AND ck='1'"),
+                        ConsistencyLevel.ALL, row(2)));
+            }
         }
     }
 }
