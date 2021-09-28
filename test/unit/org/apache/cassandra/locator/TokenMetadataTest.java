@@ -33,6 +33,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
 
 import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -58,6 +59,11 @@ public class TokenMetadataTest
     public static void beforeClass() throws Throwable
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Before
+    public void before() throws Throwable
+    {
         tmd = StorageService.instance.getTokenMetadata();
         tmd.updateNormalToken(token(ONE), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(token(SIX), InetAddressAndPort.getByName("127.0.0.6"));
