@@ -153,4 +153,13 @@ public class StandaloneVerifierTest extends OfflineToolUtils
             assertCorrectEnvPostTest();
         });
     }
+
+    @Test
+    public void testTooManyArgs()
+    {
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, "another arg", "system_schema", "tables");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Too many arguments"));
+        assertEquals(1, tool.getExitCode());
+    }
 }

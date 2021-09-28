@@ -6,6 +6,7 @@ src/gen-java/
 src/resources/org/apache/cassandra/config/
 logs/
 data/
+!test/data
 conf/hotspot_compiler
 doc/cql3/CQL.html
 doc/build/

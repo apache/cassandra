@@ -1,0 +1,177 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.tools;
+
+import java.io.RandomAccessFile;
+
+import org.apache.commons.lang3.StringUtils;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
+
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.junit.Assert.assertEquals;
+
+/**
+ * Class that tests tables for StandaloneVerifier by updating using SchemaLoader
+ * Similar in vein to other SchemaLoader type tests, as well as {@link StandaloneUpgraderOnSStablesTest}
+ */
+public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
+{
+    @BeforeClass
+    public static void setup() throws Exception
+    {
+        System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing`
+        SchemaLoader.loadSchema();
+        StorageService.instance.initServer();
+    }
+
+    @AfterClass
+    public static void teardown() throws Exception
+    {
+        SchemaLoader.cleanupAndLeaveDirs();
+        System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+    }
+
+    @Test
+    public void testCorruptStatsFile() throws Exception
+    {
+        String keyspaceName = "StandaloneVerifierTestCorruptStatsKs";
+        String corruptStatsTable = "corruptStatsTable";
+        createAndPopulateTable(keyspaceName, corruptStatsTable, cfs -> {
+            SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+            try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.STATS), "rw"))
+            {
+                file.seek(0);
+                file.writeBytes(StringUtils.repeat('z', 2));
+            }
+
+        });
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptStatsTable);
+
+        assertEquals(0, tool.getExitCode());
+        Assertions.assertThat(tool.getStderr()).contains("Error Loading", corruptStatsTable);
+    }
+
+    @Test
+    public void testCorruptDataFile() throws Exception
+    {
+        String keyspaceName = "StandaloneVerifierTestCorruptDataKs";
+        String corruptDataTable = "corruptDataTable";
+
+        createAndPopulateTable(keyspaceName,corruptDataTable, cfs -> {
+            SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
+            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
+            long startPosition = row0Start < row1Start ? row0Start : row1Start;
+            long endPosition = row0Start < row1Start ? row1Start : row0Start;
+
+            try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))
+            {
+                file.seek(startPosition);
+                file.writeBytes(StringUtils.repeat('z', (int) 2));
+            }
+        });
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptDataTable);
+        assertEquals(1, tool.getExitCode());
+        Assertions.assertThat(tool.getStdout()).contains("Invalid SSTable", corruptDataTable);
+    }
+
+    @Test
+    public void testWorkingDataFile() throws Exception
+    {
+        String keyspaceName = "StandaloneVerifierTestWorkingDataKs";
+        String workingTable = "workingTable";
+
+        createAndPopulateTable(keyspaceName, workingTable, x -> {});
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable);
+        assertEquals(0, tool.getExitCode());
+        assertCorrectEnvPostTest();
+    }
+
+    /**
+     * Since we are testing a verifier, we'd like to corrupt files to verify code paths
+     * This function defiintion is used by {@link this#createAndPopulateTable}.
+     *
+     * CFS is the open ColumnFamilyStore for a given keyspace, table
+     */
+    private interface CorruptFunction {
+        public void apply(ColumnFamilyStore cfs) throws Exception;
+    }
+
+    /**
+     * This function sets up the keyspace, and table schema for a standardCFMD table.
+     * This will also populate the tableiName with a few rows.  After completion the
+     * server will be shutdown.
+     *
+     * @param keyspace name the table should be created in
+     * @param tableName new table name of the standard cfmd table
+     *
+     * @param corruptionFn function called to corrupt or change the contents on disk.  is pased the Cfs of the table name
+     *
+     * @throws Exception on error.
+     */
+    private void createAndPopulateTable(String keyspace, String tableName, CorruptFunction corruptionFn) throws Exception
+    {
+        SchemaLoader.createKeyspace(keyspace,
+                                    KeyspaceParams.simple(1),
+                                    standardCFMD(keyspace, tableName));
+
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace k = Keyspace.open(keyspace);
+        ColumnFamilyStore cfs = k.getColumnFamilyStore(tableName);
+
+        populateTable(cfs, 2);
+
+        corruptionFn.apply(cfs);
+    }
+
+    private void populateTable(ColumnFamilyStore cfs, int partitionsPerSSTable)
+    {
+        for (int i = 0; i < partitionsPerSSTable; i++)
+        {
+            UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
+                         .newRow("c1").add("val", "1")
+                         .newRow("c2").add("val", "2")
+                         .apply();
+        }
+
+        cfs.forceBlockingFlush();
+    }
+
+}
+
