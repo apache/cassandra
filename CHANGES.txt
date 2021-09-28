@@ -10,6 +10,7 @@
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)
 Merged from 3.0:
+ * Avoid useless SSTable reads during single partition queries (CASSANDRA-16944)
  * Debian init respects CASSANDRA_HEAPDUMP_DIR (CASSANDRA-13843)
  * Catch UnsatisfiedLinkError in WindowsTimer (CASSANDRA-16085)
  * Avoid removing batch when it's not created during view replication (CASSANDRA-16175)
