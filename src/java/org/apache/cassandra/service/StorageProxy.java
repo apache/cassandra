@@ -2886,7 +2886,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param keyspace Name of keyspace containing the PK you wish to deny access to
      * @param table Name of table containing the PK you wish to deny access to
      * @param partitionKeyAsString String representation of the PK you want to deny access to
-     * @return
+     * @return true if successfully added, false if failure
      */
     @Override
     public boolean denylistKey(String keyspace, String table, String partitionKeyAsString)
@@ -2900,5 +2900,23 @@ public class StorageProxy implements StorageProxyMBean
 
         final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
         return partitionDenylist.addKeyToDenylist(keyspace, table, bytes);
+    }
+
+    /**
+     * Attempts to remove the provided pk from the ks + table deny list
+     * @return true if found and removed, false if not
+     */
+    @Override
+    public boolean removeDenylistKey(String keyspace, String table, String partitionKeyAsString)
+    {
+        if (!Schema.instance.getKeyspaces().contains(keyspace))
+            return false;
+
+        final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        if (cfs == null)
+            return false;
+
+        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
+        return partitionDenylist.removeKeyFromDenylist(keyspace, table, bytes);
     }
 }

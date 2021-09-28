@@ -83,9 +83,14 @@ public class PartitionDenylistTest
     }
 
 
-    private static void denylist(final String ks, final String cf, final String key) throws RequestExecutionException
+    private static void denylist(final String ks, final String table, final String key) throws RequestExecutionException
     {
-        StorageProxy.instance.denylistKey(ks, cf, key);
+        StorageProxy.instance.denylistKey(ks, table, key);
+    }
+
+    private static boolean removeDenylist(final String ks, final String table, final String key) throws RequestExecutionException
+    {
+        return StorageProxy.instance.removeDenylistKey(ks, table, key);
     }
 
     @Test
@@ -202,6 +207,49 @@ public class PartitionDenylistTest
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
         process("SELECT * FROM " + ks_cql + ".foofoo", ConsistencyLevel.ONE);
+    }
+
+    @Test
+    public void testRemoveFromDenylist() throws InterruptedException
+    {
+        boolean denied = false;
+        try
+        {
+            process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+        }
+        catch (InvalidRequestException ire)
+        {
+            denied = true;
+        }
+        Assert.assertTrue(denied);
+
+        removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc");
+        forceReloadDenylist();
+        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+    }
+
+    /**
+     * Want to make sure we don't throw anything or explode when people try to remove a key that's not there
+     */
+    @Test
+    public void testRemoveMissingIsGraceful() throws InterruptedException
+    {
+        boolean denied = false;
+        try
+        {
+            process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+        }
+        catch (InvalidRequestException ire)
+        {
+            denied = true;
+        }
+        Assert.assertTrue(denied);
+
+        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+        // Returns true; the attempt to delete it succeeds, it just doesn't find it.
+        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+        forceReloadDenylist();
+        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
     }
 
     private static void forceReloadDenylist() throws InterruptedException

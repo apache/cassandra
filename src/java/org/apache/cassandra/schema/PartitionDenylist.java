@@ -212,7 +212,10 @@ public class PartitionDenylist
         return true;
     }
 
-    public boolean addKeyToDenylist(final String keyspace, final String cf, final ByteBuffer key)
+    /**
+     * We expect the caller to confirm that we are working with a valid keyspace and table
+     */
+    public boolean addKeyToDenylist(final String keyspace, final String table, final ByteBuffer key)
     {
         if (!isPermitted(keyspace))
             return false;
@@ -221,7 +224,7 @@ public class PartitionDenylist
         key.slice().get(keyBytes);
 
         final String insert = String.format("INSERT INTO system_distributed.partition_denylist (ks_name, cf_name, key) VALUES ('%s', '%s', 0x%s)",
-                                            keyspace, cf, Hex.bytesToHex(keyBytes));
+                                            keyspace, table, Hex.bytesToHex(keyBytes));
 
         try
         {
@@ -230,7 +233,33 @@ public class PartitionDenylist
         }
         catch (final RequestExecutionException e)
         {
-            logger.error("Failed to denylist key [{}] in {}/{}", Hex.bytesToHex(keyBytes), keyspace, cf, e);
+            logger.error("Failed to denylist key [{}] in {}/{}", Hex.bytesToHex(keyBytes), keyspace, table, e);
+        }
+        return false;
+    }
+
+    /**
+     * We expect the caller to confirm that we are working with a valid keyspace and table
+     */
+    public boolean removeKeyFromDenylist(final String keyspace, final String table, final ByteBuffer key)
+    {
+        final byte[] keyBytes = new byte[key.remaining()];
+        key.slice().get(keyBytes);
+
+        final String delete = String.format("DELETE FROM system_distributed.partition_denylist " +
+                                            "WHERE ks_name = '%s' " +
+                                            "AND cf_name = '%s' " +
+                                            "AND key = 0x%s",
+                                            keyspace, table, Hex.bytesToHex(keyBytes));
+
+        try
+        {
+            process(delete, DatabaseDescriptor.getDenylistConsistencyLevel());
+            return true;
+        }
+        catch (final RequestExecutionException e)
+        {
+            logger.error("Failed to remove key from denylist: [{}] in {}/{}", Hex.bytesToHex(keyBytes), keyspace, table, e);
         }
         return false;
     }
@@ -247,9 +276,9 @@ public class PartitionDenylist
                !SchemaConstants.AUTH_KEYSPACE_NAME.equals(keyspace);
     }
 
-    public boolean isKeyPermitted(final String keyspace, final String cf, final ByteBuffer key)
+    public boolean isKeyPermitted(final String keyspace, final String table, final ByteBuffer key)
     {
-        return isKeyPermitted(getTableId(keyspace, cf), key);
+        return isKeyPermitted(getTableId(keyspace, table), key);
     }
 
     public boolean isKeyPermitted(final TableId tid, final ByteBuffer key)
@@ -281,9 +310,9 @@ public class PartitionDenylist
     /**
      * @return number of denylisted keys in range
      */
-    public int getDeniedKeysInRange(final String keyspace, final String cf, final AbstractBounds<PartitionPosition> range)
+    public int getDeniedKeysInRange(final String keyspace, final String table, final AbstractBounds<PartitionPosition> range)
     {
-        return getDeniedKeysInRange(getTableId(keyspace, cf), range);
+        return getDeniedKeysInRange(getTableId(keyspace, table), range);
     }
 
     /**
@@ -402,9 +431,9 @@ public class PartitionDenylist
         }
     }
 
-    private TableId getTableId(final String keyspace, final String cf)
+    private TableId getTableId(final String keyspace, final String table)
     {
-        TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, cf);
+        TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
         return tmd == null ? null : tmd.id;
     }
 }
