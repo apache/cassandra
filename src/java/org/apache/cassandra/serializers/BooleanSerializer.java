@@ -20,12 +20,21 @@ package org.apache.cassandra.serializers;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class BooleanSerializer extends TypeSerializer<Boolean>
 {
-    private static final ByteBuffer TRUE = ByteBuffer.wrap(new byte[] {1});
-    private static final ByteBuffer FALSE = ByteBuffer.wrap(new byte[] {0});
+    // Note: if using read-only byte buffers, it's important that they are off-heap because on-heap read only
+    // byte buffers will return false when hasArray()  is called and we have code that incorrectly assumes
+    // !hasArray() == isDirect()
+    // Direct read-only BBs should work fine: isDirect returns true and MemoryUtil will grant access
+    // to their address.
+    // Read-only off-heap byte buffers are safer than writable on-heap buffers, but not as safe as read-only on-heap
+    // buffers since people can always write directly to their address and use them as source in a put() - which would
+    // increment the position. However, they at least protect against people calling put() directly on the buffer.
+    private static final ByteBuffer TRUE = BufferType.OFF_HEAP.withContent(new byte[] {1}).asReadOnlyBuffer();
+    private static final ByteBuffer FALSE = BufferType.OFF_HEAP.withContent(new byte[] {0}).asReadOnlyBuffer();
 
     public static final BooleanSerializer instance = new BooleanSerializer();
 

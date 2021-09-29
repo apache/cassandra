@@ -42,4 +42,20 @@ public enum BufferType
     {
         return buffer.isDirect() ? OFF_HEAP : ON_HEAP;
     }
+
+    /**
+     * Allocate a buffer of the current type, write the content to it and return it.
+     * The buffer is repositioned at the beginning, and it's ready for reading.
+     *
+     * @param content - the content to write
+     *
+     * @return a byte buffer with the specified content written in it
+     */
+    public ByteBuffer withContent(byte[] content)
+    {
+        ByteBuffer ret = allocate(content.length);
+        ret.put(content);
+        ret.rewind();
+        return ret;
+    }
 }
