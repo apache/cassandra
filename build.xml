@@ -518,7 +518,7 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-				
+
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
@@ -1901,4 +1901,5 @@
 
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
+  <import file="${basedir}/.build/build-owasp.xml"/>
 </project>
