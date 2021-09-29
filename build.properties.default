@@ -1,4 +1,5 @@
 # Maven2 Repository Locations (you can override these in "build.properties" to point to a local proxy, e.g. Nexus)
 artifact.remoteRepository.central:     https://repo1.maven.org/maven2
 artifact.remoteRepository.apache:      https://repo.maven.apache.org/maven2
+artifact.remoteRepository.apache-snapshot:      https://repository.apache.org/content/repositories/snapshots
 
