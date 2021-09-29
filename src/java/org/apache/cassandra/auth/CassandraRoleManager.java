@@ -103,15 +103,16 @@ public class CassandraRoleManager implements IRoleManager
     };
 
     // 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed.
-    private static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
+    @VisibleForTesting
+    public static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
     private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
 
     static int getGensaltLogRounds()
     {
          int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
-         if (rounds < 4 || rounds > 31)
+         if (rounds < 4 || rounds > 30)
          throw new ConfigurationException(String.format("Bad value for system property -D%s." +
-                                                        "Please use a value between 4 and 31 inclusively",
+                                                        "Please use a value between 4 and 30 inclusively",
                                                         GENSALT_LOG2_ROUNDS_PROPERTY));
          return rounds;
     }
