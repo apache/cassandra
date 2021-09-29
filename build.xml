@@ -382,7 +382,7 @@
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.0">
             <exclusion groupId="org.hibernate" artifactId="hibernate-validator" />
           </dependency>
-          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
+          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.4" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.6">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
           </dependency>
