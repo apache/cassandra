@@ -71,6 +71,7 @@ public abstract class OfflineToolUtils
     "ObjectCleanerThread",
     "process reaper",  // spawned by the jvm when executing external processes
                        // and may still be active when we check
+    "Attach Listener", // spawned in intellij IDEA
     };
 
     public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames)
