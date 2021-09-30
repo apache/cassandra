@@ -154,4 +154,38 @@ public class CompactionTaskTest
             Collections.rotate(toCompact, 1);
         }
     }
+
+    @Test
+    public void testOfflineCompaction()
+    {
+        cfs.getCompactionStrategyManager().disable();
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
+        cfs.forceBlockingFlush();
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
+        cfs.forceBlockingFlush();
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
+        cfs.forceBlockingFlush();
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
+        cfs.forceBlockingFlush();
+
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        Assert.assertEquals(4, sstables.size());
+
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables))
+        {
+            Assert.assertEquals(4, txn.tracker.getView().liveSSTables().size());
+            CompactionTask task = new CompactionTask(cfs, txn, 1000);
+            task.execute(null);
+
+            // Check that new SSTable was not released
+            Assert.assertEquals(1, txn.tracker.getView().liveSSTables().size());
+            SSTableReader newSSTable = txn.tracker.getView().liveSSTables().iterator().next();
+            Assert.assertNotNull(newSSTable.tryRef());
+        }
+        finally
+        {
+            // SSTables were compacted offline; CFS didn't notice that, so we have to remove them manually
+            cfs.getTracker().removeUnsafe(sstables);
+        }
+    }
 }
