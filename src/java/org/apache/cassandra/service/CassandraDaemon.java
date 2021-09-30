@@ -372,8 +372,6 @@ public class CassandraDaemon
             throw new RuntimeException(e);
         }
 
-        SystemKeyspace.finishStartup();
-
         // Clean up system.size_estimates entries left lying around from missed keyspace drops (CASSANDRA-14905)
         StorageService.instance.cleanupSizeEstimates();
 
@@ -441,7 +439,7 @@ public class CassandraDaemon
             logger.debug("Completed submission of build tasks for any materialized views defined at startup");
         };
 
-        ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+        ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
 
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();

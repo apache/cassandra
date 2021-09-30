@@ -216,7 +216,6 @@ public abstract class CompactionStress implements Runnable
         public void run()
         {
             //Setup
-            SystemKeyspace.finishStartup(); //needed for early-open
             CompactionManager.instance.setMaximumCompactorThreads(threads);
             CompactionManager.instance.setCoreCompactorThreads(threads);
             CompactionManager.instance.setRate(0);

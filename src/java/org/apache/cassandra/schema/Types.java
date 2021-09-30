@@ -109,6 +109,11 @@ public final class Types implements Iterable<UserType>
         return Iterables.filter(types.values(), t -> t.referencesUserType(name) && !t.name.equals(name));
     }
 
+    public boolean isEmpty()
+    {
+        return types.isEmpty();
+    }
+
     /**
      * Get the type with the specified name
      *
