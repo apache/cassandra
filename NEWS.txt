@@ -82,11 +82,11 @@ New features
       mechanism (see below) and with some minor modifications to applications using LWTs.
       The new implementation may be enabled at any time by setting paxos_variant: v2, and disabled by setting to v1,
       and this alone will reduce the number of WAN round-trips by between one and two for reads, and one for writes.
-    - A new Paxos Repair mechanism has been introduced as part of Repair, that permits further reducing the number of WAN 
-      round-trips for write LWTs. This process may be manually executed for v1 and is run automatically alongside normal 
-      repairs for v2. Once users are running regular repairs that include paxos repairs they are encouraged to set 
-      paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their 
-      applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN 
+    - A new Paxos Repair mechanism has been introduced as part of Repair, that permits further reducing the number of WAN
+      round-trips for write LWTs. This process may be manually executed for v1 and is run automatically alongside normal
+      repairs for v2. Once users are running regular repairs that include paxos repairs they are encouraged to set
+      paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their
+      applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN
       round-trip. See upgrade notes below.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
@@ -157,6 +157,11 @@ Upgrading
           restore default commit consistency to ensure correctness.
         - Applications may now safely be updated to use ANY commit consistency level (or LOCAL_QUORUM, as preferred).
           Uncontended writes should now take 2 round-trips, and uncontended reads should typically take one round-trip.
+    - A required [f|force] flag has been added to both "nodetool verify" and the standalone "sstableverify" tools.
+      These tools have some subtleties and should not be used unless the operator is familiar with what they do
+      and do not do, as well as the edge cases associated with their use.
+      NOTE: ANY SCRIPTS THAT RELY ON sstableverify OR nodetool verify WILL STOP WORKING UNTIL MODIFIED.
+      Please see CASSANDRA-17017 for details: https://issues.apache.org/jira/browse/CASSANDRA-17017
 
 Deprecation
 -----------
