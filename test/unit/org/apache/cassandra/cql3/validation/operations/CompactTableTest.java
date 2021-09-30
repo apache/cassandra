@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaChangeListener;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -71,7 +72,8 @@ public class CompactTableTest extends CQLTester
         // Verify that schema change listeners are told statements are affected with DROP COMPACT STORAGE.
         SchemaChangeListener listener = new SchemaChangeListener()
         {
-            public void onAlterTable(String keyspace, String table, boolean affectsStatements)
+            @Override
+            public void onAlterTable(TableMetadata before, TableMetadata after, boolean affectsStatements)
             {
                 assertTrue(affectsStatements);
             }
