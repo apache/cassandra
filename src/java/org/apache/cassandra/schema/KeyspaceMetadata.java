@@ -119,6 +119,11 @@ public final class KeyspaceMetadata implements SchemaElement
         return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
+    public KeyspaceMetadata empty()
+    {
+        return new KeyspaceMetadata(this.name, this.kind, this.params, Tables.none(), Views.none(), Types.none(), Functions.none());
+    }
+
     public boolean isVirtual()
     {
         return kind == Kind.VIRTUAL;
@@ -390,6 +395,20 @@ public final class KeyspaceMetadata implements SchemaElement
                 return Optional.empty();
 
             return Optional.of(new KeyspaceDiff(before, after, tables, views, types, udfs, udas));
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeyspaceDiff{" +
+                   "before=" + before +
+                   ", after=" + after +
+                   ", tables=" + tables +
+                   ", views=" + views +
+                   ", types=" + types +
+                   ", udfs=" + udfs +
+                   ", udas=" + udas +
+                   '}';
         }
     }
 }

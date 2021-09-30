@@ -123,7 +123,7 @@ public class LeaveAndBootstrapTest
         PendingRangeCalculatorService.instance.blockUntilFinished();
 
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
+        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd);
             for (Token token : keyTokens)

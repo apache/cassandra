@@ -42,12 +42,12 @@ public class SchemaCQLHelper
     /**
      * Generates the DDL statement for a {@code schema.cql} snapshot file.
      */
-    public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, Types types)
+    public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, KeyspaceMetadata keyspaceMetadata)
     {
         // Types come first, as table can't be created without them
-        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, types, true);
+        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, keyspaceMetadata.types, true);
 
-        Stream<String> tableMatadata = Stream.of(SchemaCQLHelper.getTableMetadataAsCQL(metadata));
+        Stream<String> tableMatadata = Stream.of(SchemaCQLHelper.getTableMetadataAsCQL(metadata, keyspaceMetadata));
 
         Stream<String> indexes = SchemaCQLHelper.getIndexesAsCQL(metadata, true);
         return Stream.of(udts, tableMatadata, indexes).flatMap(Function.identity());
@@ -60,11 +60,10 @@ public class SchemaCQLHelper
      * that will not contain everything needed for user types.
      */
     @VisibleForTesting
-    public static String getTableMetadataAsCQL(TableMetadata metadata)
+    public static String getTableMetadataAsCQL(TableMetadata metadata, KeyspaceMetadata keyspaceMetadata)
     {
         if (metadata.isView())
         {
-            KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
             ViewMetadata viewMetadata = keyspaceMetadata.views.get(metadata.name).orElse(null);
             assert viewMetadata != null;
             /*

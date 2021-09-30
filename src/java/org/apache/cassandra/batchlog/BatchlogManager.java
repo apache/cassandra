@@ -112,7 +112,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
 
         batchlogTasks.scheduleWithFixedDelay(this::replayFailedBatches,
-                                             StorageService.RING_DELAY,
+                                             StorageService.RING_DELAY_MILLIS,
                                              REPLAY_INTERVAL,
                                              MILLISECONDS);
     }

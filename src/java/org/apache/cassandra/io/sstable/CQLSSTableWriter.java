@@ -29,6 +29,9 @@ import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
@@ -42,7 +45,6 @@ import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -101,6 +103,7 @@ public class CQLSSTableWriter implements Closeable
 
     static
     {
+        System.setProperty("cassandra.schema.force_load_local_keyspaces", "true");
         DatabaseDescriptor.clientInitialization(false);
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)
@@ -514,24 +517,19 @@ public class CQLSSTableWriter implements Closeable
             if (insertStatement == null)
                 throw new IllegalStateException("No insert statement specified, you should provide an insert statement through using()");
 
+            Preconditions.checkState(Sets.difference(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES, Schema.instance.getKeyspaces()).isEmpty(),
+                                     "Local keyspaces were not loaded. If this is running as a client, please make sure to add %s=true system property.", Schema.FORCE_LOAD_LOCAL_KEYSPACES_PROP);
             synchronized (CQLSSTableWriter.class)
             {
-                if (Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME) == null)
-                    Schema.instance.load(Schema.getSystemKeyspaceMetadata());
-                if (Schema.instance.getKeyspaceMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME) == null)
-                    Schema.instance.load(SystemKeyspace.metadata());
 
                 String keyspaceName = schemaStatement.keyspace();
 
-                if (Schema.instance.getKeyspaceMetadata(keyspaceName) == null)
-                {
-                    Schema.instance.load(KeyspaceMetadata.create(keyspaceName,
-                                                                 KeyspaceParams.simple(1),
-                                                                 Tables.none(),
-                                                                 Views.none(),
-                                                                 Types.none(),
-                                                                 Functions.none()));
-                }
+                Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspaceName,
+                                                                                                           KeyspaceParams.simple(1),
+                                                                                                           Tables.none(),
+                                                                                                           Views.none(),
+                                                                                                           Types.none(),
+                                                                                                           Functions.none()), true));
 
                 KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
 
@@ -539,8 +537,9 @@ public class CQLSSTableWriter implements Closeable
                 if (tableMetadata == null)
                 {
                     Types types = createTypes(keyspaceName);
+                    Schema.instance.transform(SchemaTransformations.addTypes(types, true));
                     tableMetadata = createTable(types);
-                    Schema.instance.load(ksm.withSwapped(ksm.tables.with(tableMetadata)).withSwapped(types));
+                    Schema.instance.transform(SchemaTransformations.addTable(tableMetadata, true));
                 }
 
                 UpdateStatement preparedInsert = prepareInsert();

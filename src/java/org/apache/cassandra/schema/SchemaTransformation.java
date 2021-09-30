@@ -17,17 +17,51 @@
  */
 package org.apache.cassandra.schema;
 
-import java.net.UnknownHostException;
+import java.util.Optional;
 
 public interface SchemaTransformation
 {
     /**
      * Apply a statement transformation to a schema snapshot.
-     *
-     * Implementing methods should be side-effect free.
+     * <p>
+     * Implementing methods should be side-effect free (outside of throwing exceptions if the transformation cannot
+     * be successfully applied to the provided schema).
      *
      * @param schema Keyspaces to base the transformation on
      * @return Keyspaces transformed by the statement
      */
-    Keyspaces apply(Keyspaces schema) throws UnknownHostException;
+    Keyspaces apply(Keyspaces schema);
+
+    /**
+     * If the transformation should be applied with a certain timestamp, this method should be overriden. This is used
+     * by {@link SchemaTransformations#updateSystemKeyspace(KeyspaceMetadata, long)} when we need to set the fixed
+     * timestamp in order to preserve user settings.
+     */
+    default Optional<Long> fixedTimestampMicros()
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * The result of applying (on this node) a given schema transformation.
+     */
+    class SchemaTransformationResult
+    {
+        public final DistributedSchema before;
+        public final DistributedSchema after;
+        public final Keyspaces.KeyspacesDiff diff;
+
+        public SchemaTransformationResult(DistributedSchema before, DistributedSchema after, Keyspaces.KeyspacesDiff diff)
+        {
+            this.before = before;
+            this.after = after;
+            this.diff = diff;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("SchemaTransformationResult{%s --> %s, diff=%s}", before.getVersion(), after.getVersion(), diff);
+        }
+    }
 }

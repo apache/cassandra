@@ -33,7 +33,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.quicktheories.core.Gen;

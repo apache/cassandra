@@ -57,7 +57,7 @@ public class StandaloneUpgrader
         try
         {
             // load keyspace descriptions.
-            Schema.instance.loadFromDisk(false);
+            Schema.instance.loadFromDisk();
 
             if (Schema.instance.getTableMetadataRef(options.keyspace, options.cf) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",

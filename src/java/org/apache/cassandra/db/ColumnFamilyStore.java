@@ -575,10 +575,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
     public void invalidate()
     {
-        invalidate(true);
+        invalidate(true, true);
     }
 
     public void invalidate(boolean expectMBean)
+    {
+        invalidate(expectMBean, true);
+    }
+
+    public void invalidate(boolean expectMBean, boolean dropData)
     {
         // disable and cancel in-progress compactions before invalidating
         valid = false;
@@ -600,9 +605,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         compactionStrategyManager.shutdown();
         SystemKeyspace.removeTruncationRecord(metadata.id);
 
-        data.dropSSTables();
-        LifecycleTransaction.waitForDeletions();
-        indexManager.dropAllIndexes();
+        if (dropData)
+        {
+            data.dropSSTables();
+            LifecycleTransaction.waitForDeletions();
+        }
+        indexManager.dropAllIndexes(dropData);
 
         invalidateCaches();
     }
@@ -2021,7 +2029,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try (PrintStream out = new PrintStream(new FileOutputStreamPlus(schemaFile)))
             {
                 SchemaCQLHelper.reCreateStatementsForSchemaCql(metadata(),
-                                                               keyspace.getMetadata().types)
+                                                               keyspace.getMetadata())
                                .forEach(out::println);
             }
         }

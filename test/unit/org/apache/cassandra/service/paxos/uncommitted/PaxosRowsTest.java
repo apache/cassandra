@@ -94,7 +94,6 @@ public class PaxosRowsTest
     public static void setUpClass() throws Exception
     {
         SchemaLoader.prepareServer();
-        SystemKeyspace.finishStartup();
 
         ks = "coordinatorsessiontest";
         metadata = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ks).build();

@@ -175,7 +175,7 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static boolean enabled(ClientState state)
     {
-        return CONFIG_PROVIDER.getOrCreate(state).getEnabled() && DatabaseDescriptor.isDaemonInitialized();
+        return DatabaseDescriptor.isDaemonInitialized() && CONFIG_PROVIDER.getOrCreate(state).getEnabled();
     }
 
     @Override

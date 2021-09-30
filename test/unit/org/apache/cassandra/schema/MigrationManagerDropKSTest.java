@@ -54,6 +54,7 @@ public class MigrationManagerDropKSTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE2));
     }
+
     @Test
     public void dropKS() throws ConfigurationException
     {
@@ -73,7 +74,7 @@ public class MigrationManagerDropKSTest
         cfs.forceBlockingFlush();
         assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
 
-        MigrationManager.announceKeyspaceDrop(ks.name);
+        SchemaTestUtil.announceKeyspaceDrop(ks.name);
 
         assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
 

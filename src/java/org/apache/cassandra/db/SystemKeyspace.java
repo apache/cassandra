@@ -491,11 +491,6 @@ public final class SystemKeyspace
         DECOMMISSIONED
     }
 
-    public static void finishStartup()
-    {
-        Schema.instance.saveSystemKeyspace();
-    }
-
     public static void persistLocalMetadata()
     {
         String req = "INSERT INTO system.%s (" +
@@ -1172,6 +1167,20 @@ public final class SystemKeyspace
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), hostId);
         return hostId;
+    }
+
+    /**
+     * Gets the schema version or null if missing
+     */
+    public static UUID getSchemaVersion()
+    {
+        String req = "SELECT schema_version FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
+
+        if (!result.isEmpty() && result.one().has("schema_version"))
+            return result.one().getUUID("schema_version");
+
+        return null;
     }
 
     /**

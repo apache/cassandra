@@ -41,7 +41,8 @@ public class CQLSSTableWriterClientTest
     public void setUp()
     {
         this.testDirectory = new File(Files.createTempDir());
-        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setDefaultFailureDetector();
+        DatabaseDescriptor.clientInitialization();
     }
 
     @Test

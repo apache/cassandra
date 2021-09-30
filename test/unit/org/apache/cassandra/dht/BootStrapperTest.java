@@ -74,7 +74,7 @@ public class BootStrapperTest
     public void testSourceTargetComputation() throws UnknownHostException
     {
         final int[] clusterSizes = new int[] { 1, 3, 5, 10, 100};
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
+        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
         {
             int replicationFactor = Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor().allReplicas;
             for (int clusterSize : clusterSizes)

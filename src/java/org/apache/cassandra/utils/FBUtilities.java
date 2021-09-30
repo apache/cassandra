@@ -512,7 +512,7 @@ public class FBUtilities
         }
         catch (ExecutionException ee)
         {
-            throw new RuntimeException(ee);
+            throw Throwables.cleaned(ee);
         }
         catch (InterruptedException ie)
         {
