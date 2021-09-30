@@ -2178,4 +2178,5 @@
 
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
+  <import file="${basedir}/.build/build-owasp.xml"/>
 </project>
