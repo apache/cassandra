@@ -19,3 +19,4 @@ parse
 pycodestyle
 psutil
 thrift==0.9.3
+setuptools==57.4.0
