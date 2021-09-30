@@ -28,6 +28,8 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.RegisterMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -73,6 +75,7 @@ public class ClientNotificiationsTest extends CQLTester
 
             InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
             InetAddressAndPort nativeAddress = FBUtilities.getBroadcastNativeAddressAndPort();
+            KeyspaceMetadata ks = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1));
 
             // Necessary or else the NEW_NODE notification is deferred (CASSANDRA-11038)
             // (note: this works because the notifications are for the local address)
@@ -83,9 +86,9 @@ public class ClientNotificiationsTest extends CQLTester
             notifier.onJoinCluster(broadcastAddress);
             notifier.onMove(broadcastAddress);
             notifier.onLeaveCluster(broadcastAddress);
-            notifier.onCreateKeyspace("ks");
-            notifier.onAlterKeyspace("ks");
-            notifier.onDropKeyspace("ks");
+            notifier.onCreateKeyspace(ks);
+            notifier.onAlterKeyspace(ks, ks);
+            notifier.onDropKeyspace(ks);
 
             handler.assertNextEvent(Event.StatusChange.nodeUp(nativeAddress));
             handler.assertNextEvent(Event.StatusChange.nodeDown(nativeAddress));
