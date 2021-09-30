@@ -32,6 +32,9 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Correct the internode message timestamp if sending node has wrapped (CASSANDRA-16997)
+ * Avoid race causing us to return null in RangesAtEndpoint (CASSANDRA-16965)
+ * Avoid rewriting all sstables during cleanup when transient replication is enabled (CASSANDRA-16966)
  * Prevent CQLSH from failure on Python 3.10 (CASSANDRA-16987)
  * Avoid trying to acquire 0 permits from the rate limiter when taking snapshot (CASSANDRA-16872)
  * Remove all the state pollution between tests in SSTableReaderTest (CASSANDRA-16888)

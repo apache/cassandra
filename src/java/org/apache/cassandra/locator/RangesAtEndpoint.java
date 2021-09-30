@@ -131,7 +131,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     public RangesAtEndpoint onlyFull()
     {
         RangesAtEndpoint result = onlyFull;
-        if (onlyFull == null)
+        if (result == null)
             onlyFull = result = filter(Replica::isFull);
         return result;
     }
@@ -139,7 +139,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     public RangesAtEndpoint onlyTransient()
     {
         RangesAtEndpoint result = onlyTransient;
-        if (onlyTransient == null)
+        if (result == null)
             onlyTransient = result = filter(Replica::isTransient);
         return result;
     }
