@@ -83,7 +83,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 
         createAndPopulateTable(keyspaceName, workingTable, x -> {});
 
-        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable, "-c");
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable, "--force", "-c");
         assertEquals(0, tool.getExitCode());
         tool.assertOnCleanExit();
     }
@@ -103,7 +103,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
             }
         });
 
-        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspace, tableName, "-c");
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspace, tableName, "-f", "-c");
 
         assertEquals(1, tool.getExitCode());
         Assertions.assertThat(tool.getStdout()).contains("is not the latest version, run upgradesstables");
@@ -117,7 +117,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 
         createAndPopulateTable(keyspaceName, workingTable, x -> {});
 
-        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable, "--force");
         assertEquals(0, tool.getExitCode());
         tool.assertOnCleanExit();
     }
@@ -136,7 +136,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
             }
         });
 
-        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptStatsTable);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptStatsTable, "-f");
 
         assertEquals(1, tool.getExitCode());
         Assertions.assertThat(tool.getStderr()).contains("Error Loading", corruptStatsTable);
@@ -161,7 +161,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
             }
         });
 
-        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptDataTable);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptDataTable, "--force");
         assertEquals(1, tool.getExitCode());
         Assertions.assertThat(tool.getStdout()).contains("Invalid SSTable", corruptDataTable);
     }

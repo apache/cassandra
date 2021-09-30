@@ -62,11 +62,18 @@ public class StandaloneVerifier
     private static final String CHECK_VERSION = "check_version";
     private static final String MUTATE_REPAIR_STATUS = "mutate_repair_status";
     private static final String QUICK = "quick";
+    private static final String FORCE = "force";
     private static final String TOKEN_RANGE = "token_range";
 
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
+        if (!options.force)
+        {
+            System.err.println("verify will not run without -f or --force. See CASSANDRA-17017 for details.");
+            Options.printUsage(Options.getCmdLineOptions());
+            System.exit(1);
+        }
         initDatabaseDescriptorForTool();
 
         System.out.println("sstableverify using the following options: " + options);
@@ -165,6 +172,7 @@ public class StandaloneVerifier
         public boolean checkVersion;
         public boolean mutateRepairStatus;
         public boolean quick;
+        public boolean force;
         public Collection<Range<Token>> tokens;
 
         private Options(String keyspaceName, String cfName)
@@ -190,8 +198,8 @@ public class StandaloneVerifier
                 String[] args = cmd.getArgs();
                 if (args.length != 2)
                 {
-                    String msg = args.length < 2 ? "Missing arguments" : "Too many arguments";
-                    System.err.println(msg);
+                    String prefix = args.length < 2 ? "Missing" : "Too many";
+                    System.err.println(prefix + " arguments");
                     printUsage(options);
                     System.exit(1);
                 }
@@ -207,6 +215,7 @@ public class StandaloneVerifier
                 opts.checkVersion = cmd.hasOption(CHECK_VERSION);
                 opts.mutateRepairStatus = cmd.hasOption(MUTATE_REPAIR_STATUS);
                 opts.quick = cmd.hasOption(QUICK);
+                opts.force = cmd.hasOption(FORCE);
 
                 if (cmd.hasOption(TOKEN_RANGE))
                 {
@@ -260,16 +269,23 @@ public class StandaloneVerifier
             options.addOption("c",  CHECK_VERSION,         "make sure sstables are the latest version");
             options.addOption("r",  MUTATE_REPAIR_STATUS,  "don't mutate repair status");
             options.addOption("q",  QUICK,                 "do a quick check, don't read all data");
+            options.addOption("f",  FORCE,                 "force verify - see CASSANDRA-17017");
             options.addOptionList("t", TOKEN_RANGE, "range", "long token range of the format left,right. This may be provided multiple times to define multiple different ranges");
             return options;
         }
 
         public static void printUsage(CmdLineOptions options)
         {
-            String usage = String.format("%s [options] <keyspace> <column_family>", TOOL_NAME);
+            String usage = String.format("%s [options] <keyspace> <column_family> force", TOOL_NAME);
             StringBuilder header = new StringBuilder();
             header.append("--\n");
             header.append("Verify the sstable for the provided table." );
+            header.append("\n--\n");
+            header.append("NOTE: There are significant risks associated with using this tool; it likely doesn't do what " +
+                          "you expect and there are known edge cases. You must provide a -f or --force argument in " +
+                          "order to allow usage of the tool -> see CASSANDRA-9947 and CASSANDRA-17017 for known risks.\n");
+            header.append("https://issues.apache.org/jira/browse/CASSANDRA-9947\n");
+            header.append("https://issues.apache.org/jira/browse/CASSANDRA-17017");
             header.append("\n--\n");
             header.append("Options are:");
             new HelpFormatter().printHelp(usage, header.toString(), options, "");
