@@ -19,7 +19,6 @@ package org.apache.cassandra.schema;
 
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -32,7 +31,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -67,7 +65,7 @@ public final class SchemaManager implements SchemaProvider
 
     private volatile UUID version;
 
-    private final List<SchemaChangeListener> changeListeners = new CopyOnWriteArrayList<>();
+    private final SchemaChangeNotifier schemaChangeNotifier = new SchemaChangeNotifier();
 
     /**
      * Initialize empty schema object and load the hardcoded system tables
@@ -175,13 +173,13 @@ public final class SchemaManager implements SchemaProvider
 
     public void registerListener(SchemaChangeListener listener)
     {
-        changeListeners.add(listener);
+        schemaChangeNotifier.registerListener(listener);
     }
 
     @SuppressWarnings("unused")
     public void unregisterListener(SchemaChangeListener listener)
     {
-        changeListeners.remove(listener);
+        schemaChangeNotifier.unregisterListener(listener);
     }
 
     /**
@@ -697,28 +695,7 @@ public final class SchemaManager implements SchemaProvider
         // deal with all added, and altered views
         Keyspace.open(delta.after.name).viewManager.reload(true);
 
-        // notify on everything dropped
-        delta.udas.dropped.forEach(uda -> notifyDropAggregate((UDAggregate) uda));
-        delta.udfs.dropped.forEach(udf -> notifyDropFunction((UDFunction) udf));
-        delta.views.dropped.forEach(this::notifyDropView);
-        delta.tables.dropped.forEach(this::notifyDropTable);
-        delta.types.dropped.forEach(this::notifyDropType);
-
-        // notify on everything created
-        delta.types.created.forEach(this::notifyCreateType);
-        delta.tables.created.forEach(this::notifyCreateTable);
-        delta.views.created.forEach(this::notifyCreateView);
-        delta.udfs.created.forEach(udf -> notifyCreateFunction((UDFunction) udf));
-        delta.udas.created.forEach(uda -> notifyCreateAggregate((UDAggregate) uda));
-
-        // notify on everything altered
-        if (!delta.before.params.equals(delta.after.params))
-            notifyAlterKeyspace(delta.before, delta.after);
-        delta.types.altered.forEach(diff -> notifyAlterType(diff.before, diff.after));
-        delta.tables.altered.forEach(diff -> notifyAlterTable(diff.before, diff.after));
-        delta.views.altered.forEach(diff -> notifyAlterView(diff.before, diff.after));
-        delta.udfs.altered.forEach(diff -> notifyAlterFunction(diff.before, diff.after));
-        delta.udas.altered.forEach(diff -> notifyAlterAggregate(diff.before, diff.after));
+        schemaChangeNotifier.notifyKeyspaceAltered(delta);
         SchemaDiagnostics.keyspaceAltered(this, delta);
     }
 
@@ -728,12 +705,7 @@ public final class SchemaManager implements SchemaProvider
         load(keyspace);
         Keyspace.open(keyspace.name);
 
-        notifyCreateKeyspace(keyspace);
-        keyspace.types.forEach(this::notifyCreateType);
-        keyspace.tables.forEach(this::notifyCreateTable);
-        keyspace.views.forEach(this::notifyCreateView);
-        keyspace.functions.udfs().forEach(this::notifyCreateFunction);
-        keyspace.functions.udas().forEach(this::notifyCreateAggregate);
+        schemaChangeNotifier.notifyKeyspaceCreated(keyspace);
         SchemaDiagnostics.keyspaceCreated(this, keyspace);
     }
 
@@ -748,12 +720,7 @@ public final class SchemaManager implements SchemaProvider
         unload(keyspace);
         Keyspace.writeOrder.awaitNewBarrier();
 
-        keyspace.functions.udas().forEach(this::notifyDropAggregate);
-        keyspace.functions.udfs().forEach(this::notifyDropFunction);
-        keyspace.views.forEach(this::notifyDropView);
-        keyspace.tables.forEach(this::notifyDropTable);
-        keyspace.types.forEach(this::notifyDropType);
-        notifyDropKeyspace(keyspace);
+        schemaChangeNotifier.notifyKeyspaceDropped(keyspace);
         SchemaDiagnostics.keyspaceDroped(this, keyspace);
     }
 
@@ -801,99 +768,6 @@ public final class SchemaManager implements SchemaProvider
     {
         Keyspace.open(updated.keyspace()).getColumnFamilyStore(updated.name()).reload();
     }
-
-    private void notifyCreateKeyspace(KeyspaceMetadata ksm)
-    {
-        changeListeners.forEach(l -> l.onCreateKeyspace(ksm.name));
-    }
-
-    private void notifyCreateTable(TableMetadata metadata)
-    {
-        changeListeners.forEach(l -> l.onCreateTable(metadata.keyspace, metadata.name));
-    }
-
-    private void notifyCreateView(ViewMetadata view)
-    {
-        changeListeners.forEach(l -> l.onCreateView(view.keyspace(), view.name()));
-    }
-
-    private void notifyCreateType(UserType ut)
-    {
-        changeListeners.forEach(l -> l.onCreateType(ut.keyspace, ut.getNameAsString()));
-    }
-
-    private void notifyCreateFunction(UDFunction udf)
-    {
-        changeListeners.forEach(l -> l.onCreateFunction(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-    private void notifyCreateAggregate(UDAggregate udf)
-    {
-        changeListeners.forEach(l -> l.onCreateAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-    private void notifyAlterKeyspace(KeyspaceMetadata before, KeyspaceMetadata after)
-    {
-        changeListeners.forEach(l -> l.onAlterKeyspace(after.name));
-    }
-
-    private void notifyAlterTable(TableMetadata before, TableMetadata after)
-    {
-        boolean changeAffectedPreparedStatements = before.changeAffectsPreparedStatements(after);
-        changeListeners.forEach(l -> l.onAlterTable(after.keyspace, after.name, changeAffectedPreparedStatements));
-    }
-
-    private void notifyAlterView(ViewMetadata before, ViewMetadata after)
-    {
-        boolean changeAffectedPreparedStatements = before.metadata.changeAffectsPreparedStatements(after.metadata);
-        changeListeners.forEach(l ->l.onAlterView(after.keyspace(), after.name(), changeAffectedPreparedStatements));
-    }
-
-    private void notifyAlterType(UserType before, UserType after)
-    {
-        changeListeners.forEach(l -> l.onAlterType(after.keyspace, after.getNameAsString()));
-    }
-
-    private void notifyAlterFunction(UDFunction before, UDFunction after)
-    {
-        changeListeners.forEach(l -> l.onAlterFunction(after.name().keyspace, after.name().name, after.argTypes()));
-    }
-
-    private void notifyAlterAggregate(UDAggregate before, UDAggregate after)
-    {
-        changeListeners.forEach(l -> l.onAlterAggregate(after.name().keyspace, after.name().name, after.argTypes()));
-    }
-
-    private void notifyDropKeyspace(KeyspaceMetadata ksm)
-    {
-        changeListeners.forEach(l -> l.onDropKeyspace(ksm.name));
-    }
-
-    private void notifyDropTable(TableMetadata metadata)
-    {
-        changeListeners.forEach(l -> l.onDropTable(metadata.keyspace, metadata.name));
-    }
-
-    private void notifyDropView(ViewMetadata view)
-    {
-        changeListeners.forEach(l -> l.onDropView(view.keyspace(), view.name()));
-    }
-
-    private void notifyDropType(UserType ut)
-    {
-        changeListeners.forEach(l -> l.onDropType(ut.keyspace, ut.getNameAsString()));
-    }
-
-    private void notifyDropFunction(UDFunction udf)
-    {
-        changeListeners.forEach(l -> l.onDropFunction(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-    private void notifyDropAggregate(UDAggregate udf)
-    {
-        changeListeners.forEach(l -> l.onDropAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
 
     /**
      * Converts the given schema version to a string. Returns {@code unknown}, if {@code version} is {@code null}
