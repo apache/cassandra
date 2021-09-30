@@ -10,6 +10,7 @@
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)
 Merged from 3.0:
+ * Do not release new SSTables in offline transactions (CASSANDRA-16975)
  * ArrayIndexOutOfBoundsException in FunctionResource#fromName (CASSANDRA-16977, CASSANDRA-16995)
  * CVE-2015-0886 Security vulnerability in jbcrypt is addressed (CASSANDRA-9384)
  * Avoid useless SSTable reads during single partition queries (CASSANDRA-16944)
