@@ -561,7 +561,7 @@ public class BatchStatement implements CQLStatement
             short[] partitionKeyBindIndexes = (haveMultipleCFs || batchStatement.statements.isEmpty())? null
                                                               : boundNames.getPartitionKeyBindIndexes(batchStatement.statements.get(0).cfm);
 
-            return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes);
+            return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes, null);
         }
     }
 

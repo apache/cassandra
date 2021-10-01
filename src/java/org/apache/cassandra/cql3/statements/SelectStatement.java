@@ -1008,7 +1008,12 @@ public class SelectStatement implements CQLStatement
                                                        prepareLimit(boundNames, limit, keyspace(), limitReceiver()),
                                                        prepareLimit(boundNames, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
 
-            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
+            return prepare(stmt, boundNames, cfm);
+        }
+
+        protected ParsedStatement.Prepared prepare(SelectStatement stmt, VariableSpecifications boundNames, CFMetaData cfm)
+        {
+            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm), cfm.ksName);
         }
 
         /**
