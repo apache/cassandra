@@ -18,4 +18,3 @@ nose-test-select
 parse
 pycodestyle
 psutil
-thrift==0.9.3
