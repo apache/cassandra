@@ -15,7 +15,9 @@
   limitations under the License.
 -->
 <project basedir="." default="jar" name="apache-cassandra"
-         xmlns:artifact="antlib:org.apache.maven.artifact.ant">
+         xmlns:artifact="antlib:org.apache.maven.artifact.ant"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
@@ -1294,12 +1296,14 @@
     </antcall>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
@@ -1309,12 +1313,14 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest
     ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testAllocate
   -->
   <target name="burn-testsome" depends="build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
-      <test name="${test.name}" methods="${test.methods}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}"/>
     </testmacro>
   </target>
   <target name="test-compression" depends="build-test,stress-build" description="Execute unit tests with sstable compression enabled">
@@ -1416,6 +1422,10 @@
     </sequential>
   </target>
 
+  <!-- Use this with an simple class name for test class, and an optional csv list of methods like this:
+      ant cql-test-some -Dtest.name=ListsTest
+      ant cql-test-some -Dtest.name=ListsTest -Dtest.methods=testPrecisionTime_getNext_simple
+    -->
   <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
     <sequential>
       <echo message="running ${test.methods} tests from ${test.name}"/>
@@ -1439,7 +1449,8 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <test name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
       </junit>
     </sequential>
   </target>
@@ -1603,12 +1614,14 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
     -->
   <target name="test-jvm-dtest-some" depends="build-test" description="Execute some in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
-      <test name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
