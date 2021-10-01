@@ -940,6 +940,10 @@
         </testmacro>
     </target>
 
+    <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest -Dtest.methods=simpleGaussian
+    -->
     <target name="stress-test-some" depends="stress-build-test, build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}"
                        timeout="${test.timeout}">
@@ -1504,7 +1508,7 @@
     </antcall>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
@@ -1519,8 +1523,9 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
-    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ViewLongTest -Dtest.methods=testConflictResolution
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
   -->
   <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
     <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
@@ -1531,8 +1536,9 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
-    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testAllocate
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testPoolAllocateWithRecyclePartially
   -->
   <target name="burn-testsome" depends="build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
@@ -1656,6 +1662,10 @@
     </sequential>
   </target>
 
+  <!-- Use this with an simple class name for test class, and an optional csv list of methods like this:
+      ant cql-test-some -Dtest.name=ListsTest
+      ant cql-test-some -Dtest.name=ListsTest -Dtest.methods=testPrecisionTime_getNext_simple
+    -->
   <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
     <sequential>
       <echo message="running ${test.methods} tests from ${test.name}"/>
@@ -1679,7 +1689,8 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <test name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
       </junit>
     </sequential>
   </target>
@@ -1858,7 +1869,7 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
     -->
   <target name="test-jvm-dtest-some" depends="build-test" description="Execute some in-jvm dtests">
