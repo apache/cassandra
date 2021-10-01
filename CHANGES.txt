@@ -47,6 +47,7 @@ Merged from 3.11:
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
+ * Make -Dtest.methods consistently optional in all Ant test targets (CASSANDRA-17014)
  * Immediately apply stream throughput, considering negative values as unthrottled (CASSANDRA-16959)
  * Do not release new SSTables in offline transactions (CASSANDRA-16975)
  * ArrayIndexOutOfBoundsException in FunctionResource#fromName (CASSANDRA-16977, CASSANDRA-16995)
