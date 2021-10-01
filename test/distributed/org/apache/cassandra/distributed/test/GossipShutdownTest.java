@@ -125,12 +125,5 @@ public class GossipShutdownTest extends TestBaseImpl
         {
             wasDead = true;
         }
-
-        public void onRemove(InetAddressAndPort endpoint) {}
-        public void onRestart(InetAddressAndPort endpoint, EndpointState state) {}
-        public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
-        public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-        public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
-
     };
 }

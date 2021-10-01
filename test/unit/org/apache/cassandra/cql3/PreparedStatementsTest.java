@@ -231,9 +231,9 @@ public class PreparedStatementsTest extends CQLTester
                 newSession.execute("USE " + keyspace());
                 preparedInsert = newSession.prepare(insertCQL);
                 preparedSelect = newSession.prepare(selectCQL);
-                session.execute(preparedInsert.bind(1, 1, "value"));
+                newSession.execute(preparedInsert.bind(1, 1, "value"));
 
-                assertEquals(1, session.execute(preparedSelect.bind(1)).all().size());
+                assertEquals(1, newSession.execute(preparedSelect.bind(1)).all().size());
             }
         }
     }
