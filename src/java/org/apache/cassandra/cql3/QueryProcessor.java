@@ -49,6 +49,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -63,6 +64,24 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class QueryProcessor implements QueryHandler
 {
     public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.5");
+
+    /**
+     * If a query is prepared with a fully qualified name, but the user also uses USE (specifically when USE keyspace
+     * is different) then the IDs generated could change over time; invalidating the assumption that IDs won't ever
+     * change.  In the version defined below, the USE keyspace is ignored when a fully-qualified name is used as an
+     * attempt to make IDs stable.
+     */
+    private static final CassandraVersion PREPARE_ID_BEHAVIOR_CHANGE_30 = new CassandraVersion("3.0.26");
+    private static final CassandraVersion PREPARE_ID_BEHAVIOR_CHANGE_3X = new CassandraVersion("3.11.12");
+    private static final CassandraVersion PREPARE_ID_BEHAVIOR_CHANGE_40 = new CassandraVersion("4.0.1");
+
+    /**
+     * If a query is prepared with a fully qualified name, but the user also uses USE (specifically when USE keyspace
+     * is different) then the IDs generated could change over time; invalidating the assumption that IDs won't ever
+     * change.  In the version defined below, the USE keyspace is ignored when a fully-qualified name is used as an
+     * attempt to make IDs stable.
+     */
+    private static final CassandraVersion PREPARE_ID_BEHAVIOR_CHANGE = new CassandraVersion("3.0.19.63");
 
     public static final QueryProcessor instance = new QueryProcessor();
 
@@ -444,7 +463,30 @@ public class QueryProcessor implements QueryHandler
         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
             throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
 
-        return storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared);
+        if (statement instanceof CQLStatement.SingleKeyspaceCqlStatement)
+        {
+            // Edge-case of CASSANDRA-15252 in mixed-mode cluster. We accept that 15252 itself can manifest in a
+            // cluster that has both old and new nodes, but we would like to avoid a situation when the fix adds
+            // a new behaviour that can break which, in addition, can get triggered more frequently.
+            // If statement ID was generated on the old node _with_ use, when attempting to execute on the new node,
+            // we may fall into infinite loop. To break out of this loop, we put a prepared statement that client
+            // expects into cache, so that it could get PREPARED response on the second try.
+            ResultMessage.Prepared newBehavior = storePreparedStatement(queryString, null, prepared);
+            ResultMessage.Prepared oldBehavior = clientState.getRawKeyspace() != null ? storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared) : newBehavior;
+            CassandraVersion minVersion = Gossiper.instance.getMinVersion(20, TimeUnit.MILLISECONDS);
+
+            // Default to old behaviour in case we're not sure about the version. Even if we ever flip back to the old
+            // behaviour due to the gossip bug or incorrect version string, we'll end up with two re-prepare round-trips.
+
+            return minVersion != null &&
+                   ((minVersion.major == 3 && minVersion.minor == 0 && minVersion.compareTo(PREPARE_ID_BEHAVIOR_CHANGE_30) >= 0) ||
+                    (minVersion.major == 3 && minVersion.minor != 0 && minVersion.compareTo(PREPARE_ID_BEHAVIOR_CHANGE_3X) >= 0) ||
+                    (minVersion.major == 4 && minVersion.compareTo(PREPARE_ID_BEHAVIOR_CHANGE_40) >= 0)) ? newBehavior : oldBehavior;
+        }
+        else
+        {
+            return storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared);
+        }
     }
 
     private static MD5Digest computeId(String queryString, String keyspace)
@@ -453,10 +495,11 @@ public class QueryProcessor implements QueryHandler
         return MD5Digest.compute(toHash);
     }
 
-    private static ResultMessage.Prepared getStoredPreparedStatement(String queryString, String keyspace)
+    @VisibleForTesting
+    public static ResultMessage.Prepared getStoredPreparedStatement(String queryString, String clientKeyspace)
     throws InvalidRequestException
     {
-        MD5Digest statementId = computeId(queryString, keyspace);
+        MD5Digest statementId = computeId(queryString, clientKeyspace);
         Prepared existing = preparedStatements.getIfPresent(statementId);
         if (existing == null)
             return null;
@@ -469,7 +512,8 @@ public class QueryProcessor implements QueryHandler
         return new ResultMessage.Prepared(statementId, resultMetadata.getResultMetadataId(), preparedMetadata, resultMetadata);
     }
 
-    private static ResultMessage.Prepared storePreparedStatement(String queryString, String keyspace, Prepared prepared)
+    @VisibleForTesting
+    public static ResultMessage.Prepared storePreparedStatement(String queryString, String keyspace, Prepared prepared)
     throws InvalidRequestException
     {
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
@@ -607,6 +651,12 @@ public class QueryProcessor implements QueryHandler
     public static void clearInternalStatementsCache()
     {
         internalStatements.clear();
+    }
+
+    @VisibleForTesting
+    public static void clearPreparedStatementsCache()
+    {
+        preparedStatements.asMap().clear();
     }
 
     private static class StatementInvalidatingListener extends SchemaChangeListener
