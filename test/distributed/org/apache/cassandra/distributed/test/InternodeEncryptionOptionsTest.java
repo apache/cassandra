@@ -46,24 +46,6 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
     }
 
     @Test
-    public void legacySslPortProvidedWithEncryptionNoneWillNotStartTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NETWORK);
-            c.set("ssl_storage_port", 7013);
-            c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                  .put("internode_encryption", "none")
-                  .put("optional", false)
-                  .put("enable_legacy_ssl_storage_port", "true")
-                  .build());
-        }).createWithoutStarting())
-        {
-            assertCannotStartDueToConfigurationException(cluster);
-        }
-    }
-
-    @Test
     public void optionalTlsConnectionDisabledWithoutKeystoreTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> c.with(Feature.NETWORK)).createWithoutStarting())
@@ -101,71 +83,6 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
                                 ConnectResult.NEGOTIATED, tlsConnection.connect());
         }
     }
-
-    @Test
-    public void optionalTlsConnectionAllowedToStoragePortTest() throws Throwable
-    {
-        try (Cluster  cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NETWORK);
-            c.set("storage_port", 7012);
-            c.set("ssl_storage_port", 7013);
-            c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("internode_encryption", "none")
-                              .put("optional", true)
-                              .put("enable_legacy_ssl_storage_port", "true")
-                              .build());
-        }).createWithoutStarting())
-        {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
-            int regular_port = (int) cluster.get(1).config().get("storage_port");
-            int ssl_port = (int) cluster.get(1).config().get("ssl_storage_port");
-
-            // Create the connections and prove they cannot connect before server start
-            TlsConnection connectToRegularPort = new TlsConnection(address.getHostAddress(), regular_port);
-            connectToRegularPort.assertCannotConnect();
-
-            TlsConnection connectToSslStoragePort = new TlsConnection(address.getHostAddress(), ssl_port);
-            connectToSslStoragePort.assertCannotConnect();
-
-            cluster.startup();
-
-            Assert.assertEquals("TLS native connection should be possible to ssl_storage_port",
-                                ConnectResult.NEGOTIATED, connectToSslStoragePort.connect());
-            Assert.assertEquals("TLS native connection should be possible with valid keystore by default",
-                                ConnectResult.NEGOTIATED, connectToRegularPort.connect());
-        }
-    }
-
-    @Test
-    public void legacySslStoragePortEnabledWithSameRegularAndSslPortTest() throws Throwable
-    {
-        try (Cluster  cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NETWORK);
-            c.set("storage_port", 7012); // must match in-jvm dtest assigned ports
-            c.set("ssl_storage_port", 7012);
-            c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("internode_encryption", "none")
-                              .put("optional", true)
-                              .put("enable_legacy_ssl_storage_port", "true")
-                              .build());
-        }).createWithoutStarting())
-        {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
-            int ssl_port = (int) cluster.get(1).config().get("ssl_storage_port");
-
-            // Create the connections and prove they cannot connect before server start
-            TlsConnection connectToSslStoragePort = new TlsConnection(address.getHostAddress(), ssl_port);
-            connectToSslStoragePort.assertCannotConnect();
-
-            cluster.startup();
-
-            Assert.assertEquals("TLS native connection should be possible to ssl_storage_port",
-                                ConnectResult.NEGOTIATED, connectToSslStoragePort.connect());
-        }
-    }
-
 
     @Test
     public void tlsConnectionRejectedWhenUnencrypted() throws Throwable

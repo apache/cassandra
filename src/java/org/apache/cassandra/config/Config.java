@@ -135,7 +135,6 @@ public class Config
     public volatile boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;
-    public int ssl_storage_port = 7001;
     public String listen_address;
     public String listen_interface;
     public boolean listen_interface_prefer_ipv6 = false;

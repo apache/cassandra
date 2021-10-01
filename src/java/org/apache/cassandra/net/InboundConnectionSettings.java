@@ -152,25 +152,13 @@ public class InboundConnectionSettings
                                              acceptMessaging, acceptStreaming, socketFactory, handlers);
     }
 
-    public InboundConnectionSettings withLegacySslStoragePortDefaults()
-    {
-        ServerEncryptionOptions encryption = this.encryption;
-        if (encryption == null)
-            encryption = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
-        encryption = encryption.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-
-        return this.withBindAddress(bindAddress.withPort(DatabaseDescriptor.getSSLStoragePort()))
-                   .withEncryption(encryption)
-                   .withDefaults();
-    }
-
     // note that connectTo is updated even if specified, in the case of pre40 messaging and using encryption (to update port)
     public InboundConnectionSettings withDefaults()
     {
         // this is for the socket that can be plain, only ssl, or optional plain/ssl
-        if (bindAddress.port != DatabaseDescriptor.getStoragePort() && bindAddress.port != DatabaseDescriptor.getSSLStoragePort())
-            throw new ConfigurationException(format("Local endpoint port %d doesn't match YAML configured port %d or legacy SSL port %d",
-                                                    bindAddress.port, DatabaseDescriptor.getStoragePort(), DatabaseDescriptor.getSSLStoragePort()));
+        if (bindAddress.port != DatabaseDescriptor.getStoragePort())
+            throw new ConfigurationException(format("Local endpoint port %d doesn't match YAML configured port %d",
+                                                    bindAddress.port, DatabaseDescriptor.getStoragePort()));
 
         IInternodeAuthenticator authenticator = this.authenticator;
         ServerEncryptionOptions encryption = this.encryption;

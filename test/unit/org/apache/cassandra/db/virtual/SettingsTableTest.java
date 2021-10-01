@@ -181,10 +181,6 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options = config.server_encryption_options.withInternodeEncryption(InternodeEncryption.all);
         check(pre + "internode_encryption", "all");
         check(pre + "enabled", "true");
-
-        check(pre + "legacy_ssl_storage_port", "false");
-        config.server_encryption_options = config.server_encryption_options.withLegacySslStoragePort(true);
-        check(pre + "legacy_ssl_storage_port", "true");
     }
 
     @Test

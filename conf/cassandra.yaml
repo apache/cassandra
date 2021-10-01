@@ -644,12 +644,6 @@ trickle_fsync_interval_in_kb: 10240
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 storage_port: 7000
 
-# SSL port, for legacy encrypted communication. This property is unused unless enabled in
-# server_encryption_options (see below). As of cassandra 4.0, this property is deprecated
-# as a single port can be used for either/both secure and insecure connections.
-# For security reasons, you should not expose this port to the internet. Firewall it if needed.
-ssl_storage_port: 7001
-
 # Address or interface to bind to and tell other Cassandra nodes to connect to.
 # You _must_ change this if you want multiple nodes to be able to communicate!
 #
@@ -1059,8 +1053,8 @@ slow_query_log_timeout_in_ms: 500
 # Ec2MultiRegionSnitch:
 #    Uses public IPs as broadcast_address to allow cross-region
 #    connectivity.  (Thus, you should set seed addresses to the public
-#    IP as well.) You will need to open the storage_port or
-#    ssl_storage_port on the public IP firewall.  (For intra-Region
+#    IP as well.) You will need to open the storage_port
+#    on the public IP firewall.  (For intra-Region
 #    traffic, Cassandra will switch to the private IP after
 #    establishing a connection.)
 #
@@ -1124,9 +1118,6 @@ server_encryption_options:
     # This should _only be true_ while in unencrypted or transitional operation
     # optional defaults to true if internode_encryption is none
     # optional: true
-    # If enabled, will open up an encrypted listening socket on ssl_storage_port. Should only be used
-    # during upgrade to 4.0; otherwise, set to false.
-    enable_legacy_ssl_storage_port: false
     # Set to a valid keystore if internode_encryption is dc, rack or all
     keystore: conf/.keystore
     keystore_password: cassandra

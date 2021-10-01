@@ -73,7 +73,7 @@ Ec2Snitch
 
 Ec2MultiRegionSnitch
     Uses public IPs as broadcast_address to allow cross-region connectivity (thus, you should set seed addresses to the
-    public IP as well). You will need to open the ``storage_port`` or ``ssl_storage_port`` on the public IP firewall
+    public IP as well). You will need to open the ``storage_port`` on the public IP firewall
     (For intra-Region traffic, Cassandra will switch to the private IP after establishing a connection).
 
 RackInferringSnitch

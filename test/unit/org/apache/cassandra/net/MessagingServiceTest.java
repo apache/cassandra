@@ -272,8 +272,7 @@ public class MessagingServiceTest
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
                                                           .withOptional(false)
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withLegacySslStoragePort(false);
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
         listen(serverEncryptionOptions, false);
     }
 
@@ -282,28 +281,7 @@ public class MessagingServiceTest
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
                                                           .withOptional(false)
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withLegacySslStoragePort(false);
-        listen(serverEncryptionOptions, true);
-    }
-
-    @Test
-    public void listenRequiredSecureConnectionWithLegacyPort() throws InterruptedException
-    {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withOptional(false)
-                                                          .withLegacySslStoragePort(true);
-        listen(serverEncryptionOptions, false);
-    }
-
-    @Test
-    public void listenRequiredSecureConnectionWithBroadcastAddrAndLegacyPort() throws InterruptedException
-    {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withOptional(false)
-                                                          .withLegacySslStoragePort(true);
+                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
         listen(serverEncryptionOptions, true);
     }
 
@@ -344,26 +322,18 @@ public class MessagingServiceTest
 
             Set<InetAddressAndPort> expect = new HashSet<>();
             expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getStoragePort()));
-            if (settings.encryption.enable_legacy_ssl_storage_port)
-                expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getSSLStoragePort()));
+
             if (listenOnBroadcastAddr)
             {
                 expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().address, DatabaseDescriptor.getStoragePort()));
-                if (settings.encryption.enable_legacy_ssl_storage_port)
-                    expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().address, DatabaseDescriptor.getSSLStoragePort()));
             }
 
             Assert.assertEquals(expect.size(), connections.sockets().size());
 
-            final int legacySslPort = DatabaseDescriptor.getSSLStoragePort();
             for (InboundSockets.InboundSocket socket : connections.sockets())
             {
                 Assert.assertEquals(serverEncryptionOptions.isEnabled(), socket.settings.encryption.isEnabled());
                 Assert.assertEquals(serverEncryptionOptions.isOptional(), socket.settings.encryption.isOptional());
-                if (!serverEncryptionOptions.isEnabled())
-                    assertNotEquals(legacySslPort, socket.settings.bindAddress.port);
-                if (legacySslPort == socket.settings.bindAddress.port)
-                    Assert.assertFalse(socket.settings.encryption.isOptional());
                 Assert.assertTrue(socket.settings.bindAddress.toString(), expect.remove(socket.settings.bindAddress));
             }
         }

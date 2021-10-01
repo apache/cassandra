@@ -622,7 +622,7 @@ public class CassandraDaemon
     	{
 	        try
 	        {
-	            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName() + ":" + DatabaseDescriptor.getStoragePort() + ":" + DatabaseDescriptor.getSSLStoragePort());
+	            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName() + ":" + DatabaseDescriptor.getStoragePort());
 	        }
 	        catch (UnknownHostException e1)
 	        {

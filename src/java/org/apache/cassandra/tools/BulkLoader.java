@@ -59,12 +59,10 @@ public class BulkLoader
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
                 options.directory.getAbsoluteFile(),
-                new ExternalClient(
+                new NativeSSTableLoaderClient(
                         options.hosts,
                         options.storagePort,
                         options.authProvider,
-                        options.sslStoragePort,
-                        options.serverEncOptions,
                         buildSSLOptions(options.clientEncOptions)),
                         handler,
                         options.connectionsPerHost,
@@ -281,30 +279,6 @@ public class BulkLoader
             }
         };
         return sslOptions;
-    }
-
-    static class ExternalClient extends NativeSSTableLoaderClient
-    {
-        private final int sslStoragePort;
-        private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
-
-        public ExternalClient(Set<InetSocketAddress> hosts,
-                              int storagePort,
-                              AuthProvider authProvider,
-                              int sslStoragePort,
-                              EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
-                              SSLOptions sslOptions)
-        {
-            super(hosts, storagePort, authProvider, sslOptions);
-            this.sslStoragePort = sslStoragePort;
-            serverEncOptions = serverEncryptionOptions;
-        }
-
-        @Override
-        public StreamConnectionFactory getConnectionFactory()
-        {
-            return new BulkLoadConnectionFactory(sslStoragePort, serverEncOptions, false);
-        }
     }
 
     public static class CmdLineOptions extends Options

@@ -21,7 +21,6 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 
 import io.netty.channel.Channel;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.DefaultConnectionFactory;
 import org.apache.cassandra.streaming.StreamConnectionFactory;
@@ -30,25 +29,14 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
 {
     // TODO: what is this unused variable for?
     private final boolean outboundBindAny;
-    private final int secureStoragePort;
-    private final EncryptionOptions.ServerEncryptionOptions encryptionOptions;
 
-    public BulkLoadConnectionFactory(int secureStoragePort, EncryptionOptions.ServerEncryptionOptions encryptionOptions, boolean outboundBindAny)
+    public BulkLoadConnectionFactory(boolean outboundBindAny)
     {
-        this.secureStoragePort = secureStoragePort;
-        this.encryptionOptions = encryptionOptions;
         this.outboundBindAny = outboundBindAny;
     }
 
     public Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException
     {
-        // Connect to secure port for all peers if ServerEncryptionOptions is configured other than 'none'
-        // When 'all', 'dc' and 'rack', server nodes always have SSL port open, and since thin client like sstableloader
-        // does not know which node is in which dc/rack, connecting to SSL port is always the option.
-
-        if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
-            template = template.withConnectTo(template.to.withPort(secureStoragePort));
-
         return super.createConnection(template, messagingVersion);
     }
 }
