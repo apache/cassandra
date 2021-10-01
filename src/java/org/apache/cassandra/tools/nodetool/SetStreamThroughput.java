@@ -26,8 +26,9 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "setstreamthroughput", description = "Set the Mb/s throughput cap for streaming in the system, or 0 to disable throttling")
 public class SetStreamThroughput extends NodeToolCmd
 {
+    @SuppressWarnings("UnusedDeclaration")
     @Arguments(title = "stream_throughput", usage = "<value_in_mb>", description = "Value in Mb, 0 to disable throttling", required = true)
-    private Integer streamThroughput = null;
+    private int streamThroughput;
 
     @Override
     public void execute(NodeProbe probe)
