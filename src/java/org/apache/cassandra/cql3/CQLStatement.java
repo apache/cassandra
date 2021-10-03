@@ -110,4 +110,9 @@ public interface CQLStatement
 
         public abstract CQLStatement prepare(ClientState state);
     }
+
+    public static interface SingleKeyspaceCqlStatement extends CQLStatement
+    {
+        public String keyspace();
+    }
 }

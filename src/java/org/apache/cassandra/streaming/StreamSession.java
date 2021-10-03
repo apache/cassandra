@@ -910,12 +910,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         maybeCompleted();
     }
 
-    public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
-    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-    public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
-    public void onAlive(InetAddressAndPort endpoint, EndpointState state) {}
-    public void onDead(InetAddressAndPort endpoint, EndpointState state) {}
-
     public void onRemove(InetAddressAndPort endpoint)
     {
         logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.toString());

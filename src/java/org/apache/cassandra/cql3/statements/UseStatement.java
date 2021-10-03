@@ -76,4 +76,9 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
     {
         return new AuditLogContext(AuditLogEntryType.USE_KEYSPACE, keyspace);
     }
+
+    public String keyspace()
+    {
+        return keyspace;
+    }
 }
