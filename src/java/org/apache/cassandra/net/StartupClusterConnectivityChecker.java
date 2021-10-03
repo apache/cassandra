@@ -222,18 +222,6 @@ public class StartupClusterConnectivityChecker
             this.getDatacenter = getDatacenter;
         }
 
-        public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
-        {
-        }
-
-        public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue)
-        {
-        }
-
-        public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
-        {
-        }
-
         public void onAlive(InetAddressAndPort endpoint, EndpointState state)
         {
             if (livePeers.add(endpoint) && acks.incrementAndCheck(endpoint))
@@ -242,18 +230,6 @@ public class StartupClusterConnectivityChecker
                 if (dcToRemainingPeers.containsKey(datacenter))
                     dcToRemainingPeers.get(datacenter).countDown();
             }
-        }
-
-        public void onDead(InetAddressAndPort endpoint, EndpointState state)
-        {
-        }
-
-        public void onRemove(InetAddressAndPort endpoint)
-        {
-        }
-
-        public void onRestart(InetAddressAndPort endpoint, EndpointState state)
-        {
         }
     }
 
