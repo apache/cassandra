@@ -111,7 +111,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -285,7 +285,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -405,7 +405,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -525,7 +525,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -622,7 +622,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -696,7 +696,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -811,7 +811,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -919,7 +919,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -993,7 +993,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -1101,7 +1101,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -1163,7 +1163,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -1271,7 +1271,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -1445,7 +1445,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
@@ -1539,7 +1539,7 @@ jobs:
     - REPEATED_UTEST_TARGET: testsome
     - REPEATED_UTEST_CLASS: org.apache.cassandra.db.ScrubTest
     - REPEATED_UTEST_METHODS: null
-    - REPEATED_UTEST_COUNT: 500
+    - REPEATED_UTEST_COUNT: 5000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
