@@ -81,7 +81,7 @@ public final class SystemDistributedKeyspace
      * gen 5: add ttl and TWCS to repair_history tables
      * gen 6: add denylist table
      */
-    public static final long GENERATION = 5;
+    public static final long GENERATION = 6;
 
     public static final String REPAIR_HISTORY = "repair_history";
 

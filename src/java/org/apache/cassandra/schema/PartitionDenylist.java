@@ -25,20 +25,18 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListenableFutureTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -119,7 +117,7 @@ public class PartitionDenylist
      */
     public void initialLoad()
     {
-        if (!DatabaseDescriptor.enablePartitionDenylist())
+        if (!DatabaseDescriptor.getPartitionDenylistEnabled())
             return;
 
         synchronized (this)
@@ -161,36 +159,35 @@ public class PartitionDenylist
     /** Helper method as we need to both build cache on initial init but also on reload of cache contents and params */
     private LoadingCache<TableId, DenylistEntry> buildEmptyCache()
     {
-        return CacheBuilder.newBuilder()
-                           .refreshAfterWrite(DatabaseDescriptor.getDenylistRefreshSeconds(), TimeUnit.SECONDS)
-                           .build(new CacheLoader<TableId, DenylistEntry>()
+        return Caffeine.newBuilder()
+                       .refreshAfterWrite(DatabaseDescriptor.getDenylistRefreshSeconds(), TimeUnit.SECONDS)
+                       .executor(executor)
+                       .build(new CacheLoader<TableId, DenylistEntry>()
+                       {
+                           @Override
+                           public DenylistEntry load(final TableId tid) throws Exception
                            {
-                               @Override
-                               public DenylistEntry load(final TableId tid) throws Exception
-                               {
-                                   return getDenylistForTable(tid);
-                               }
+                               return getDenylistForTableFromCQL(tid);
+                           }
 
-                               @Override
-                               public ListenableFuture<DenylistEntry> reload(final TableId tid, final DenylistEntry oldValue)
-                               {
-                                   ListenableFutureTask<DenylistEntry> task = ListenableFutureTask.create(new Callable<DenylistEntry>()
-                                   {
-                                       @Override
-                                       public DenylistEntry call()
-                                       {
-                                           final DenylistEntry newEntry = getDenylistForTable(tid);
-                                           if (newEntry != null)
-                                               return newEntry;
-                                           if (oldValue != null)
-                                               return oldValue;
-                                           return new DenylistEntry();
-                                       }
-                                   });
-                                   executor.execute(task);
-                                   return task;
-                               }
-                           });
+                           @Override
+                           public CompletableFuture<DenylistEntry> asyncReload(final TableId tid, final DenylistEntry oldValue, Executor executor)
+                           {
+                               return CompletableFuture.supplyAsync(() -> {
+                                   /* We accept DenylistEntry data in the following precedence:
+                                        1) new data pulled from CQL if we got it correctly,
+                                        2) the old value from the cache if there was some error querying,
+                                        3) an empty record otherwise.
+                                    */
+                                   final DenylistEntry newEntry = getDenylistForTableFromCQL(tid);
+                                   if (newEntry != null)
+                                       return newEntry;
+                                   if (oldValue != null)
+                                       return oldValue;
+                                   return new DenylistEntry();
+                               }, executor);
+                           }
+                       });
     }
 
     /**
@@ -202,7 +199,7 @@ public class PartitionDenylist
     {
         final long start = System.currentTimeMillis();
 
-        final Map<TableId, DenylistEntry> allDenylists = getDenylistForAllTables();
+        final Map<TableId, DenylistEntry> allDenylists = getDenylistForAllTablesFromCQL();
         if (allDenylists == null)
             return false;
 
@@ -238,11 +235,6 @@ public class PartitionDenylist
         try
         {
             process(insert, DatabaseDescriptor.getDenylistConsistencyLevel());
-
-            // On insert, we refresh the entire table's deny list data.
-            TableId denyTableId = getTableId(keyspace, table);
-            denylist.put(denyTableId, getDenylistForTable(getTableId(keyspace, table)));
-
             return true;
         }
         catch (final RequestExecutionException e)
@@ -269,11 +261,6 @@ public class PartitionDenylist
         try
         {
             process(delete, DatabaseDescriptor.getDenylistConsistencyLevel());
-
-            // On delete, we refresh the entire table's deny list data.
-            TableId denyTableId = getTableId(keyspace, table);
-            denylist.put(denyTableId, getDenylistForTable(getTableId(keyspace, table)));
-
             return true;
         }
         catch (final RequestExecutionException e)
@@ -303,14 +290,14 @@ public class PartitionDenylist
     public boolean isKeyPermitted(final TableId tid, final ByteBuffer key)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-        if (!DatabaseDescriptor.enablePartitionDenylist() || tid == null || !isPermitted(tmd.keyspace))
+        if (!DatabaseDescriptor.getPartitionDenylistEnabled() || tid == null || !isPermitted(tmd.keyspace))
             return true;
 
         try
         {
             return !denylist.get(tid).keys.contains(key);
         }
-        catch (final ExecutionException e)
+        catch (final Exception e)
         {
             // In the event of an error accessing or populating the cache, assume it's not denylisted
             logAccessFailure(tmd, e);
@@ -340,7 +327,7 @@ public class PartitionDenylist
     public int getDeniedKeysInRange(final TableId tid, final AbstractBounds<PartitionPosition> range)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-        if (!DatabaseDescriptor.enablePartitionDenylist() || tid == null || !isPermitted(tmd.keyspace))
+        if (!DatabaseDescriptor.getPartitionDenylistEnabled() || tid == null || !isPermitted(tmd.keyspace))
             return 0;
 
         try
@@ -364,31 +351,37 @@ public class PartitionDenylist
             return denylistEntry.tokens.tailSet(startToken, PartitionPosition.Kind.MIN_BOUND.equals(range.left.kind())).size()
                    + denylistEntry.tokens.headSet(endToken, PartitionPosition.Kind.MAX_BOUND.equals(range.right.kind())).size();
         }
-        catch (final ExecutionException e)
+        catch (final Exception e)
         {
             logAccessFailure(tmd, e);
             return 0;
         }
     }
 
-    private DenylistEntry getDenylistForTable(final TableId tid)
+    /**
+     * Attempts to reload the DenylistEntry data from CQL for the given TableId
+     * @return null if we do not find the data; allows cache reloader to preserve old value
+     */
+    private DenylistEntry getDenylistForTableFromCQL(final TableId tid)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
         if (tmd == null)
-            return new DenylistEntry();
+            return null;
 
         // We pull max keys + 1 in order to check below whether we've surpassed the allowable limit or not
         final String readDenylist = String.format("SELECT * FROM %s.%s WHERE ks_name='%s' AND cf_name='%s' LIMIT %d", SystemDistributedKeyspace.NAME, PARTITION_DENYLIST_TABLE,
-                                                  tmd.keyspace, tmd.name, DatabaseDescriptor.getMaxDenylistKeysPerTable() + 1);
+                                                  tmd.keyspace, tmd.name, DatabaseDescriptor.getDenylistKeysPerTableMax() + 1);
 
         try
         {
             final UntypedResultSet results = process(readDenylist, DatabaseDescriptor.getDenylistConsistencyLevel());
+
+            // If there's no data in CQL we want to return an empty DenylistEntry so we don't continue using the old value in the cache
             if (results == null || results.isEmpty())
                 return new DenylistEntry();
 
-            if (results.size() > DatabaseDescriptor.getMaxDenylistKeysPerTable())
-                logger.error("Partition denylist for {}/{} has exceeded the maximum allowable size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", tmd.keyspace, tmd.name, DatabaseDescriptor.getMaxDenylistKeysPerTable());
+            if (results.size() > DatabaseDescriptor.getDenylistKeysPerTableMax())
+                logger.error("Partition denylist for {}/{} has exceeded the maximum allowable size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", tmd.keyspace, tmd.name, DatabaseDescriptor.getDenylistKeysPerTableMax());
 
             final Set<ByteBuffer> keys = new HashSet<>();
             final NavigableSet<Token> tokens = new TreeSet<>();
@@ -403,7 +396,7 @@ public class PartitionDenylist
         catch (final RequestExecutionException e)
         {
             logger.error("Error reading partition_denylist table for {}/{}. Returning empty list.", tmd.keyspace, tmd.name, e);
-            return new DenylistEntry();
+            return null;
         }
     }
 
@@ -411,18 +404,29 @@ public class PartitionDenylist
      * We check in this method whether either a table or the sum of all denylist keys surpass our allowable limits and
      * warn to the user if we're above our threshold.
      */
-    private Map<TableId, DenylistEntry> getDenylistForAllTables()
+    private Map<TableId, DenylistEntry> getDenylistForAllTablesFromCQL()
     {
+        /* NEW LOGIC:
+            1) Query out all ks_name, cf_name combinations from the table
+            2) Iterate through those combos
+            3) For each one:
+                a) getDenylistForTableFromCQL
+                b) Respect and increment the count
+                c)
+         */
+
+
+
         // We pull max keys + 1 in order to check below whether we've surpassed the allowable limit or not
-        final String readDenylist = String.format("SELECT * FROM %s.%s LIMIT %d", SystemDistributedKeyspace.NAME, PARTITION_DENYLIST_TABLE, DatabaseDescriptor.getMaxDenylistKeysTotal() + 1);
+        final String readDenylist = String.format("SELECT * FROM %s.%s LIMIT %d", SystemDistributedKeyspace.NAME, PARTITION_DENYLIST_TABLE, DatabaseDescriptor.getDenylistKeysTotalMax() + 1);
         try
         {
             final UntypedResultSet results = process(readDenylist, DatabaseDescriptor.getDenylistConsistencyLevel());
             if (results == null || results.isEmpty())
                 return new HashMap<>();
 
-            if (results.size() > DatabaseDescriptor.getMaxDenylistKeysTotal())
-                logger.error("Partition denylist has exceeded the maximum allowable total size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", DatabaseDescriptor.getMaxDenylistKeysTotal());
+            if (results.size() > DatabaseDescriptor.getDenylistKeysTotalMax())
+                logger.error("Partition denylist has exceeded the maximum allowable total size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", DatabaseDescriptor.getDenylistKeysTotalMax());
 
             final Map<TableId, Pair<Set<ByteBuffer>, NavigableSet<Token>>> allDenylists = new HashMap<>();
             for (final UntypedResultSet.Row row : results)

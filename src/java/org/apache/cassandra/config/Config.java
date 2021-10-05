@@ -556,13 +556,13 @@ public class Config
     /** We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Operators will
      * receive warnings and only max_denylist_keys_per_table in natural query ordering will be processed on overflow.
      */
-    public volatile int max_denylist_keys_per_table = 1000;
+    public volatile int denylist_keys_per_table_max = 1000;
 
     /** We cap the total number of denylisted keys allowed in the cluster to keep things from growing unbounded.
      * Operators will receive warnings on initial cache load that there are too many keys and be directed to trim
      * down the entries to within the configured limits.
      */
-    public volatile int max_denylist_keys_total = 10000;
+    public volatile int denylist_keys_total_max = 10000;
 
     /** Since the denylist in many ways serves to protect the health of the cluster from partitions operators have identified
      * as being in a bad state, we usually want more robustness than just CL.ONE on operations to/from these tables to

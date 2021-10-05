@@ -592,6 +592,34 @@ public class DatabaseDescriptorTest
         Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
     }
 
+    @Test
+    public void testDenylistInvalidValuesRejected()
+    {
+        DatabaseDescriptor.loadConfig();
+
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, 0);
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, -1);
+
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysPerTableMax, 0);
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysPerTableMax, -1);
+
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysTotalMax, 0);
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysTotalMax, -1);
+    }
+
+    private void expectIllegalArgumentException(Consumer<Integer> c, int val)
+    {
+        try
+        {
+            c.accept(val);
+        }
+        catch (IllegalArgumentException ex)
+        {
+            return;
+        }
+        Assert.fail("Expected IllegalArgumentException with method: " + c + " and param: " + val + ". Check stack for details.");
+    }
+
     // coordinator read
     @Test
     public void testClientLargeReadWarnAndAbortNegative()

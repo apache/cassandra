@@ -1041,7 +1041,7 @@ slow_query_log_timeout_in_ms: 500
 # denylist_initial_load_retry_seconds = 5;
 
 # We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Nodes will warn above
-# this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering9
+# this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering
 # ordering by partition key in case of overflow.
 # max_denylist_keys_per_table = 1000;
 

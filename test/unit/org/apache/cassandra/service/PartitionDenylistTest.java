@@ -84,12 +84,18 @@ public class PartitionDenylistTest
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('jjj', 'kkk', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
 
         denylist("bbb:ccc");
+        refreshList();
     }
 
 
     private static void denylist(final String key) throws RequestExecutionException
     {
         StorageProxy.instance.denylistKey("" + ks_cql + "", "foofoo", key);
+    }
+
+    private static void refreshList()
+    {
+        StorageProxy.instance.loadPartitionDenylist();
     }
 
     /**
@@ -134,7 +140,7 @@ public class PartitionDenylistTest
     }
 
     @Test(expected = InvalidRequestException.class)
-    public void testCASWriteDenylisted() throws Throwable
+    public void testCASWriteDenylisted()
     {
         process("UPDATE " + ks_cql + ".foofoo SET foo='w' WHERE bar='bbb' AND baz='ccc' AND qux='eee' AND quz='fff' IF foo='v'", ConsistencyLevel.LOCAL_SERIAL);
     }
@@ -171,43 +177,43 @@ public class PartitionDenylistTest
     }
 
     @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted2() throws Throwable
+    public void testRangeDenylisted2()
     {
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) >= token('aaa', 'bbb') and token (bar, baz) <= token('bbb', 'ccc')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted3() throws Throwable
+    public void testRangeDenylisted3()
     {
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) >= token('bbb', 'ccc') and token (bar, baz) <= token('ccc', 'ddd')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted4() throws Throwable
+    public void testRangeDenylisted4()
     {
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('aaa', 'bbb') and token (bar, baz) < token('ccc', 'ddd')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted5() throws Throwable
+    public void testRangeDenylisted5()
     {
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('aaa', 'bbb')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted6() throws Throwable
+    public void testRangeDenylisted6()
     {
         process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) < token('ddd', 'eee')", ConsistencyLevel.ONE);
     }
 
     @Test
-    public void testReadInvalidCF() throws Exception
+    public void testReadInvalidCF()
     {
         denylist("hohoho");
     }
 
     @Test
-    public void testDenylistDisabled() throws Exception
+    public void testDisabledDenylistThrowsNoExceptions()
     {
         DatabaseDescriptor.setEnablePartitionDenylist(false);
         process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
@@ -219,13 +225,14 @@ public class PartitionDenylistTest
      * Want to make sure we don't throw anything or explode when people try to remove a key that's not there
      */
     @Test
-    public void testRemoveMissingIsGraceful() throws InterruptedException
+    public void testRemoveMissingIsGraceful()
     {
         confirmDenied("bbb", "ccc");
         Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
 
         // We expect this to silently not find and succeed at *trying* to remove it
         Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+        refreshList();
 
         confirmAllowed("bbb", "ccc");
     }
@@ -238,6 +245,7 @@ public class PartitionDenylistTest
     public void testRemoveWorksOnReload() throws InterruptedException
     {
         denyAllKeys();
+        refreshList();
 
         confirmDenied("aaa", "bbb");
         confirmDenied("eee", "fff");
@@ -245,6 +253,7 @@ public class PartitionDenylistTest
 
         // poke a hole in the middle and reload
         removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
+        refreshList();
 
         confirmAllowed("eee", "fff");
         confirmDenied("aaa", "bbb");
@@ -259,11 +268,12 @@ public class PartitionDenylistTest
      *  4) Confirm that the overflow keys are now denied (and no longer really "overflow" for that matter)
      */
     @Test
-    public void testShrinkAndGrow() throws InterruptedException
+    public void testShrinkAndGrow()
     {
         StorageProxy.instance.setMaxDenylistKeysPerTable(5);
         StorageProxy.instance.setMaxDenylistKeysTotal(5);
         denyAllKeys();
+        refreshList();
 
         // Confirm overflowed keys are allowed; first come first served
         confirmDenied("aaa", "bbb");
@@ -272,11 +282,13 @@ public class PartitionDenylistTest
         // Now we raise the limit back up and do nothing else and confirm it's blocked
         StorageProxy.instance.setMaxDenylistKeysPerTable(1000);
         StorageProxy.instance.setMaxDenylistKeysTotal(1000);
+        refreshList();
         confirmDenied("aaa", "bbb");
         confirmDenied("iii", "jjj");
 
         StorageProxy.instance.setMaxDenylistKeysPerTable(5);
         StorageProxy.instance.setMaxDenylistKeysTotal(5);
+        refreshList();
         confirmAllowed("iii", "jjj");
 
         // Now, we remove the denylist entries for our first 5, drop the limit back down, and confirm those overflowed keys now block
@@ -285,6 +297,7 @@ public class PartitionDenylistTest
         removeDenylist("" + ks_cql + "", "foofoo", "ccc:ddd");
         removeDenylist("" + ks_cql + "", "foofoo", "ddd:eee");
         removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
+        refreshList();
         confirmDenied("iii", "jjj");
     }
 
@@ -316,7 +329,7 @@ public class PartitionDenylistTest
         StorageProxy.instance.loadPartitionDenylist();
     }
 
-    private void denyAllKeys() throws InterruptedException
+    private void denyAllKeys()
     {
         denylist("aaa:bbb");
         denylist("bbb:ccc");

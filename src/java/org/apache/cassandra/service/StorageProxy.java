@@ -309,7 +309,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
 
-            if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.getDenylistWritesEnabled() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
+            if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getEnableDenylistWrites() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
             {
                 denylistMetrics.incrementWritesRejected();
                 final byte[] keyBytes  = new byte[key.getKey().remaining()];
@@ -1077,7 +1077,7 @@ public class StorageProxy implements StorageProxyMBean
                                           long queryStartNanoTime)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
-        if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.getDenylistWritesEnabled())
+        if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getEnableDenylistWrites())
         {
             for (final IMutation mutation : mutations)
             {
@@ -1787,7 +1787,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new IsBootstrappingException();
         }
 
-        if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.getDenylistReadsEnabled())
+        if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getEnableDenylistReads())
         {
             for (SinglePartitionReadCommand command : group.queries)
             {
@@ -2135,7 +2135,7 @@ public class StorageProxy implements StorageProxyMBean
                                                   ConsistencyLevel consistencyLevel,
                                                   long queryStartNanoTime)
     {
-        if (DatabaseDescriptor.enablePartitionDenylist() && DatabaseDescriptor.getDenylistRangeReadsEnabled())
+        if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getEnableDenylistRangeReads())
         {
             final int denylisted = partitionDenylist.getDeniedKeysInRange(command.metadata().id, command.dataRange().keyRange());
             if (denylisted > 0)
@@ -2884,14 +2884,14 @@ public class StorageProxy implements StorageProxyMBean
     @Override
     public void setMaxDenylistKeysPerTable(int value)
     {
-        DatabaseDescriptor.setMaxDenylistKeysPerTable(value);
+        DatabaseDescriptor.setDenylistKeysPerTableMax(value);
         loadPartitionDenylist();
     }
 
     @Override
     public void setMaxDenylistKeysTotal(int value)
     {
-        DatabaseDescriptor.setMaxDenylistKeysTotal(value);
+        DatabaseDescriptor.setDenylistKeysTotalMax(value);
         loadPartitionDenylist();
     }
 
