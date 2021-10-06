@@ -43,7 +43,7 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
     private org.apache.cassandra.distributed.Cluster cluster;
 
-    ClientRangeRequestMetrics rangeMetrics = CoordinatorClientRequestMetricsProvider.instance.metrics(KEYSPACE).rangeMetrics;
+    private static ClientRangeRequestMetrics rangeMetrics = CoordinatorClientRequestMetricsProvider.instance.metrics(KEYSPACE).rangeMetrics;
 
     @Before
     public void init() throws IOException
