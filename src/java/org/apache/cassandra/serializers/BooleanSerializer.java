@@ -33,8 +33,8 @@ public class BooleanSerializer extends TypeSerializer<Boolean>
     // Read-only off-heap byte buffers are safer than writable on-heap buffers, but not as safe as read-only on-heap
     // buffers since people can always write directly to their address and use them as source in a put() - which would
     // increment the position. However, they at least protect against people calling put() directly on the buffer.
-    private static final ByteBuffer TRUE = BufferType.OFF_HEAP.withContent(new byte[] {1}).asReadOnlyBuffer();
-    private static final ByteBuffer FALSE = BufferType.OFF_HEAP.withContent(new byte[] {0}).asReadOnlyBuffer();
+    private static final ByteBuffer TRUE = BufferType.ON_HEAP.withContent(new byte[] {1}).asReadOnlyBuffer();
+    private static final ByteBuffer FALSE = BufferType.ON_HEAP.withContent(new byte[] {0}).asReadOnlyBuffer();
 
     public static final BooleanSerializer instance = new BooleanSerializer();
 
