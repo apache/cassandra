@@ -244,7 +244,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         {
             comparators.get(i).serializeComparator(bb);
             ByteBufferUtil.writeShortLength(bb, component.remaining());
-            bb.put(component.duplicate()); // it's not ok to consume component as we did not cdreate it (CASSANDRA-14752)
+            bb.put(component.duplicate()); // it's not ok to consume component as we did not create it (CASSANDRA-14752)
             bb.put((byte)0);
             ++i;
         }
