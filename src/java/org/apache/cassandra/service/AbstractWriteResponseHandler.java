@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCounterWriteRpcTimeout;
@@ -53,6 +54,8 @@ import static org.apache.cassandra.locator.ReplicaPlan.ForTokenWrite;
 import static org.apache.cassandra.schema.Schema.instance;
 import static org.apache.cassandra.service.StorageProxy.WritePerformer;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.apache.cassandra.locator.Replicas.countInOurDc;
+
 
 public abstract class AbstractWriteResponseHandler<T> implements RequestCallback<T>
 {
@@ -210,11 +213,14 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     /**
      * TODO: this method is brittle for its purpose of deciding when we should fail a query;
-     *       this needs to be CL aware, and of which nodes are live/down
-     * @return the total number of endpoints the request can been sent to.
+     *       this needs to be aware of which nodes are live/down
+     * @return the total number of endpoints the request can send to.
      */
     protected int candidateReplicaCount()
     {
+        if (replicaPlan.consistencyLevel().isDatacenterLocal())
+            return countInOurDc(replicaPlan.liveAndDown()).allReplicas();
+
         return replicaPlan.liveAndDown().size();
     }
 
