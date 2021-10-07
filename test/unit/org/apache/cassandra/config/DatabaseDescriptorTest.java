@@ -37,6 +37,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -597,27 +598,19 @@ public class DatabaseDescriptorTest
     {
         DatabaseDescriptor.loadConfig();
 
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, 0);
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, -1);
-
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysPerTableMax, 0);
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysPerTableMax, -1);
-
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysTotalMax, 0);
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistKeysTotalMax, -1);
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, 0, "denylist_refresh_seconds must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, -1, "denylist_refresh_seconds must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysPerTable, 0, "denylist_max_keys_per_table must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysPerTable, -1, "denylist_max_keys_per_table must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysTotal, 0, "denylist_max_keys_total must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysTotal, -1, "denylist_max_keys_total must be a positive integer.");
     }
 
-    private void expectIllegalArgumentException(Consumer<Integer> c, int val)
+    private void expectIllegalArgumentException(Consumer<Integer> c, int val, String expectedMessage)
     {
-        try
-        {
-            c.accept(val);
-        }
-        catch (IllegalArgumentException ex)
-        {
-            return;
-        }
-        Assert.fail("Expected IllegalArgumentException with method: " + c + " and param: " + val + ". Check stack for details.");
+        assertThatThrownBy(() -> c.accept(val))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(expectedMessage);
     }
 
     // coordinator read

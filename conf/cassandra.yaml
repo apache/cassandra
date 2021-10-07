@@ -1043,12 +1043,12 @@ slow_query_log_timeout_in_ms: 500
 # We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Nodes will warn above
 # this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering
 # ordering by partition key in case of overflow.
-# max_denylist_keys_per_table = 1000;
+# denylist_max_keys_per_table = 1000;
 
 # We cap the total number of denylisted keys allowed in the cluster to keep things from growing unbounded.
 # Nodes will warn on initial cache load that there are too many keys and be direct the operator to trim down excess
 # entries to within the configured limits.
-# max_denylist_keys_total = 10000;
+# denylist_max_keys_total = 10000;
 
 # Since the denylist in many ways serves to protect the health of the cluster from partitions operators have identified
 # as being in a bad state, we usually want more robustness than just CL.ONE on operations to/from these tables to

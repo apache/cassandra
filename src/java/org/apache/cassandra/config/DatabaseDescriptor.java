@@ -3471,7 +3471,7 @@ public class DatabaseDescriptor
         conf.consecutive_message_errors_threshold = value;
     }
 
-    public static boolean getPartitionDenylistEnabled()
+    public static boolean getEnablePartitionDenylist()
     {
         return conf.enable_partition_denylist;
     }
@@ -3519,7 +3519,7 @@ public class DatabaseDescriptor
     public static void setDenylistRefreshSeconds(int seconds)
     {
         if (seconds <= 0)
-            throw new IllegalArgumentException("denylist_refresh_seconds must be non-negative.");
+            throw new IllegalArgumentException("denylist_refresh_seconds must be a positive integer.");
         conf.denylist_refresh_seconds = seconds;
     }
 
@@ -3531,10 +3531,9 @@ public class DatabaseDescriptor
     public static void setDenylistInitialLoadRetrySeconds(int seconds)
     {
         if (seconds <= 0)
-            throw new IllegalArgumentException("denylist_initial_load_retry_seconds must be non-negative.");
+            throw new IllegalArgumentException("denylist_initial_load_retry_seconds must be a positive integer.");
         conf.denylist_initial_load_retry_seconds = seconds;
     }
-
 
     public static ConsistencyLevel getDenylistConsistencyLevel()
     {
@@ -3546,28 +3545,28 @@ public class DatabaseDescriptor
         conf.denylist_consistency_level = cl;
     }
 
-    public static int getDenylistKeysPerTableMax()
+    public static int getDenylistMaxKeysPerTable()
     {
-        return conf.denylist_keys_per_table_max;
+        return conf.denylist_max_keys_per_table;
     }
 
-    public static void setDenylistKeysPerTableMax(int value)
+    public static void setDenylistMaxKeysPerTable(int value)
     {
         if (value <= 0)
-            throw new IllegalArgumentException("max_denylist_keys_per_table must be non-negative.");
-        conf.denylist_keys_per_table_max = value;
+            throw new IllegalArgumentException("denylist_max_keys_per_table must be a positive integer.");
+        conf.denylist_max_keys_per_table = value;
     }
 
-    public static int getDenylistKeysTotalMax()
+    public static int getDenylistMaxKeysTotal()
     {
-        return conf.denylist_keys_total_max;
+        return conf.denylist_max_keys_total;
     }
 
-    public static void setDenylistKeysTotalMax(int value)
+    public static void setDenylistMaxKeysTotal(int value)
     {
         if (value <= 0)
-            throw new IllegalArgumentException("Expected an integer >= 0 for max_denylist_keys_total. Got: " + value);
-        conf.denylist_keys_total_max = value;
+            throw new IllegalArgumentException("denylist_max_keys_total must be a positive integer.");
+        conf.denylist_max_keys_total = value;
     }
 
     public static SubnetGroups getClientErrorReportingExclusions()
