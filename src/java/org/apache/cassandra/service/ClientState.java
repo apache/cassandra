@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -427,22 +428,13 @@ public class ClientState
 
     private void ensurePermissionOnResourceChain(Permission perm, IResource resource)
     {
+        List<? extends IResource> resources = Resources.chain(resource);
         if (DatabaseDescriptor.getAuthFromRoot())
-        {
-            // Check for the required permission in reverse hierarchical order, from broadest to most specific
-            List<IResource> chain = (List<IResource>) Resources.chain(resource);
-            ListIterator<IResource> resources = chain.listIterator(chain.size());
-            while (resources.hasPrevious())
-                if (authorize(resources.previous()).contains(perm))
-                    return;
-        }
-        else
-        {
-            for (IResource r : Resources.chain(resource))
-                if (authorize(r).contains(perm))
-                    return;
+            resources = Lists.reverse(resources);
 
-        }
+        for (IResource r : resources)
+            if (authorize(r).contains(perm))
+                return;
 
         throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
                                                       user.getName(),
