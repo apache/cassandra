@@ -353,7 +353,19 @@ public class Envelope
             int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int versionNum = firstByte & PROTOCOL_VERSION_MASK;
-            ProtocolVersion version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
+
+            ProtocolVersion version;
+            
+            try
+            {
+                version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
+            }
+            catch (ProtocolException e)
+            {
+                // Skip the remaining useless bytes. Otherwise the channel closing logic may try to decode again. 
+                buffer.skipBytes(readableBytes);
+                throw e;
+            }
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)

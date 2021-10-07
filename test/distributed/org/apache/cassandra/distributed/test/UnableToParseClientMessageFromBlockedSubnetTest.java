@@ -38,7 +38,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogAction;
-import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -51,6 +50,7 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
     private static Cluster CLUSTER;
     private static List<String> CLUSTER_EXCLUDED_SUBNETS;
 
+    @SuppressWarnings("DefaultAnnotationParam")
     @Parameterized.Parameter(0)
     public List<String> excludeSubnets;
     @Parameterized.Parameter(1)
