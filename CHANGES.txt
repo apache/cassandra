@@ -1,4 +1,5 @@
 4.1
+ * Skip remaining bytes in the Envelope buffer when a ProtocolException is thrown to avoid double decoding (CASSANDRA-17026)
  * Allow reverse iteration of resources during permissions checking (CASSANDRA-17016)
  * Add feature to verify correct ownership of attached locations on disk at startup (CASSANDRA-16879)
  * Make SSLContext creation pluggable/extensible (CASSANDRA-16666)
