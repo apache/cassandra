@@ -253,7 +253,7 @@ public class AssureSufficientLiveNodesTest
                                                       Consumer<Keyspace> test) throws Throwable
     {
         String keyspaceName = keyspaceNameGen.get();
-        KeyspaceMetadata initKsMeta = KeyspaceMetadata.create(keyspaceName, init, Tables.of(SchemaLoader.standardCFMD("Foo", "Bar").build()));
+        KeyspaceMetadata initKsMeta = KeyspaceMetadata.create(keyspaceName, init, Tables.of(SchemaLoader.standardCFMD(keyspaceName, "Bar").build()));
         KeyspaceMetadata alterToKsMeta = initKsMeta.withSwapped(alterTo);
         MigrationManager.announceNewKeyspace(initKsMeta, true);
         Keyspace racedKs = Keyspace.open(keyspaceName);

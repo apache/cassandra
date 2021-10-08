@@ -88,7 +88,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         this.tableName = tableName;
     }
 
-    public Keyspaces apply(Keyspaces schema) throws UnknownHostException
+    public Keyspaces apply(Keyspaces schema)
     {
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
@@ -131,7 +131,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
-    abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table) throws UnknownHostException;
+    abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
 
     /**
      * ALTER TABLE <table> ALTER <column> TYPE <newtype>;
