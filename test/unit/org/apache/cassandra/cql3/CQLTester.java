@@ -48,7 +48,9 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.File;
+
 import org.junit.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,9 +58,14 @@ import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.exceptions.UnauthorizedException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.auth.AuthKeyspace;
+import org.apache.cassandra.auth.AuthSchemaChangeListener;
+import org.apache.cassandra.auth.AuthTestUtils;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
@@ -92,6 +99,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.assertj.core.api.Assertions;
+import org.apache.cassandra.utils.Pair;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
@@ -105,6 +113,11 @@ import static org.junit.Assert.fail;
  */
 public abstract class CQLTester
 {
+    /**
+     * The super user
+     */
+    private static final User SUPER_USER = new User("cassandra", "cassandra");
+
     protected static final Logger logger = LoggerFactory.getLogger(CQLTester.class);
 
     public static final String KEYSPACE = "cql_test_keyspace";
@@ -127,8 +140,8 @@ public abstract class CQLTester
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
     protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
-    private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
-    private static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
+    private static final Map<Pair<User, ProtocolVersion>, Cluster> clusters = new HashMap<>();
+    private static final Map<Pair<User, ProtocolVersion>, Session> sessions = new HashMap<>();
 
     private static Consumer<Cluster.Builder> clusterBuilderConfigurator;
 
@@ -170,6 +183,8 @@ public abstract class CQLTester
     private List<String> functions = new ArrayList<>();
     private List<String> aggregates = new ArrayList<>();
 
+    private User user;
+
     // We don't use USE_PREPARED_VALUES in the code below so some test can foce value preparation (if the result
     // is not expected to be the same without preparation)
     private boolean usePrepared = USE_PREPARED_VALUES;
@@ -178,6 +193,24 @@ public abstract class CQLTester
     protected boolean usePrepared()
     {
         return usePrepared;
+    }
+
+    /**
+     * Use the specified user for executing the queries over the network.
+     * @param username the user name
+     * @param password the user password
+     */
+    public void useUser(String username, String password)
+    {
+        this.user = new User(username, password);
+    }
+
+    /**
+     * Use the super user for executing the queries over the network.
+     */
+    public void useSuperUser()
+    {
+        this.user = SUPER_USER;
     }
 
     /**
@@ -332,6 +365,7 @@ public abstract class CQLTester
         types = null;
         functions = null;
         aggregates = null;
+        user = null;
 
         // We want to clean up after the test, but dropping a table is rather long so just do that asynchronously
         ScheduledExecutors.optionalTasks.execute(new Runnable()
@@ -416,6 +450,32 @@ public abstract class CQLTester
         return allArgs;
     }
 
+    protected static void requireAuthentication()
+    {
+        DatabaseDescriptor.setAuthenticator(new AuthTestUtils.LocalPasswordAuthenticator());
+        DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
+        DatabaseDescriptor.setNetworkAuthorizer(new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+
+        // The CassandraRoleManager constructor set the supported and alterable options based on
+        // DatabaseDescriptor authenticator type so it needs to be created only after the authenticator is set.
+        IRoleManager roleManager =  new AuthTestUtils.LocalCassandraRoleManager()
+        {
+            public void setup()
+            {
+                loadRoleStatement();
+                QueryProcessor.executeInternal(createDefaultRoleQuery());
+            }
+        };
+
+        DatabaseDescriptor.setRoleManager(roleManager);
+        MigrationManager.announceNewKeyspace(AuthKeyspace.metadata(), true);
+        DatabaseDescriptor.getRoleManager().setup();
+        DatabaseDescriptor.getAuthenticator().setup();
+        DatabaseDescriptor.getAuthorizer().setup();
+        DatabaseDescriptor.getNetworkAuthorizer().setup();
+        Schema.instance.registerListener(new AuthSchemaChangeListener());
+    }
+
     /**
      *  Initialize Native Transport for test that need it.
      */
@@ -483,7 +543,7 @@ public abstract class CQLTester
         server.start();
     }
 
-    private static Cluster initClientCluster(ProtocolVersion version)
+    private static Cluster initClientCluster(User user, ProtocolVersion version)
     {
         SocketOptions socketOptions =
                 new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms",
@@ -499,6 +559,8 @@ public abstract class CQLTester
                                          .withClusterName("Test Cluster")
                                          .withPort(nativePort)
                                          .withSocketOptions(socketOptions);
+        if (user != null)
+            builder.withCredentials(user.username, user.password);
 
         if (version.isBeta())
             builder = builder.allowBetaProtocolVersion();
@@ -671,11 +733,22 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
-        String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
-        String fullQuery = String.format(query, KEYSPACE + "." + typeName);
-        types.add(typeName);
+        return createType(KEYSPACE, query);
+    }
+
+    protected String createType(String keyspace, String query)
+    {
+        String typeName = createTypeName();
+        String fullQuery = String.format(query, keyspace + "." + typeName);
         logger.info(fullQuery);
         schemaChange(fullQuery);
+        return typeName;
+    }
+
+    protected String createTypeName()
+    {
+        String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
+        types.add(typeName);
         return typeName;
     }
 
@@ -815,7 +888,12 @@ public abstract class CQLTester
 
     protected String createIndex(String query)
     {
-        String formattedQuery = formatQuery(query);
+        return createIndex(KEYSPACE, query);
+    }
+
+    protected String createIndex(String keyspace, String query)
+    {
+        String formattedQuery = formatQuery(keyspace, query);
         return createFormattedIndex(formattedQuery);
     }
 
@@ -1031,12 +1109,12 @@ public abstract class CQLTester
     private Session getSession(ProtocolVersion protocolVersion)
     {
         Cluster cluster = getCluster(protocolVersion);
-        return sessions.computeIfAbsent(protocolVersion, userProto -> cluster.connect());
+        return sessions.computeIfAbsent(Pair.create(user, protocolVersion), userProto -> cluster.connect());
     }
 
     private Cluster getCluster(ProtocolVersion protocolVersion)
     {
-        return clusters.computeIfAbsent(protocolVersion, userProto -> initClientCluster(protocolVersion));
+        return clusters.computeIfAbsent(Pair.create(user, protocolVersion), userProto -> initClientCluster(userProto.left, userProto.right));
     }
 
     protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException
@@ -1550,6 +1628,21 @@ public abstract class CQLTester
                 e.getMessage().contains(text));
     }
 
+    /**
+     * Checks that the specified query is not authorized for the current user.
+     * @param errorMessage The expected error message
+     * @param query the query
+     * @param values the query parameters
+     */
+    protected void assertUnauthorizedQuery(String errorMessage, String query, Object... values) throws Throwable
+    {
+        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
+                                  errorMessage,
+                                  UnauthorizedException.class,
+                                  query,
+                                  values);
+    }
+
     @FunctionalInterface
     public interface CheckedFunction {
         void apply() throws Throwable;
@@ -2016,6 +2109,46 @@ public abstract class CQLTester
         public String toString()
         {
             return "UserTypeValue" + toCQLString();
+        }
+    }
+
+    private static class User
+    {
+        /**
+         * The user name
+         */
+        public final String username;
+
+        /**
+         * The user password
+         */
+        public final String password;
+
+        public User(String username, String password)
+        {
+            this.username = username;
+            this.password = password;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(username, password);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (!(o instanceof User))
+                return false;
+
+            User u = (User) o;
+
+            return Objects.equal(username, u.username)
+                && Objects.equal(password, u.password);
         }
     }
 }

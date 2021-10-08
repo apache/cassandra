@@ -120,7 +120,7 @@ public final class DropTypeStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
-        client.ensureKeyspacePermission(keyspaceName, Permission.DROP);
+        client.ensureAllTablesPermission(keyspaceName, Permission.DROP);
     }
 
     @Override

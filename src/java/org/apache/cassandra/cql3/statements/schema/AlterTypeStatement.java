@@ -58,7 +58,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
-        client.ensureKeyspacePermission(keyspaceName, Permission.ALTER);
+        client.ensureAllTablesPermission(keyspaceName, Permission.ALTER);
     }
 
     SchemaChange schemaChangeEvent(Keyspaces.KeyspacesDiff diff)
