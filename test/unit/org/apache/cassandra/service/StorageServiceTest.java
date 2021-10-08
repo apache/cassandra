@@ -337,7 +337,7 @@ public class StorageServiceTest
         {
             TokenMetadata tmd = StorageService.instance.getTokenMetadata();
             tmd.addLeavingEndpoint(bAddress);
-            StorageService.instance.prepareForBootstrap(0);
+            StorageService.instance.prepareForBootstrap(0, 0);
             fail();
         }
         catch (UnsupportedOperationException exception)
