@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.util.*;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -219,7 +220,6 @@ public class RoleOptionsTest
 
             public void setup()
             {
-
             }
         };
     }

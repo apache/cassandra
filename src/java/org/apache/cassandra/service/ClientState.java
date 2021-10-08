@@ -366,6 +366,11 @@ public class ClientState
         ensurePermission(keyspace, perm, DataResource.keyspace(keyspace));
     }
 
+    public void ensureAllTablesPermission(String keyspace, Permission perm)
+    {
+        ensurePermission(keyspace, perm, DataResource.allTables(keyspace));
+    }
+
     public void ensureTablePermission(String keyspace, String table, Permission perm)
     {
         ensurePermission(keyspace, perm, DataResource.table(keyspace, table));
