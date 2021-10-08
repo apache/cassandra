@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.schema;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.lang.management.ManagementFactory;
@@ -32,9 +31,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.*;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -332,34 +328,4 @@ public class MigrationManager
         return builder == null ? Optional.empty() : Optional.of(builder.build());
     }
 
-    public static class MigrationsSerializer implements IVersionedSerializer<Collection<Mutation>>
-    {
-        public static MigrationsSerializer instance = new MigrationsSerializer();
-
-        public void serialize(Collection<Mutation> schema, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeInt(schema.size());
-            for (Mutation mutation : schema)
-                Mutation.serializer.serialize(mutation, out, version);
-        }
-
-        public Collection<Mutation> deserialize(DataInputPlus in, int version) throws IOException
-        {
-            int count = in.readInt();
-            Collection<Mutation> schema = new ArrayList<>(count);
-
-            for (int i = 0; i < count; i++)
-                schema.add(Mutation.serializer.deserialize(in, version));
-
-            return schema;
-        }
-
-        public long serializedSize(Collection<Mutation> schema, int version)
-        {
-            int size = TypeSizes.sizeof(schema.size());
-            for (Mutation mutation : schema)
-                size += mutation.serializedSize(version);
-            return size;
-        }
-    }
 }
