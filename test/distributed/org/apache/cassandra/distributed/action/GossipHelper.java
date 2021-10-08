@@ -252,7 +252,7 @@ public class GossipHelper
                 List<Token> tokens = Collections.singletonList(partitioner.getTokenFactory().fromString(tokenString));
                 try
                 {
-                    Collection<InetAddressAndPort> collisions = StorageService.instance.prepareForBootstrap(waitForSchema.toMillis());
+                    Collection<InetAddressAndPort> collisions = StorageService.instance.prepareForBootstrap(waitForSchema.toMillis(), 0);
                     assert collisions.size() == 0 : String.format("Didn't expect any replacements but got %s", collisions);
                     boolean isBootstrapSuccessful = StorageService.instance.bootstrap(tokens, waitForBootstrap.toMillis());
                     assert isBootstrapSuccessful : "Bootstrap did not complete successfully";
