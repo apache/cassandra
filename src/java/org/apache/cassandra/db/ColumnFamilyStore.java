@@ -2035,10 +2035,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public void truncateBlocking()
+    {
+        truncateBlocking(false);
+    }
+
+    public void truncateBlockingWithoutSnapshot()
+    {
+        truncateBlocking(true);
+    }
+
     /**
      * Truncate deletes the entire column family's data with no expensive tombstone creation
+     * @param noSnapshot if {@code true} no snapshot will be taken
      */
-    public void truncateBlocking()
+    private void truncateBlocking(boolean noSnapshot)
     {
         // We have two goals here:
         // - truncate should delete everything written before truncate was invoked
@@ -2059,7 +2070,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final long truncatedAt;
         final ReplayPosition replayAfter;
 
-        if (keyspace.getMetadata().params.durableWrites || DatabaseDescriptor.isAutoSnapshot())
+        if (!noSnapshot && (keyspace.getMetadata().params.durableWrites || DatabaseDescriptor.isAutoSnapshot()))
         {
             replayAfter = forceBlockingFlush();
             viewManager.forceBlockingFlush();
@@ -2089,7 +2100,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.debug("Discarding sstable data for truncated CF + indexes");
             data.notifyTruncated(truncatedAt);
 
-            if (DatabaseDescriptor.isAutoSnapshot())
+            if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot())
                 snapshot(Keyspace.getTimestampedSnapshotName(name));
 
             discardSSTables(truncatedAt);

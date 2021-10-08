@@ -1347,7 +1347,7 @@ public final class SystemKeyspace
     public static void resetAvailableRanges()
     {
         ColumnFamilyStore availableRanges = Keyspace.open(NAME).getColumnFamilyStore(AVAILABLE_RANGES);
-        availableRanges.truncateBlocking();
+        availableRanges.truncateBlockingWithoutSnapshot();
     }
 
     /**
