@@ -41,7 +41,7 @@ import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
@@ -185,7 +185,7 @@ public class ViewSchemaTest extends CQLTester
 
         //Test alter add
         executeNet(protocolVersion, "ALTER TABLE %s ADD foo text");
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata(keyspace(), "mv1_test");
         Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("foo")));
 
         updateView("INSERT INTO %s(k,asciival,bigintval,foo)VALUES(?,?,?,?)", 0, "foo", 1L, "bar");
@@ -195,7 +195,7 @@ public class ViewSchemaTest extends CQLTester
         executeNet(protocolVersion, "ALTER TABLE %s RENAME asciival TO bar");
 
         assertRows(execute("SELECT bar from %s"), row("foo"));
-        metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        metadata = SchemaManager.instance.getTableMetadata(keyspace(), "mv1_test");
         Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("bar")));
     }
 

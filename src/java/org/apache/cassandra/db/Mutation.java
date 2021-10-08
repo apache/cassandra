@@ -34,7 +34,7 @@ import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -270,7 +270,7 @@ public class Mutation implements IMutation
             List<String> cfnames = new ArrayList<>(modifications.size());
             for (TableId tableId : modifications.keySet())
             {
-                TableMetadata cfm = Schema.instance.getTableMetadata(tableId);
+                TableMetadata cfm = SchemaManager.instance.getTableMetadata(tableId);
                 cfnames.add(cfm == null ? "-dropped-" : cfm.name);
             }
             buff.append(StringUtils.join(cfnames, ", "));

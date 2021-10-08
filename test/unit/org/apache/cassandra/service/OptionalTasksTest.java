@@ -29,7 +29,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
@@ -53,12 +53,12 @@ public class OptionalTasksTest
     public void shouldIgnoreDroppedKeyspace()
     {
         // Set the initial sampling state...
-        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE);
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
         Objects.requireNonNull(cfs).metric.coordinatorReadLatency.update(100, TimeUnit.NANOSECONDS);
         
         // Remove the Keyspace name to make it invisible to the updater...
-        Keyspace removed = Schema.instance.removeKeyspaceInstance(KEYSPACE);
+        Keyspace removed = SchemaManager.instance.removeKeyspaceInstance(KEYSPACE);
 
         try
         {
@@ -72,7 +72,7 @@ public class OptionalTasksTest
         finally
         {
             // Restore the removed Keyspace to put things back the way we found them.
-            Schema.instance.storeKeyspaceInstance(removed);
+            SchemaManager.instance.storeKeyspaceInstance(removed);
         }
     }
 
@@ -80,8 +80,8 @@ public class OptionalTasksTest
     public void shouldUpdateSpeculationThreshold()
     {
         // Set the initial sampling state...
-        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE);
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
         Objects.requireNonNull(cfs).metric.coordinatorReadLatency.update(100, TimeUnit.NANOSECONDS);
 
         long originalValue = cfs.sampleReadLatencyNanos;

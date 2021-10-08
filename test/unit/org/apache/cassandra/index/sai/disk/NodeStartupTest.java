@@ -44,7 +44,7 @@ import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -299,13 +299,13 @@ public class NodeStartupTest extends SAITester
 
     private boolean isGroupIndexComplete() throws Exception
     {
-        ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
+        ColumnFamilyStore cfs = Objects.requireNonNull(SchemaManager.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
         return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexComponents.isGroupIndexComplete(sstable.descriptor));
     }
 
     private boolean isColumnIndexComplete() throws Exception
     {
-        ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
+        ColumnFamilyStore cfs = Objects.requireNonNull(SchemaManager.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
         return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexComponents.isColumnIndexComplete(sstable.descriptor, indexName));
     }
 

@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -174,7 +174,7 @@ public class SSTableUtils
             Map<String, PartitionUpdate> map = new HashMap<>();
             for (String key : keys)
             {
-                RowUpdateBuilder builder = new RowUpdateBuilder(Schema.instance.getTableMetadata(ksname, cfname), 0, key);
+                RowUpdateBuilder builder = new RowUpdateBuilder(SchemaManager.instance.getTableMetadata(ksname, cfname), 0, key);
                 builder.clustering(key).add("val", key);
                 map.put(key, builder.buildUpdate());
             }
@@ -191,7 +191,7 @@ public class SSTableUtils
             {
                 public SerializationHeader header()
                 {
-                    return new SerializationHeader(true, Schema.instance.getTableMetadata(ksname, cfname), builder.build(), EncodingStats.NO_STATS);
+                    return new SerializationHeader(true, SchemaManager.instance.getTableMetadata(ksname, cfname), builder.build(), EncodingStats.NO_STATS);
                 }
 
                 @Override
@@ -217,8 +217,8 @@ public class SSTableUtils
         public Collection<SSTableReader> write(int expectedSize, Appender appender) throws IOException
         {
             File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
-            TableMetadata metadata = Schema.instance.getTableMetadata(ksname, cfname);
-            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+            TableMetadata metadata = SchemaManager.instance.getTableMetadata(ksname, cfname);
+            ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id);
             SerializationHeader header = appender.header();
             SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFilename(datafile.getAbsolutePath()), expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, 0, header);
             while (appender.append(writer)) { /* pass */ }

@@ -70,7 +70,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
@@ -417,13 +417,13 @@ public class SAITester extends CQLTester
 
     protected int getOpenIndexFiles()
     {
-        ColumnFamilyStore cfs = Schema.instance.getKeyspaceInstance(KEYSPACE).getColumnFamilyStore(currentTable());
+        ColumnFamilyStore cfs = SchemaManager.instance.getKeyspaceInstance(KEYSPACE).getColumnFamilyStore(currentTable());
         return StorageAttachedIndexGroup.getIndexGroup(cfs).openIndexFiles();
     }
 
     protected long getDiskUsage()
     {
-        ColumnFamilyStore cfs = Schema.instance.getKeyspaceInstance(KEYSPACE).getColumnFamilyStore(currentTable());
+        ColumnFamilyStore cfs = SchemaManager.instance.getKeyspaceInstance(KEYSPACE).getColumnFamilyStore(currentTable());
         return StorageAttachedIndexGroup.getIndexGroup(cfs).diskUsage();
     }
 
@@ -649,7 +649,7 @@ public class SAITester extends CQLTester
 
     private void verifySSTableComponents(String table, boolean indexComponentsExist) throws Exception
     {
-        ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(table);
+        ColumnFamilyStore cfs = Objects.requireNonNull(SchemaManager.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(table);
         for (SSTable sstable : cfs.getLiveSSTables())
         {
             Set<Component> components = sstable.components;

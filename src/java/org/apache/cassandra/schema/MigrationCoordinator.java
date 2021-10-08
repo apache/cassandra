@@ -250,19 +250,19 @@ public class MigrationCoordinator
     @VisibleForTesting
     protected boolean shouldPullSchema(UUID version)
     {
-        if (Schema.instance.getVersion() == null)
+        if (SchemaManager.instance.getVersion() == null)
         {
             logger.debug("Not pulling schema for version {}, because local schama version is not known yet", version);
             return false;
         }
 
-        if (Schema.instance.isSameVersion(version))
+        if (SchemaManager.instance.isSameVersion(version))
         {
             logger.debug("Not pulling schema for version {}, because schema versions match: " +
                          "local={}, remote={}",
                          version,
-                         Schema.schemaVersionToString(Schema.instance.getVersion()),
-                         Schema.schemaVersionToString(version));
+                         SchemaManager.schemaVersionToString(SchemaManager.instance.getVersion()),
+                         SchemaManager.schemaVersionToString(version));
             return false;
         }
         return true;
@@ -318,14 +318,14 @@ public class MigrationCoordinator
     @VisibleForTesting
     protected boolean shouldPullImmediately(InetAddressAndPort endpoint, UUID version)
     {
-        if (Schema.instance.isEmpty() || getUptimeFn.getAsLong() < MIGRATION_DELAY_IN_MS)
+        if (SchemaManager.instance.isEmpty() || getUptimeFn.getAsLong() < MIGRATION_DELAY_IN_MS)
         {
             // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
             logger.debug("Immediately submitting migration task for {}, " +
                          "schema versions: local={}, remote={}",
                          endpoint,
-                         Schema.schemaVersionToString(Schema.instance.getVersion()),
-                         Schema.schemaVersionToString(version));
+                         SchemaManager.schemaVersionToString(SchemaManager.instance.getVersion()),
+                         SchemaManager.schemaVersionToString(version));
             return true;
         }
         return false;
@@ -334,7 +334,7 @@ public class MigrationCoordinator
     @VisibleForTesting
     protected boolean isLocalVersion(UUID version)
     {
-        return Schema.instance.isSameVersion(version);
+        return SchemaManager.instance.isSameVersion(version);
     }
 
     /**
@@ -442,7 +442,7 @@ public class MigrationCoordinator
     @VisibleForTesting
     protected void mergeSchemaFrom(InetAddressAndPort endpoint, Collection<Mutation> mutations)
     {
-        Schema.instance.mergeAndAnnounceVersion(mutations);
+        SchemaManager.instance.mergeAndAnnounceVersion(mutations);
     }
 
     class Callback implements RequestCallback<Collection<Mutation>>

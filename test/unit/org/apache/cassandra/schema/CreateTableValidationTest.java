@@ -64,8 +64,8 @@ public class CreateTableValidationTest extends CQLTester
         requireNetwork();
         int tableCountWarn = DatabaseDescriptor.tableCountWarnThreshold();
         int keyspaceCountWarn = DatabaseDescriptor.keyspaceCountWarnThreshold();
-        DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables());
-        DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size());
+        DatabaseDescriptor.setTableCountWarnThreshold(SchemaManager.instance.getNumberOfTables());
+        DatabaseDescriptor.setKeyspaceCountWarnThreshold(SchemaManager.instance.getKeyspaces().size());
 
         try (SimpleClient client = newSimpleClient(ProtocolVersion.CURRENT).connect(false))
         {
@@ -77,7 +77,7 @@ public class CreateTableValidationTest extends CQLTester
             assertTrue(warns.size() > 0);
             assertTrue(warns.get(0).contains("Having a large number of keyspaces will significantly"));
 
-            DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size() + 2);
+            DatabaseDescriptor.setKeyspaceCountWarnThreshold(SchemaManager.instance.getKeyspaces().size() + 2);
             query = new QueryMessage(String.format(createKeyspace, 2), QueryOptions.DEFAULT);
             resp = client.execute(query);
             warns = resp.getWarnings();
@@ -92,7 +92,7 @@ public class CreateTableValidationTest extends CQLTester
             assertTrue(warns.size() > 0);
             assertTrue(warns.get(0).contains("Having a large number of tables"));
 
-            DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables() + 1);
+            DatabaseDescriptor.setTableCountWarnThreshold(SchemaManager.instance.getNumberOfTables() + 1);
             query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test2"), QueryOptions.DEFAULT);
             resp = client.execute(query);
             assertTrue(resp.getWarnings() == null || resp.getWarnings().isEmpty());

@@ -49,7 +49,6 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -73,7 +72,7 @@ import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -901,8 +900,8 @@ public class ReadCommandTest
     private void setGCGrace(ColumnFamilyStore cfs, int gcGrace)
     {
         TableParams newParams = cfs.metadata().params.unbuild().gcGraceSeconds(gcGrace).build();
-        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(cfs.metadata().keyspace);
-        Schema.instance.load(
+        KeyspaceMetadata keyspaceMetadata = SchemaManager.instance.getKeyspaceMetadata(cfs.metadata().keyspace);
+        SchemaManager.instance.load(
         keyspaceMetadata.withSwapped(
         keyspaceMetadata.tables.withSwapped(
         cfs.metadata().withSwapped(newParams))));

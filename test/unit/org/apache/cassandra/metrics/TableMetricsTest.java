@@ -37,7 +37,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import static org.junit.Assert.assertEquals;
@@ -55,7 +55,7 @@ public class TableMetricsTest extends SchemaLoader
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
-        Schema.instance.clear();
+        SchemaManager.instance.clear();
 
         EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
         cassandra.start();

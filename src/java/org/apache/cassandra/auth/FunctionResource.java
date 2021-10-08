@@ -29,7 +29,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -257,9 +257,9 @@ public class FunctionResource implements IResource
             case ROOT:
                 return true;
             case KEYSPACE:
-                return Schema.instance.getKeyspaces().contains(keyspace);
+                return SchemaManager.instance.getKeyspaces().contains(keyspace);
             case FUNCTION:
-                return Schema.instance.findFunction(getFunctionName(), argTypes).isPresent();
+                return SchemaManager.instance.findFunction(getFunctionName(), argTypes).isPresent();
         }
         throw new AssertionError();
     }
@@ -273,7 +273,7 @@ public class FunctionResource implements IResource
                 return COLLECTION_LEVEL_PERMISSIONS;
             case FUNCTION:
             {
-                Optional<Function> function = Schema.instance.findFunction(getFunctionName(), argTypes);
+                Optional<Function> function = SchemaManager.instance.findFunction(getFunctionName(), argTypes);
                 assert function.isPresent() : "Unable to find function object for resource " + toString();
                 return function.get().isAggregate() ? AGGREGATE_FUNCTION_PERMISSIONS : SCALAR_FUNCTION_PERMISSIONS;
             }

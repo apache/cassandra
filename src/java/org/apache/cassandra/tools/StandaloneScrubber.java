@@ -50,7 +50,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
@@ -86,9 +86,9 @@ public class StandaloneScrubber
         try
         {
             // load keyspace descriptions.
-            Schema.instance.loadFromDisk(false);
+            SchemaManager.instance.loadFromDisk(false);
 
-            if (Schema.instance.getKeyspaceMetadata(options.keyspaceName) == null)
+            if (SchemaManager.instance.getKeyspaceMetadata(options.keyspaceName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace %s", options.keyspaceName));
 
             // Do not load sstables since they might be broken
@@ -138,7 +138,7 @@ public class StandaloneScrubber
 
                 SSTableHeaderFix.Builder headerFixBuilder = SSTableHeaderFix.builder()
                                                                             .logToList(logOutput)
-                                                                            .schemaCallback(() -> Schema.instance::getTableMetadata);
+                                                                            .schemaCallback(() -> SchemaManager.instance::getTableMetadata);
                 if (options.headerFixMode == Options.HeaderFixMode.VALIDATE)
                     headerFixBuilder = headerFixBuilder.dryRun();
 

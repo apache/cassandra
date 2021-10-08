@@ -35,7 +35,7 @@ import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.view.View;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 
 /**
@@ -91,9 +91,9 @@ public class IndexesSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        for (String ks : Schema.instance.getUserKeyspaces())
+        for (String ks : SchemaManager.instance.getUserKeyspaces())
         {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks);
+            Keyspace keyspace = SchemaManager.instance.getKeyspaceInstance(ks);
             if (keyspace == null)
                 throw new IllegalArgumentException("Unknown keyspace " + ks);
 

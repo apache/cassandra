@@ -22,7 +22,7 @@ import org.github.jamm.Unmetered;
 /**
  * Encapsulates a volatile reference to an immutable {@link TableMetadata} instance.
  *
- * Used in classes that need up-to-date metadata to avoid the cost of looking up {@link Schema} hashmaps.
+ * Used in classes that need up-to-date metadata to avoid the cost of looking up {@link SchemaManager} hashmaps.
  */
 @Unmetered
 public final class TableMetadataRef
@@ -74,7 +74,7 @@ public final class TableMetadataRef
     /**
      * Update the reference with the most current version of {@link TableMetadata}
      * <p>
-     * Must only be used by methods in {@link Schema}, *DO NOT* make public
+     * Must only be used by methods in {@link SchemaManager}, *DO NOT* make public
      * even for testing purposes, it isn't safe.
      */
     void set(TableMetadata metadata)

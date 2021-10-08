@@ -117,9 +117,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
             if (Guardrails.tablesLimit.enabled(state))
             {
                 // guardrails on number of tables
-                int totalUserTables = Schema.instance.getNonInternalKeyspaces().stream().map(Keyspace::open)
-                                                     .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
-                                                     .sum();
+                int totalUserTables = SchemaManager.instance.getNonInternalKeyspaces().stream().map(Keyspace::open)
+                                                            .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
+                                                            .sum();
                 Guardrails.tablesLimit.guard(totalUserTables + 1, tableName, false, state);
             }
         }
@@ -409,12 +409,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
     {
         ImmutableSet.Builder<String> warnings = ImmutableSet.builder();
 
-        int tableCount = Schema.instance.getNumberOfTables();
+        int tableCount = SchemaManager.instance.getNumberOfTables();
         if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
         {
             String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
                                        tableCount,
-                                       Schema.instance.getKeyspaces().size());
+                                       SchemaManager.instance.getKeyspaces().size());
             logger.warn(msg);
             warnings.add(msg);
         }

@@ -32,7 +32,7 @@ import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.metrics.CacheMetrics;
@@ -316,7 +316,7 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         dropTable("DROP TABLE %s");
-        Schema.instance.updateVersion();
+        SchemaManager.instance.updateVersion();
 
         //Test loading for a dropped 2i/table
         CacheService.instance.keyCache.clear();
@@ -403,7 +403,7 @@ public class KeyCacheCqlTest extends CQLTester
         while(iter.hasNext())
         {
             KeyCacheKey key = iter.next();
-            TableMetadataRef tableMetadataRef = Schema.instance.getTableMetadataRef(key.tableId);
+            TableMetadataRef tableMetadataRef = SchemaManager.instance.getTableMetadataRef(key.tableId);
             Assert.assertFalse(tableMetadataRef.keyspace.equals("KEYSPACE_PER_TEST"));
             Assert.assertFalse(tableMetadataRef.name.startsWith(table));
         }

@@ -27,7 +27,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -50,7 +50,7 @@ public class LocalSessionInfo
 
     private static String tableString(TableId id)
     {
-        TableMetadata meta = Schema.instance.getTableMetadata(id);
+        TableMetadata meta = SchemaManager.instance.getTableMetadata(id);
         return meta != null ? meta.keyspace + '.' + meta.name : "<null>";
     }
 

@@ -120,12 +120,12 @@ public abstract class OfflineToolUtils
 
     public void assertSchemaNotLoaded()
     {
-        assertClassNotLoaded("org.apache.cassandra.schema.Schema");
+        assertClassNotLoaded("org.apache.cassandra.schema.SchemaManager");
     }
 
     public void assertSchemaLoaded()
     {
-        assertClassLoaded("org.apache.cassandra.schema.Schema");
+        assertClassLoaded("org.apache.cassandra.schema.SchemaManager");
     }
 
     public void assertKeyspaceNotLoaded()

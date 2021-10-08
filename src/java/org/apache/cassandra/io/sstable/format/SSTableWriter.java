@@ -50,7 +50,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -148,7 +148,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        Collection<Index.Group> indexGroups,
                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        TableMetadataRef metadata = Schema.instance.getTableMetadataRef(descriptor);
+        TableMetadataRef metadata = SchemaManager.instance.getTableMetadataRef(descriptor);
         return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, isTransient, sstableLevel, header, indexGroups, lifecycleNewTracker);
     }
 

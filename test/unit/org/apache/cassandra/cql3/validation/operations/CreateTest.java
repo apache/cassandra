@@ -44,7 +44,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.MemtableParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
@@ -835,13 +835,13 @@ public class CreateTest extends CQLTester
 
     private void assertTriggerExists(String name)
     {
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata(keyspace(), currentTable());
         assertTrue("the trigger does not exist", metadata.triggers.get(name).isPresent());
     }
 
     private void assertTriggerDoesNotExists(String name)
     {
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata(keyspace(), currentTable());
         assertFalse("the trigger exists", metadata.triggers.get(name).isPresent());
     }
 

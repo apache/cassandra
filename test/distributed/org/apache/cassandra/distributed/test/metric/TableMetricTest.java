@@ -42,7 +42,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -215,7 +215,7 @@ public class TableMetricTest extends TestBaseImpl
     private static void assertKeyspaceMetricMayExists(MapMBeanWrapper mbeans, String keyspace, String name)
     {
         String keyspaceMBean = getKeyspaceMetricName(keyspace, name);
-        boolean keyspaceExists = Schema.instance.getKeyspaceMetadata(keyspace) != null;
+        boolean keyspaceExists = SchemaManager.instance.getKeyspaceMetadata(keyspace) != null;
         String errorMessage = keyspaceExists ?
                               "Unable to find keyspace metric " + keyspaceMBean + " for " + keyspace :
                               "Found keyspace metric " + keyspaceMBean + " for " + keyspace;

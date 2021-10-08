@@ -37,7 +37,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -465,7 +465,7 @@ public class DescribeStatementTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (pk1 text, pk2 int, c int, s decimal static, v1 text, v2 int, v3 int, PRIMARY KEY ((pk1, pk2), c ))");
 
-        TableId id = Schema.instance.getTableMetadata(KEYSPACE, table).id;
+        TableId id = SchemaManager.instance.getTableMetadata(KEYSPACE, table).id;
 
         String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
                                       "    pk1 text,\n" +
@@ -527,7 +527,7 @@ public class DescribeStatementTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (pk text, v1 text, v2 int, v3 int, PRIMARY KEY (pk))");
 
-        TableId id = Schema.instance.getTableMetadata(KEYSPACE, table).id;
+        TableId id = SchemaManager.instance.getTableMetadata(KEYSPACE, table).id;
 
         String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
                                       "    pk text PRIMARY KEY,\n" +

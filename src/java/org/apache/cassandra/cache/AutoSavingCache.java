@@ -35,10 +35,10 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.compaction.AbstractTableOperation;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -202,11 +202,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
                 //Check the schema has not changed since CFs are looked up by name which is ambiguous
                 UUID schemaVersion = new UUID(in.readLong(), in.readLong());
-                if (!schemaVersion.equals(Schema.instance.getVersion()))
+                if (!schemaVersion.equals(SchemaManager.instance.getVersion()))
                     throw new RuntimeException("Cache schema version "
-                                              + schemaVersion
-                                              + " does not match current schema version "
-                                              + Schema.instance.getVersion());
+                                               + schemaVersion
+                                               + " does not match current schema version "
+                                               + SchemaManager.instance.getVersion());
 
                 ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<Future<Pair<K, V>>>();
                 while (in.available() > 0)
@@ -219,7 +219,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     if (indexName.isEmpty())
                         indexName = null;
 
-                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
+                    ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tableId);
                     if (indexName != null && cfs != null)
                         cfs = cfs.indexManager.getIndexByName(indexName).getBackingTable().orElse(null);
 
@@ -353,11 +353,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             {
 
                 //Need to be able to check schema version because CF names are ambiguous
-                UUID schemaVersion = Schema.instance.getVersion();
+                UUID schemaVersion = SchemaManager.instance.getVersion();
                 if (schemaVersion == null)
                 {
-                    Schema.instance.updateVersion();
-                    schemaVersion = Schema.instance.getVersion();
+                    SchemaManager.instance.updateVersion();
+                    schemaVersion = SchemaManager.instance.getVersion();
                 }
                 writer.writeLong(schemaVersion.getMostSignificantBits());
                 writer.writeLong(schemaVersion.getLeastSignificantBits());
@@ -366,7 +366,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 {
                     K key = keyIterator.next();
 
-                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(key.tableId);
+                    ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(key.tableId);
                     if (cfs == null)
                         continue; // the table or 2i has been dropped.
                     if (key.indexName != null)

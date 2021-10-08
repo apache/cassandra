@@ -29,7 +29,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -239,9 +239,9 @@ public class OrderPreservingPartitioner implements IPartitioner
             lastToken = node;
         }
 
-        for (String ks : Schema.instance.getKeyspaces())
+        for (String ks : SchemaManager.instance.getKeyspaces())
         {
-            for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
+            for (TableMetadata cfmd : SchemaManager.instance.getTablesAndViews(ks))
             {
                 for (Range<Token> r : sortedRanges)
                 {

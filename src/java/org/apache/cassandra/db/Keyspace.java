@@ -57,7 +57,7 @@ import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
@@ -119,13 +119,13 @@ public class Keyspace
     public static Keyspace open(String keyspaceName)
     {
         assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName);
-        return open(keyspaceName, Schema.instance, true);
+        return open(keyspaceName, SchemaManager.instance, true);
     }
 
     // to only be used by org.apache.cassandra.tools.Standalone* classes
     public static Keyspace openWithoutSSTables(String keyspaceName)
     {
-        return open(keyspaceName, Schema.instance, false);
+        return open(keyspaceName, SchemaManager.instance, false);
     }
 
     @VisibleForTesting
@@ -153,14 +153,14 @@ public class Keyspace
 
     public static Keyspace clear(String keyspaceName)
     {
-        return clear(keyspaceName, Schema.instance);
+        return clear(keyspaceName, SchemaManager.instance);
     }
 
-    public static Keyspace clear(String keyspaceName, Schema schema)
+    public static Keyspace clear(String keyspaceName, SchemaManager schemaManager)
     {
-        synchronized (schema)
+        synchronized (schemaManager)
         {
-            Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
+            Keyspace t = schemaManager.removeKeyspaceInstance(keyspaceName);
             if (t != null)
             {
                 for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
@@ -360,7 +360,7 @@ public class Keyspace
 
     private Keyspace(KeyspaceMetadata metadata)
     {
-        this.schema = Schema.instance;
+        this.schema = SchemaManager.instance;
         this.metadata = metadata;
         createReplicationStrategy(metadata);
         this.metric = new KeyspaceMetrics(this);
@@ -752,7 +752,7 @@ public class Keyspace
 
     public static Iterable<Keyspace> all()
     {
-        return Iterables.transform(Schema.instance.getKeyspaces(), Keyspace::open);
+        return Iterables.transform(SchemaManager.instance.getKeyspaces(), Keyspace::open);
     }
 
     /**
@@ -760,17 +760,17 @@ public class Keyspace
      */
     public static Stream<Keyspace> allExisting()
     {
-        return Schema.instance.getKeyspaces().stream().map(Schema.instance::getKeyspaceInstance).filter(Objects::nonNull);
+        return SchemaManager.instance.getKeyspaces().stream().map(SchemaManager.instance::getKeyspaceInstance).filter(Objects::nonNull);
     }
 
     public static Iterable<Keyspace> nonSystem()
     {
-        return Iterables.transform(Schema.instance.getNonSystemKeyspaces(), Keyspace::open);
+        return Iterables.transform(SchemaManager.instance.getNonSystemKeyspaces(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> nonLocalStrategy()
     {
-        return Iterables.transform(Schema.instance.getNonLocalStrategyKeyspaces(), Keyspace::open);
+        return Iterables.transform(SchemaManager.instance.getNonLocalStrategyKeyspaces(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> system()

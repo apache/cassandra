@@ -43,7 +43,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -101,7 +101,7 @@ public class Server implements CassandraDaemon.Server
         EventNotifier notifier = builder.eventNotifier != null ? builder.eventNotifier : new EventNotifier();
         notifier.registerConnectionTracker(connectionTracker);
         StorageService.instance.register(notifier);
-        Schema.instance.registerListener(notifier);
+        SchemaManager.instance.registerListener(notifier);
     }
 
     public void stop()

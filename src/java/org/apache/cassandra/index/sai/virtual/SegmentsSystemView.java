@@ -38,7 +38,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 
 /**
@@ -124,9 +124,9 @@ public class SegmentsSystemView extends AbstractVirtualTable
 
     private void forEachIndex(Consumer<ColumnContext> process)
     {
-        for (String ks : Schema.instance.getUserKeyspaces())
+        for (String ks : SchemaManager.instance.getUserKeyspaces())
         {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks);
+            Keyspace keyspace = SchemaManager.instance.getKeyspaceInstance(ks);
             if (keyspace == null)
                 throw new IllegalArgumentException("Unknown keyspace " + ks);
 

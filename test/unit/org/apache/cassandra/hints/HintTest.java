@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
@@ -45,7 +44,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
@@ -86,7 +85,7 @@ public class HintTest
         tokenMeta.updateHostId(UUID.randomUUID(), local);
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
-        for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
+        for (TableMetadata table : SchemaManager.instance.getTablesAndViews(KEYSPACE))
             MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build(), true);
     }
 
@@ -153,9 +152,9 @@ public class HintTest
         assertNoPartitions(key, TABLE1);
 
         // TABLE0 and TABLE2 updates should have been applied successfully
-        PartitionUpdate upd0 = mutation.getPartitionUpdate(Schema.instance.getTableMetadata(KEYSPACE, TABLE0));
+        PartitionUpdate upd0 = mutation.getPartitionUpdate(SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE0));
         assertPartitionsEqual(upd0, readPartition(key, TABLE0, upd0.columns()));
-        PartitionUpdate upd2 = mutation.getPartitionUpdate(Schema.instance.getTableMetadata(KEYSPACE, TABLE2));
+        PartitionUpdate upd2 = mutation.getPartitionUpdate(SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE2));
         assertPartitionsEqual(upd2, readPartition(key, TABLE2, upd2.columns()));
     }
 
@@ -172,7 +171,7 @@ public class HintTest
 
         // lower the GC GS on TABLE0 to 0 BEFORE the hint is created
         TableMetadata updated =
-            Schema.instance
+            SchemaManager.instance
                   .getTableMetadata(KEYSPACE, TABLE0)
                   .unbuild()
                   .gcGraceSeconds(0)
@@ -201,7 +200,7 @@ public class HintTest
 
         // lower the GC GS on TABLE0 AFTER the hint is already created
         TableMetadata updated =
-            Schema.instance
+            SchemaManager.instance
                   .getTableMetadata(KEYSPACE, TABLE0)
                   .unbuild()
                   .gcGraceSeconds(0)
@@ -310,17 +309,17 @@ public class HintTest
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, dk(key));
 
-        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE0))
+        builder.update(SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE0))
                .timestamp(now)
                .row("column0")
                .add("val", "value0");
 
-        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE1))
+        builder.update(SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE1))
                .timestamp(now + 1)
                .row("column1")
                .add("val", "value1");
 
-        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE2))
+        builder.update(SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE2))
                .timestamp(now + 2)
                .row("column2")
                .add("val", "value2");
@@ -330,7 +329,7 @@ public class HintTest
 
     private static ColumnFamilyStore cfs(String table)
     {
-        return Schema.instance.getColumnFamilyStoreInstance(Schema.instance.getTableMetadata(KEYSPACE, table).id);
+        return SchemaManager.instance.getColumnFamilyStoreInstance(SchemaManager.instance.getTableMetadata(KEYSPACE, table).id);
     }
 
     private static FilteredPartition readPartition(String key, String table, RegularAndStaticColumns columns)

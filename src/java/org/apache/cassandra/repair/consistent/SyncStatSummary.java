@@ -30,7 +30,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairResult;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.SyncStat;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
@@ -134,7 +134,7 @@ public class SyncStatSummary
 
         boolean isCounter()
         {
-            TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
+            TableMetadata tmd = SchemaManager.instance.getTableMetadata(keyspace, table);
             return tmd != null && tmd.isCounter();
         }
 

@@ -25,7 +25,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaChangeListener;
 
 import static org.junit.Assert.assertFalse;
@@ -77,7 +77,7 @@ public class CompactTableTest extends CQLTester
             }
         };
 
-        Schema.instance.registerListener(listener);
+        SchemaManager.instance.registerListener(listener);
 
         try
         {
@@ -95,7 +95,7 @@ public class CompactTableTest extends CQLTester
         finally
         {
             // Clean up the listener so this doesn't fail other tests.
-            Schema.instance.unregisterListener(listener);
+            SchemaManager.instance.unregisterListener(listener);
         }
     }
 

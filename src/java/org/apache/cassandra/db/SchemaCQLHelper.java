@@ -90,7 +90,7 @@ public class SchemaCQLHelper
     {
         if (metadata.isView())
         {
-            KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
+            KeyspaceMetadata keyspaceMetadata = SchemaManager.instance.getKeyspaceMetadata(metadata.keyspace);
             ViewMetadata viewMetadata = keyspaceMetadata.views.get(metadata.name).orElse(null);
             assert viewMetadata != null;
             return viewMetadata.toCqlString(internals, ifNotExists);

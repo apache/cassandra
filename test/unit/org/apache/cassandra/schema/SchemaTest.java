@@ -46,8 +46,8 @@ public class SchemaTest
     {
         CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
-        Schema.instance.loadFromDisk();
-        assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());
+        SchemaManager.instance.loadFromDisk();
+        assertEquals(0, SchemaManager.instance.getNonSystemKeyspaces().size());
 
         Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
         Keyspace.setInitialized();
@@ -58,19 +58,19 @@ public class SchemaTest
             MigrationManager.announceNewKeyspace(KeyspaceMetadata.create("ks0", KeyspaceParams.simple(3)));
             MigrationManager.announceNewKeyspace(KeyspaceMetadata.create("ks1", KeyspaceParams.simple(3)));
 
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks0"));
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks1"));
+            assertNotNull(SchemaManager.instance.getKeyspaceMetadata("ks0"));
+            assertNotNull(SchemaManager.instance.getKeyspaceMetadata("ks1"));
 
-            Schema.instance.unload(Schema.instance.getKeyspaceMetadata("ks0"));
-            Schema.instance.unload(Schema.instance.getKeyspaceMetadata("ks1"));
+            SchemaManager.instance.unload(SchemaManager.instance.getKeyspaceMetadata("ks0"));
+            SchemaManager.instance.unload(SchemaManager.instance.getKeyspaceMetadata("ks1"));
 
-            assertNull(Schema.instance.getKeyspaceMetadata("ks0"));
-            assertNull(Schema.instance.getKeyspaceMetadata("ks1"));
+            assertNull(SchemaManager.instance.getKeyspaceMetadata("ks0"));
+            assertNull(SchemaManager.instance.getKeyspaceMetadata("ks1"));
 
-            Schema.instance.loadFromDisk();
+            SchemaManager.instance.loadFromDisk();
 
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks0"));
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks1"));
+            assertNotNull(SchemaManager.instance.getKeyspaceMetadata("ks0"));
+            assertNotNull(SchemaManager.instance.getKeyspaceMetadata("ks1"));
         }
         finally
         {

@@ -23,7 +23,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 
 /**
  * The primary type of resource in Cassandra.
@@ -209,9 +209,9 @@ public class DataResource implements IResource
             case ROOT:
                 return true;
             case KEYSPACE:
-                return Schema.instance.getKeyspaces().contains(keyspace);
+                return SchemaManager.instance.getKeyspaces().contains(keyspace);
             case TABLE:
-                return Schema.instance.getTableMetadata(keyspace, table) != null;
+                return SchemaManager.instance.getTableMetadata(keyspace, table) != null;
         }
         throw new AssertionError();
     }

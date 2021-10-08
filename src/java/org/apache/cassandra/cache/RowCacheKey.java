@@ -24,7 +24,7 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -88,7 +88,7 @@ public final class RowCacheKey extends CacheKey
     @Override
     public String toString()
     {
-        TableMetadataRef tableRef = Schema.instance.getTableMetadataRef(tableId);
+        TableMetadataRef tableRef = SchemaManager.instance.getTableMetadataRef(tableId);
         return String.format("RowCacheKey(%s, %s, key:%s)", tableRef, indexName, Arrays.toString(key));
     }
 }

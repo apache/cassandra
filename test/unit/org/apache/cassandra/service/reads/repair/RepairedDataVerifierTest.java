@@ -37,7 +37,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -68,7 +68,7 @@ public class RepairedDataVerifierTest
     @Before
     public void setup()
     {
-        metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        metadata = SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE);
         metrics = ColumnFamilyStore.metricsFor(metadata.id);
     }
 

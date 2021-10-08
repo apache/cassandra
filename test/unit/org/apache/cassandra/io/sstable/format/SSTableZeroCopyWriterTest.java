@@ -21,13 +21,10 @@ package org.apache.cassandra.io.sstable.format;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Set;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableSet;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -49,14 +46,12 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -154,7 +149,7 @@ public class SSTableZeroCopyWriterTest
     {
         File dir = store.getDirectories().getDirectoryForNewSSTables();
         Descriptor desc = store.newSSTableDescriptor(dir);
-        TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
+        TableMetadataRef metadata = SchemaManager.instance.getTableMetadataRef(desc);
 
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
         Set<Component> componentsToWrite = desc.getFormat().requiredComponents();

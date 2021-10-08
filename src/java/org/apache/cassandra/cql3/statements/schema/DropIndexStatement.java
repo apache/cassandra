@@ -76,7 +76,7 @@ public final class DropIndexStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
-        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        KeyspaceMetadata keyspace = SchemaManager.instance.getKeyspaceMetadata(keyspaceName);
         if (null == keyspace)
             return;
 

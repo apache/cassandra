@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.*;
@@ -71,7 +71,7 @@ public class SelectionColumnMappingTest extends CQLTester
                                 " v1 int," +
                                 " v2 ascii," +
                                 " v3 frozen<" + typeName + ">)");
-        userType = Schema.instance.getKeyspaceMetadata(KEYSPACE).types.get(ByteBufferUtil.bytes(typeName)).get().freeze();
+        userType = SchemaManager.instance.getKeyspaceMetadata(KEYSPACE).types.get(ByteBufferUtil.bytes(typeName)).get().freeze();
         functionName = createFunction(KEYSPACE, "int, ascii",
                                       "CREATE FUNCTION %s (i int, a ascii) " +
                                       "CALLED ON NULL INPUT " +
@@ -610,7 +610,7 @@ public class SelectionColumnMappingTest extends CQLTester
 
     private ColumnMetadata columnDefinition(String name)
     {
-        return Schema.instance.getTableMetadata(KEYSPACE, tableName).getColumn(new ColumnIdentifier(name, true));
+        return SchemaManager.instance.getTableMetadata(KEYSPACE, tableName).getColumn(new ColumnIdentifier(name, true));
 
     }
 

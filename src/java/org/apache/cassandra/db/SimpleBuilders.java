@@ -23,7 +23,7 @@ import java.util.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -134,7 +134,7 @@ public abstract class SimpleBuilders
 
         public PartitionUpdate.SimpleBuilder update(String tableName)
         {
-            TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
+            TableMetadata metadata = SchemaManager.instance.getTableMetadata(keyspaceName, tableName);
             assert metadata != null : "Unknown table " + tableName + " in keyspace " + keyspaceName;
             return update(metadata);
         }

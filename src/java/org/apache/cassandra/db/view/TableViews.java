@@ -33,7 +33,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -56,7 +56,7 @@ public class TableViews extends AbstractCollection<View>
 
     public TableViews(TableId id)
     {
-        baseTableMetadata = Schema.instance.getTableMetadataRef(id);
+        baseTableMetadata = SchemaManager.instance.getTableMetadataRef(id);
     }
 
     public boolean hasViews()

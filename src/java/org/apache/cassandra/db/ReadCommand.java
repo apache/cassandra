@@ -57,7 +57,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -958,7 +958,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public Serializer()
         {
-            this(Schema.instance);
+            this(SchemaManager.instance);
         }
 
         @VisibleForTesting

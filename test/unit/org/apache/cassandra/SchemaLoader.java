@@ -283,7 +283,7 @@ public class SchemaLoader
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
         DatabaseDescriptor.getNetworkAuthorizer().setup();
-        Schema.instance.registerListener(new AuthSchemaChangeListener());
+        SchemaManager.instance.registerListener(new AuthSchemaChangeListener());
     }
 
     public static ColumnMetadata integerColumn(String ksName, String cfName)
@@ -730,7 +730,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     public static void insertData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
-        TableMetadata cfm = Schema.instance.getTableMetadata(keyspace, columnFamily);
+        TableMetadata cfm = SchemaManager.instance.getTableMetadata(keyspace, columnFamily);
 
         for (int i = offset; i < offset + numberOfRows; i++)
         {
@@ -769,13 +769,13 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
         for (String typeCQL : typesCQL)
         {
-            Types types = Schema.instance.getKeyspaceMetadata(keyspace).types;
+            Types types = SchemaManager.instance.getKeyspaceMetadata(keyspace).types;
             SchemaTransformation t = SchemaTransformations.addOrUpdateType(CreateTypeStatement.parse(typeCQL,
                                                                                                      keyspace, types));
             MigrationManager.announce(t, true);
         }
 
-        Types types = Schema.instance.getKeyspaceMetadata(keyspace).types;
+        Types types = SchemaManager.instance.getKeyspaceMetadata(keyspace).types;
         TableMetadata metadata = CreateTableStatement.parse(schemaCQL, keyspace, types).build();
         MigrationManager.announce(SchemaTransformations.addTable(metadata, true), true);
     }

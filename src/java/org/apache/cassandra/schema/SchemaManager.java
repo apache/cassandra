@@ -50,9 +50,9 @@ import static java.lang.String.format;
 
 import static com.google.common.collect.Iterables.size;
 
-public final class Schema implements SchemaProvider
+public final class SchemaManager implements SchemaProvider
 {
-    public static final Schema instance = new Schema();
+    public static final SchemaManager instance = new SchemaManager();
 
     private volatile Keyspaces keyspaces = Keyspaces.none();
 
@@ -72,7 +72,7 @@ public final class Schema implements SchemaProvider
     /**
      * Initialize empty schema object and load the hardcoded system tables
      */
-    private Schema()
+    private SchemaManager()
     {
         if (DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized())
         {

@@ -38,7 +38,7 @@ import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -128,7 +128,7 @@ public class LongStreamingTest
 
             public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getTableMetadataRef(ks, cfName);
+                return SchemaManager.instance.getTableMetadataRef(ks, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 
@@ -155,7 +155,7 @@ public class LongStreamingTest
 
             public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getTableMetadataRef(ks, cfName);
+                return SchemaManager.instance.getTableMetadataRef(ks, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 

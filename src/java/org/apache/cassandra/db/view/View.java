@@ -32,7 +32,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.QueryState;
@@ -230,14 +230,14 @@ public class View
     @Nullable
     public static TableMetadataRef findBaseTable(String keyspace, String viewName)
     {
-        ViewMetadata view = Schema.instance.getView(keyspace, viewName);
-        return (view == null) ? null : Schema.instance.getTableMetadataRef(view.baseTableId);
+        ViewMetadata view = SchemaManager.instance.getView(keyspace, viewName);
+        return (view == null) ? null : SchemaManager.instance.getTableMetadataRef(view.baseTableId);
     }
 
     // TODO: REMOVE
     public static Iterable<ViewMetadata> findAll(String keyspace, String baseTable)
     {
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
+        KeyspaceMetadata ksm = SchemaManager.instance.getKeyspaceMetadata(keyspace);
         return Iterables.filter(ksm.views, view -> view.baseTableName.equals(baseTable));
     }
 

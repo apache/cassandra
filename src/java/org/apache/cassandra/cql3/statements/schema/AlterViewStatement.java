@@ -96,7 +96,7 @@ public final class AlterViewStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
-        ViewMetadata view = Schema.instance.getView(keyspaceName, viewName);
+        ViewMetadata view = SchemaManager.instance.getView(keyspaceName, viewName);
         if (null != view)
             client.ensureTablePermission(keyspaceName, view.baseTableName, Permission.ALTER);
     }

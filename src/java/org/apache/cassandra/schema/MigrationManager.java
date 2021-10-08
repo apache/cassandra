@@ -86,7 +86,7 @@ public class MigrationManager
     {
         ksm.validate();
 
-        if (Schema.instance.getKeyspaceMetadata(ksm.name) != null)
+        if (SchemaManager.instance.getKeyspaceMetadata(ksm.name) != null)
             throw new AlreadyExistsException(ksm.name);
 
         logger.info("Create new Keyspace: {}", ksm);
@@ -102,7 +102,7 @@ public class MigrationManager
     {
         cfm.validate();
 
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(cfm.keyspace);
+        KeyspaceMetadata ksm = SchemaManager.instance.getKeyspaceMetadata(cfm.keyspace);
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add table '%s' to non existing keyspace '%s'.", cfm.name, cfm.keyspace));
         // If we have a table or a view which has the same name, we can't add a new one
@@ -117,7 +117,7 @@ public class MigrationManager
     {
         ksm.validate();
 
-        KeyspaceMetadata oldKsm = Schema.instance.getKeyspaceMetadata(ksm.name);
+        KeyspaceMetadata oldKsm = SchemaManager.instance.getKeyspaceMetadata(ksm.name);
         if (oldKsm == null)
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
@@ -134,10 +134,10 @@ public class MigrationManager
     {
         updated.validate();
 
-        TableMetadata current = Schema.instance.getTableMetadata(updated.keyspace, updated.name);
+        TableMetadata current = SchemaManager.instance.getTableMetadata(updated.keyspace, updated.name);
         if (current == null)
             throw new ConfigurationException(String.format("Cannot update non existing table '%s' in keyspace '%s'.", updated.name, updated.keyspace));
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(current.keyspace);
+        KeyspaceMetadata ksm = SchemaManager.instance.getKeyspaceMetadata(current.keyspace);
 
         updated.validateCompatibility(current);
 
@@ -151,7 +151,7 @@ public class MigrationManager
 
     static void announceKeyspaceDrop(String ksName)
     {
-        KeyspaceMetadata oldKsm = Schema.instance.getKeyspaceMetadata(ksName);
+        KeyspaceMetadata oldKsm = SchemaManager.instance.getKeyspaceMetadata(ksName);
         if (oldKsm == null)
             throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
 
@@ -161,10 +161,10 @@ public class MigrationManager
 
     public static void announceTableDrop(String ksName, String cfName, boolean announceLocally)
     {
-        TableMetadata tm = Schema.instance.getTableMetadata(ksName, cfName);
+        TableMetadata tm = SchemaManager.instance.getTableMetadata(ksName, cfName);
         if (tm == null)
             throw new ConfigurationException(String.format("Cannot drop non existing table '%s' in keyspace '%s'.", cfName, ksName));
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(ksName);
+        KeyspaceMetadata ksm = SchemaManager.instance.getKeyspaceMetadata(ksName);
 
         logger.info("Drop table '{}/{}'", tm.keyspace, tm.name);
         announce(SchemaKeyspace.makeDropTableMutation(ksm, tm, FBUtilities.timestampMicros()), announceLocally);
@@ -179,7 +179,7 @@ public class MigrationManager
         List<Mutation> mutations = Collections.singletonList(schema.build());
 
         if (announceLocally)
-            Schema.instance.merge(mutations);
+            SchemaManager.instance.merge(mutations);
         else
             announce(mutations);
     }
@@ -215,17 +215,17 @@ public class MigrationManager
 
     public static Future<?> announceWithoutPush(Collection<Mutation> schema)
     {
-        return MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
+        return MIGRATION.submit(() -> SchemaManager.instance.mergeAndAnnounceVersion(schema));
     }
 
     public static KeyspacesDiff announce(SchemaTransformation transformation, boolean locally)
     {
         long now = FBUtilities.timestampMicros();
 
-        Future<Schema.TransformationResult> future =
-            MIGRATION.submit(() -> Schema.instance.transform(transformation, locally, now));
+        Future<SchemaManager.TransformationResult> future =
+            MIGRATION.submit(() -> SchemaManager.instance.transform(transformation, locally, now));
 
-        Schema.TransformationResult result = Futures.getUnchecked(future);
+        SchemaManager.TransformationResult result = Futures.getUnchecked(future);
         if (!result.success)
             throw result.exception;
 
@@ -270,7 +270,7 @@ public class MigrationManager
 
         logger.debug("Clearing local schema keyspace definitions...");
 
-        Schema.instance.clear();
+        SchemaManager.instance.clear();
 
         Set<InetAddressAndPort> liveEndpoints = Gossiper.instance.getLiveMembers();
         liveEndpoints.remove(FBUtilities.getBroadcastAddressAndPort());
@@ -305,7 +305,7 @@ public class MigrationManager
     {
         Mutation.SimpleBuilder builder = null;
 
-        KeyspaceMetadata definedKeyspace = Schema.instance.getKeyspaceMetadata(keyspace.name);
+        KeyspaceMetadata definedKeyspace = SchemaManager.instance.getKeyspaceMetadata(keyspace.name);
         Tables definedTables = null == definedKeyspace ? Tables.none() : definedKeyspace.tables;
 
         for (TableMetadata table : keyspace.tables)

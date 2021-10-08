@@ -918,7 +918,7 @@ public abstract class CQLTester
                         ? IndexMetadata.generateDefaultIndexName(table)
                         : IndexMetadata.generateDefaultIndexName(table, new ColumnIdentifier(column, true));
 
-        KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(keyspace);
+        KeyspaceMetadata ks = SchemaManager.instance.getKeyspaceMetadata(keyspace);
         return ks.findAvailableIndexName(baseName);
     }
 
@@ -1072,7 +1072,7 @@ public abstract class CQLTester
 
     protected TableMetadata currentTableMetadata()
     {
-        return Schema.instance.getTableMetadata(KEYSPACE, currentTable());
+        return SchemaManager.instance.getTableMetadata(KEYSPACE, currentTable());
     }
 
     protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, String query, Object... values) throws Throwable

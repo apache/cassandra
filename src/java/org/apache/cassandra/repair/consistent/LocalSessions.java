@@ -71,7 +71,7 @@ import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStat;
 import org.apache.cassandra.repair.consistent.admin.PendingStats;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -268,7 +268,7 @@ public class LocalSessions
 
     public PendingStats getPendingStats(TableId tid, Collection<Range<Token>> ranges)
     {
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
         Preconditions.checkArgument(cfs != null);
 
         PendingStat.Builder pending = new PendingStat.Builder();
@@ -317,7 +317,7 @@ public class LocalSessions
                                                                    && ls.tableIds.contains(tid)
                                                                    && Range.intersects(ls.ranges, ranges));
 
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
         Preconditions.checkNotNull(cfs);
 
         Set<UUID> sessionIds = Sets.newHashSet(Iterables.transform(candidates, s -> s.sessionID));
@@ -645,8 +645,8 @@ public class LocalSessions
 
     private void syncTable()
     {
-        TableId tid = Schema.instance.getTableMetadata(keyspace, table).id;
-        ColumnFamilyStore cfm = Schema.instance.getColumnFamilyStoreInstance(tid);
+        TableId tid = SchemaManager.instance.getTableMetadata(keyspace, table).id;
+        ColumnFamilyStore cfm = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
         cfm.forceBlockingFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
@@ -957,7 +957,7 @@ public class LocalSessions
     {
         for (TableId tid: session.tableIds)
         {
-            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+            ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
             if (cfs != null)
             {
                 cfs.getRepairManager().incrementalSessionCompleted(session.sessionID);
@@ -1078,7 +1078,7 @@ public class LocalSessions
     protected boolean sessionHasData(LocalSession session)
     {
         Predicate<TableId> predicate = tid -> {
-            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+            ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
             return cfs != null && cfs.hasPendingRepairSSTables(session.sessionID);
 
         };

@@ -44,7 +44,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Throwables;
@@ -229,13 +229,13 @@ public class TrieIndexFormat implements SSTableFormat
             {
                 int i = descriptor.cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
                 String indexName = descriptor.cfname.substring(i + 1);
-                metadata = Schema.instance.getIndexTableMetadataRef(descriptor.ksname, indexName);
+                metadata = SchemaManager.instance.getIndexTableMetadataRef(descriptor.ksname, indexName);
                 if (metadata == null)
                     throw new AssertionError("Could not find index metadata for index cf " + i);
             }
             else
             {
-                metadata = Schema.instance.getTableMetadataRef(descriptor.ksname, descriptor.cfname);
+                metadata = SchemaManager.instance.getTableMetadataRef(descriptor.ksname, descriptor.cfname);
             }
             return open(descriptor, metadata);
         }

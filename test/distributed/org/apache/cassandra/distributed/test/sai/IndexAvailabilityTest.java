@@ -43,7 +43,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -272,7 +272,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
         expectedNodeIndexQueryability.put(NodeIndex.create(keyspace, indexName, node), Index.Status.BUILD_FAILED);
 
         node.runOnInstance(() -> {
-            SecondaryIndexManager sim = Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStore(table).indexManager;
+            SecondaryIndexManager sim = SchemaManager.instance.getKeyspaceInstance(keyspace).getColumnFamilyStore(table).indexManager;
             Index index = sim.getIndexByName(indexName);
             sim.makeIndexNonQueryable(index, Index.Status.BUILD_FAILED);
         });
@@ -283,7 +283,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
         expectedNodeIndexQueryability.put(NodeIndex.create(keyspace, indexName, node), Index.Status.BUILD_SUCCEEDED);
 
         node.runOnInstance(() -> {
-            SecondaryIndexManager sim = Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStore(table).indexManager;
+            SecondaryIndexManager sim = SchemaManager.instance.getKeyspaceInstance(keyspace).getColumnFamilyStore(table).indexManager;
             Index index = sim.getIndexByName(indexName);
             sim.makeIndexNonQueryable(index, Index.Status.BUILD_SUCCEEDED);
         });
@@ -294,7 +294,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
         expectedNodeIndexQueryability.put(NodeIndex.create(keyspace, indexName, node), Index.Status.FULL_REBUILD_STARTED);
 
         node.runOnInstance(() -> {
-            SecondaryIndexManager sim = Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStore(table).indexManager;
+            SecondaryIndexManager sim = SchemaManager.instance.getKeyspaceInstance(keyspace).getColumnFamilyStore(table).indexManager;
             Index index = sim.getIndexByName(indexName);
             sim.markIndexesBuilding(Collections.singleton(index), true, false);
         });
@@ -355,7 +355,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
     
     private static Index.Status getIndexStatus(String keyspaceName, String indexName, InetAddressAndPort replica)
     {
-        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        KeyspaceMetadata keyspace = SchemaManager.instance.getKeyspaceMetadata(keyspaceName);
         if (keyspace == null)
             return Index.Status.UNKNOWN;
 
