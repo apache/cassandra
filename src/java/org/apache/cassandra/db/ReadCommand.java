@@ -35,8 +35,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.guardrails.DefaultGuardrail;
 import org.apache.cassandra.guardrails.Guardrail;
 import org.apache.cassandra.guardrails.Guardrails;
+import org.apache.cassandra.guardrails.Threshold;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -492,15 +494,15 @@ public abstract class ReadCommand extends AbstractReadQuery
             private final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
             private int liveRows = 0;
-            private final Guardrail.Threshold.GuardedCounter tombstones = createTombstoneCounter();
+            private final Threshold.GuardedCounter tombstones = createTombstoneCounter();
 
             private DecoratedKey currentKey;
 
-            private Guardrail.Threshold.GuardedCounter createTombstoneCounter()
+            private Threshold.GuardedCounter createTombstoneCounter()
             {
-                Guardrail.Threshold guardrail = shouldRespectTombstoneThresholds()
+                Threshold guardrail = shouldRespectTombstoneThresholds()
                                                 ? Guardrails.scannedTombstones
-                                                : Guardrail.Threshold.NEVER_TRIGGERED;
+                                                : DefaultGuardrail.DefaultThreshold.NEVER_TRIGGERED;
                 return guardrail.newCounter(ReadCommand.this::toCQLString, true, null);
             }
 

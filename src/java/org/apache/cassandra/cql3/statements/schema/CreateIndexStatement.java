@@ -35,8 +35,8 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.guardrails.Guardrail;
 import org.apache.cassandra.guardrails.Guardrails;
+import org.apache.cassandra.guardrails.Threshold;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -341,10 +341,10 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         SASI(Guardrails.indexesPerTableSasi, null),
         UNKNOWN(null, null);
 
-        final Guardrail.Threshold perTableThreshold;
-        final Guardrail.Threshold totalThreshold;
+        final Threshold perTableThreshold;
+        final Threshold totalThreshold;
 
-        IndexGuardrails(Guardrail.Threshold perTableThreshold, Guardrail.Threshold totalThreshold)
+        IndexGuardrails(Threshold perTableThreshold, Threshold totalThreshold)
         {
             this.perTableThreshold = perTableThreshold;
             this.totalThreshold = totalThreshold;
