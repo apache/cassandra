@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.guardrails;
 
-import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.units.SizeUnit;
 import org.apache.cassandra.utils.units.Units;
@@ -194,15 +194,15 @@ public abstract class Guardrails
                           (x, what, v, t) -> format("The query cannot be completed because cartesian product of all values in IN conditions is greater than %s", t));
 
     @SuppressWarnings("unchecked")
-    public static final ValueBasedGuardrail<InetAddress> replicaDiskUsage =
-            (ValueBasedGuardrail<InetAddress>) factory.predicates("replica_disk_usage",
-                                                       DiskUsageBroadcaster.instance::isStuffed,
-                                                       DiskUsageBroadcaster.instance::isFull,
-                                                       // not using `what` because it represents replica address which should be hidden from client.
-                                                       (isWarning, what) -> isWarning
-                                                                            ? "Replica disk usage exceeds warn threshold"
-                                                                            : "Write request failed because disk usage exceeds failure threshold")
-            .setMinNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
+    public static final ValueBasedGuardrail<InetAddressAndPort> replicaDiskUsage =
+            (ValueBasedGuardrail<InetAddressAndPort>) factory.predicates("replica_disk_usage",
+                                                                         DiskUsageBroadcaster.instance::isStuffed,
+                                                                         DiskUsageBroadcaster.instance::isFull,
+                                                                         // not using `what` because it represents replica address which should be hidden from client.
+                                                                         (isWarning, what) -> isWarning
+                                                                                              ? "Replica disk usage exceeds warn threshold"
+                                                                                              : "Write request failed because disk usage exceeds failure threshold")
+                                                             .setMinNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
 
     public static final Threshold localDiskUsage =
             (Threshold) factory.threshold("local_disk_usage",

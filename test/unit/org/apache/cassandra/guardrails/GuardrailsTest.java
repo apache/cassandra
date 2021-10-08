@@ -423,7 +423,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisallowedValues()
     {
         // Using a LinkedHashSet below to ensure the order in the error message checked below are not random
-        DisallowedValues<Integer> disallowed = new DisallowedValues<>(
+        DisallowedValues<Integer> disallowed = new DefaultGuardrail.DefaultDisallowedValues<>(
         "x",
         () -> new LinkedHashSet<>(Arrays.asList("4", "6", "20")),
         Integer::valueOf,
@@ -477,7 +477,7 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testDisallowedValuesUsers()
     {
-        DisallowedValues<Integer> disallowed = new DisallowedValues<>(
+        DisallowedValues<Integer> disallowed = new DefaultGuardrail.DefaultDisallowedValues<>(
         "x",
         () -> Collections.singleton("2"),
         Integer::valueOf,
