@@ -218,7 +218,12 @@ public enum CassandraRelevantProperties
     USE_MICROMETER("cassandra.use_micrometer_metrics", "false"),
 
     /** Which class to use for coordinator client request metrics */
-    CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY("cassandra.custom_client_request_metrics_provider_class");
+    CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY("cassandra.custom_client_request_metrics_provider_class"),
+
+    /**
+     * Which class to use for creating guardrails
+     */
+    CUSTOM_GUARDRAILS_FACTORY_PROPERTY("cassandra.custom_guardrails_factory_class");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

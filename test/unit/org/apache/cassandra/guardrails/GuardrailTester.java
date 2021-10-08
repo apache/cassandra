@@ -308,11 +308,11 @@ public abstract class GuardrailTester extends CQLTester
     static class TestListener implements Guardrails.Listener
     {
         @Nullable
-        private final Guardrail guardrail;
+        private final DefaultGuardrail guardrail;
         private List<String> failures = new CopyOnWriteArrayList<>();
         private List<String> warnings = new CopyOnWriteArrayList<>();
 
-        private TestListener(@Nullable Guardrail guardrail)
+        private TestListener(@Nullable DefaultGuardrail guardrail)
         {
             this.guardrail = guardrail;
         }
