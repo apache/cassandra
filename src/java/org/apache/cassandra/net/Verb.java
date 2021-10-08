@@ -77,6 +77,7 @@ import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
 import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
@@ -98,7 +99,6 @@ import static org.apache.cassandra.concurrent.Stage.MISC;
 import static org.apache.cassandra.net.VerbTimeouts.*;
 import static org.apache.cassandra.net.Verb.Kind.*;
 import static org.apache.cassandra.net.Verb.Priority.*;
-import static org.apache.cassandra.schema.MigrationManager.MigrationsSerializer;
 
 /**
  * Note that priorities except P0 are presently unused.  P0 corresponds to urgent, i.e. what used to be the "Gossip" connection.
@@ -155,8 +155,8 @@ public class Verb
 
     // public static Verb P1 because messages can be arbitrarily large or aren't crucial
     public static Verb SCHEMA_PUSH_RSP        = new Verb("SCHEMA_PUSH_RSP",        98,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
-    public static Verb SCHEMA_PUSH_REQ        = new Verb("SCHEMA_PUSH_REQ",        18,  P1, rpcTimeout,      MIGRATION,         () -> MigrationsSerializer.instance,        () -> SchemaPushVerbHandler.instance,      SCHEMA_PUSH_RSP     );
-    public static Verb SCHEMA_PULL_RSP        = new Verb("SCHEMA_PULL_RSP",        88,  P1, rpcTimeout,      MIGRATION,         () -> MigrationsSerializer.instance,        () -> ResponseVerbHandler.instance                             );
+    public static Verb SCHEMA_PUSH_REQ        = new Verb("SCHEMA_PUSH_REQ",        18,  P1, rpcTimeout,      MIGRATION,         () -> SchemaMutationsSerializer.instance,   () -> SchemaPushVerbHandler.instance,      SCHEMA_PUSH_RSP     );
+    public static Verb SCHEMA_PULL_RSP        = new Verb("SCHEMA_PULL_RSP",        88,  P1, rpcTimeout,      MIGRATION,         () -> SchemaMutationsSerializer.instance,   () -> ResponseVerbHandler.instance                             );
     public static Verb SCHEMA_PULL_REQ        = new Verb("SCHEMA_PULL_REQ",        28,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaPullVerbHandler.instance,      SCHEMA_PULL_RSP     );
     public static Verb SCHEMA_VERSION_RSP     = new Verb("SCHEMA_VERSION_RSP",     80,  P1, rpcTimeout,      MIGRATION,         () -> UUIDSerializer.serializer,            () -> ResponseVerbHandler.instance                             );
     public static Verb SCHEMA_VERSION_REQ     = new Verb("SCHEMA_VERSION_REQ",     20,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaVersionVerbHandler.instance,   SCHEMA_VERSION_RSP  );
