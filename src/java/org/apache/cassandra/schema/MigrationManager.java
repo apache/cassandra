@@ -35,6 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.concurrent.Stage.MIGRATION;
@@ -218,12 +219,10 @@ public class MigrationManager
     {
         long now = FBUtilities.timestampMicros();
 
-        Future<SchemaManager.TransformationResult> future =
+        Future<SchemaTransformationResult> future =
             MIGRATION.submit(() -> SchemaManager.instance.transform(transformation, locally, now));
 
-        SchemaManager.TransformationResult result = Futures.getUnchecked(future);
-        if (!result.success)
-            throw result.exception;
+        SchemaTransformationResult result = Futures.getUnchecked(future);
 
         if (locally || result.diff.isEmpty())
             return result.diff;
