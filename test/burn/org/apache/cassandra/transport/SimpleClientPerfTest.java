@@ -23,12 +23,14 @@ import java.net.ServerSocket;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import com.google.common.util.concurrent.RateLimiter;
+import org.apache.commons.math.stat.descriptive.DescriptiveStatistics;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,11 +43,13 @@ import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
@@ -57,7 +61,7 @@ public class SimpleClientPerfTest
     @Parameterized.Parameter
     public ProtocolVersion version;
 
-    @Parameterized.Parameters()
+    @Parameterized.Parameters(name="{0}")
     public static Collection<Object[]> versions()
     {
         return ProtocolVersion.SUPPORTED.stream()
@@ -90,6 +94,7 @@ public class SimpleClientPerfTest
         }
     }
 
+    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureSmall() throws Throwable
     {
@@ -102,6 +107,7 @@ public class SimpleClientPerfTest
                  version);
     }
 
+    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureSmallWithCompression() throws Throwable
     {
@@ -114,6 +120,7 @@ public class SimpleClientPerfTest
                  version);
     }
 
+    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureLarge() throws Throwable
     {
@@ -126,6 +133,7 @@ public class SimpleClientPerfTest
                  version);
     }
 
+    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureLargeWithCompression() throws Throwable
     {
@@ -138,6 +146,7 @@ public class SimpleClientPerfTest
                  version);
     }
 
+    @SuppressWarnings({"UnstableApiUsage", "UseOfSystemOutOrSystemErr", "ResultOfMethodCallIgnored"})
     public void perfTest(SizeCaps requestCaps, SizeCaps responseCaps, AssertUtil.ThrowingSupplier<SimpleClient> clientSupplier, ProtocolVersion version) throws Throwable
     {
         ResultMessage.Rows response = generateRows(0, responseCaps);
@@ -190,7 +199,9 @@ public class SimpleClientPerfTest
         AtomicBoolean measure = new AtomicBoolean(false);
         DescriptiveStatistics stats = new DescriptiveStatistics();
         Lock lock = new ReentrantLock();
-
+        RateLimiter limiter = RateLimiter.create(2000);
+        AtomicLong overloadedExceptions = new AtomicLong(0);
+        
         // TODO: exercise client -> server large messages
         for (int t = 0; t < threads; t++)
         {
@@ -203,24 +214,53 @@ public class SimpleClientPerfTest
                         for (int j = 0; j < 1; j++)
                             messages.add(requestMessage);
 
-                        if (measure.get())
-                        {
-                            long nanoStart = System.nanoTime();
-                            client.execute(messages);
-                            long diff = System.nanoTime() - nanoStart;
+                            if (measure.get())
+                            {
+                                try
+                                {
+                                    limiter.acquire();
+                                    long nanoStart = System.nanoTime();
+                                    client.execute(messages);
+                                    long elapsed = System.nanoTime() - nanoStart;
 
-                            lock.lock();
-                            try
-                            {
-                                stats.addValue(TimeUnit.MICROSECONDS.toMillis(diff));
+                                    lock.lock();
+                                    try
+                                    {
+                                        stats.addValue(TimeUnit.NANOSECONDS.toMicros(elapsed));
+                                    }
+                                    finally
+                                    {
+                                        lock.unlock();
+                                    }
+                                }
+                                catch (RuntimeException e)
+                                {
+                                    if (Throwables.anyCauseMatches(e, cause -> cause instanceof OverloadedException))
+                                    {
+                                        overloadedExceptions.incrementAndGet();
+                                    }
+                                    else
+                                    {
+                                        throw e;
+                                    }
+                                }
                             }
-                            finally
+                            else
                             {
-                                lock.unlock();
+                                try
+                                {
+                                    limiter.acquire();
+                                    client.execute(messages); // warm-up
+                                }
+                                catch (RuntimeException e)
+                                {
+                                    // Ignore overloads during warmup...
+                                    if (!Throwables.anyCauseMatches(e, cause -> cause instanceof OverloadedException))
+                                    {
+                                        throw e;
+                                    }
+                                }
                             }
-                        }
-                        else
-                            client.execute(messages); // warm-up
                     }
                 }
                 catch (Throwable e)
@@ -240,14 +280,19 @@ public class SimpleClientPerfTest
 
         System.out.println("requestSize = " + requestSize);
         System.out.println("responseSize = " + responseSize);
+
+        System.out.println("Latencies (in microseconds)");
+        System.out.println("Elements: " + stats.getN());
         System.out.println("Mean:     " + stats.getMean());
         System.out.println("Variance: " + stats.getVariance());
         System.out.println("Median:   " + stats.getPercentile(0.5));
         System.out.println("90p:      " + stats.getPercentile(0.90));
         System.out.println("95p:      " + stats.getPercentile(0.95));
         System.out.println("99p:      " + stats.getPercentile(0.99));
+        System.out.println("Max:      " + stats.getMax());
+        
+        System.out.println("Failed due to overload: " + overloadedExceptions.get());
 
         server.stop();
     }
 }
-
