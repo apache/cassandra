@@ -556,6 +556,11 @@ public class DatabaseDescriptor
         {
             conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
         }
+        
+        if (conf.native_transport_rate_limiting_enabled)
+            logger.info("Native transport rate-limiting enabled at {} requests/second.", conf.native_transport_max_requests_per_second);
+        else
+            logger.info("Native transport rate-limiting disabled.");
 
         if (conf.commitlog_total_space_in_mb == null)
         {
@@ -2361,6 +2366,28 @@ public class DatabaseDescriptor
     public static void setNativeTransportMaxConcurrentRequestsInBytes(long maxConcurrentRequestsInBytes)
     {
         conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
+    }
+
+    public static int getNativeTransportMaxRequestsPerSecond()
+    {
+        return conf.native_transport_max_requests_per_second;
+    }
+
+    public static void setNativeTransportMaxRequestsPerSecond(int perSecond)
+    {
+        Preconditions.checkArgument(perSecond > 0, "native_transport_max_requests_per_second must be greater than zero");
+        conf.native_transport_max_requests_per_second = perSecond;
+    }
+
+    public static void setNativeTransportRateLimitingEnabled(boolean enabled)
+    {
+        logger.info("native_transport_rate_limiting_enabled set to {}", enabled);
+        conf.native_transport_rate_limiting_enabled = enabled;
+    }
+
+    public static boolean getNativeTransportRateLimitingEnabled()
+    {
+        return conf.native_transport_rate_limiting_enabled;
     }
 
     public static int getCommitLogSyncPeriod()

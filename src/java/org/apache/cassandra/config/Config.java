@@ -195,6 +195,8 @@ public class Config
     public volatile boolean native_transport_allow_older_protocols = true;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    public volatile boolean native_transport_rate_limiting_enabled = false;
+    public volatile int native_transport_max_requests_per_second = 1000000;
     public int native_transport_receive_queue_capacity_in_bytes = 1 << 20; // 1MiB
 
     @Deprecated

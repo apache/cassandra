@@ -1,6 +1,9 @@
 Future version (tbd)
  * Require only MODIFY permission on base when updating table with MV (STAR-564)
 
+4.1
+ * Request-Based Native Transport Rate-Limiting (CASSANDRA-16663)
+
 4.0.1
  * ArrayClustering.unsharedHeapSize does not include the data so undercounts the heap size (CASSANDRA-16845)
  * Improve help, doc and error messages about sstabledump -k and -x arguments (CASSANDRA-16818)
