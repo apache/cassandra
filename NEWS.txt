@@ -43,6 +43,8 @@ Upgrading
       confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
       for further details. You also need to regenerate passwords for users for who the password
       was created while the above property was set to be more than 30 otherwise they will not be able to log in.
+    - JNA library was updated from 5.6.0 to 5.9.0. In version 5.7.0, Darwin support for M1 devices
+      was fixed but prebuild native library for Darwin x86 (32bit Java on Mac OS) was removed.
 
 4.0
 ===

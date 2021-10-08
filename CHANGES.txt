@@ -1,4 +1,5 @@
 4.0.2
+ * Update JNA library to version 5.9.0 (CASSANDRA-17019)
  * Correct the internode message timestamp if sending node has wrapped (CASSANDRA-16997)
  * Avoid race causing us to return null in RangesAtEndpoint (CASSANDRA-16965)
  * Avoid rewriting all sstables during cleanup when transient replication is enabled (CASSANDRA-16966)
