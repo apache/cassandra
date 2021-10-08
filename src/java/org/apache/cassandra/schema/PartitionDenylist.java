@@ -164,6 +164,8 @@ public class PartitionDenylist
     /** Helper method as we need to both build cache on initial init but also on reload of cache contents and params */
     private LoadingCache<TableId, DenylistEntry> buildEmptyCache()
     {
+        // We rely on details of .refreshAfterWrite to reload this async in the background when it's hit:
+        // https://github.com/ben-manes/caffeine/wiki/Refresh
         return Caffeine.newBuilder()
                        .refreshAfterWrite(DatabaseDescriptor.getDenylistRefreshSeconds(), TimeUnit.SECONDS)
                        .executor(executor)
@@ -175,6 +177,7 @@ public class PartitionDenylist
                                return getDenylistForTableFromCQL(tid);
                            }
 
+                           // The synchronous reload method defaults to being wrapped with a supplyAsync in CacheLoader.asyncReload
                            @Override
                            public DenylistEntry reload(final TableId tid, final DenylistEntry oldValue)
                            {

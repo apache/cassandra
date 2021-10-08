@@ -298,8 +298,8 @@ public class PartitionDenylistTest
         confirmDenied("table1", "iii", "jjj");
 
         // Lower our limit to 5 allowable denies and then check and see that things past the limit are ignored
-        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
-        StorageProxy.instance.setMaxDenylistKeysTotal(5);
+        StorageProxy.instance.setDenylistMaxKeysPerTable(5);
+        StorageProxy.instance.setDenylistMaxKeysTotal(5);
         refreshList();
 
         // Confirm overflowed keys are allowed; first come first served
@@ -307,15 +307,15 @@ public class PartitionDenylistTest
         confirmAllowed("table1", "iii", "jjj");
 
         // Now we raise the limit back up and do nothing else and confirm it's blocked
-        StorageProxy.instance.setMaxDenylistKeysPerTable(1000);
-        StorageProxy.instance.setMaxDenylistKeysTotal(1000);
+        StorageProxy.instance.setDenylistMaxKeysPerTable(1000);
+        StorageProxy.instance.setDenylistMaxKeysTotal(1000);
         refreshList();
         confirmDenied("table1", "aaa", "bbb");
         confirmDenied("table1", "iii", "jjj");
 
         // Unblock via overflow the table 1 sentinel we'll check in a second
-        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
-        StorageProxy.instance.setMaxDenylistKeysTotal(5);
+        StorageProxy.instance.setDenylistMaxKeysPerTable(5);
+        StorageProxy.instance.setDenylistMaxKeysTotal(5);
         refreshList();
         confirmAllowed("table1", "iii", "jjj");
 
@@ -336,8 +336,8 @@ public class PartitionDenylistTest
     @Test
     public void testTableLimitRespected()
     {
-        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
-        StorageProxy.instance.setMaxDenylistKeysTotal(12);
+        StorageProxy.instance.setDenylistMaxKeysPerTable(5);
+        StorageProxy.instance.setDenylistMaxKeysTotal(12);
         denyAllKeys();
         refreshList();
 
@@ -369,8 +369,8 @@ public class PartitionDenylistTest
     @Test
     public void testGlobalLimitRespected()
     {
-        StorageProxy.instance.setMaxDenylistKeysPerTable(50);
-        StorageProxy.instance.setMaxDenylistKeysTotal(15);
+        StorageProxy.instance.setDenylistMaxKeysPerTable(50);
+        StorageProxy.instance.setDenylistMaxKeysTotal(15);
         denyAllKeys();
         refreshList();
 
@@ -415,8 +415,8 @@ public class PartitionDenylistTest
     private void resetDenylist()
     {
         process("TRUNCATE system_distributed.partition_denylist", ConsistencyLevel.ONE);
-        StorageProxy.instance.setMaxDenylistKeysTotal(1000);
-        StorageProxy.instance.setMaxDenylistKeysPerTable(1000);
+        StorageProxy.instance.setDenylistMaxKeysTotal(1000);
+        StorageProxy.instance.setDenylistMaxKeysPerTable(1000);
         StorageProxy.instance.loadPartitionDenylist();
     }
 

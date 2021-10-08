@@ -2882,14 +2882,14 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     @Override
-    public void setMaxDenylistKeysPerTable(int value)
+    public void setDenylistMaxKeysPerTable(int value)
     {
         DatabaseDescriptor.setDenylistMaxKeysPerTable(value);
         loadPartitionDenylist();
     }
 
     @Override
-    public void setMaxDenylistKeysTotal(int value)
+    public void setDenylistMaxKeysTotal(int value)
     {
         DatabaseDescriptor.setDenylistMaxKeysTotal(value);
         loadPartitionDenylist();

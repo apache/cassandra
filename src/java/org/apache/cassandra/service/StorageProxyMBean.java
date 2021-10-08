@@ -73,8 +73,8 @@ public interface StorageProxyMBean
     public void setEnableDenylistRangeReads(boolean enabled);
     public boolean denylistKey(String keyspace, String cf, String partitionKeyAsString);
     public boolean removeDenylistKey(String keyspace, String cf, String partitionKeyAsString);
-    public void setMaxDenylistKeysPerTable(int value);
-    public void setMaxDenylistKeysTotal(int value);
+    public void setDenylistMaxKeysPerTable(int value);
+    public void setDenylistMaxKeysTotal(int value);
 
     @Deprecated
     public void setOtcBacklogExpirationInterval(int intervalInMillis);
