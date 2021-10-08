@@ -25,8 +25,8 @@ import org.apache.cassandra.cql3.CQLTester;
 
 public class RoleSyntaxTest extends CQLTester
 {
-    private final String NO_QUOTED_USERNAME = "Quoted strings are are not supported for user names " +
-                                              "and USER is deprecated, please use ROLE";
+    private static final String NO_QUOTED_USERNAME = "Quoted strings are are not supported for user names " +
+                                                     "and USER is deprecated, please use ROLE";
     @Test
     public void standardOptionsSyntaxTest() throws Throwable
     {
@@ -117,6 +117,10 @@ public class RoleSyntaxTest extends CQLTester
         assertValidSyntax("REVOKE ALTER ON ROLE \"r1\" FROM 'r2'");
         assertValidSyntax("REVOKE ALTER ON ROLE $$r1$$ FROM $$ r '2' $$");
 
+        // grant/revoke multiple permissions in a single statement
+        assertValidSyntax("GRANT CREATE, ALTER ON ROLE r1 TO r2");
+        assertValidSyntax("GRANT CREATE PERMISSION, ALTER PERMISSION ON ROLE r1 TO r2");
+
         // grant/revoke on DataResource
         assertValidSyntax("GRANT SELECT ON KEYSPACE ks TO r1");
         assertValidSyntax("GRANT SELECT ON KEYSPACE ks TO 'r1'");
@@ -126,6 +130,16 @@ public class RoleSyntaxTest extends CQLTester
         assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM 'r1'");
         assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM \"r1\"");
         assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM $$ r '1' $$");
+
+        // grant/revoke multiple permissions in a single statement
+        assertValidSyntax("GRANT MODIFY, SELECT ON KEYSPACE ks TO r1");
+        assertValidSyntax("GRANT MODIFY PERMISSION, SELECT PERMISSION ON KEYSPACE ks TO r1");
+        assertValidSyntax("GRANT MODIFY, SELECT ON ALL KEYSPACES TO r1");
+        assertValidSyntax("GRANT MODIFY PERMISSION, SELECT PERMISSION ON ALL KEYSPACES TO r1");
+        assertValidSyntax("REVOKE MODIFY, SELECT ON KEYSPACE ks FROM r1");
+        assertValidSyntax("REVOKE MODIFY PERMISSION, SELECT PERMISSION ON KEYSPACE ks FROM r1");
+        assertValidSyntax("REVOKE MODIFY, SELECT ON ALL KEYSPACES FROM r1");
+        assertValidSyntax("REVOKE MODIFY PERMISSION, SELECT PERMISSION ON ALL KEYSPACES FROM r1");
     }
 
     @Test
@@ -150,6 +164,12 @@ public class RoleSyntaxTest extends CQLTester
         assertValidSyntax("LIST ALL PERMISSIONS OF 'r1'");
         assertValidSyntax("LIST ALL PERMISSIONS OF \"r1\"");
         assertValidSyntax("LIST ALL PERMISSIONS OF $$ r '1' $$");
+
+        assertValidSyntax("LIST ALTER PERMISSION ON ROLE r1 OF r2");
+        assertValidSyntax("LIST ALTER, DROP PERMISSION ON ROLE r1 OF r2");
+
+        assertValidSyntax("LIST MODIFY PERMISSION ON KEYSPACE ks OF r1");
+        assertValidSyntax("LIST MODIFY, SELECT PERMISSION ON KEYSPACE ks OF r1");
     }
 
     @Test
