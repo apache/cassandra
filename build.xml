@@ -549,7 +549,7 @@
             <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
-          <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.6.0"/>
+          <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.9.0"/>
 
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}" scope="test"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" scope="test"/>
