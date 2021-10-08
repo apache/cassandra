@@ -38,6 +38,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - A new ALL TABLES IN KEYSPACE resource has been added. It allows to grant permissions for all tables and user types
+      in a keyspace while preventing the user to use those permissions on the keyspace itself.
     - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled

@@ -137,23 +137,30 @@ public class CassandraRoleManager implements IRoleManager
 
     public CassandraRoleManager()
     {
-        supportedOptions = DatabaseDescriptor.getAuthenticator().getClass() == PasswordAuthenticator.class
+        supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
                          ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD)
                          : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
-        alterableOptions = DatabaseDescriptor.getAuthenticator().getClass().equals(PasswordAuthenticator.class)
+        alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
                          ? ImmutableSet.of(Option.PASSWORD)
                          : ImmutableSet.<Option>of();
     }
 
+    @Override
     public void setup()
     {
-        loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
-                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                      AuthKeyspace.ROLES);
+        loadRoleStatement();
+
         scheduleSetupTask(() -> {
             setupDefaultRole();
             return null;
         });
+    }
+
+    protected final void loadRoleStatement()
+    {
+        loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
+                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                      AuthKeyspace.ROLES);
     }
 
     public Set<Option> supportedOptions()
@@ -344,12 +351,7 @@ public class CassandraRoleManager implements IRoleManager
         {
             if (!hasExistingRoles())
             {
-                QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) " +
-                                                     "VALUES ('%s', true, true, '%s')",
-                                                     SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                     AuthKeyspace.ROLES,
-                                                     DEFAULT_SUPERUSER_NAME,
-                                                     escape(hashpw(DEFAULT_SUPERUSER_PASSWORD))),
+                QueryProcessor.process(createDefaultRoleQuery(),
                                        consistencyForRoleWrite(DEFAULT_SUPERUSER_NAME));
                 logger.info("Created default superuser role '{}'", DEFAULT_SUPERUSER_NAME);
             }
@@ -359,6 +361,15 @@ public class CassandraRoleManager implements IRoleManager
             logger.warn("CassandraRoleManager skipped default role setup: some nodes were not ready");
             throw e;
         }
+    }
+
+    protected static String createDefaultRoleQuery()
+    {
+        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s')",
+                             SchemaConstants.AUTH_KEYSPACE_NAME,
+                             AuthKeyspace.ROLES,
+                             DEFAULT_SUPERUSER_NAME,
+                             escape(hashpw(DEFAULT_SUPERUSER_PASSWORD)));
     }
 
     private static boolean hasExistingRoles() throws RequestExecutionException

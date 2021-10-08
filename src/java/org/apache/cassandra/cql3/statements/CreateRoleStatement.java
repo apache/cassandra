@@ -84,6 +84,7 @@ public class CreateRoleStatement extends AuthenticationStatement
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         }
         grantPermissionsToCreator(state);
+
         return null;
     }
 

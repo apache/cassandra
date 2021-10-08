@@ -1524,6 +1524,7 @@ syntax_rules += r'''
 
 <dataResource> ::= ( "ALL" "KEYSPACES" )
                  | ( "KEYSPACE" <keyspaceName> )
+                 | ( "ALL" "TABLES" "IN" "KEYSPACE" <keyspaceName> )
                  | ( "TABLE"? <columnFamilyName> )
                  ;
 

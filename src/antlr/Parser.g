@@ -1118,8 +1118,8 @@ resource returns [IResource res]
 dataResource returns [DataResource res]
     : K_ALL K_KEYSPACES { $res = DataResource.root(); }
     | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
-    | ( K_COLUMNFAMILY )? cf = columnFamilyName
-      { $res = DataResource.table($cf.name.getKeyspace(), $cf.name.getName()); }
+    | ( K_COLUMNFAMILY )? cf = columnFamilyName { $res = DataResource.table($cf.name.getKeyspace(), $cf.name.getName()); }
+    | K_ALL K_TABLES K_IN K_KEYSPACE ks = keyspaceName { $res = DataResource.allTables($ks.id); }
     ;
 
 jmxResource returns [JMXResource res]

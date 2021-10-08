@@ -125,7 +125,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
-        client.ensureKeyspacePermission(keyspaceName, Permission.CREATE);
+        client.ensureAllTablesPermission(keyspaceName, Permission.CREATE);
     }
 
     @Override
