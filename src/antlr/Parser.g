@@ -1037,7 +1037,7 @@ truncateStatement returns [TruncateStatement stmt]
     ;
 
 /**
- * GRANT <permission> ON <resource> TO <rolename>
+ * GRANT <permission>[, <permission>]* | ALL ON <resource> TO <rolename>
  */
 grantPermissionsStatement returns [GrantPermissionsStatement stmt]
     : K_GRANT
@@ -1050,7 +1050,7 @@ grantPermissionsStatement returns [GrantPermissionsStatement stmt]
     ;
 
 /**
- * REVOKE <permission> ON <resource> FROM <rolename>
+ * REVOKE <permission>[, <permission>]* | ALL ON <resource> FROM <rolename>
  */
 revokePermissionsStatement returns [RevokePermissionsStatement stmt]
     : K_REVOKE
@@ -1105,7 +1105,7 @@ permission returns [Permission perm]
 
 permissionOrAll returns [Set<Permission> perms]
     : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.ALL; }
-    | p=permission ( K_PERMISSION )? { $perms = EnumSet.of($p.perm); }
+    | p=permission ( K_PERMISSION )? { $perms = EnumSet.of($p.perm); } ( ',' p=permission ( K_PERMISSION )? { $perms.add($p.perm); } )*
     ;
 
 resource returns [IResource res]

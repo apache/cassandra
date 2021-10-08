@@ -89,10 +89,7 @@ public class GrantAndRevokeTest extends CQLTester
 
         useSuperUser();
 
-        executeNet("GRANT ALTER ON KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
-        executeNet("GRANT DROP ON KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
-        executeNet("GRANT SELECT ON KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
-        executeNet("GRANT MODIFY ON KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
+        executeNet("GRANT ALTER, DROP, SELECT, MODIFY ON KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
 
         useUser(user, pass);
 
@@ -132,10 +129,7 @@ public class GrantAndRevokeTest extends CQLTester
 
         useSuperUser();
 
-        executeNet("REVOKE ALTER ON KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
-        executeNet("REVOKE DROP ON KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
-        executeNet("REVOKE SELECT ON KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
-        executeNet("REVOKE MODIFY ON KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
+        executeNet("REVOKE ALTER, DROP, MODIFY, SELECT ON KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
 
         table = KEYSPACE_PER_TEST + "." + createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck int, val int, val_2 text, PRIMARY KEY (pk, ck))");
         type = KEYSPACE_PER_TEST + "." + createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (a int, b text)");
@@ -215,10 +209,7 @@ public class GrantAndRevokeTest extends CQLTester
 
         useSuperUser();
 
-        executeNet("GRANT ALTER ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
-        executeNet("GRANT DROP ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
-        executeNet("GRANT SELECT ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
-        executeNet("GRANT MODIFY ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
+        executeNet("GRANT ALTER, DROP, SELECT, MODIFY ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " TO " + user);
 
         useUser(user, pass);
 
@@ -261,10 +252,7 @@ public class GrantAndRevokeTest extends CQLTester
 
         useSuperUser();
 
-        executeNet("REVOKE ALTER ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
-        executeNet("REVOKE DROP ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
-        executeNet("REVOKE SELECT ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
-        executeNet("REVOKE MODIFY ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
+        executeNet("REVOKE ALTER, DROP, SELECT, MODIFY ON ALL TABLES IN KEYSPACE " + KEYSPACE_PER_TEST + " FROM " + user);
 
         table = KEYSPACE_PER_TEST + "." + createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk int, ck int, val int, val_2 text, PRIMARY KEY (pk, ck))");
         index = KEYSPACE_PER_TEST + '.' + createIndex(KEYSPACE_PER_TEST, "CREATE INDEX ON %s (val_2)");

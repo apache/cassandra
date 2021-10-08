@@ -38,6 +38,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Support for multiple permission in a single GRANT/REVOKE/LIST statement has been added. It allows to
+      grant/revoke/list multiple permissions using a single statement by providing a list of comma-separated
+      permissions.
     - A new ALL TABLES IN KEYSPACE resource has been added. It allows to grant permissions for all tables and user types
       in a keyspace while preventing the user to use those permissions on the keyspace itself.
     - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
