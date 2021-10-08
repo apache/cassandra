@@ -41,7 +41,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -303,7 +303,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         long timeout = Long.MAX_VALUE;
         List<ColumnFamilyStore> cfs = mutation.getTableIds().stream()
-                                              .map(Schema.instance::getColumnFamilyStoreInstance)
+                                              .map(SchemaManager.instance::getColumnFamilyStoreInstance)
                                               .collect(Collectors.toList());
         for (ColumnFamilyStore cf : cfs)
             timeout = Math.min(timeout, cf.additionalWriteLatencyNanos);

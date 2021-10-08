@@ -35,8 +35,8 @@ import com.datastax.driver.core.utils.MoreFutures;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
@@ -203,7 +203,7 @@ public class HintsServiceTest
         {
             long now = System.currentTimeMillis();
             DecoratedKey dkey = dk(String.valueOf(i));
-            TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+            TableMetadata metadata = SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE);
             PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, dkey).timestamp(now);
             builder.row("column0").add("val", "value0");
             Hint hint = Hint.create(builder.buildAsMutation(), now);

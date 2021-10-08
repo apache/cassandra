@@ -18,7 +18,7 @@
  */
 package org.apache.cassandra.tools;
 
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -27,7 +27,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -62,11 +61,11 @@ public class StandaloneVerifier
         try
         {
             // load keyspace descriptions.
-            Schema.instance.loadFromDisk(false);
+            SchemaManager.instance.loadFromDisk(false);
 
             boolean hasFailed = false;
 
-            if (Schema.instance.getTableMetadataRef(options.keyspaceName, options.cfName) == null)
+            if (SchemaManager.instance.getTableMetadataRef(options.keyspaceName, options.cfName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspaceName,
                                                                  options.cfName));

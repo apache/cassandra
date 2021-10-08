@@ -44,7 +44,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
@@ -2532,7 +2532,7 @@ public class SASIIndexTest
                                                          KS_NAME,
                                                          TABLE_NAME));
 
-        Columns regulars = Schema.instance.getTableMetadata(KS_NAME, TABLE_NAME).regularColumns();
+        Columns regulars = SchemaManager.instance.getTableMetadata(KS_NAME, TABLE_NAME).regularColumns();
         List<String> allColumns = regulars.stream().map(ColumnMetadata::toString).collect(Collectors.toList());
         List<String> textColumns = Arrays.asList("text_v", "ascii_v", "varchar_v");
 

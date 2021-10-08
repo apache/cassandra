@@ -29,7 +29,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.schema.MigrationCoordinator;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -101,12 +101,12 @@ public class MigrationCoordinatorTest extends TestBaseImpl
                                       .withConfig(config -> config.with(NETWORK, GOSSIP))
                                       .start())
         {
-            UUID initialVersion = cluster.get(2).callsOnInstance(() -> Schema.instance.getVersion()).call();
+            UUID initialVersion = cluster.get(2).callsOnInstance(() -> SchemaManager.instance.getVersion()).call();
             cluster.schemaChange("CREATE KEYSPACE ks with replication={'class':'SimpleStrategy', 'replication_factor':2}");
             UUID oldVersion;
             do
             {
-                oldVersion = cluster.get(2).callsOnInstance(() -> Schema.instance.getVersion()).call();
+                oldVersion = cluster.get(2).callsOnInstance(() -> SchemaManager.instance.getVersion()).call();
             } while (oldVersion.equals(initialVersion));
             cluster.get(2).shutdown(false);
             cluster.schemaChangeIgnoringStoppedInstances("CREATE TABLE ks.tbl (k int primary key, v int)");

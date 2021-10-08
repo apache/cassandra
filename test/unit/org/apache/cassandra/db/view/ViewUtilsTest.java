@@ -29,7 +29,7 @@ import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -75,7 +75,7 @@ public class ViewUtilsTest
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
-        Schema.instance.load(meta);
+        SchemaManager.instance.load(meta);
 
         Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open("Keyspace1").getReplicationStrategy(),
                                                                              new StringToken("CA"),
@@ -108,7 +108,7 @@ public class ViewUtilsTest
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
-        Schema.instance.load(meta);
+        SchemaManager.instance.load(meta);
 
         Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open("Keyspace1").getReplicationStrategy(),
                                                                              new StringToken("CA"),
@@ -140,7 +140,7 @@ public class ViewUtilsTest
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
-        Schema.instance.load(meta);
+        SchemaManager.instance.load(meta);
 
         Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open("Keyspace1").getReplicationStrategy(),
                                                                              new StringToken("AB"),

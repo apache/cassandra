@@ -58,7 +58,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -103,7 +103,7 @@ public abstract class SSTableHeaderFix
                     FBUtilities.getReleaseVersionString());
 
         SSTableHeaderFix instance = SSTableHeaderFix.builder()
-                                                    .schemaCallback(() -> Schema.instance::getTableMetadata)
+                                                    .schemaCallback(() -> SchemaManager.instance::getTableMetadata)
                                                     .build();
         instance.execute();
     }

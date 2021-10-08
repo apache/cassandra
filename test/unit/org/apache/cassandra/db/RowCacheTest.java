@@ -33,7 +33,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -367,7 +367,7 @@ public class RowCacheTest
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, 50, 0);
         CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
-        Keyspace instance = Schema.instance.removeKeyspaceInstance(KEYSPACE_CACHED);
+        Keyspace instance = SchemaManager.instance.removeKeyspaceInstance(KEYSPACE_CACHED);
         try
         {
             CacheService.instance.rowCache.size();
@@ -378,7 +378,7 @@ public class RowCacheTest
         }
         finally
         {
-            Schema.instance.storeKeyspaceInstance(instance);
+            SchemaManager.instance.storeKeyspaceInstance(instance);
         }
     }
 

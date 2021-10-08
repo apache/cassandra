@@ -113,7 +113,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit;
@@ -288,7 +288,7 @@ public class StorageProxy implements StorageProxyMBean
         final long startTimeForMetrics = System.nanoTime();
         try
         {
-            TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
+            TableMetadata metadata = SchemaManager.instance.validateTable(keyspaceName, cfName);
 
             Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () ->
             {
@@ -2049,7 +2049,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static Map<String, List<String>> describeSchemaVersions(boolean withPort)
     {
-        final String myVersion = Schema.instance.getVersion().toString();
+        final String myVersion = SchemaManager.instance.getVersion().toString();
         final Map<InetAddressAndPort, UUID> versions = new ConcurrentHashMap<>();
         final Set<InetAddressAndPort> liveHosts = Gossiper.instance.getLiveMembers();
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
@@ -2506,7 +2506,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public int getNumberOfTables()
     {
-        return Schema.instance.getNumberOfTables();
+        return SchemaManager.instance.getNumberOfTables();
     }
 
     public String getIdealConsistencyLevel()

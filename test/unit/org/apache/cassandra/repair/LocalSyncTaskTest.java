@@ -22,10 +22,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
@@ -38,7 +36,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.StreamCoordinator;
@@ -73,8 +71,8 @@ public class LocalSyncTaskTest extends AbstractRepairTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
 
-        TableId tid = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD).id;
-        cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+        TableId tid = SchemaManager.instance.getTableMetadata(KEYSPACE1, CF_STANDARD).id;
+        cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
     }
 
     /**

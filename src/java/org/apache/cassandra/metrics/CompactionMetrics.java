@@ -26,11 +26,9 @@ import com.codahale.metrics.Meter;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.compaction.ActiveCompactions;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -72,7 +70,7 @@ public class CompactionMetrics
             {
                 int n = 0;
                 // add estimate number of compactions need to be done
-                for (String keyspaceName : Schema.instance.getKeyspaces())
+                for (String keyspaceName : SchemaManager.instance.getKeyspaces())
                 {
                     for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
                         n += cfs.getCompactionStrategyManager().getEstimatedRemainingTasks();
@@ -90,7 +88,7 @@ public class CompactionMetrics
             {
                 Map<String, Map<String, Integer>> resultMap = new HashMap<>();
                 // estimation of compactions need to be done
-                for (String keyspaceName : Schema.instance.getKeyspaces())
+                for (String keyspaceName : SchemaManager.instance.getKeyspaces())
                 {
                     for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
                     {

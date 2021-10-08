@@ -22,7 +22,7 @@ import java.io.File;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
@@ -60,7 +60,7 @@ public class StandaloneSplitter
         try
         {
             // load keyspace descriptions.
-            Schema.instance.loadFromDisk(false);
+            SchemaManager.instance.loadFromDisk(false);
 
             String ksName = null;
             String cfName = null;

@@ -39,6 +39,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -68,7 +69,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -279,7 +279,7 @@ public class SinglePartitionSliceCommandTest
         }
 
         // check (de)serialized iterator for sstable static cell
-        Schema.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush();
+        SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush();
         try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
@@ -302,8 +302,8 @@ public class SinglePartitionSliceCommandTest
     public void testReadOnRangeTombstoneMarker()
     {
         QueryProcessor.executeOnceInternal("CREATE TABLE IF NOT EXISTS ks.test_read_rt (k int, c1 int, c2 int, c3 int, v int, primary key (k, c1, c2, c3))");
-        TableMetadata metadata = Schema.instance.getTableMetadata("ks", "test_read_rt");
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata("ks", "test_read_rt");
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id);
 
         String template = "SELECT * FROM ks.test_read_rt %s";
         String pointRead = "WHERE k=1 and c1=1 and c2=1 and c3=1";
@@ -336,8 +336,8 @@ public class SinglePartitionSliceCommandTest
     public void testPartitionDeletionRowDeletionTie()
     {
         QueryProcessor.executeOnceInternal("CREATE TABLE ks.partition_row_deletion (k int, c int, v int, primary key (k, c))");
-        TableMetadata metadata = Schema.instance.getTableMetadata("ks", "partition_row_deletion");
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata("ks", "partition_row_deletion");
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id);
         cfs.disableAutoCompaction();
 
         BiFunction<Boolean, Boolean, List<Unfiltered>> tester = (flush, multiSSTable)->
@@ -403,8 +403,8 @@ public class SinglePartitionSliceCommandTest
     public void testPartitionDeletionRangeDeletionTie()
     {
         QueryProcessor.executeOnceInternal("CREATE TABLE ks.partition_range_deletion (k int, c1 int, c2 int, v int, primary key (k, c1, c2))");
-        TableMetadata metadata = Schema.instance.getTableMetadata("ks", "partition_range_deletion");
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata("ks", "partition_range_deletion");
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id);
         cfs.disableAutoCompaction();
 
         BiFunction<Boolean, Boolean, List<Unfiltered>> tester = (flush, multiSSTable) ->
@@ -538,8 +538,8 @@ public class SinglePartitionSliceCommandTest
     public void sstableFiltering()
     {
         QueryProcessor.executeOnceInternal("CREATE TABLE ks.legacy_mc_inaccurate_min_max (k int, c1 int, c2 int, c3 int, v int, primary key (k, c1, c2, c3))");
-        TableMetadata metadata = Schema.instance.getTableMetadata("ks", "legacy_mc_inaccurate_min_max");
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        TableMetadata metadata = SchemaManager.instance.getTableMetadata("ks", "legacy_mc_inaccurate_min_max");
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id);
 
         QueryProcessor.executeOnceInternal("INSERT INTO ks.legacy_mc_inaccurate_min_max (k, c1, c2, c3, v) VALUES (100, 2, 2, 2, 2)");
         QueryProcessor.executeOnceInternal("DELETE FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=1");

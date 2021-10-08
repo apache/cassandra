@@ -372,12 +372,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
     @Override
     public Set<String> clientWarnings(KeyspacesDiff diff)
     {
-        int tableCount = Schema.instance.getNumberOfTables();
+        int tableCount = SchemaManager.instance.getNumberOfTables();
         if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
         {
             String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
                                        tableCount,
-                                       Schema.instance.getKeyspaces().size());
+                                       SchemaManager.instance.getKeyspaces().size());
             logger.warn(msg);
             return ImmutableSet.of(msg);
         }

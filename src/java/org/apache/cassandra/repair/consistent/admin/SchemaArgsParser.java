@@ -28,7 +28,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.utils.AbstractIterator;
 
 public class SchemaArgsParser implements Iterable<ColumnFamilyStore>
@@ -47,7 +47,7 @@ public class SchemaArgsParser implements Iterable<ColumnFamilyStore>
 
         public TableIterator(String ksName, List<String> tableNames)
         {
-            Preconditions.checkArgument(Schema.instance.getKeyspaceMetadata(ksName) != null);
+            Preconditions.checkArgument(SchemaManager.instance.getKeyspaceMetadata(ksName) != null);
             Keyspace keyspace = Keyspace.open(ksName);
 
             if (tableNames.isEmpty())
@@ -73,7 +73,7 @@ public class SchemaArgsParser implements Iterable<ColumnFamilyStore>
         if (schemaArgs.isEmpty())
         {
             // iterate over everything
-            Iterator<String> ksNames = Schema.instance.getNonLocalStrategyKeyspaces().iterator();
+            Iterator<String> ksNames = SchemaManager.instance.getNonLocalStrategyKeyspaces().iterator();
 
             return new AbstractIterator<ColumnFamilyStore>()
             {

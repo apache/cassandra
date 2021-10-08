@@ -58,7 +58,7 @@ public class MigrationManagerDropKSTest
     public void dropKS() throws ConfigurationException
     {
         // sanity
-        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
+        final KeyspaceMetadata ks = SchemaManager.instance.getKeyspaceMetadata(KEYSPACE1);
         assertNotNull(ks);
         final TableMetadata cfm = ks.tables.getNullable(TABLE2);
         assertNotNull(cfm);
@@ -75,7 +75,7 @@ public class MigrationManagerDropKSTest
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
-        assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
+        assertNull(SchemaManager.instance.getKeyspaceMetadata(ks.name));
 
         // write should fail.
         boolean success = true;

@@ -282,7 +282,7 @@ public class SchemaLoader
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
         DatabaseDescriptor.getNetworkAuthorizer().setup();
-        Schema.instance.registerListener(new AuthSchemaChangeListener());
+        SchemaManager.instance.registerListener(new AuthSchemaChangeListener());
     }
 
     public static ColumnMetadata integerColumn(String ksName, String cfName)
@@ -729,7 +729,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     public static void insertData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
-        TableMetadata cfm = Schema.instance.getTableMetadata(keyspace, columnFamily);
+        TableMetadata cfm = SchemaManager.instance.getTableMetadata(keyspace, columnFamily);
 
         for (int i = offset; i < offset + numberOfRows; i++)
         {

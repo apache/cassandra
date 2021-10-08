@@ -40,7 +40,7 @@ import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -647,7 +647,7 @@ public abstract class CommitLogSegment
         StringBuilder sb = new StringBuilder();
         for (TableId tableId : getDirtyTableIds())
         {
-            TableMetadata m = Schema.instance.getTableMetadata(tableId);
+            TableMetadata m = SchemaManager.instance.getTableMetadata(tableId);
             sb.append(m == null ? "<deleted>" : m.name).append(" (").append(tableId)
               .append(", dirty: ").append(tableDirty.get(tableId))
               .append(", clean: ").append(tableClean.get(tableId))

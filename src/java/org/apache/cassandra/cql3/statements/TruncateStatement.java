@@ -26,7 +26,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -54,14 +54,14 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        Schema.instance.validateTable(keyspace(), name());
+        SchemaManager.instance.validateTable(keyspace(), name());
     }
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException, TruncateException
     {
         try
         {
-            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
+            TableMetadata metaData = SchemaManager.instance.getTableMetadata(keyspace(), name());
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
@@ -81,7 +81,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     {
         try
         {
-            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
+            TableMetadata metaData = SchemaManager.instance.getTableMetadata(keyspace(), name());
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 

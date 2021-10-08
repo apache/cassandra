@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.dht;
 
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,7 +37,6 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -293,9 +292,9 @@ public class ByteOrderedPartitioner implements IPartitioner
             lastToken = node;
         }
 
-        for (String ks : Schema.instance.getKeyspaces())
+        for (String ks : SchemaManager.instance.getKeyspaces())
         {
-            for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
+            for (TableMetadata cfmd : SchemaManager.instance.getTablesAndViews(ks))
             {
                 for (Range<Token> r : sortedRanges)
                 {

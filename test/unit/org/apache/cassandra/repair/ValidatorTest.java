@@ -38,7 +38,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.EmptyIterators;
@@ -55,7 +55,6 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -81,7 +80,7 @@ public class ValidatorTest
         SchemaLoader.createKeyspace(keyspace,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
-        partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
+        partitioner = SchemaManager.instance.getTableMetadata(keyspace, columnFamily).partitioner;
         testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
     }
 

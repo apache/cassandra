@@ -54,7 +54,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -302,7 +302,7 @@ public class SASIIndex implements Index, INotificationConsumer
     public Searcher searcherFor(ReadCommand command) throws InvalidRequestException
     {
         TableMetadata config = command.metadata();
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(config.id);
+        ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(config.id);
         return controller -> new QueryPlan(cfs, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller);
     }
 

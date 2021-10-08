@@ -36,7 +36,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
@@ -159,7 +159,7 @@ public final class CounterCacheKey extends CacheKey
     @Override
     public String toString()
     {
-        TableMetadataRef tableRef = Schema.instance.getTableMetadataRef(tableId);
+        TableMetadataRef tableRef = SchemaManager.instance.getTableMetadataRef(tableId);
         return String.format("CounterCacheKey(%s, %s, %s, %s)",
                              tableRef, indexName,
                              ByteBufferUtil.bytesToHex(ByteBuffer.wrap(partitionKey)),

@@ -31,7 +31,7 @@ import org.junit.Test;
 import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
@@ -158,7 +158,7 @@ public class RealTransactionsTest extends SchemaLoader
                 long lastCheckObsoletion = System.nanoTime();
                 File directory = txn.originals().iterator().next().descriptor.directory;
                 Descriptor desc = cfs.newSSTableDescriptor(directory);
-                TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
+                TableMetadataRef metadata = SchemaManager.instance.getTableMetadataRef(desc);
                 rewriter.switchWriter(SSTableWriter.create(metadata,
                                                            desc,
                                                            0,

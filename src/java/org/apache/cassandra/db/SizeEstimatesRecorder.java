@@ -30,7 +30,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -54,7 +54,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
 
     private SizeEstimatesRecorder()
     {
-        Schema.instance.registerListener(this);
+        SchemaManager.instance.registerListener(this);
     }
 
     public void run()

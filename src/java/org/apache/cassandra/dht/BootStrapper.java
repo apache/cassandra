@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -74,7 +74,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    stateStore,
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost());
-        final List<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        final List<String> nonLocalStrategyKeyspaces = SchemaManager.instance.getNonLocalStrategyKeyspaces();
         if (nonLocalStrategyKeyspaces.isEmpty())
             logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
         for (String keyspaceName : nonLocalStrategyKeyspaces)

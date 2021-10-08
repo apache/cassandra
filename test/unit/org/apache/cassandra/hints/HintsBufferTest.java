@@ -38,7 +38,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static junit.framework.Assert.*;
@@ -198,7 +198,7 @@ public class HintsBufferTest
 
     private static Mutation createMutation(int index, long timestamp)
     {
-        TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        TableMetadata table = SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE);
         return new RowUpdateBuilder(table, timestamp, bytes(index))
                    .clustering(bytes(index))
                    .add("val", bytes(index))

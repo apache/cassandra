@@ -62,7 +62,7 @@ import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.CachingParams;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -351,13 +351,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             int i = descriptor.cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
             String indexName = descriptor.cfname.substring(i + 1);
-            metadata = Schema.instance.getIndexTableMetadataRef(descriptor.ksname, indexName);
+            metadata = SchemaManager.instance.getIndexTableMetadataRef(descriptor.ksname, indexName);
             if (metadata == null)
                 throw new AssertionError("Could not find index metadata for index cf " + i);
         }
         else
         {
-            metadata = Schema.instance.getTableMetadataRef(descriptor.ksname, descriptor.cfname);
+            metadata = SchemaManager.instance.getTableMetadataRef(descriptor.ksname, descriptor.cfname);
         }
         return open(descriptor, metadata);
     }
@@ -705,7 +705,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (maybeKeyCache.getCapacity() > 0)
             keyCache = maybeKeyCache;
 
-        final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
+        final ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata().id);
         if (cfs != null)
             setCrcCheckChance(cfs.getCrcCheckChance());
     }
@@ -2046,7 +2046,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (!setup)
                 return;
 
-            final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
+            final ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tableId);
             final OpOrder.Barrier barrier;
             if (cfs != null)
             {

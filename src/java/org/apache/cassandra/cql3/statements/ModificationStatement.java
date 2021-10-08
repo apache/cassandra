@@ -21,16 +21,14 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.HashMultiset;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.cql3.*;
@@ -885,7 +883,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         public ModificationStatement prepare(VariableSpecifications bindVariables)
         {
-            TableMetadata metadata = Schema.instance.validateTable(keyspace(), name());
+            TableMetadata metadata = SchemaManager.instance.validateTable(keyspace(), name());
 
             Attributes preparedAttributes = attrs.prepare(keyspace(), name());
             preparedAttributes.collectMarkerSpecification(bindVariables);

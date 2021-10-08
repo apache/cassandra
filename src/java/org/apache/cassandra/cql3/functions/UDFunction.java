@@ -215,7 +215,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         this.argCodecs = UDHelper.codecsFor(argDataTypes);
         this.returnCodec = UDHelper.codecFor(returnDataType);
         this.calledOnNullInput = calledOnNullInput;
-        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(name.keyspace);
+        KeyspaceMetadata keyspaceMetadata = SchemaManager.instance.getKeyspaceMetadata(name.keyspace);
         this.udfContext = new UDFContextImpl(argNames, argCodecs, returnCodec,
                                              keyspaceMetadata);
     }
