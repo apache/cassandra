@@ -19,8 +19,9 @@
 package org.apache.cassandra.transport;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,10 +40,9 @@ import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.Throwables;
 
-import static org.apache.cassandra.transport.Message.logger;
+import static org.apache.cassandra.transport.CQLMessageHandler.RATE_LIMITER_DELAY_UNIT;
+import static org.apache.cassandra.transport.ClientResourceLimits.GLOBAL_REQUEST_LIMITER;
 
 public class PreV5Handlers
 {
@@ -63,7 +63,9 @@ public class PreV5Handlers
          * Note: should only be accessed while on the netty event loop.
          */
         private long channelPayloadBytesInFlight;
-        private boolean paused;
+        
+        /** The cause of the current connection pause, or {@link Overload#NONE} if it is unpaused. */
+        private Overload backpressure = Overload.NONE;
 
         LegacyDispatchHandler(Dispatcher dispatcher, ClientResourceLimits.Allocator endpointPayloadTracker)
         {
@@ -71,11 +73,12 @@ public class PreV5Handlers
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
-        protected void channelRead0(ChannelHandlerContext ctx, Message.Request request) throws Exception
+        protected void channelRead0(ChannelHandlerContext ctx, Message.Request request)
         {
-            // if we decide to handle this message, process it outside of the netty event loop
-            if (shouldHandleRequest(ctx, request))
-                dispatcher.dispatch(ctx.channel(), request, this::toFlushItem);
+            // The only reason we won't process this message is if checkLimits() throws an OverloadedException.
+            // (i.e. Even if backpressure is applied, the current request is allowed to finish.)
+            checkLimits(ctx, request);
+            dispatcher.dispatch(ctx.channel(), request, this::toFlushItem, backpressure);
         }
 
         // Acts as a Dispatcher.FlushItemConverter
@@ -95,76 +98,143 @@ public class PreV5Handlers
 
             // since the request has been processed, decrement inflight payload at channel, endpoint and global levels
             channelPayloadBytesInFlight -= itemSize;
-            ResourceLimits.Outcome endpointGlobalReleaseOutcome = endpointPayloadTracker.release(itemSize);
+            boolean globalInFlightBytesBelowLimit = endpointPayloadTracker.release(itemSize) == ResourceLimits.Outcome.BELOW_LIMIT;
 
-            // now check to see if we need to reenable the channel's autoRead.
-            // If the current payload side is zero, we must reenable autoread as
-            // 1) we allow no other thread/channel to do it, and
-            // 2) there's no other events following this one (becuase we're at zero bytes in flight),
-            // so no successive to trigger the other clause in this if-block
+            // Now check to see if we need to reenable the channel's autoRead.
             //
-            // note: this path is only relevant when part of a pre-V5 pipeline, as only in this case is
+            // If the current payload bytes in flight is zero, we must reenable autoread as
+            // 1) we allow no other thread/channel to do it, and
+            // 2) there are no other events following this one (becuase we're at zero bytes in flight),
+            // so no successive to trigger the other clause in this if-block.
+            //
+            // The only exception to this is if the global request rate limit has been breached, which means
+            // we'll have to wait until a scheduled wakeup task unpauses the connection.
+            //
+            // Note: This path is only relevant when part of a pre-V5 pipeline, as only in this case is
             // paused ever set to true. In pipelines configured for V5 or later, backpressure and control
             // over the inbound pipeline's autoread status are handled by the FrameDecoder/FrameProcessor.
             ChannelConfig config = item.channel.config();
-            if (paused && (channelPayloadBytesInFlight == 0 || endpointGlobalReleaseOutcome == ResourceLimits.Outcome.BELOW_LIMIT))
+
+            if (backpressure == Overload.BYTES_IN_FLIGHT && (channelPayloadBytesInFlight == 0 || globalInFlightBytesBelowLimit))
             {
-                paused = false;
+                unpauseConnection(config);
+            }
+        }
+
+        /**
+         * Checks limits on bytes in flight and the request rate limiter (if enabled) to determine whether to drop a
+         * request or trigger backpressure and pause the connection.
+         * <p>
+         * The check for inflight payload to potentially discard the request should have been ideally in one of the
+         * first handlers in the pipeline (Envelope.Decoder::decode()). However, in case of any exception thrown between
+         * that handler (where inflight payload is incremented) and this handler (Dispatcher::channelRead0) (where 
+         * inflight payload in decremented), inflight payload becomes erroneous. ExceptionHandler is not sufficient for 
+         * this purpose since it does not have the message envelope associated with the exception.
+         * <p>
+         * If the connection is configured to throw {@link OverloadedException}, requests that breach the rate limit are
+         * not counted against that limit.
+         * <p>
+         * Note: this method should execute on the netty event loop.
+         * 
+         * @throws ErrorMessage.WrappedException with an {@link OverloadedException} if overload occurs and the 
+         *         connection is configured to throw on overload
+         */
+        private void checkLimits(ChannelHandlerContext ctx, Message.Request request)
+        {
+            long requestSize = request.getSource().header.bodySizeInBytes;
+            
+            if (request.connection.isThrowOnOverload())
+            {
+                if (endpointPayloadTracker.tryAllocate(requestSize) != ResourceLimits.Outcome.SUCCESS)
+                {
+                    discardAndThrow(request, requestSize, Overload.BYTES_IN_FLIGHT);
+                }
+
+                if (DatabaseDescriptor.getNativeTransportRateLimitingEnabled() && !GLOBAL_REQUEST_LIMITER.tryReserve())
+                {
+                    // We've already allocated against the payload tracker here, so release those resources.
+                    endpointPayloadTracker.release(requestSize);
+                    discardAndThrow(request, requestSize, Overload.REQUESTS);
+                }
+            }
+            else
+            {
+                // Any request that gets here will be processed, so increment the channel bytes in flight.
+                channelPayloadBytesInFlight += requestSize;
+                
+                // Check for overloaded state by trying to allocate the message size from inflight payload trackers
+                if (endpointPayloadTracker.tryAllocate(requestSize) != ResourceLimits.Outcome.SUCCESS)
+                {
+                    endpointPayloadTracker.allocate(requestSize);
+                    pauseConnection(ctx);
+                    backpressure = Overload.BYTES_IN_FLIGHT;
+                }
+
+                if (DatabaseDescriptor.getNativeTransportRateLimitingEnabled())
+                {
+                    // Reserve a permit even if we've already triggered backpressure on bytes in flight.
+                    long delay = GLOBAL_REQUEST_LIMITER.reserveAndGetDelay(RATE_LIMITER_DELAY_UNIT);
+                    
+                    // If we've already triggered backpressure on bytes in flight, no further action is necessary.
+                    if (backpressure == Overload.NONE && delay > 0)
+                    {
+                        pauseConnection(ctx);
+                        
+                        // A permit isn't immediately available, so schedule an unpause for when it is.
+                        ctx.channel().eventLoop().schedule(() -> unpauseConnection(ctx.channel().config()), delay, RATE_LIMITER_DELAY_UNIT);
+                        backpressure = Overload.REQUESTS;
+                    }
+                }
+            }
+        }
+
+        private void pauseConnection(ChannelHandlerContext ctx)
+        {
+            if (ctx.channel().config().isAutoRead())
+            {
+                ctx.channel().config().setAutoRead(false);
+                ClientMetrics.instance.pauseConnection();
+            }
+        }
+
+        private void unpauseConnection(ChannelConfig config)
+        {
+            backpressure = Overload.NONE;
+            
+            if (!config.isAutoRead())
+            {
                 ClientMetrics.instance.unpauseConnection();
                 config.setAutoRead(true);
             }
         }
 
-        /**
-         * This check for inflight payload to potentially discard the request should have been ideally in one of the
-         * first handlers in the pipeline (Envelope.Decoder::decode()). However, incase of any exception thrown between that
-         * handler (where inflight payload is incremented) and this handler (Dispatcher::channelRead0) (where inflight
-         * payload in decremented), inflight payload becomes erroneous. ExceptionHandler is not sufficient for this
-         * purpose since it does not have the message envelope associated with the exception.
-         * <p>
-         * Note: this method should execute on the netty event loop.
-         */
-        private boolean shouldHandleRequest(ChannelHandlerContext ctx, Message.Request request)
+        private void discardAndThrow(Message.Request request, long requestSize, Overload overload)
         {
-            long requestSize = request.getSource().header.bodySizeInBytes;
+            ClientMetrics.instance.markRequestDiscarded();
 
-            // check for overloaded state by trying to allocate the message size from inflight payload trackers
-            if (endpointPayloadTracker.tryAllocate(requestSize) != ResourceLimits.Outcome.SUCCESS)
-            {
-                if (request.connection.isThrowOnOverload())
-                {
-                    // discard the request and throw an exception
-                    ClientMetrics.instance.markRequestDiscarded();
-                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, {}, Request: {}",
-                                 requestSize,
-                                 channelPayloadBytesInFlight,
-                                 endpointPayloadTracker.toString(),
-                                 request);
-                    throw ErrorMessage.wrap(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
-                                            request.getSource().header.streamId);
-                }
-                else
-                {
-                    // set backpressure on the channel, and handle the request
-                    endpointPayloadTracker.allocate(requestSize);
-                    ctx.channel().config().setAutoRead(false);
-                    ClientMetrics.instance.pauseConnection();
-                    paused = true;
-                }
-            }
+            logger.trace("Discarded request of size {} with {} bytes in flight on channel. {} " + 
+                         "Global rate limiter: {} Request: {}",
+                         requestSize, channelPayloadBytesInFlight, endpointPayloadTracker,
+                         GLOBAL_REQUEST_LIMITER, request);
 
-            channelPayloadBytesInFlight += requestSize;
-            return true;
+            OverloadedException exception = overload == Overload.REQUESTS
+                    ? new OverloadedException(String.format("Request breached global limit of %d requests/second. Server is " +
+                                                            "currently in an overloaded state and cannot accept more requests.",
+                                                            GLOBAL_REQUEST_LIMITER.getRate()))
+                    : new OverloadedException(String.format("Request breached limit on bytes in flight. (%s)) " +
+                                                            "Server is currently in an overloaded state and cannot accept more requests.",
+
+                    endpointPayloadTracker));
+            
+            throw ErrorMessage.wrap(exception, request.getSource().header.streamId);
         }
-
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx)
         {
             endpointPayloadTracker.release();
-            if (paused)
+            if (!ctx.channel().config().isAutoRead())
             {
-                paused = false;
                 ClientMetrics.instance.unpauseConnection();
             }
             ctx.fireChannelInactive();
@@ -181,7 +251,7 @@ public class PreV5Handlers
         public static final ProtocolDecoder instance = new ProtocolDecoder();
         private ProtocolDecoder(){}
 
-        public void decode(ChannelHandlerContext ctx, Envelope source, List results)
+        public void decode(ChannelHandlerContext ctx, Envelope source, List<Object> results)
         {
             try
             {
@@ -212,7 +282,7 @@ public class PreV5Handlers
     {
         public static final ProtocolEncoder instance = new ProtocolEncoder();
         private ProtocolEncoder(){}
-        public void encode(ChannelHandlerContext ctx, Message source, List results)
+        public void encode(ChannelHandlerContext ctx, Message source, List<Object> results)
         {
             ProtocolVersion version = getConnectionVersion(ctx);
             results.add(source.encode(version));
@@ -244,22 +314,8 @@ public class PreV5Handlers
                 if (isFatal(cause))
                     future.addListener((ChannelFutureListener) f -> ctx.close());
             }
-            if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException))
-            {
-                // if any ProtocolExceptions is not silent, then handle
-                if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException && !((ProtocolException) t).isSilent()))
-                {
-                    ClientMetrics.instance.markProtocolException();
-                    // since protocol exceptions are expected to be client issues, not logging stack trace
-                    // to avoid spamming the logs once a bad client shows up
-                    NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
-                }
-            }
-            else
-            {
-                ClientMetrics.instance.markUnknownException();
-                logger.warn("Unknown exception in client networking", cause);
-            }
+            
+            ExceptionHandlers.logClientNetworkingExceptions(cause);
             JVMStabilityInspector.inspectThrowable(cause);
         }
 

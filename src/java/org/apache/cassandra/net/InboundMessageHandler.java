@@ -34,8 +34,6 @@ import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message.Header;
-import org.apache.cassandra.net.FrameDecoder.Frame;
-import org.apache.cassandra.net.FrameDecoder.FrameProcessor;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.ResourceLimits.Limit;

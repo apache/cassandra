@@ -41,7 +41,7 @@ public abstract class ResourceLimits
          * Sets the total amount of permits represented by this {@link Limit} - the capacity
          *
          * If the old limit has been reached and the new limit is large enough to allow for more
-         * permits to be aqcuired, subsequent calls to {@link #allocate(long)} or {@link #tryAllocate(long)}
+         * permits to be acquired, subsequent calls to {@link #allocate(long)} or {@link #tryAllocate(long)}
          * will succeed.
          *
          * If the new limit is lower than the current amount of allocated permits then subsequent calls
@@ -163,7 +163,7 @@ public abstract class ResourceLimits
                 // possible it would require synchronizing the closing of all outbound connections
                 // and reinitializing the Concurrent limit before reopening.  For such an unlikely path
                 // (previously this was an assert), it is safer to terminate the JVM and have something external
-                // restart and get back to a known good state rather than intermittendly crashing on any of
+                // restart and get back to a known good state rather than intermittently crashing on any of
                 // the connections sharing this limit.
                 throw new UnrecoverableIllegalStateException(
                     "Internode messaging byte limits that are shared between connections is invalid (using="+using+")");
