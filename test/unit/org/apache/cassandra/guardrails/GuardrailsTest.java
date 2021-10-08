@@ -38,9 +38,6 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.guardrails.Guardrail.DisableFlag;
-import static org.apache.cassandra.guardrails.Guardrail.DisallowedValues;
-import static org.apache.cassandra.guardrails.Guardrail.Threshold;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -215,7 +212,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisabledThreshold()
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new Threshold("e", () -> -1, () -> -1, errorMessageProvider));
+        testDisabledThreshold(new DefaultGuardrail.DefaultThreshold("e", () -> -1, () -> -1, errorMessageProvider));
     }
 
     private void testDisabledThreshold(Threshold guard)
@@ -241,7 +238,7 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThreshold()
     {
-        Threshold guard = new Threshold("x",
+        Threshold guard = new DefaultGuardrail.DefaultThreshold("x",
                                         () -> 10,
                                         () -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
@@ -285,7 +282,7 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testWarnOnlyThreshold()
     {
-        Threshold guard = new Threshold("x",
+        Threshold guard = new DefaultGuardrail.DefaultThreshold("x",
                                         () -> 10,
                                         () -> -1L,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
@@ -308,7 +305,7 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testFailureOnlyThreshold()
     {
-        Threshold guard = new Threshold("x",
+        Threshold guard = new DefaultGuardrail.DefaultThreshold("x",
                                         () -> -1L,
                                         () -> 10,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
@@ -330,12 +327,12 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testNotThrowOnFailure()
     {
-        Threshold guard = new Threshold("x",
+        Threshold guard = new DefaultGuardrail.DefaultThreshold("x",
                                         () -> 5L,
                                         () -> 10,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Failure", what, v, t));
-        guard.noExceptionOnFailure();
+        guard.setNoExceptionOnFailure();
 
         assertTrue(guard.triggersOn(11, userQueryState));
         assertFails(() -> guard.guard(11, "A", true, userQueryState),
@@ -345,13 +342,13 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testMinLogInterval()
     {
-        Threshold guard = new Threshold("x",
+        Threshold guard = new DefaultGuardrail.DefaultThreshold("x",
                                         () -> 5,
                                         () -> 10,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Failure", what, v, t));
 
-        guard.minNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
+        guard.setMinNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
 
         // should trigger on first warn and error
         assertWarn(() -> guard.guard(6, "A", true, userQueryState), "Warning: for A, 6 > 5", "Warning: for <redacted>, 6 > 5");
@@ -367,7 +364,7 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThresholdUsers()
     {
-        Threshold guard = new Threshold("x",
+        Threshold guard = new DefaultGuardrail.DefaultThreshold("x",
                                         () -> 10,
                                         () -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
@@ -399,23 +396,23 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testDisableFlag()
     {
-        assertFails(() -> new DisableFlag("x", () -> true, "X").ensureEnabled(userQueryState), "X is not allowed");
-        assertNoWarnOrFails(() -> new DisableFlag("x", () -> false, "X").ensureEnabled(userQueryState));
+        assertFails(() -> new DefaultGuardrail.DefaultDisableFlag("x", () -> true, "X").ensureEnabled(userQueryState), "X is not allowed");
+        assertNoWarnOrFails(() -> new DefaultGuardrail.DefaultDisableFlag("x", () -> false, "X").ensureEnabled(userQueryState));
 
-        assertFails(() -> new DisableFlag("x", () -> true, "X").ensureEnabled("Y", userQueryState), "Y is not allowed");
-        assertNoWarnOrFails(() -> new DisableFlag("x", () -> false, "X").ensureEnabled("Y", userQueryState));
+        assertFails(() -> new DefaultGuardrail.DefaultDisableFlag("x", () -> true, "X").ensureEnabled("Y", userQueryState), "Y is not allowed");
+        assertNoWarnOrFails(() -> new DefaultGuardrail.DefaultDisableFlag("x", () -> false, "X").ensureEnabled("Y", userQueryState));
     }
 
     @Test
     public void testDisableFlagUsers()
     {
-        DisableFlag enabled = new DisableFlag("x", () -> false, "X");
+        DisableFlag enabled = new DefaultGuardrail.DefaultDisableFlag("x", () -> false, "X");
         assertNoWarnOrFails(() -> enabled.ensureEnabled(null));
         assertNoWarnOrFails(() -> enabled.ensureEnabled(userQueryState));
         assertNoWarnOrFails(() -> enabled.ensureEnabled(systemQueryState));
         assertNoWarnOrFails(() -> enabled.ensureEnabled(superQueryState));
 
-        DisableFlag disabled = new DisableFlag("x", () -> true, "X");
+        DisableFlag disabled = new DefaultGuardrail.DefaultDisableFlag("x", () -> true, "X");
         assertFails(() -> disabled.ensureEnabled(null), "X is not allowed");
         assertFails(() -> disabled.ensureEnabled(userQueryState), "X is not allowed");
         assertNoWarnOrFails(() -> disabled.ensureEnabled(systemQueryState));
@@ -426,7 +423,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisallowedValues()
     {
         // Using a LinkedHashSet below to ensure the order in the error message checked below are not random
-        DisallowedValues<Integer> disallowed = new DisallowedValues<>(
+        DisallowedValues<Integer> disallowed = new DefaultGuardrail.DefaultDisallowedValues<>(
         "x",
         () -> new LinkedHashSet<>(Arrays.asList("4", "6", "20")),
         Integer::valueOf,
@@ -451,7 +448,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testIgnoredValues()
     {
         // Using a LinkedHashSet below to ensure the order in the error message checked below are not random
-        Guardrail.IgnoredValues<Integer> ignored = new Guardrail.IgnoredValues<>(
+        IgnoredValues<Integer> ignored = new DefaultGuardrail.DefaultIgnoredValues<>(
         "x",
         () -> new LinkedHashSet<>(Arrays.asList("4", "6", "20")),
         Integer::valueOf,
@@ -480,7 +477,7 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testDisallowedValuesUsers()
     {
-        DisallowedValues<Integer> disallowed = new DisallowedValues<>(
+        DisallowedValues<Integer> disallowed = new DefaultGuardrail.DefaultDisallowedValues<>(
         "x",
         () -> Collections.singleton("2"),
         Integer::valueOf,

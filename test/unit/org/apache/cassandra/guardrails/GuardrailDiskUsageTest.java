@@ -220,7 +220,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         config.disk_usage_percentage_warn_threshold = 50;
         config.disk_usage_percentage_failure_threshold = 90;
 
-        Guardrails.localDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.localDiskUsage).resetLastNotifyTime();
 
         DiskUsageMonitor monitor = new DiskUsageMonitor();
 
@@ -310,7 +310,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         InetAddressAndPort node3 = InetAddressAndPort.getByName("127.0.0.31");
 
         // avoid noise due to test machines
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         GuardrailsConfig config = DatabaseDescriptor.getGuardrailsConfig();
         config.disk_usage_percentage_warn_threshold = 98;
         config.disk_usage_percentage_failure_threshold = 99;
@@ -369,22 +369,22 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         // verify local node STUFF, will log warning
         DiskUsageBroadcaster.instance.onChange(local, ApplicationState.DISK_USAGE, value(STUFFED));
         assertValid(select);
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertWarns(insert, warnMessage);
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertWarns(batch, warnMessage);
 
         // verify local node Full, will reject writes
         DiskUsageBroadcaster.instance.onChange(local, ApplicationState.DISK_USAGE, value(FULL));
         assertValid(select);
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertFails(insert, errorMessage);
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertFails(batch, errorMessage);
 
         // super user can insert to Full cluster
         useSuperUser();
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertValid(select);
         assertValid(insert);
         assertValid(batch);
@@ -393,9 +393,9 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         // verify local node STUFFED won't reject writes
         DiskUsageBroadcaster.instance.onChange(local, ApplicationState.DISK_USAGE, value(STUFFED));
         assertValid(select);
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertWarns(insert, warnMessage);
-        Guardrails.replicaDiskUsage.resetLastNotifyTime();
+        ((DefaultGuardrail) Guardrails.replicaDiskUsage).resetLastNotifyTime();
         assertWarns(batch, warnMessage);
     }
 
