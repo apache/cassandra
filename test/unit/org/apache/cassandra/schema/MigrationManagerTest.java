@@ -85,7 +85,7 @@ public class MigrationManagerTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE2));
         SchemaLoader.createKeyspace(KEYSPACE3,
                                     KeyspaceParams.simple(5),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, TABLE1),
+                                    SchemaLoader.standardCFMD(KEYSPACE3, TABLE1),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE3, TABLE1i, true));
         SchemaLoader.createKeyspace(KEYSPACE6,
                                     KeyspaceParams.simple(1),

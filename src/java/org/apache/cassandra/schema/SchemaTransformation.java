@@ -17,17 +17,45 @@
  */
 package org.apache.cassandra.schema;
 
-import java.net.UnknownHostException;
+import java.util.Collection;
+
+import org.apache.cassandra.db.Mutation;
 
 public interface SchemaTransformation
 {
     /**
      * Apply a statement transformation to a schema snapshot.
-     *
-     * Implementing methods should be side-effect free.
+     * <p>
+     * Implementing methods should be side-effect free (outside of throwing exceptions if the transformation cannot
+     * be successfully applied to the provided schema).
      *
      * @param schema Keyspaces to base the transformation on
      * @return Keyspaces transformed by the statement
      */
-    Keyspaces apply(Keyspaces schema) throws UnknownHostException;
+    Keyspaces apply(Keyspaces schema);
+
+    /**
+     * The result of applying (on this node) a given schema transformation.
+     */
+    class SchemaTransformationResult
+    {
+        public final DistributedSchema before;
+        public final DistributedSchema after;
+        public final Keyspaces.KeyspacesDiff diff;
+        public final Collection<Mutation> mutations;
+
+        public SchemaTransformationResult(DistributedSchema before, DistributedSchema after, Keyspaces.KeyspacesDiff diff, Collection<Mutation> mutations)
+        {
+            this.before = before;
+            this.after = after;
+            this.diff = diff;
+            this.mutations = mutations;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("SchemaTransformationResult{diff=%s}", diff);
+        }
+    }
 }
