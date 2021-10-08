@@ -49,15 +49,28 @@ public class PartitionDenylistTest
     {
         CQLTester.prepareServer();
 
-        KeyspaceMetadata schema = KeyspaceMetadata.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
-        CreateTableStatement.parse("CREATE TABLE foofoo ("
-                                   + "bar text, "
-                                   + "baz text, "
-                                   + "qux text, "
-                                   + "quz text, "
-                                   + "foo text, "
-                                   + "PRIMARY KEY((bar, baz), qux, quz) ) ", ks_cql)
-                            .build()
+        KeyspaceMetadata schema = KeyspaceMetadata.create(ks_cql,
+                                                          KeyspaceParams.simple(1),
+                                                          Tables.of(
+            CreateTableStatement.parse("CREATE TABLE table1 ("
+                                       + "keyone text, "
+                                       + "keytwo text, "
+                                       + "qux text, "
+                                       + "quz text, "
+                                       + "foo text, "
+                                       + "PRIMARY KEY((keyone, keytwo), qux, quz) ) ", ks_cql).build(),
+            CreateTableStatement.parse("CREATE TABLE table2 ("
+                                       + "keyone text, "
+                                       + "keytwo text, "
+                                       + "keythree text, "
+                                       + "value text, "
+                                       + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ks_cql).build(),
+            CreateTableStatement.parse("CREATE TABLE table3 ("
+                                       + "keyone text, "
+                                       + "keytwo text, "
+                                       + "keythree text, "
+                                       + "value text, "
+                                       + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ks_cql).build()
         ));
         Schema.instance.load(schema);
         DatabaseDescriptor.setEnablePartitionDenylist(true);
@@ -72,25 +85,32 @@ public class PartitionDenylistTest
         DatabaseDescriptor.setEnablePartitionDenylist(true);
         resetDenylist();
 
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('aaa', 'bbb', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('ccc', 'ddd', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('ddd', 'eee', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('fff', 'ggg', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('ggg', 'hhh', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('hhh', 'iii', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('iii', 'jjj', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('jjj', 'kkk', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('aaa', 'bbb', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('ccc', 'ddd', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('ddd', 'eee', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('fff', 'ggg', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('ggg', 'hhh', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('hhh', 'iii', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('iii', 'jjj', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('jjj', 'kkk', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
 
-        denylist("bbb:ccc");
+
+        for (int i = 0; i < 50; i++)
+            process(String.format("INSERT INTO " + ks_cql + ".table2 (keyone, keytwo, keythree, value) VALUES ('%d', '%d', '%d', '%d')", i, i, i, i), ConsistencyLevel.ONE);
+
+        for (int i = 0; i < 50; i++)
+            process(String.format("INSERT INTO " + ks_cql + ".table3 (keyone, keytwo, keythree, value) VALUES ('%d', '%d', '%d', '%d')", i, i, i, i), ConsistencyLevel.ONE);
+
+        denylist("table1", "bbb:ccc");
         refreshList();
     }
 
 
-    private static void denylist(final String key) throws RequestExecutionException
+    private static void denylist(String table, final String key) throws RequestExecutionException
     {
-        StorageProxy.instance.denylistKey("" + ks_cql + "", "foofoo", key);
+        StorageProxy.instance.denylistKey("" + ks_cql + "", table, key);
     }
 
     private static void refreshList()
@@ -110,115 +130,115 @@ public class PartitionDenylistTest
     @Test
     public void testRead() throws RequestExecutionException
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='aaa' and baz='bbb'", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='aaa' and keytwo='bbb'", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testReadDenylisted() throws Throwable
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
     }
 
     @Test
     public void testReadUndenylisted() throws RequestExecutionException, InterruptedException, UnsupportedEncodingException
     {
         resetDenylist();
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
     }
 
     @Test
     public void testWrite() throws RequestExecutionException
     {
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
-        process("DELETE FROM " + ks_cql + ".foofoo WHERE bar='eee' and baz='fff'", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
+        process("DELETE FROM " + ks_cql + ".table1 WHERE keyone='eee' and keytwo='fff'", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testWriteDenylisted() throws Throwable
     {
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testCASWriteDenylisted()
     {
-        process("UPDATE " + ks_cql + ".foofoo SET foo='w' WHERE bar='bbb' AND baz='ccc' AND qux='eee' AND quz='fff' IF foo='v'", ConsistencyLevel.LOCAL_SERIAL);
+        process("UPDATE " + ks_cql + ".table1 SET foo='w' WHERE keyone='bbb' AND keytwo='ccc' AND qux='eee' AND quz='fff' IF foo='v'", ConsistencyLevel.LOCAL_SERIAL);
     }
 
     @Test
     public void testWriteUndenylisted() throws RequestExecutionException, InterruptedException, UnsupportedEncodingException
     {
         resetDenylist();
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
     }
 
     @Test
     public void testRangeSlice() throws RequestExecutionException
     {
         UntypedResultSet rows;
-        rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
+        rows = process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
         Assert.assertEquals(1, rows.size());
 
         // 10 entries total in our table
-        rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('bbb', 'ccc')", ConsistencyLevel.ONE);
+        rows = process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('bbb', 'ccc')", ConsistencyLevel.ONE);
         Assert.assertEquals(8, rows.size());
 
-        rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) >= token('aaa', 'bbb') and token(bar, baz) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
+        rows = process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('aaa', 'bbb') and token(keyone, keytwo) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
         Assert.assertEquals(1, rows.size());
 
-        rows = process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('bbb', 'ccc') and token(bar, baz) <= token('ddd', 'eee')", ConsistencyLevel.ONE);
+        rows = process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('bbb', 'ccc') and token(keyone, keytwo) <= token('ddd', 'eee')", ConsistencyLevel.ONE);
         Assert.assertEquals(2, rows.size());
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testRangeDenylisted() throws Throwable
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testRangeDenylisted2()
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) >= token('aaa', 'bbb') and token (bar, baz) <= token('bbb', 'ccc')", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('aaa', 'bbb') and token (keyone, keytwo) <= token('bbb', 'ccc')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testRangeDenylisted3()
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) >= token('bbb', 'ccc') and token (bar, baz) <= token('ccc', 'ddd')", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('bbb', 'ccc') and token (keyone, keytwo) <= token('ccc', 'ddd')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testRangeDenylisted4()
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('aaa', 'bbb') and token (bar, baz) < token('ccc', 'ddd')", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb') and token (keyone, keytwo) < token('ccc', 'ddd')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testRangeDenylisted5()
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) > token('aaa', 'bbb')", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb')", ConsistencyLevel.ONE);
     }
 
     @Test(expected = InvalidRequestException.class)
     public void testRangeDenylisted6()
     {
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE token(bar, baz) < token('ddd', 'eee')", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) < token('ddd', 'eee')", ConsistencyLevel.ONE);
     }
 
     @Test
     public void testReadInvalidCF()
     {
-        denylist("hohoho");
+        denylist("table1", "hohoho");
     }
 
     @Test
     public void testDisabledDenylistThrowsNoExceptions()
     {
         DatabaseDescriptor.setEnablePartitionDenylist(false);
-        process("INSERT INTO " + ks_cql + ".foofoo (bar, baz, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
-        process("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='bbb' and baz='ccc'", ConsistencyLevel.ONE);
-        process("SELECT * FROM " + ks_cql + ".foofoo", ConsistencyLevel.ONE);
+        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE);
     }
 
     /**
@@ -227,14 +247,14 @@ public class PartitionDenylistTest
     @Test
     public void testRemoveMissingIsGraceful()
     {
-        confirmDenied("bbb", "ccc");
-        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+        confirmDenied("table1", "bbb", "ccc");
+        Assert.assertTrue(removeDenylist("" + ks_cql + "", "table1", "bbb:ccc"));
 
         // We expect this to silently not find and succeed at *trying* to remove it
-        Assert.assertTrue(removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc"));
+        Assert.assertTrue(removeDenylist("" + ks_cql + "", "table1", "bbb:ccc"));
         refreshList();
 
-        confirmAllowed("bbb", "ccc");
+        confirmAllowed("table1", "bbb", "ccc");
     }
 
     /**
@@ -247,17 +267,17 @@ public class PartitionDenylistTest
         denyAllKeys();
         refreshList();
 
-        confirmDenied("aaa", "bbb");
-        confirmDenied("eee", "fff");
-        confirmDenied("iii", "jjj");
+        confirmDenied("table1", "aaa", "bbb");
+        confirmDenied("table1", "eee", "fff");
+        confirmDenied("table1", "iii", "jjj");
 
         // poke a hole in the middle and reload
-        removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
+        removeDenylist("" + ks_cql + "", "table1", "eee:fff");
         refreshList();
 
-        confirmAllowed("eee", "fff");
-        confirmDenied("aaa", "bbb");
-        confirmDenied("iii", "jjj");
+        confirmAllowed("table1", "eee", "fff");
+        confirmDenied("table1", "aaa", "bbb");
+        confirmDenied("table1", "iii", "jjj");
     }
 
     /**
@@ -270,41 +290,112 @@ public class PartitionDenylistTest
     @Test
     public void testShrinkAndGrow()
     {
-        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
-        StorageProxy.instance.setMaxDenylistKeysTotal(5);
         denyAllKeys();
         refreshList();
 
+        // Initial control; check denial of both initial and final keys
+        confirmDenied("table1", "aaa", "bbb");
+        confirmDenied("table1", "iii", "jjj");
+
+        // Lower our limit to 5 allowable denies and then check and see that things past the limit are ignored
+        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
+        StorageProxy.instance.setMaxDenylistKeysTotal(5);
+        refreshList();
+
         // Confirm overflowed keys are allowed; first come first served
-        confirmDenied("aaa", "bbb");
-        confirmAllowed("iii", "jjj");
+        confirmDenied("table1", "aaa", "bbb");
+        confirmAllowed("table1", "iii", "jjj");
 
         // Now we raise the limit back up and do nothing else and confirm it's blocked
         StorageProxy.instance.setMaxDenylistKeysPerTable(1000);
         StorageProxy.instance.setMaxDenylistKeysTotal(1000);
         refreshList();
-        confirmDenied("aaa", "bbb");
-        confirmDenied("iii", "jjj");
+        confirmDenied("table1", "aaa", "bbb");
+        confirmDenied("table1", "iii", "jjj");
 
+        // Unblock via overflow the table 1 sentinel we'll check in a second
         StorageProxy.instance.setMaxDenylistKeysPerTable(5);
         StorageProxy.instance.setMaxDenylistKeysTotal(5);
         refreshList();
-        confirmAllowed("iii", "jjj");
+        confirmAllowed("table1", "iii", "jjj");
 
         // Now, we remove the denylist entries for our first 5, drop the limit back down, and confirm those overflowed keys now block
-        removeDenylist("" + ks_cql + "", "foofoo", "aaa:bbb");
-        removeDenylist("" + ks_cql + "", "foofoo", "bbb:ccc");
-        removeDenylist("" + ks_cql + "", "foofoo", "ccc:ddd");
-        removeDenylist("" + ks_cql + "", "foofoo", "ddd:eee");
-        removeDenylist("" + ks_cql + "", "foofoo", "eee:fff");
+        removeDenylist("" + ks_cql + "", "table1", "aaa:bbb");
+        removeDenylist("" + ks_cql + "", "table1", "bbb:ccc");
+        removeDenylist("" + ks_cql + "", "table1", "ccc:ddd");
+        removeDenylist("" + ks_cql + "", "table1", "ddd:eee");
+        removeDenylist("" + ks_cql + "", "table1", "eee:fff");
         refreshList();
-        confirmDenied("iii", "jjj");
+        confirmDenied("table1", "iii", "jjj");
     }
 
-    private void confirmDenied(String keyOne, String keyTwo)
+    /*
+    We need to test that, during a violation of our global allowable limit, we still enforce our limit of keys queried
+    on a per-table basis.
+     */
+    @Test
+    public void testTableLimitRespected()
+    {
+        StorageProxy.instance.setMaxDenylistKeysPerTable(5);
+        StorageProxy.instance.setMaxDenylistKeysTotal(12);
+        denyAllKeys();
+        refreshList();
+
+        // Table 1: expect first 5 denied
+        confirmDenied("table1", "aaa", "bbb");
+        confirmDenied("table1", "eee", "fff");
+        confirmAllowed("table1", "fff", "ggg");
+
+        // Table 2: expect first 5 denied
+        for (int i = 0; i < 5; i++)
+            confirmDenied("table2", Integer.toString(i), Integer.toString(i));
+
+        // Confirm remainder are allowed because we hit our table limit at 5
+        for (int i = 5; i < 50; i++)
+            confirmAllowed("table2", Integer.toString(i), Integer.toString(i));
+
+        // Table 3: expect only first 2 denied; global limit enforcement
+        confirmDenied("table3", "0", "0");
+        confirmDenied("table3", "1", "1");
+
+        // And our final 48 should be allowed
+        for (int i = 2; i < 50; i++)
+            confirmAllowed("table3", Integer.toString(i), Integer.toString(i));
+    }
+
+    /**
+     * Test that we don't allow overflowing global limit due to accumulation of allowable table queries
+     */
+    @Test
+    public void testGlobalLimitRespected()
+    {
+        StorageProxy.instance.setMaxDenylistKeysPerTable(50);
+        StorageProxy.instance.setMaxDenylistKeysTotal(15);
+        denyAllKeys();
+        refreshList();
+
+        // Table 1: expect all 10 denied
+        confirmDenied("table1", "aaa", "bbb");
+        confirmDenied("table1", "jjj", "kkk");
+
+        // Table 2: expect only 5 denied up to global limit trigger
+        for (int i = 0; i < 5; i++)
+            confirmDenied("table2", Integer.toString(i), Integer.toString(i));
+
+        // Remainder of Table 2 should be allowed; testing overflow boundary logic
+        for (int i = 5; i < 50; i++)
+            confirmAllowed("table2", Integer.toString(i), Integer.toString(i));
+
+        // Table 3: expect all allowed as we're past global limit by the time we got to this table load. This confirms that
+        // we bypass load completely on tables once we're at our global limit.
+        for (int i = 0; i < 50; i++)
+            confirmAllowed("table3", Integer.toString(i), Integer.toString(i));
+    }
+
+    private void confirmDenied(String table, String keyOne, String keyTwo)
     {
         boolean denied = false;
-        String query = String.format("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='%s' and baz='%s'", keyOne, keyTwo);
+        String query = String.format("SELECT * FROM " + ks_cql + "." + table + " WHERE keyone='%s' and keytwo='%s'", keyOne, keyTwo);
         try
         {
             process(query, ConsistencyLevel.ONE);
@@ -316,9 +407,9 @@ public class PartitionDenylistTest
         Assert.assertTrue(String.format("Expected query to be denied but was allowed! %s", query), denied);
     }
 
-    private void confirmAllowed(String keyOne, String keyTwo)
+    private void confirmAllowed(String table, String keyOne, String keyTwo)
     {
-        process(String.format("SELECT * FROM " + ks_cql + ".foofoo WHERE bar='%s' and baz='%s'", keyOne, keyTwo), ConsistencyLevel.ONE);
+        process(String.format("SELECT * FROM " + ks_cql + "." + table + " WHERE keyone='%s' and keytwo='%s'", keyOne, keyTwo), ConsistencyLevel.ONE);
     }
 
     private void resetDenylist()
@@ -331,14 +422,22 @@ public class PartitionDenylistTest
 
     private void denyAllKeys()
     {
-        denylist("aaa:bbb");
-        denylist("bbb:ccc");
-        denylist("ccc:ddd");
-        denylist("ddd:eee");
-        denylist("eee:fff");
-        denylist("fff:ggg");
-        denylist("ggg:hhh");
-        denylist("hhh:iii");
-        denylist("iii:jjj");
+        denylist("table1", "aaa:bbb");
+        denylist("table1", "bbb:ccc");
+        denylist("table1", "ccc:ddd");
+        denylist("table1", "ddd:eee");
+        denylist("table1", "eee:fff");
+        denylist("table1", "fff:ggg");
+        denylist("table1", "ggg:hhh");
+        denylist("table1", "hhh:iii");
+        denylist("table1", "iii:jjj");
+        denylist("table1", "jjj:kkk");
+
+        for (int i = 0; i < 50; i++)
+        {
+            denylist("table2", String.format("%d:%d", i, i));
+            denylist("table3", String.format("%d:%d", i, i));
+        }
+
     }
 }

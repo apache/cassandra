@@ -25,6 +25,7 @@ import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.function.Consumer;
 
 
 import com.google.common.base.Throwables;

@@ -30,14 +30,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import com.github.benmanes.caffeine.cache.CacheLoader;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.benmanes.caffeine.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -48,7 +48,6 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 
@@ -64,6 +63,16 @@ import static org.apache.cassandra.cql3.QueryProcessor.process;
  *
  * Concurrency of the cache is provided by the concurrency semantics of the guava LoadingCache. All values (DenylistEntry) are
  * immutable collections of keys/tokens which are replaced in whole when the cache refreshes from disk.
+ *
+ * Notably, in the current design it's possible for a table *cache expiration instigated* reload to end up violating the
+ * contract on total denylisted keys allowed in the case where it initially loads with a value less than the DBD
+ * allowable max per table limit due to global constraint enforcement on initial load. Our load and reload function
+ * simply enforce the *per table* limit without consideration to what that entails at the global key level. While we
+ * could track the constrained state and count in DenylistEntry, for now the complexity doesn't seem to justify the
+ * protection against that edge case. The enforcement should take place on a user-instigated full reload as well as
+ * error messaging about count violations, so this only applies to situations in which someone adds a key and doesn't
+ * actively tell the cache to fully reload to take that key into consideration, which one could reasonably expect to be
+ * an antipattern.
  */
 public class PartitionDenylist
 {
@@ -75,9 +84,7 @@ public class PartitionDenylist
     /** We effectively don't use our initial empty cache to denylist until the {@link #load()} call which will replace it */
     private volatile LoadingCache<TableId, DenylistEntry> denylist = buildEmptyCache();
 
-    /**
-     * Denylist entry is never mutated once constructed, only replaced with a new entry when the cache is refreshed
-     */
+    /** Denylist entry is never mutated once constructed, only replaced with a new entry when the cache is refreshed */
     private static class DenylistEntry
     {
         public final ImmutableSet<ByteBuffer> keys;
@@ -219,13 +226,13 @@ public class PartitionDenylist
      */
     public boolean addKeyToDenylist(final String keyspace, final String table, final ByteBuffer key)
     {
-        if (!isPermitted(keyspace))
+        if (!canDenylistKeyspace(keyspace))
             return false;
 
         final byte[] keyBytes = new byte[key.remaining()];
         key.slice().get(keyBytes);
 
-        final String insert = String.format("INSERT INTO system_distributed.partition_denylist (ks_name, cf_name, key) VALUES ('%s', '%s', 0x%s)",
+        final String insert = String.format("INSERT INTO system_distributed.partition_denylist (ks_name, table_name, key) VALUES ('%s', '%s', 0x%s)",
                                             keyspace, table, Hex.bytesToHex(keyBytes));
 
         try
@@ -250,7 +257,7 @@ public class PartitionDenylist
 
         final String delete = String.format("DELETE FROM system_distributed.partition_denylist " +
                                             "WHERE ks_name = '%s' " +
-                                            "AND cf_name = '%s' " +
+                                            "AND table_name = '%s' " +
                                             "AND key = 0x%s",
                                             keyspace, table, Hex.bytesToHex(keyBytes));
 
@@ -270,7 +277,7 @@ public class PartitionDenylist
      * We disallow denylisting partitions in certain critical keyspaces to prevent users from making their clusters
      * inoperable.
      */
-    private boolean isPermitted(final String keyspace)
+    private boolean canDenylistKeyspace(final String keyspace)
     {
         return !SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(keyspace) &&
                !SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspace) &&
@@ -286,12 +293,19 @@ public class PartitionDenylist
     public boolean isKeyPermitted(final TableId tid, final ByteBuffer key)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !isPermitted(tmd.keyspace))
+
+        // We have a few quick state checks to get out of the way first; this is hot path so we want to do these first if possible.
+        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !canDenylistKeyspace(tmd.keyspace))
             return true;
 
         try
         {
-            return !denylist.get(tid).keys.contains(key);
+            // If we don't have an entry for this table id, nothing in it is denylisted.
+            DenylistEntry entry = denylist.get(tid);
+            if (entry == null)
+                return true;
+            boolean result = !entry.keys.contains(key);
+            return !entry.keys.contains(key);
         }
         catch (final Exception e)
         {
@@ -323,7 +337,7 @@ public class PartitionDenylist
     public int getDeniedKeysInRange(final TableId tid, final AbstractBounds<PartitionPosition> range)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !isPermitted(tmd.keyspace))
+        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !canDenylistKeyspace(tmd.keyspace))
             return 0;
 
         try
@@ -355,18 +369,30 @@ public class PartitionDenylist
     }
 
     /**
-     * Attempts to reload the DenylistEntry data from CQL for the given TableId
-     * @return null if we do not find the data; allows cache reloader to preserve old value
+     * Get up to the configured allowable limit per table of denylisted keys
      */
     private DenylistEntry getDenylistForTableFromCQL(final TableId tid)
+    {
+        return getDenylistForTableFromCQL(tid, DatabaseDescriptor.getDenylistMaxKeysPerTable());
+    }
+
+    /**
+     * Attempts to reload the DenylistEntry data from CQL for the given TableId and key count.
+     * @return null if we do not find the data; allows cache reloader to preserve old value
+     */
+    private DenylistEntry getDenylistForTableFromCQL(final TableId tid, int limit)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
         if (tmd == null)
             return null;
 
-        // We pull max keys + 1 in order to check below whether we've surpassed the allowable limit or not
-        final String readDenylist = String.format("SELECT * FROM %s.%s WHERE ks_name='%s' AND cf_name='%s' LIMIT %d", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARTITION_DENYLIST_TABLE,
-                                                  tmd.keyspace, tmd.name, DatabaseDescriptor.getDenylistMaxKeysPerTable() + 1);
+        // We attempt to query just over our allowable max keys in order to check whether we have configured data beyond that limit and alert the user if so
+        final String readDenylist = String.format("SELECT * FROM %s.%s WHERE ks_name='%s' AND table_name='%s' LIMIT %d",
+                                                  SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                                  PARTITION_DENYLIST_TABLE,
+                                                  tmd.keyspace,
+                                                  tmd.name,
+                                                  limit + 1);
 
         try
         {
@@ -376,16 +402,32 @@ public class PartitionDenylist
             if (results == null || results.isEmpty())
                 return new DenylistEntry();
 
-            if (results.size() > DatabaseDescriptor.getDenylistMaxKeysPerTable())
-                logger.error("Partition denylist for {}/{} has exceeded the maximum allowable size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", tmd.keyspace, tmd.name, DatabaseDescriptor.getDenylistMaxKeysPerTable());
+            if (results.size() > limit)
+            {
+                // If our limit is < the standard per table we know we're at a global violation because we've constrained that request limit already.
+                boolean globalLimit = limit != DatabaseDescriptor.getDenylistMaxKeysPerTable();
+                String violationType = globalLimit ? "global" : "per-table";
+                int errorLimit = globalLimit ? DatabaseDescriptor.getDenylistMaxKeysTotal() : limit;
+                logger.error("Partition denylist for {}.{} has exceeded the {} allowance of ({}). Remaining keys were ignored; please reduce the total number of keys denied or increase the size of denylist key cache to avoid inconsistency in denied partitions across nodes.",
+                             tmd.keyspace,
+                             tmd.name,
+                             violationType,
+                             errorLimit);
+            }
 
             final Set<ByteBuffer> keys = new HashSet<>();
             final NavigableSet<Token> tokens = new TreeSet<>();
+
+            int processed = 0;
             for (final UntypedResultSet.Row row : results)
             {
                 final ByteBuffer key = row.getBlob("key");
                 keys.add(key);
                 tokens.add(StorageService.instance.getTokenMetadata().partitioner.getToken(key));
+
+                processed++;
+                if (processed >= limit)
+                    break;
             }
             return new DenylistEntry(ImmutableSet.copyOf(keys), ImmutableSortedSet.copyOf(tokens));
         }
@@ -397,59 +439,49 @@ public class PartitionDenylist
     }
 
     /**
-     * We check in this method whether either a table or the sum of all denylist keys surpass our allowable limits and
-     * warn to the user if we're above our threshold.
+     * This method relies on {@link #getDenylistForTableFromCQL(TableId, int)} to pull a limited amount of keys
+     * on a per-table basis from CQL to load into the cache. We need to navigate both respecting the max cache size limit
+     * as well as respecting the per-table limit.
      */
     private Map<TableId, DenylistEntry> getDenylistForAllTablesFromCQL()
     {
-        /* NEW LOGIC:
-            1) Query out all ks_name, cf_name combinations from the table
-            2) Iterate through those combos
-            3) For each one:
-                a) getDenylistForTableFromCQL
-                b) Respect and increment the count
-                c)
-         */
-
-
-
-        // We pull max keys + 1 in order to check below whether we've surpassed the allowable limit or not
-        final String readDenylist = String.format("SELECT * FROM %s.%s LIMIT %d", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARTITION_DENYLIST_TABLE, DatabaseDescriptor.getDenylistMaxKeysTotal() + 1);
+        final String allDeniedTables = String.format("SELECT DISTINCT ks_name, table_name FROM %s.%s",
+                                                     SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                                     PARTITION_DENYLIST_TABLE);
         try
         {
-            final UntypedResultSet results = process(readDenylist, DatabaseDescriptor.getDenylistConsistencyLevel());
-            if (results == null || results.isEmpty())
+            final UntypedResultSet deniedTableResults = process(allDeniedTables, DatabaseDescriptor.getDenylistConsistencyLevel());
+            if (deniedTableResults == null || deniedTableResults.isEmpty())
                 return new HashMap<>();
 
-            if (results.size() > DatabaseDescriptor.getDenylistMaxKeysTotal())
-                logger.error("Partition denylist has exceeded the maximum allowable total size ({}). Remaining keys were ignored; please reduce the number of keys denied or increase the size of your cache to avoid inconsistency in denied partitions across nodes.", DatabaseDescriptor.getDenylistMaxKeysTotal());
-
-            final Map<TableId, Pair<Set<ByteBuffer>, NavigableSet<Token>>> allDenylists = new HashMap<>();
-            for (final UntypedResultSet.Row row : results)
+            int totalProcessed = 0 ;
+            final Map<TableId, DenylistEntry> results = new HashMap<>();
+            for (final UntypedResultSet.Row row : deniedTableResults)
             {
-                final TableId tid = getTableId(row.getString("ks_name"), row.getString("cf_name"));
-                if (tid == null)
-                    continue;
-
-                Pair<Set<ByteBuffer>, NavigableSet<Token>> pair =
-                    allDenylists.computeIfAbsent(tid, k -> Pair.create(new HashSet<>(), new TreeSet<>()));
-
-                final ByteBuffer key = row.getBlob("key");
-                pair.left.add(key);
-                pair.right.add(StorageService.instance.getTokenMetadata().partitioner.getToken(key));
+                final String ks = row.getString("ks_name");
+                final String table = row.getString("table_name");
+                final TableId tid = getTableId(ks, table);
+                if (DatabaseDescriptor.getDenylistMaxKeysTotal() - totalProcessed <= 0)
+                {
+                    logger.error("Hit limit on allowable denylisted keys in total. Processed {} total entries. Not adding entries to denylist for {}.{}", totalProcessed, ks, table);
+                    results.put(tid, new DenylistEntry());
+                }
+                else
+                {
+                    // Determine whether we can get up to table max or we need a subset at edge condition of max overflow.
+                    int allowedTableRecords = Math.min(DatabaseDescriptor.getDenylistMaxKeysPerTable(), DatabaseDescriptor.getDenylistMaxKeysTotal() - totalProcessed);
+                    DenylistEntry tableDenylist = getDenylistForTableFromCQL(tid, allowedTableRecords);
+                    totalProcessed += tableDenylist.keys.size();
+                    results.put(tid, tableDenylist);
+                }
             }
-
-            final Map<TableId, DenylistEntry> ret = new HashMap<>();
-            for (final TableId tid : allDenylists.keySet())
-            {
-                final Pair<Set<ByteBuffer>, NavigableSet<Token>> entries = allDenylists.get(tid);
-                ret.put(tid, new DenylistEntry(ImmutableSet.copyOf(entries.left), ImmutableSortedSet.copyOf(entries.right)));
-            }
-            return ret;
+            return results;
         }
         catch (final RequestExecutionException e)
         {
-            logger.error("Error reading partition_denylist table on startup", e);
+            logger.error("Error reading full partition denylist from "
+                         + SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + PARTITION_DENYLIST_TABLE +
+                         ". Partition Denylisting will be compromised. Exception: " + e);
             return null;
         }
     }

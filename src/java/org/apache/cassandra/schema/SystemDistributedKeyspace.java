@@ -149,9 +149,9 @@ public final class SystemDistributedKeyspace
           "Partition keys which have been denied access",
           "CREATE TABLE %s ("
           + "ks_name text,"
-          + "cf_name text,"
+          + "table_name text,"
           + "key blob,"
-          + "PRIMARY KEY ((ks_name, cf_name), key))")
+          + "PRIMARY KEY ((ks_name, table_name), key))")
     .build();
 
     private static TableMetadata.Builder parse(String table, String description, String cql)
