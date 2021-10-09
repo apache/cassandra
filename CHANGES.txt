@@ -1,4 +1,5 @@
 4.1
+ * Add support for PEM based key material for SSL (CASSANDRA-17031)
  * Standardize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
  * Remove support for Windows (CASSANDRA-16956)
  * Runtime-configurable YAML option to prohibit USE statements (CASSANDRA-17318)

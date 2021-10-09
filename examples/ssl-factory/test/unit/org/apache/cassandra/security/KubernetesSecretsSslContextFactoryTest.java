@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.security;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.io.util.PathUtils;
 
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR;
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH;
@@ -49,45 +50,9 @@ public class KubernetesSecretsSslContextFactoryTest
     private static final Logger logger = LoggerFactory.getLogger(KubernetesSecretsSslContextFactoryTest.class);
     private static final String TRUSTSTORE_PATH = EncryptionOptions.ConfigKey.TRUSTSTORE.toString();
     private static final String KEYSTORE_PATH = EncryptionOptions.ConfigKey.KEYSTORE.toString();
-
-    private Map<String, Object> commonConfig = new HashMap<>();
     private final static String truststoreUpdatedTimestampFilepath = "build/test/conf/cassandra_truststore_last_updatedtime";
     private final static String keystoreUpdatedTimestampFilepath = "build/test/conf/cassandra_keystore_last_updatedtime";
-
-    private static class KubernetesSecretsSslContextFactoryForTestOnly extends KubernetesSecretsSslContextFactory
-    {
-
-        public KubernetesSecretsSslContextFactoryForTestOnly()
-        {
-        }
-
-        public KubernetesSecretsSslContextFactoryForTestOnly(Map<String, Object> config)
-        {
-            super(config);
-        }
-
-        /*
-         * This is overriden to first give priority to the input map configuration since we should not be setting env
-         * variables from the unit tests. However, if the input map configuration doesn't have the value for the
-         * given key then fallback to loading from the real environment variables.
-         */
-        @Override
-        String getValueFromEnv(String envVarName, String defaultValue)
-        {
-            String envVarValue = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
-            if (StringUtils.isEmpty(envVarValue))
-            {
-                logger.info("Configuration doesn't have env variable {}. Will use parent's implementation", envVarName);
-                return super.getValueFromEnv(envVarName, defaultValue);
-            }
-            else
-            {
-                logger.info("Configuration has env variable {} with value {}. Will use that.",
-                            envVarName, envVarValue);
-                return envVarValue;
-            }
-        }
-    }
+    private final Map<String, Object> commonConfig = new HashMap<>();
 
     @BeforeClass
     public static void prepare()
@@ -96,20 +61,13 @@ public class KubernetesSecretsSslContextFactoryTest
         deleteFileIfExists(keystoreUpdatedTimestampFilepath);
     }
 
-    private static void deleteFileIfExists(String filePath)
+    private static void deleteFileIfExists(String file)
     {
-        try
+        Path filePath = Paths.get(file);
+        boolean deleted = PathUtils.tryDelete(filePath);
+        if (!deleted)
         {
-            logger.info("Deleting the file {} to prepare for the tests", new File(filePath).getAbsolutePath());
-            File file = new File(filePath);
-            if (file.exists())
-            {
-                file.delete();
-            }
-        }
-        catch (Exception e)
-        {
-            logger.warn("File {} could not be deleted.", filePath, e);
+            logger.warn("File {} could not be deleted.", filePath);
         }
     }
 
@@ -291,6 +249,41 @@ public class KubernetesSecretsSslContextFactoryTest
         catch (IOException e)
         {
             logger.warn("Failed to write to filePath {} from the mounted volume", filePath, e);
+        }
+    }
+
+    private static class KubernetesSecretsSslContextFactoryForTestOnly extends KubernetesSecretsSslContextFactory
+    {
+
+        public KubernetesSecretsSslContextFactoryForTestOnly()
+        {
+        }
+
+        public KubernetesSecretsSslContextFactoryForTestOnly(Map<String, Object> config)
+        {
+            super(config);
+        }
+
+        /*
+         * This is overriden to first give priority to the input map configuration since we should not be setting env
+         * variables from the unit tests. However, if the input map configuration doesn't have the value for the
+         * given key then fallback to loading from the real environment variables.
+         */
+        @Override
+        String getValueFromEnv(String envVarName, String defaultValue)
+        {
+            String envVarValue = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
+            if (StringUtils.isEmpty(envVarValue))
+            {
+                logger.info("Configuration doesn't have env variable {}. Will use parent's implementation", envVarName);
+                return super.getValueFromEnv(envVarName, defaultValue);
+            }
+            else
+            {
+                logger.info("Configuration has env variable {} with value {}. Will use that.",
+                            envVarName, envVarValue);
+                return envVarValue;
+            }
         }
     }
 }
