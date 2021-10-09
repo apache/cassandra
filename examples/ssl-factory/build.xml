@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
  ~ Licensed to the Apache Software Foundation (ASF) under one
  ~ or more contributor license agreements.  See the NOTICE file
@@ -51,6 +51,7 @@
 		</fileset>
 		<path refid="build.classpath"/>
 		<path location="${build.dir}/${final.name}.jar"/>
+		<pathelement location="${build.classes}"/>
 		<pathelement location="${test.build.classes}"/>
 		<pathelement location="${test.build.conf}"/>
 	</path>
@@ -73,9 +74,11 @@
 		</jar>
 	</target>
 
-	<target name="buildTests" depends="init">
-		<deltree dir="${test.build.dir}/conf"/>
-		<copydir src="test/conf" dest="${test.build.dir}/conf"/>
+	<target name="buildTests" depends="build">
+		<delete dir="${test.build.dir}/conf"/>
+		<copy todir="${test.build.dir}/conf">
+			<fileset dir="test/conf" includes="**"/>
+		</copy>
 		<javac destdir="${test.build.classes}" debug="true" includeantruntime="false">
 			<src path="${test.src}" />
 			<src path="${test.build.dir}/conf" />

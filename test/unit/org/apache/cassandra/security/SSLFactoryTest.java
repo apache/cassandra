@@ -74,12 +74,54 @@ public class SSLFactoryTest
                       .withKeyStorePassword("cassandra");
     }
 
+    private ServerEncryptionOptions addPEMKeystoreOptions(ServerEncryptionOptions options)
+    {
+        ParameterizedClass sslContextFactoryClass = new ParameterizedClass("org.apache.cassandra.security.PEMBasedSslContextFactory",
+                                                                           new HashMap<>());
+        return options.withSslContextFactory(sslContextFactoryClass)
+                      .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
+                      .withKeyStorePassword("cassandra")
+                      .withTrustStore("test/conf/cassandra_ssl_test.truststore.pem");
+    }
+
     @Test
     public void testSslContextReload_HappyPath() throws IOException, InterruptedException
     {
         try
         {
             ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
+                                              .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
+
+            SSLFactory.initHotReloading(options, options, true);
+
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
+            File keystoreFile = new File(options.keystore);
+
+            SSLFactory.checkCertFilesForHotReloading(options, options);
+
+            keystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
+
+            SSLFactory.checkCertFilesForHotReloading(options, options);
+            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
+
+            Assert.assertNotSame(oldCtx, newCtx);
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+        finally
+        {
+            DatabaseDescriptor.loadConfig();
+        }
+    }
+
+    @Test
+    public void testPEMSslContextReload_HappyPath() throws IOException, InterruptedException
+    {
+        try
+        {
+            ServerEncryptionOptions options = addPEMKeystoreOptions(encryptionOptions)
                                               .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
             SSLFactory.initHotReloading(options, options, true);

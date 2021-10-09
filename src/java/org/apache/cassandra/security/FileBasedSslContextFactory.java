@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
@@ -37,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.Clock;
 
 /**
  * Abstract implementation for {@link ISslContextFactory} using file based, standard keystore format with the ability
@@ -124,26 +126,19 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
      * @return KeyManagerFactory built from the file based keystore.
      * @throws SSLException if any issues encountered during the build process
      */
+    @Override
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
+
         try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
         {
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(
-            algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : algorithm);
+            final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
             KeyStore ks = KeyStore.getInstance(store_type);
             ks.load(ksf, keystore_password.toCharArray());
             if (!checkedExpiry)
             {
-                for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
-                {
-                    String alias = aliases.nextElement();
-                    if (ks.getCertificate(alias).getType().equals("X.509"))
-                    {
-                        Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
-                        if (expires.before(new Date()))
-                            logger.warn("Certificate for {} expired on {}", alias, expires);
-                    }
-                }
+                checkExpiredCerts(ks);
                 checkedExpiry = true;
             }
             kmf.init(ks, keystore_password.toCharArray());
@@ -161,12 +156,13 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
      * @return TrustManagerFactory from the file based truststore
      * @throws SSLException if any issues encountered during the build process
      */
+    @Override
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
         try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
         {
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(
-            algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : algorithm);
+            final String algorithm = this.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : this.algorithm;
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
             KeyStore ts = KeyStore.getInstance(store_type);
             ts.load(tsf, truststore_password.toCharArray());
             tmf.init(ts);
@@ -178,10 +174,30 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
         }
     }
 
+    protected boolean checkExpiredCerts(KeyStore ks) throws KeyStoreException
+    {
+        boolean hasExpiredCerts = false;
+        final Date now = new Date(Clock.Global.currentTimeMillis());
+        for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
+        {
+            String alias = aliases.nextElement();
+            if (ks.getCertificate(alias).getType().equals("X.509"))
+            {
+                Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
+                if (expires.before(now))
+                {
+                    hasExpiredCerts = true;
+                    logger.warn("Certificate for {} expired on {}", alias, expires);
+                }
+            }
+        }
+        return hasExpiredCerts;
+    }
+
     /**
      * Helper class for hot reloading SSL Contexts
      */
-    private static class HotReloadableFile
+    protected static class HotReloadableFile
     {
         private final File file;
         private volatile long lastModTime;
