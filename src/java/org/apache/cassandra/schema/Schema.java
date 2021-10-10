@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.schema;
 
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -68,6 +67,12 @@ public class Schema implements SchemaProvider
     private volatile TableMetadataRefCache tableMetadataRefCache = TableMetadataRefCache.EMPTY;
 
     // Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace.
+    // We operate on loading map because we need to achieve atomic initialization with at-most-once semantics for
+    // loadFunction. Although it seems that this is a valid case for using ConcurrentHashMap.computeIfAbsent,
+    // we should not use it because we have no knowledge about the loadFunction and in fact that load function may
+    // do some nested calls to maybeAddKeyspaceInstance, also using different threads, and in a blocking manner.
+    // This may lead to a deadlock. The documentation of ConcurrentHashMap says that manipulating other keys inside
+    // the lambda passed to the computeIfAbsent method is prohibited.
     private final LoadingMap<String, Keyspace> keyspaceInstances = new LoadingMap<>();
 
     private volatile UUID version;
@@ -216,8 +221,8 @@ public class Schema implements SchemaProvider
             return null;
 
         return instance.hasColumnFamilyStore(metadata.id)
-             ? instance.getColumnFamilyStore(metadata.id)
-             : null;
+               ? instance.getColumnFamilyStore(metadata.id)
+               : null;
     }
 
     @Override
@@ -590,7 +595,7 @@ public class Schema implements SchemaProvider
     /**
      * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
      */
-    public synchronized SchemaTransformationResult transform(SchemaTransformation transformation, boolean locally, long now) throws UnknownHostException
+    public synchronized SchemaTransformationResult transform(SchemaTransformation transformation, boolean locally, long now)
     {
         KeyspacesDiff diff;
         Keyspaces before = distributedAndLocalKeyspaces();
@@ -642,22 +647,34 @@ public class Schema implements SchemaProvider
     {
         SchemaDiagnostics.keyspaceAltering(this, delta);
 
-        // drop tables and views
-        delta.views.dropped.forEach(this::dropView);
-        delta.tables.dropped.forEach(this::dropTable);
+        boolean initialized = Keyspace.isInitialized();
+
+        Keyspace keyspace = initialized ? getKeyspaceInstance(delta.before.name) : null;
+        if (initialized)
+        {
+            assert keyspace != null;
+            assert delta.before.name.equals(delta.after.name);
+
+            // drop tables and views
+            delta.views.dropped.forEach(v -> dropView(keyspace, v));
+            delta.tables.dropped.forEach(t -> dropTable(keyspace, t));
+        }
 
         load(delta.after);
 
-        // add tables and views
-        delta.tables.created.forEach(this::createTable);
-        delta.views.created.forEach(this::createView);
+        if (initialized)
+        {
+            // add tables and views
+            delta.tables.created.forEach(t -> createTable(keyspace, t));
+            delta.views.created.forEach(v -> createView(keyspace, v));
 
-        // update tables and views
-        delta.tables.altered.forEach(diff -> alterTable(diff.after));
-        delta.views.altered.forEach(diff -> alterView(diff.after));
+            // update tables and views
+            delta.tables.altered.forEach(diff -> alterTable(keyspace, diff.after));
+            delta.views.altered.forEach(diff -> alterView(keyspace, diff.after));
 
-        // deal with all added, and altered views
-        Keyspace.open(delta.after.name).viewManager.reload(true);
+            // deal with all added, and altered views
+            Keyspace.open(delta.after.name).viewManager.reload(true);
+        }
 
         schemaChangeNotifier.notifyKeyspaceAltered(delta);
         SchemaDiagnostics.keyspaceAltered(this, delta);
@@ -667,14 +684,17 @@ public class Schema implements SchemaProvider
     {
         SchemaDiagnostics.keyspaceCreating(this, keyspace);
         load(keyspace);
-        Keyspace.open(keyspace.name);
+        if (Keyspace.isInitialized())
+        {
+            Keyspace.open(keyspace.name);
+        }
 
         schemaChangeNotifier.notifyKeyspaceCreated(keyspace);
         SchemaDiagnostics.keyspaceCreated(this, keyspace);
 
         // If keyspace has been added, we need to recalculate pending ranges to make sure
         // we send mutations to the correct set of bootstrapping nodes. Refer CASSANDRA-15433.
-        if (keyspace.params.replication.klass != LocalStrategy.class)
+        if (keyspace.params.replication.klass != LocalStrategy.class && Keyspace.isInitialized())
         {
             PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name).getReplicationStrategy(), keyspace.name);
         }
@@ -683,52 +703,70 @@ public class Schema implements SchemaProvider
     private void dropKeyspace(KeyspaceMetadata keyspace)
     {
         SchemaDiagnostics.keyspaceDroping(this, keyspace);
-        keyspace.views.forEach(this::dropView);
-        keyspace.tables.forEach(this::dropTable);
 
-        // remove the keyspace from the static instances.
-        maybeRemoveKeyspaceInstance(keyspace.name);
+        boolean initialized = Keyspace.isInitialized();
+        Keyspace ks = initialized ? getKeyspaceInstance(keyspace.name) : null;
+        if (initialized)
+        {
+            if (ks == null)
+                return;
+
+            keyspace.views.forEach(v -> dropView(ks, v));
+            keyspace.tables.forEach(t -> dropTable(ks, t));
+
+            // remove the keyspace from the static instances
+            maybeRemoveKeyspaceInstance(keyspace.name);
+        }
+
         unload(keyspace);
-        Keyspace.writeOrder.awaitNewBarrier();
+
+        if (initialized)
+        {
+            Keyspace.writeOrder.awaitNewBarrier();
+        }
 
         schemaChangeNotifier.notifyKeyspaceDropped(keyspace);
         SchemaDiagnostics.keyspaceDroped(this, keyspace);
     }
 
-    private void dropView(ViewMetadata metadata)
+    private void dropView(Keyspace keyspace, ViewMetadata metadata)
     {
-        Keyspace.open(metadata.keyspace()).viewManager.dropView(metadata.name());
-        dropTable(metadata.metadata);
+        keyspace.viewManager.dropView(metadata.name());
+        dropTable(keyspace, metadata.metadata);
     }
 
-    private void dropTable(TableMetadata metadata)
+    private void dropTable(Keyspace keyspace, TableMetadata metadata)
     {
         SchemaDiagnostics.tableDropping(this, metadata);
-        Keyspace.open(metadata.keyspace).dropCf(metadata.id);
+        keyspace.dropCf(metadata.id);
         SchemaDiagnostics.tableDropped(this, metadata);
     }
 
-    private void createTable(TableMetadata table)
+    private void createTable(Keyspace keyspace, TableMetadata table)
     {
         SchemaDiagnostics.tableCreating(this, table);
-        Keyspace.open(table.keyspace).initCf(tableMetadataRefCache.getTableMetadataRef(table.id), true);
+        keyspace.initCf(tableMetadataRefCache.getTableMetadataRef(table.id), true);
         SchemaDiagnostics.tableCreated(this, table);
     }
 
-    private void createView(ViewMetadata view)
+    private void createView(Keyspace keyspace, ViewMetadata view)
     {
-        Keyspace.open(view.keyspace()).initCf(tableMetadataRefCache.getTableMetadataRef(view.metadata.id), true);
+        SchemaDiagnostics.tableCreating(this, view.metadata);
+        keyspace.initCf(tableMetadataRefCache.getTableMetadataRef(view.metadata.id), true);
+        SchemaDiagnostics.tableCreated(this, view.metadata);
     }
 
-    private void alterTable(TableMetadata updated)
+    private void alterTable(Keyspace keyspace, TableMetadata updated)
     {
         SchemaDiagnostics.tableAltering(this, updated);
-        Keyspace.open(updated.keyspace).getColumnFamilyStore(updated.name).reload();
+        keyspace.getColumnFamilyStore(updated.name).reload();
         SchemaDiagnostics.tableAltered(this, updated);
     }
 
-    private void alterView(ViewMetadata updated)
+    private void alterView(Keyspace keyspace, ViewMetadata updated)
     {
-        Keyspace.open(updated.keyspace()).getColumnFamilyStore(updated.name()).reload();
+        SchemaDiagnostics.tableAltering(this, updated.metadata);
+        keyspace.getColumnFamilyStore(updated.name()).reload();
+        SchemaDiagnostics.tableAltered(this, updated.metadata);
     }
 }

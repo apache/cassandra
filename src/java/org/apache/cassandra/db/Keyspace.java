@@ -129,9 +129,14 @@ public class Keyspace
         initialized = true;
     }
 
+    public static boolean isInitialized()
+    {
+        return initialized;
+    }
+
     public static Keyspace open(String keyspaceName)
     {
-        assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName);
+        assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;
         return open(keyspaceName, Schema.instance, true);
     }
 
@@ -375,7 +380,6 @@ public class Keyspace
     // best invoked on the compaction mananger.
     public void dropCf(TableId tableId)
     {
-        assert columnFamilyStores.containsKey(tableId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
         if (cfs == null)
             return;
