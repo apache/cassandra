@@ -178,4 +178,15 @@ public class SchemaTestUtil
         SchemaAnnouncementDiagnostics.schemaMutationsAnnounced(schemaDestinationEndpoints, schemaEndpointsIgnored);
         FBUtilities.waitOnFuture(f);
     }
+
+    public static void addOrUpdateKeyspace(KeyspaceMetadata ksm, boolean locally)
+    {
+        SchemaManager.instance.transform(current -> current.withAddedOrUpdated(ksm), locally, FBUtilities.timestampMicros());
+    }
+
+    public static void dropKeyspaceIfExist(String ksName, boolean locally)
+    {
+        SchemaManager.instance.transform(current -> current.without(Collections.singletonList(ksName)), locally, FBUtilities.timestampMicros());
+    }
+
 }

@@ -33,6 +33,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.rows.*;
@@ -48,6 +49,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -367,7 +369,9 @@ public class RowCacheTest
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, 50, 0);
         CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
-        Keyspace instance = SchemaManager.instance.removeKeyspaceInstance(KEYSPACE_CACHED);
+
+        KeyspaceMetadata ksm = SchemaManager.instance.getKeyspaceMetadata(KEYSPACE_CACHED);
+        SchemaTestUtil.dropKeyspaceIfExist(KEYSPACE_CACHED, true);
         try
         {
             CacheService.instance.rowCache.size();
@@ -378,7 +382,7 @@ public class RowCacheTest
         }
         finally
         {
-            SchemaManager.instance.storeKeyspaceInstance(instance);
+            SchemaTestUtil.addOrUpdateKeyspace(ksm, true);
         }
     }
 
