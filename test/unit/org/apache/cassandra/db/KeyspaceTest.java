@@ -497,16 +497,4 @@ public class KeyspaceTest extends CQLTester
         assertRowsInResult(cfs, command);
     }
 
-    @Test
-    public void shouldThrowOnMissingKeyspace()
-    {
-        SchemaProvider schema = Mockito.mock(SchemaProvider.class);
-        String ksName = "MissingKeyspace";
-        
-        Mockito.when(schema.getKeyspaceMetadata(ksName)).thenReturn(null);
-
-        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName, schema, false))
-                  .isInstanceOf(AssertionError.class)
-                  .hasMessage("Unknown keyspace " + ksName);
-    }
 }

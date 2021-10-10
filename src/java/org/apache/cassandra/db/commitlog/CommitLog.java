@@ -232,7 +232,7 @@ public class CommitLog implements CommitLogMBean
     /**
      * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
      */
-    public void forceRecycleAllSegments(Iterable<TableId> droppedTables)
+    public void forceRecycleAllSegments(Collection<TableId> droppedTables)
     {
         segmentManager.forceRecycleAll(droppedTables);
     }

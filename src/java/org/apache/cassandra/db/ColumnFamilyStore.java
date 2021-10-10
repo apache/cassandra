@@ -3354,4 +3354,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             this.overlapIterator = new OverlapIterator<>(SSTableIntervalTree.buildIntervals(overlappingSSTables));
         }
     }
+
+    /**
+     * Called when the table this is the store of has been dropped to perform any necessary actions.
+     */
+    public void onTableDropped()
+    {
+        indexManager.markAllIndexesRemoved();
+        CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata()));
+        if (DatabaseDescriptor.isAutoSnapshot())
+            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
+        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
+    }
+
 }

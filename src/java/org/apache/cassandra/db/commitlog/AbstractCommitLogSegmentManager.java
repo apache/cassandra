@@ -189,7 +189,7 @@ public abstract class AbstractCommitLogSegmentManager
                 if (flushingSize + unused >= 0)
                     break;
             }
-            flushDataFrom(segmentsToRecycle, false);
+            flushDataFrom(segmentsToRecycle, Collections.emptyList(), false);
         }
     }
 
@@ -279,7 +279,7 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * Flushes any dirty CFs for this segment and any older segments, and then discards the segments
      */
-    void forceRecycleAll(Iterable<TableId> droppedTables)
+    void forceRecycleAll(Collection<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
         CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
@@ -293,7 +293,7 @@ public abstract class AbstractCommitLogSegmentManager
         Keyspace.writeOrder.awaitNewBarrier();
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(segmentsToRecycle, true);
+        Future<?> future = flushDataFrom(segmentsToRecycle, droppedTables, true);
         try
         {
             future.get();
@@ -379,7 +379,7 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(List<CommitLogSegment> segments, boolean force)
+    private Future<?> flushDataFrom(List<CommitLogSegment> segments, Collection<TableId> droppedTables, boolean force)
     {
         if (segments.isEmpty())
             return Futures.immediateFuture(null);
@@ -392,7 +392,9 @@ public abstract class AbstractCommitLogSegmentManager
         {
             for (TableId dirtyTableId : segment.getDirtyTableIds())
             {
-                TableMetadata metadata = SchemaManager.instance.getTableMetadata(dirtyTableId);
+                TableMetadata metadata = droppedTables.contains(dirtyTableId)
+                                         ? null
+                                         : SchemaManager.instance.getTableMetadata(dirtyTableId);
                 if (metadata == null)
                 {
                     // even though we remove the schema entry before a final flush when dropping a CF,
