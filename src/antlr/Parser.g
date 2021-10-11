@@ -1554,9 +1554,10 @@ termGroup returns [Term.Raw term]
     ;
 
 simpleTerm returns [Term.Raw term]
-    : v=value                                 { $term = v; }
-    | f=function                              { $term = f; }
-    | '(' c=comparatorType ')' t=simpleTerm   { $term = new TypeCast(c, t); }
+    : v=value                                        { $term = v; }
+    | f=function                                     { $term = f; }
+    | '(' c=comparatorType ')' t=simpleTerm          { $term = new TypeCast(c, t); }
+    | K_CAST '(' t=simpleTerm K_AS n=native_type ')' { $term = FunctionCall.Raw.newCast(t, n); }
     ;
 
 columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
@@ -1776,7 +1777,7 @@ native_type returns [CQL3Type t]
     | K_COUNTER   { $t = CQL3Type.Native.COUNTER; }
     | K_DECIMAL   { $t = CQL3Type.Native.DECIMAL; }
     | K_DOUBLE    { $t = CQL3Type.Native.DOUBLE; }
-    | K_DURATION    { $t = CQL3Type.Native.DURATION; }
+    | K_DURATION  { $t = CQL3Type.Native.DURATION; }
     | K_FLOAT     { $t = CQL3Type.Native.FLOAT; }
     | K_INET      { $t = CQL3Type.Native.INET;}
     | K_INT       { $t = CQL3Type.Native.INT; }

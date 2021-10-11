@@ -122,6 +122,7 @@ bc(syntax)..
                | <collection-literal>
                | <variable>
                | <function> '(' (<term> (',' <term>)*)? ')'
+               | CAST '(' <term> AS <type> ')'
 
   <collection-literal> ::= <map-literal>
                          | <set-literal>
@@ -1951,7 +1952,7 @@ CQL3 distinguishes between built-in functions (so called 'native functions') and
 
 h3(#castFun). Cast
 
-The @cast@ function can be used to converts one native datatype to another.
+The @cast@ function can be used to convert one native datatype to another.
 
 The following table describes the conversions supported by the @cast@ function. Cassandra will silently ignore any cast converting a datatype into its own datatype.
 
