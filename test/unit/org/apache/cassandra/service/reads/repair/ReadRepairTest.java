@@ -119,7 +119,7 @@ public class ReadRepairTest
 
         cfm = CreateTableStatement.parse("CREATE TABLE tbl (k int primary key, v text)", ksName).build();
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(3), Tables.of(cfm));
-        SchemaTestUtil.announceNewKeyspace(ksm, false);
+        SchemaTestUtil.announceNewKeyspace(ksm);
 
         ks = Keyspace.open(ksName);
         cfs = ks.getColumnFamilyStore("tbl");

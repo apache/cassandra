@@ -244,7 +244,7 @@ public class HintsReaderTest
         try
         {
             generateHints(3, ks);
-            SchemaTestUtil.announceTableDrop(ks, CF_STANDARD1, true);
+            SchemaTestUtil.announceTableDrop(ks, CF_STANDARD1);
             readHints(3, 1);
         }
         finally

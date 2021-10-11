@@ -129,11 +129,6 @@ public class Keyspace
         initialized = true;
     }
 
-    public static boolean isInitialized()
-    {
-        return initialized;
-    }
-
     public static Keyspace open(String keyspaceName)
     {
         assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;

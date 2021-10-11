@@ -64,7 +64,8 @@ import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 /**
  * system_schema.* tables and methods for manipulating them.
  * 
- * Please notice this class is _not_ thread safe. It should be accessed through {@link org.apache.cassandra.schema.Schema}. See CASSANDRA-16856/16996
+ * Please notice this class is _not_ thread safe and all methods which reads or updates the data in schema keyspace
+ * should be accessed only from the implementation of {@link SchemaUpdateHandler} in synchronized blocks.
  */
 @NotThreadSafe
 public final class SchemaKeyspace
@@ -333,7 +334,7 @@ public final class SchemaKeyspace
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
-    static UUID calculateSchemaDigest()
+    public static UUID calculateSchemaDigest()
     {
         Digest digest = Digest.forSchema();
         for (String table : ALL)
@@ -495,6 +496,7 @@ public final class SchemaKeyspace
         builder.update(Types).row(type.name).delete();
     }
 
+    @VisibleForTesting
     static Mutation.SimpleBuilder makeCreateTableMutation(KeyspaceMetadata keyspace, TableMetadata table, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).

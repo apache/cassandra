@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -87,7 +88,7 @@ public class MutationBench
     @Setup
     public void setup() throws IOException
     {
-        Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), false);
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
         TableMetadata metadata =
             CreateTableStatement.parse("CREATE TABLE userpics " +
@@ -97,7 +98,7 @@ public class MutationBench
                                        "PRIMARY KEY(userid, picid))", keyspace)
                                 .build();
 
-        Schema.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.tables.with(metadata)), false);
 
         mutation = (Mutation)UpdateBuilder.create(metadata, 1L).newRow(1L).add("commentid", 32L).makeMutation();
         buffer = ByteBuffer.allocate(mutation.serializedSize(MessagingService.current_version));

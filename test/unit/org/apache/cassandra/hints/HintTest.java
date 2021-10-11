@@ -87,7 +87,7 @@ public class HintTest
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
         for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
-            SchemaTestUtil.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build(), true);
+            SchemaTestUtil.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build());
     }
 
     @Test
@@ -177,7 +177,7 @@ public class HintTest
                   .unbuild()
                   .gcGraceSeconds(0)
                   .build();
-        SchemaTestUtil.announceTableUpdate(updated, true);
+        SchemaTestUtil.announceTableUpdate(updated);
 
         Mutation mutation = createMutation(key, now);
         Hint.create(mutation, now / 1000).apply();
@@ -206,7 +206,7 @@ public class HintTest
                   .unbuild()
                   .gcGraceSeconds(0)
                   .build();
-        SchemaTestUtil.announceTableUpdate(updated, true);
+        SchemaTestUtil.announceTableUpdate(updated);
 
         Mutation mutation = createMutation(key, now);
         Hint hint = Hint.create(mutation, now / 1000);

@@ -18,23 +18,23 @@
 
 package org.apache.cassandra.schema;
 
-import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
@@ -50,7 +50,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -63,9 +62,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -79,6 +80,9 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
  * Migration coordinator is responsible for tracking schema versions on various nodes and, if needed, synchronize the
  * schema. It performs periodic checks and if there is a schema version mismatch between the current node and the other
  * node, it pulls the schema and applies the changes locally through the callback.
+ *
+ * It works in close cooperation with {@link DefaultSchemaUpdateHandler} which is responsible for maintaining local
+ * schema metadata stored in {@link SchemaKeyspace}.
  */
 @Simulate(with = MONITORS)
 public class MigrationCoordinator
@@ -87,16 +91,7 @@ public class MigrationCoordinator
     private static final Future<Void> FINISHED_FUTURE = ImmediateFuture.success(null);
 
     private static final int MIGRATION_DELAY_IN_MS = CassandraRelevantProperties.MIGRATION_DELAY.getInt();
-    private static final int MAX_OUTSTANDING_VERSION_REQUESTS = 3;
-
-    public static final MigrationCoordinator instance = new MigrationCoordinator(MessagingService.instance(),
-                                                                                 Stage.MIGRATION.executor(),
-                                                                                 ScheduledExecutors.scheduledTasks,
-                                                                                 () -> ManagementFactory.getRuntimeMXBean().getUptime(),
-                                                                                 MAX_OUTSTANDING_VERSION_REQUESTS,
-                                                                                 Gossiper.instance,
-                                                                                 () -> Schema.instance.getVersion(),
-                                                                                 (from, mutations) -> Schema.instance.mergeAndAnnounceVersion(mutations));
+    public static final int MAX_OUTSTANDING_VERSION_REQUESTS = 3;
 
     public static final String IGNORED_VERSIONS_PROP = "cassandra.skip_schema_check_for_versions";
     public static final String IGNORED_ENDPOINTS_PROP = "cassandra.skip_schema_check_for_endpoints";
@@ -180,9 +175,7 @@ public class MigrationCoordinator
 
     private final Map<UUID, VersionInfo> versionInfo = new HashMap<>();
     private final Map<InetAddressAndPort, UUID> endpointVersions = new HashMap<>();
-    private final AtomicInteger inflightTasks = new AtomicInteger();
     private final Set<InetAddressAndPort> ignoredEndpoints = getIgnoredEndpoints();
-    private final ExecutorPlus executor;
     private final ScheduledExecutorService periodicCheckExecutor;
     private final MessagingService messagingService;
     private final AtomicReference<ScheduledFuture<?>> periodicPullTask = new AtomicReference<>();
@@ -191,6 +184,8 @@ public class MigrationCoordinator
     private final Gossiper gossiper;
     private final Supplier<UUID> schemaVersion;
     private final BiConsumer<InetAddressAndPort, Collection<Mutation>> schemaUpdateCallback;
+
+    final ExecutorPlus executor;
 
     /**
      * Creates but does not start migration coordinator instance.
@@ -217,27 +212,23 @@ public class MigrationCoordinator
         this.schemaUpdateCallback = schemaUpdateCallback;
     }
 
-    public void start()
+    void start()
     {
+        announce(schemaVersion.get());
         periodicPullTask.updateAndGet(curTask -> curTask == null
                                                  ? periodicCheckExecutor.scheduleWithFixedDelay(this::pullUnreceivedSchemaVersions, 1, 1, TimeUnit.MINUTES)
                                                  : curTask);
     }
 
-    private synchronized List<Future<Void>> pullUnreceivedSchemaVersions()
+    private synchronized void pullUnreceivedSchemaVersions()
     {
-        List<Future<Void>> futures = new ArrayList<>();
         for (VersionInfo info : versionInfo.values())
         {
             if (info.wasReceived() || info.outstandingRequests.size() > 0)
                 continue;
 
-            Future<Void> future = maybePullSchema(info);
-            if (future != null && future != FINISHED_FUTURE)
-                futures.add(future);
+            maybePullSchema(info);
         }
-
-        return futures;
     }
 
     private synchronized Future<Void> maybePullSchema(VersionInfo info)
@@ -269,8 +260,7 @@ public class MigrationCoordinator
         return FINISHED_FUTURE;
     }
 
-    // used only in log message
-    public synchronized Map<UUID, Set<InetAddressAndPort>> outstandingVersions()
+    synchronized Map<UUID, Set<InetAddressAndPort>> outstandingVersions()
     {
         HashMap<UUID, Set<InetAddressAndPort>> map = new HashMap<>();
         for (VersionInfo info : versionInfo.values())
@@ -280,7 +270,7 @@ public class MigrationCoordinator
     }
 
     @VisibleForTesting
-    protected VersionInfo getVersionInfoUnsafe(UUID version)
+    VersionInfo getVersionInfoUnsafe(UUID version)
     {
         return versionInfo.get(version);
     }
@@ -371,7 +361,7 @@ public class MigrationCoordinator
         return !Objects.equals(schemaVersion.get(), info.version);
     }
 
-    public synchronized Future<Void> reportEndpointVersion(InetAddressAndPort endpoint, UUID version)
+    synchronized Future<Void> reportEndpointVersion(InetAddressAndPort endpoint, UUID version)
     {
         if (ignoredEndpoints.contains(endpoint) || IGNORED_VERSIONS.contains(version))
         {
@@ -396,19 +386,6 @@ public class MigrationCoordinator
         return maybePullSchema(info);
     }
 
-    public Future<Void> reportEndpointVersion(InetAddressAndPort endpoint, EndpointState state)
-    {
-        if (state == null)
-            return FINISHED_FUTURE;
-
-        UUID version = state.getSchemaVersion();
-
-        if (version == null)
-            return FINISHED_FUTURE;
-
-        return reportEndpointVersion(endpoint, version);
-    }
-
     private synchronized void removeEndpointFromVersion(InetAddressAndPort endpoint, UUID version)
     {
         if (version == null)
@@ -427,7 +404,7 @@ public class MigrationCoordinator
         }
     }
 
-    public synchronized void removeAndIgnoreEndpoint(InetAddressAndPort endpoint)
+    synchronized void removeAndIgnoreEndpoint(InetAddressAndPort endpoint)
     {
         Preconditions.checkArgument(endpoint != null);
         ignoredEndpoints.add(endpoint);
@@ -448,6 +425,49 @@ public class MigrationCoordinator
             ScheduledExecutors.nonPeriodicTasks.schedule(() -> submitToMigrationIfNotShutdown(task), MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
 
         return task;
+    }
+
+    private Future<Collection<Mutation>> pullSchemaFrom(InetAddressAndPort endpoint)
+    {
+        AsyncPromise<Collection<Mutation>> result = new AsyncPromise<>();
+        return submitToMigrationIfNotShutdown(() -> pullSchema(endpoint, new RequestCallback<Collection<Mutation>>()
+        {
+            @Override
+            public void onResponse(Message<Collection<Mutation>> msg)
+            {
+                result.setSuccess(msg.payload);
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                result.setFailure(new RuntimeException("Failed to get schema from " + from + ". The failure reason was: " + failureReason));
+            }
+
+            @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
+            }
+        })).flatMap(ignored -> result);
+    }
+
+    Future<Collection<Mutation>> pullSchemaFromAnyNode()
+    {
+        Optional<InetAddressAndPort> endpoint = gossiper.getLiveMembers()
+                                                        .stream()
+                                                        .filter(this::shouldPullFromEndpoint)
+                                                        .findFirst();
+
+        return endpoint.map(this::pullSchemaFrom).orElse(ImmediateFuture.success(Collections.emptyList()));
+    }
+
+
+    void announce(UUID schemaVersion)
+    {
+        if (gossiper.isEnabled())
+            gossiper.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(schemaVersion));
+        SchemaDiagnostics.versionAnnounced(Schema.instance);
     }
 
     private Future<Void> submitToMigrationIfNotShutdown(Runnable task)
@@ -540,37 +560,9 @@ public class MigrationCoordinator
 
     private void sendMigrationMessage(InetAddressAndPort endpoint, RequestCallback<Collection<Mutation>> callback)
     {
-        inflightTasks.getAndIncrement();
         Message<NoPayload> message = Message.out(Verb.SCHEMA_PULL_REQ, NoPayload.noPayload);
         logger.info("Sending schema pull request to {}", endpoint);
-        messagingService.sendWithCallback(message, endpoint, new RequestCallback<Collection<Mutation>>()
-        {
-            @Override
-            public void onResponse(Message<Collection<Mutation>> msg)
-            {
-                inflightTasks.decrementAndGet();
-                callback.onResponse(msg);
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                inflightTasks.decrementAndGet();
-                callback.onFailure(from, failureReason);
-            }
-
-            @Override
-            public boolean invokeOnFailure()
-            {
-                return callback.invokeOnFailure();
-            }
-
-            @Override
-            public boolean trackLatencyForSnitch()
-            {
-                return callback.trackLatencyForSnitch();
-            }
-        });
+        messagingService.sendWithCallback(message, endpoint, callback);
     }
 
     private synchronized Future<Void> pullComplete(InetAddressAndPort endpoint, VersionInfo info, boolean wasSuccessful)
@@ -583,17 +575,12 @@ public class MigrationCoordinator
         return maybePullSchema(info);
     }
 
-    public int getInflightTasks()
-    {
-        return inflightTasks.get();
-    }
-
     /**
      * Wait until we've received schema responses for all versions we're aware of
      * @param waitMillis
      * @return true if response for all schemas were received, false if we timed out waiting
      */
-    public boolean awaitSchemaRequests(long waitMillis)
+    boolean awaitSchemaRequests(long waitMillis)
     {
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
@@ -629,7 +616,7 @@ public class MigrationCoordinator
         }
     }
 
-    public Pair<Set<InetAddressAndPort>, Set<InetAddressAndPort>> pushSchemaMutations(Collection<Mutation> schemaMutations)
+    Pair<Set<InetAddressAndPort>, Set<InetAddressAndPort>> pushSchemaMutations(Collection<Mutation> schemaMutations)
     {
         logger.debug("Pushing schema mutations: {}", schemaMutations);
         Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
@@ -652,18 +639,12 @@ public class MigrationCoordinator
         return Pair.create(schemaDestinationEndpoints, schemaEndpointsIgnored);
     }
 
-    @VisibleForTesting
-    public boolean shouldPushSchemaTo(InetAddressAndPort endpoint)
+    private boolean shouldPushSchemaTo(InetAddressAndPort endpoint)
     {
         // only push schema to nodes with known and equal versions
         return !endpoint.equals(FBUtilities.getBroadcastAddressAndPort())
                && messagingService.versions.knows(endpoint)
                && messagingService.versions.getRaw(endpoint) == MessagingService.current_version;
-    }
-
-    public Future<?> announceWithoutPush(Collection<Mutation> schema)
-    {
-        return executor.submit(() -> schemaUpdateCallback.accept(null, schema));
     }
 
 }

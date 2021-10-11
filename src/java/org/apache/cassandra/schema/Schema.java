@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -31,9 +32,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -75,20 +75,40 @@ public class Schema implements SchemaProvider
     // the lambda passed to the computeIfAbsent method is prohibited.
     private final LoadingMap<String, Keyspace> keyspaceInstances = new LoadingMap<>();
 
-    private volatile UUID version;
+    private volatile UUID version = SchemaConstants.emptyVersion;
 
     private final SchemaChangeNotifier schemaChangeNotifier = new SchemaChangeNotifier();
+
+    public final SchemaUpdateHandler updateHandler;
+
+    private final boolean online;
 
     /**
      * Initialize empty schema object and load the hardcoded system tables
      */
     private Schema()
     {
+        this.online = isDaemonInitialized();
         this.localKeyspaces = (FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized())
                               ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
                               : Keyspaces.none();
 
         this.localKeyspaces.forEach(this::loadNew);
+        this.updateHandler = online
+                             ? new DefaultSchemaUpdateHandler(this::mergeAndUpdateVersion)
+                             : new OfflineSchemaUpdateHandler(this::mergeAndUpdateVersion);
+    }
+
+    public void startSync()
+    {
+        logger.debug("Starting update handler");
+        updateHandler.start();
+    }
+
+    public boolean waitUntilReady(Duration timeout)
+    {
+        logger.debug("Waiting for update handler to be ready...");
+        return updateHandler.waitUntilReady(timeout);
     }
 
     /**
@@ -123,25 +143,12 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
-     * Schema version may be updated as the result.
+     * Load keyspaces definitions from local storage, see {@link SchemaUpdateHandler#reset(boolean)}.
      */
     public void loadFromDisk()
     {
-        loadFromDisk(true);
-    }
-
-    /**
-     * Load schema definitions from disk.
-     *
-     * @param updateVersion true if schema version needs to be updated
-     */
-    public void loadFromDisk(boolean updateVersion)
-    {
         SchemaDiagnostics.schemaLoading(this);
-        SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
-        if (updateVersion)
-            updateVersion();
+        updateHandler.reset(true);
         SchemaDiagnostics.schemaLoaded(this);
     }
 
@@ -150,7 +157,7 @@ public class Schema implements SchemaProvider
      *
      * @param ksm The metadata about keyspace
      */
-    synchronized public void load(KeyspaceMetadata ksm)
+    private synchronized void load(KeyspaceMetadata ksm)
     {
         Preconditions.checkArgument(!SchemaConstants.isLocalSystemKeyspace(ksm.name));
         KeyspaceMetadata previous = distributedKeyspaces.getNullable(ksm.name);
@@ -280,7 +287,7 @@ public class Schema implements SchemaProvider
      *
      * @param ksm The keyspace definition to remove
      */
-    synchronized void unload(KeyspaceMetadata ksm)
+    private synchronized void unload(KeyspaceMetadata ksm)
     {
         distributedKeyspaces = distributedKeyspaces.without(ksm.name);
 
@@ -530,30 +537,10 @@ public class Schema implements SchemaProvider
      *
      * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
      */
-    public synchronized void updateVersion()
+    private synchronized void updateVersion(UUID version)
     {
-        version = SchemaKeyspace.calculateSchemaDigest();
-        SystemKeyspace.updateSchemaVersion(version);
+        this.version = version;
         SchemaDiagnostics.versionUpdated(this);
-    }
-
-    /*
-     * Like updateVersion, but also announces via gossip
-     */
-    public void updateVersionAndAnnounce()
-    {
-        updateVersion();
-        passiveAnnounceVersion();
-    }
-
-    /**
-     * Announce my version passively over gossip.
-     * Used to notify nodes as they arrive in the cluster.
-     */
-    private void passiveAnnounceVersion()
-    {
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
-        SchemaDiagnostics.versionAnnounced(this);
     }
 
     /**
@@ -561,83 +548,99 @@ public class Schema implements SchemaProvider
      */
     public synchronized void clear()
     {
-        getNonSystemKeyspaces().forEach(this::unload);
-        updateVersionAndAnnounce();
+        distributedKeyspaces.forEach(this::unload);
+        updateVersion(SchemaConstants.emptyVersion);
         SchemaDiagnostics.schemaCleared(this);
+    }
+
+    /**
+     * When we receive {@link SchemaTransformationResult} in a callback invocation, the transformation result includes
+     * pre-transformation and post-transformation schema metadata and versions, and a diff between them. Basically
+     * we expect that the local image of the schema metadata ({@link #distributedKeyspaces}) and version ({@link #version})
+     * are the same as pre-transformation. However, it might not always be true because some changes might not be
+     * applied completely due to some errors. This methods is to emit warning in such case and recalculate diff so that
+     * it contains the changes between the local schema image ({@link #distributedKeyspaces} and the post-transformation
+     * schema. That recalculation allows the following updates in the callback to recover the schema.
+     *
+     * @param result the incoming transformation result
+     * @return recalculated transformation result if needed, otherwise the provided incoming result
+     */
+    private synchronized SchemaTransformationResult localDiff(SchemaTransformationResult result)
+    {
+        Keyspaces localBefore = distributedKeyspaces;
+        UUID localVersion = version;
+        boolean needNewDiff = false;
+
+        if (!Objects.equals(localBefore, result.before.getKeyspaces()))
+        {
+            logger.info("Schema was different to what we expected: {}", Keyspaces.diff(result.before.getKeyspaces(), localBefore));
+            needNewDiff = true;
+        }
+
+        if (!Objects.equals(localVersion, result.before.getVersion()))
+        {
+            logger.info("Schema version was different to what we expected: {} != {}", result.before.getVersion(), localVersion);
+            needNewDiff = true;
+        }
+
+        if (needNewDiff)
+            return new SchemaTransformationResult(new DistributedSchema(localBefore, localVersion),
+                                                  result.after,
+                                                  Keyspaces.diff(localBefore, result.after.getKeyspaces()),
+                                                  result.mutations);
+
+        return result;
     }
 
     /*
      * Reload schema from local disk. Useful if a user made changes to schema tables by hand, or has suspicion that
      * in-memory representation got out of sync somehow with what's on disk.
      */
-    public synchronized void reloadSchemaAndAnnounceVersion()
+    public void reloadSchemaAndAnnounceVersion()
     {
-        Keyspaces before = distributedKeyspaces;
-        Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
-        merge(Keyspaces.diff(before, after));
-        updateVersionAndAnnounce();
+        updateHandler.reset(true);
     }
 
     /**
      * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
      *
-     * @param mutations the schema changes to apply
-     *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
-    public synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
+    private synchronized void mergeAndUpdateVersion(SchemaTransformationResult result)
     {
-        merge(mutations);
-        updateVersionAndAnnounce();
-    }
-
-    /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized SchemaTransformationResult transform(SchemaTransformation transformation, boolean locally, long now)
-    {
-        KeyspacesDiff diff;
-        Keyspaces before = distributedAndLocalKeyspaces();
-        Keyspaces after = transformation.apply(before);
-        diff = Keyspaces.diff(before, after);
-
-        if (diff.isEmpty())
-            return new SchemaTransformationResult(new DistributedSchema(before), new DistributedSchema(after), diff, Collections.emptyList());
-
-        Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, now);
-        SchemaKeyspace.applyChanges(mutations);
-
-        SchemaTransformationResult result = new SchemaTransformationResult(new DistributedSchema(before), new DistributedSchema(after), diff, mutations);
+        if (online)
+            SystemKeyspace.updateSchemaVersion(result.after.getVersion());
+        result = localDiff(result);
         schemaChangeNotifier.notifyPreChanges(result);
-        merge(diff);
-        updateVersion();
-        if (!locally)
-            passiveAnnounceVersion();
+        merge(result.diff);
+        updateVersion(result.after.getVersion());
+    }
 
-        return result;
+    public SchemaTransformationResult transform(SchemaTransformation transformation)
+    {
+        return transform(transformation, false);
+    }
+
+    public SchemaTransformationResult transform(SchemaTransformation transformation, boolean local)
+    {
+        return updateHandler.apply(transformation, local);
     }
 
     /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     * Clear all locally stored schema information and reset schema to initial state.
+     * Called by user (via JMX) who wants to get rid of schema disagreement.
      */
-    synchronized void merge(Collection<Mutation> mutations)
+    public void resetLocalSchema()
     {
-        // only compare the keyspaces affected by this set of schema mutations
-        Set<String> affectedKeyspaces = SchemaKeyspace.affectedKeyspaces(mutations);
+        logger.debug("Clearing local schema...");
+        updateHandler.clear();
 
-        // fetch the current state of schema for the affected keyspaces only
-        Keyspaces before = distributedAndLocalKeyspaces().filter(k -> affectedKeyspaces.contains(k.name));
+        logger.debug("Clearing local schema keyspace instances...");
+        clear();
 
-        // apply the schema mutations
-        SchemaKeyspace.applyChanges(mutations);
-
-        // apply the schema mutations and fetch the new versions of the altered keyspaces
-        Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
-
-        KeyspacesDiff diff = Keyspaces.diff(before, after);
-        schemaChangeNotifier.notifyPreChanges(new SchemaTransformationResult(new DistributedSchema(before), new DistributedSchema(after), diff, mutations));
-        merge(diff);
+        updateHandler.reset(false);
+        logger.info("Local schema reset is complete.");
     }
 
     private void merge(KeyspacesDiff diff)
@@ -773,4 +776,12 @@ public class Schema implements SchemaProvider
         keyspace.getColumnFamilyStore(updated.name()).reload();
         SchemaDiagnostics.tableAltered(this, updated.metadata);
     }
+
+    public Map<UUID, Set<InetAddressAndPort>> getOutstandingSchemaVersions()
+    {
+        return updateHandler instanceof DefaultSchemaUpdateHandler
+               ? ((DefaultSchemaUpdateHandler) updateHandler).getOutstandingSchemaVersions()
+               : Collections.emptyMap();
+    }
+
 }

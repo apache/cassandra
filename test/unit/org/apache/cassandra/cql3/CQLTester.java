@@ -479,7 +479,7 @@ public abstract class CQLTester
         };
 
         DatabaseDescriptor.setRoleManager(roleManager);
-        SchemaTestUtil.announceNewKeyspace(AuthKeyspace.metadata(), true);
+        SchemaTestUtil.addOrUpdateKeyspace(AuthKeyspace.metadata(), true);
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
