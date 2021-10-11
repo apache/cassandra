@@ -50,6 +50,7 @@ import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.utils.Hex;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * PartitionDenylist uses the system_distributed.partition_denylist table to maintain a list of denylisted partition keys
@@ -203,7 +204,7 @@ public class PartitionDenylist
      */
     public boolean load()
     {
-        final long start = System.currentTimeMillis();
+        final long start = currentTimeMillis();
 
         final Map<TableId, DenylistEntry> allDenylists = getDenylistForAllTablesFromCQL();
         if (allDenylists == null)
@@ -218,7 +219,7 @@ public class PartitionDenylist
             loadSuccesses++;
         }
         denylist = newDenylist;
-        logger.info("Loaded partition denylist cache in {}ms", System.currentTimeMillis() - start);
+        logger.info("Loaded partition denylist cache in {}ms", currentTimeMillis() - start);
         return true;
     }
 
