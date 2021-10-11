@@ -31,7 +31,7 @@ public class DefaultGuardrailsFactory implements GuardrailsFactory
     public Threshold threshold(String name,
             LongSupplier warnThreshold,
             LongSupplier failThreshold,
-            DefaultGuardrail.DefaultThreshold.ErrorMessageProvider errorMessageProvider)
+            Threshold.ErrorMessageProvider errorMessageProvider)
     {
         return new DefaultGuardrail.DefaultThreshold(name, warnThreshold, failThreshold, errorMessageProvider);
     }

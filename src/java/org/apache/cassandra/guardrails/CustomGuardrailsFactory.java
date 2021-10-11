@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.guardrails;
 
-public abstract class CustomGuardrailsFactory
+interface CustomGuardrailsFactory
 {
     public static GuardrailsFactory make(String customImpl)
     {
         try
         {
-            return (GuardrailsFactory) Class.forName(customImpl).newInstance();
+            return (GuardrailsFactory) Class.forName(customImpl).getDeclaredConstructor().newInstance();
         }
         catch (Throwable ex)
         {
