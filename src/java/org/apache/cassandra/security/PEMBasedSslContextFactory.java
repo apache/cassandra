@@ -55,9 +55,9 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
     public enum ConfigKey
     {
         TARGET_STORETYPE("target_storetype"),
-        ENCODED_KEY("encoded_key"),
-        KEY_PASSWORD("key_password"),
-        ENCODED_CERTIFICATES("encoded_certificates");
+        ENCODED_KEY("private_key"),
+        KEY_PASSWORD("private_key_password"),
+        ENCODED_CERTIFICATES("trusted_certificates");
 
         final String keyName;
 
@@ -255,7 +255,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
         KeyStore keyStore = KeyStore.getInstance(targetStoreType);
         keyStore.load(null, null);
-        keyStore.setKeyEntry("cassandra-keystore", privateKey, keyPasswordArray, certChainArray);
+        keyStore.setKeyEntry("cassandra-ssl-keystore", privateKey, keyPasswordArray, certChainArray);
         return keyStore;
     }
 
@@ -270,7 +270,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
         KeyStore keyStore = KeyStore.getInstance(targetStoreType);
         keyStore.load(null, null);
         for (int i=0; i < certChainArray.length; i++) {
-            keyStore.setCertificateEntry("cassandra-trusted-cert-"+(i+1), certChainArray[i]);
+            keyStore.setCertificateEntry("cassandra-ssl-trusted-cert-"+(i+1), certChainArray[i]);
         }
         return keyStore;
     }
