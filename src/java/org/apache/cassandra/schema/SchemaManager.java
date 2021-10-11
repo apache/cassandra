@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
@@ -35,14 +36,12 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
-import org.apache.cassandra.service.StorageService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,17 +76,37 @@ public final class SchemaManager implements SchemaProvider
     // the lambda passed to the computeIfAbsent method is prohibited.
     private final ConcurrentMap<String, CompletableFuture<Keyspace>> keyspaceInstances = new NonBlockingHashMap<>();
 
-    private volatile UUID version;
+    private volatile UUID version = SchemaConstants.emptyVersion;
 
     private final SchemaChangeNotifier schemaChangeNotifier = new SchemaChangeNotifier();
+
+    public final SchemaUpdateHandler updateHandler;
+
+    private final boolean online;
 
     /**
      * Initialize empty schema object and load the hardcoded system tables
      */
     private SchemaManager()
     {
+        this.online = isDaemonInitialized();
         this.localKeyspaces = new LocalKeyspaces(FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized());
         this.localKeyspaces.getAll().forEach(this::loadNew);
+        this.updateHandler = online
+                             ? new DefaultSchemaUpdateHandler(this::mergeAndUpdateVersion)
+                             : new OfflineSchemaUpdateHandler(this::mergeAndUpdateVersion);
+    }
+
+    public void startSync()
+    {
+        logger.debug("Starting update handler");
+        updateHandler.start();
+    }
+
+    public boolean waitUntilReady(Duration timeout)
+    {
+        logger.debug("Waiting for update handler to be ready...");
+        return updateHandler.waitUntilReady(timeout);
     }
 
     /**
@@ -96,20 +115,8 @@ public final class SchemaManager implements SchemaProvider
      */
     public void loadFromDisk()
     {
-        loadFromDisk(true);
-    }
-
-    /**
-     * Load schema definitions from disk.
-     *
-     * @param updateVersion true if schema version needs to be updated
-     */
-    public void loadFromDisk(boolean updateVersion)
-    {
         SchemaDiagnostics.schemaLoading(this);
-        SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
-        if (updateVersion)
-            updateVersion();
+        updateHandler.reset(true);
         SchemaDiagnostics.schemaLoaded(this);
     }
 
@@ -118,7 +125,7 @@ public final class SchemaManager implements SchemaProvider
      *
      * @param ksm The metadata about keyspace
      */
-    synchronized public void load(KeyspaceMetadata ksm)
+    private synchronized void load(KeyspaceMetadata ksm)
     {
         Preconditions.checkArgument(!SchemaConstants.isLocalSystemKeyspace(ksm.name));
         KeyspaceMetadata previous = sharedKeyspaces.getNullable(ksm.name);
@@ -273,7 +280,7 @@ public final class SchemaManager implements SchemaProvider
      *
      * @param ksm The keyspace definition to remove
      */
-    synchronized void unload(KeyspaceMetadata ksm)
+    private synchronized void unload(KeyspaceMetadata ksm)
     {
         sharedKeyspaces = sharedKeyspaces.without(ksm.name);
 
@@ -537,30 +544,10 @@ public final class SchemaManager implements SchemaProvider
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
-    public void updateVersion()
+    private void updateVersion(UUID version)
     {
-        version = SchemaKeyspace.calculateSchemaDigest();
-        SystemKeyspace.updateSchemaVersion(version);
+        this.version = version;
         SchemaDiagnostics.versionUpdated(this);
-    }
-
-    /*
-     * Like updateVersion, but also announces via gossip
-     */
-    public void updateVersionAndAnnounce()
-    {
-        updateVersion();
-        passiveAnnounceVersion();
-    }
-
-    /**
-     * Announce my version passively over gossip.
-     * Used to notify nodes as they arrive in the cluster.
-     */
-    private void passiveAnnounceVersion()
-    {
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
-        SchemaDiagnostics.versionAnnounced(this);
     }
 
     /**
@@ -568,77 +555,99 @@ public final class SchemaManager implements SchemaProvider
      */
     public synchronized void clear()
     {
-        getNonSystemKeyspaces().forEach(this::unload);
-        updateVersionAndAnnounce();
+        sharedKeyspaces.forEach(this::unload);
+        updateVersion(SchemaConstants.emptyVersion);
         SchemaDiagnostics.schemaCleared(this);
+    }
+
+    /**
+     * When we receive {@link SchemaTransformationResult} in a callback invocation, the transformation result includes
+     * pre-transformation and post-transformation schema metadata and versions, and a diff between them. Basically
+     * we expect that the local image of the schema metadata ({@link #sharedKeyspaces}) and version ({@link #version})
+     * are the same as pre-transformation. However, it might not always be true because some changes might not be
+     * applied completely due to some errors. This methods is to emit warning in such case and recalculate diff so that
+     * it contains the changes between the local schema image ({@link #sharedKeyspaces} and the post-transformation
+     * schema. That recalculation allows the following updates in the callback to recover the schema.
+     *
+     * @param result the incoming transformation result
+     * @return recalculated transformation result if needed, otherwise the provided incoming result
+     */
+    private synchronized SchemaTransformationResult localDiff(SchemaTransformationResult result)
+    {
+        Keyspaces localBefore = sharedKeyspaces;
+        UUID localVersion = version;
+        boolean needNewDiff = false;
+
+        if (!Objects.equals(localBefore, result.before.getKeyspaces()))
+        {
+            logger.info("Schema was different to what we expected: {}", Keyspaces.diff(result.before.getKeyspaces(), localBefore));
+            needNewDiff = true;
+        }
+
+        if (!Objects.equals(localVersion, result.before.getVersion()))
+        {
+            logger.info("Schema version was different to what we expected: {} != {}", result.before.getVersion(), localVersion);
+            needNewDiff = true;
+        }
+
+        if (needNewDiff)
+            return new SchemaTransformationResult(new SharedSchema(localBefore, localVersion),
+                                                  result.after,
+                                                  Keyspaces.diff(localBefore, result.after.getKeyspaces()),
+                                                  result.mutations);
+
+        return result;
     }
 
     /*
      * Reload schema from local disk. Useful if a user made changes to schema tables by hand, or has suspicion that
      * in-memory representation got out of sync somehow with what's on disk.
      */
-    public synchronized void reloadSchemaAndAnnounceVersion()
+    public void reloadSchemaAndAnnounceVersion()
     {
-        Keyspaces before = snapshot().filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name));
-        Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
-        merge(Keyspaces.diff(before, after));
-        updateVersionAndAnnounce();
+        updateHandler.reset(true);
     }
 
     /**
      * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
      *
-     * @param mutations the schema changes to apply
-     *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
-    public synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
+    private synchronized void mergeAndUpdateVersion(SchemaTransformationResult result)
     {
-        merge(mutations);
-        updateVersionAndAnnounce();
-    }
-
-    public synchronized SchemaTransformationResult transform(SchemaTransformation transformation, boolean locally, long now)
-    {
-        KeyspacesDiff diff;
-        Keyspaces before = snapshot();
-        Keyspaces after = transformation.apply(before);
-        diff = Keyspaces.diff(before, after);
-
-        if (diff.isEmpty())
-            return new SchemaTransformationResult(new SharedSchema(before), new SharedSchema(after), diff, Collections.emptyList());
-
-        Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, now);
-        SchemaKeyspace.applyChanges(mutations);
-
-        SchemaTransformationResult result = new SchemaTransformationResult(new SharedSchema(before), new SharedSchema(after), diff, mutations);
+        if (online)
+            SystemKeyspace.updateSchemaVersion(result.after.getVersion());
+        result = localDiff(result);
         schemaChangeNotifier.notifyPreChanges(result);
-        merge(diff);
-        updateVersion();
-        if (!locally)
-            passiveAnnounceVersion();
-
-        return result;
+        merge(result.diff);
+        updateVersion(result.after.getVersion());
     }
 
-    synchronized void merge(Collection<Mutation> mutations)
+    public SchemaTransformationResult transform(SchemaTransformation transformation)
     {
-        // only compare the keyspaces affected by this set of schema mutations
-        Set<String> affectedKeyspaces = SchemaKeyspace.affectedKeyspaces(mutations);
+        return transform(transformation, false);
+    }
 
-        // fetch the current state of schema for the affected keyspaces only
-        Keyspaces before = snapshot().filter(k -> affectedKeyspaces.contains(k.name));
+    public SchemaTransformationResult transform(SchemaTransformation transformation, boolean local)
+    {
+        return updateHandler.apply(transformation, local);
+    }
 
-        // apply the schema mutations
-        SchemaKeyspace.applyChanges(mutations);
+    /**
+     * Clear all locally stored schema information and reset schema to initial state.
+     * Called by user (via JMX) who wants to get rid of schema disagreement.
+     */
+    public void resetLocalSchema()
+    {
+        logger.debug("Clearing local schema...");
+        updateHandler.clear();
 
-        // apply the schema mutations and fetch the new versions of the altered keyspaces
-        Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
+        logger.debug("Clearing local schema keyspace instances...");
+        clear();
 
-        KeyspacesDiff diff = Keyspaces.diff(before, after);
-        schemaChangeNotifier.notifyPreChanges(new SchemaTransformationResult(new SharedSchema(before), new SharedSchema(after), diff, mutations));
-        merge(diff);
+        updateHandler.reset(false);
+        logger.info("Local schema reset is complete.");
     }
 
     private void merge(KeyspacesDiff diff)
@@ -772,4 +781,12 @@ public final class SchemaManager implements SchemaProvider
         keyspace.getColumnFamilyStore(updated.name()).reload();
         SchemaDiagnostics.tableAltered(this, updated.metadata);
     }
+
+    public Map<UUID, Set<InetAddressAndPort>> getOutstandingSchemaVersions()
+    {
+        return updateHandler instanceof DefaultSchemaUpdateHandler
+               ? ((DefaultSchemaUpdateHandler) updateHandler).getOutstandingSchemaVersions()
+               : Collections.emptyMap();
+    }
+
 }

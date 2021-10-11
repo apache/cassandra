@@ -22,6 +22,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -94,11 +96,10 @@ import org.apache.cassandra.repair.*;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.MigrationCoordinator;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
@@ -131,7 +132,6 @@ import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
-import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -857,13 +857,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    private boolean isReplacing()
+    public boolean isReplacing()
     {
+        if (replacing)
+            return true;
+
         if (System.getProperty("cassandra.replace_address_first_boot", null) != null && SystemKeyspace.bootstrapComplete())
         {
             logger.info("Replace address on first boot requested; this node is already bootstrapped");
             return false;
         }
+
         return DatabaseDescriptor.getReplaceAddress() != null;
     }
 
@@ -891,7 +895,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void prepareToJoin() throws ConfigurationException
     {
-        MigrationCoordinator.instance.start();
         if (!joined)
         {
             Map<ApplicationState, VersionedValue> appStates = new EnumMap<>(ApplicationState.class);
@@ -935,7 +938,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     appStates.put(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true));
                     appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
                 }
-                MigrationCoordinator.instance.removeAndIgnoreEndpoint(DatabaseDescriptor.getReplaceAddress());
             }
             else
             {
@@ -981,8 +983,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // gossip snitch infos (local DC and rack)
             gossipSnitchInfo();
-            // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
-            SchemaManager.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
+            SchemaManager.instance.startSync();
             LoadBroadcaster.instance.startBroadcasting();
             DiskUsageBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
@@ -992,33 +993,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void waitForSchema(long schemaTimeoutMillis, long ringTimeoutMillis)
     {
-        // first sleep the delay to make sure we see all our peers
-        for (long i = 0; i < ringTimeoutMillis; i += 1000)
-        {
-            // if we see schema, we can proceed to the next check directly
-            if (!SchemaManager.instance.isEmpty())
-            {
-                logger.debug("current schema version: {}", SchemaManager.instance.getVersion());
-                break;
-            }
+        Instant deadline = Instant.now().plus(Duration.ofMillis(ringTimeoutMillis));
+
+        while (SchemaManager.instance.isEmpty() && Instant.now().isBefore(deadline))
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-        }
 
-        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(schemaTimeoutMillis);
-
-        if (schemasReceived)
-            return;
-
-        logger.warn(String.format("There are nodes in the cluster with a different schema version than us we did not merged schemas from, " +
-                                  "our version : (%s), outstanding versions -> endpoints : %s. Use -Dcassandra.skip_schema_check=true " +
-                                  "to ignore this, -Dcassandra.skip_schema_check_for_endpoints=<ep1[,epN]> to skip specific endpoints," +
-                                  "or -Dcassandra.skip_schema_check_for_versions=<ver1[,verN]> to skip specific schema versions",
-                                  SchemaManager.instance.getVersion(),
-                                  MigrationCoordinator.instance.outstandingVersions()));
-
-        if (REQUIRE_SCHEMAS)
-            throw new RuntimeException("Didn't receive schemas for all known versions within the timeout. " +
-                                       "Use -Dcassandra.skip_schema_check=true to skip this check.");
+        if (!SchemaManager.instance.waitUntilReady(Duration.ofMillis(schemaTimeoutMillis)))
+            throw new IllegalStateException("Could not achieve schema readiness in " + Duration.ofMillis(schemaTimeoutMillis));
     }
 
     private void joinTokenRing(long schemaTimeoutMillis, long ringTimeoutMillis) throws ConfigurationException
@@ -1195,8 +1176,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (setUpSchema)
             {
-                Optional<Mutation> mutation = evolveSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION);
-                mutation.ifPresent(value -> FBUtilities.waitOnFuture(MigrationCoordinator.instance.announceWithoutPush(Collections.singleton(value))));
+                SchemaManager.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
             }
 
             DatabaseDescriptor.getRoleManager().setup();
@@ -1216,14 +1196,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public void setUpDistributedSystemKeyspaces()
     {
-        Collection<Mutation> changes = new ArrayList<>(3);
-
-        evolveSystemKeyspace(            TraceKeyspace.metadata(),             TraceKeyspace.GENERATION).ifPresent(changes::add);
-        evolveSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION).ifPresent(changes::add);
-        evolveSystemKeyspace(             AuthKeyspace.metadata(),              AuthKeyspace.GENERATION).ifPresent(changes::add);
-
-        if (!changes.isEmpty())
-            FBUtilities.waitOnFuture(MigrationCoordinator.instance.announceWithoutPush(changes));
+        SchemaManager.instance.transform(SchemaTransformations.updateSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION));
+        SchemaManager.instance.transform(SchemaTransformations.updateSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION));
+        SchemaManager.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
     }
 
     public boolean isJoined()
@@ -2375,7 +2350,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         break;
                     case SCHEMA:
                         SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(value.value));
-                        MigrationCoordinator.instance.reportEndpointVersion(endpoint, UUID.fromString(value.value));
                         break;
                     case HOST_ID:
                         SystemKeyspace.updatePeerInfo(endpoint, "host_id", UUID.fromString(value.value));
@@ -2978,7 +2952,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void removeEndpoint(InetAddressAndPort endpoint)
     {
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(endpoint));
-        MigrationCoordinator.instance.removeAndIgnoreEndpoint(endpoint);
         SystemKeyspace.removeEndpoint(endpoint);
     }
 
@@ -5594,7 +5567,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void resetLocalSchema() throws IOException
     {
-        MigrationManager.resetLocalSchema();
+        SchemaManager.instance.resetLocalSchema();
     }
 
     public void reloadLocalSchema()
@@ -5955,7 +5928,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions()
     {
-        Map<UUID, Set<InetAddressAndPort>> outstanding = MigrationCoordinator.instance.outstandingVersions();
+        Map<UUID, Set<InetAddressAndPort>> outstanding = SchemaManager.instance.getOutstandingSchemaVersions();
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
                                                                         e -> e.getValue().stream().map(i -> i.address).collect(Collectors.toSet())));
     }
@@ -5963,7 +5936,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort()
     {
-        Map<UUID, Set<InetAddressAndPort>> outstanding = MigrationCoordinator.instance.outstandingVersions();
+        Map<UUID, Set<InetAddressAndPort>> outstanding = SchemaManager.instance.getOutstandingSchemaVersions();
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
                                                                         e -> e.getValue().stream().map(InetAddressAndPort::toString).collect(Collectors.toSet())));
     }

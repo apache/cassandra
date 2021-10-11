@@ -362,7 +362,7 @@ public final class SchemaKeyspace
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
-    static UUID calculateSchemaDigest()
+    public static UUID calculateSchemaDigest()
     {
         Digest digest = Digest.forSchema();
         for (String table : ALL)

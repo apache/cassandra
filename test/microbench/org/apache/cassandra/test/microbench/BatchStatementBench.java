@@ -40,6 +40,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
@@ -100,11 +101,11 @@ public class BatchStatementBench
     @Setup
     public void setup() throws Throwable
     {
-        SchemaManager.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), false);
         KeyspaceMetadata ksm = SchemaManager.instance.getKeyspaceMetadata(keyspace);
         TableMetadata metadata = CreateTableStatement.parse(String.format("CREATE TABLE %s (id int, ck int, v int, primary key (id, ck))", table), keyspace).build();
 
-        SchemaManager.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.tables.with(metadata)), false);
 
         List<ModificationStatement> modifications = new ArrayList<>(batchSize);
         List<List<ByteBuffer>> parameters = new ArrayList<>(batchSize);

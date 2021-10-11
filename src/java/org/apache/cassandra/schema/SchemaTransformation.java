@@ -18,6 +18,7 @@
 package org.apache.cassandra.schema;
 
 import java.util.Collection;
+import java.util.Optional;
 
 import org.apache.cassandra.db.Mutation;
 
@@ -33,6 +34,16 @@ public interface SchemaTransformation
      * @return Keyspaces transformed by the statement
      */
     Keyspaces apply(Keyspaces schema);
+
+    /**
+     * If the transformation should be applied with a certain timestamp, this method should be overriden. This is used
+     * by {@link SchemaTransformations#updateSystemKeyspace(KeyspaceMetadata, long)} when we need to set the fixed
+     * timestamp in order to preserve user settings.
+     */
+    default Optional<Long> fixedTimestampMicros()
+    {
+        return Optional.empty();
+    }
 
     /**
      * The result of applying (on this node) a given schema transformation.
@@ -55,7 +66,7 @@ public interface SchemaTransformation
         @Override
         public String toString()
         {
-            return String.format("SchemaTransformationResult{diff=%s}", diff);
+            return String.format("SchemaTransformationResult{%s --> %s, diff=%s}", before.getVersion(), after.getVersion(), diff);
         }
     }
 }

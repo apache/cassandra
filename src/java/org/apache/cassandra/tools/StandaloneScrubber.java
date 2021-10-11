@@ -86,7 +86,7 @@ public class StandaloneScrubber
         try
         {
             // load keyspace descriptions.
-            SchemaManager.instance.loadFromDisk(false);
+            SchemaManager.instance.loadFromDisk();
 
             if (SchemaManager.instance.getKeyspaceMetadata(options.keyspaceName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace %s", options.keyspaceName));

@@ -62,7 +62,7 @@ public class StandaloneVerifier
         try
         {
             // load keyspace descriptions.
-            SchemaManager.instance.loadFromDisk(false);
+            SchemaManager.instance.loadFromDisk();
 
             boolean hasFailed = false;
 

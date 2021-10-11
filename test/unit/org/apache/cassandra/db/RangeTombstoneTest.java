@@ -320,7 +320,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
 
         String key = "7810";
 
@@ -343,7 +343,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
 
         String key = "7808_1";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -363,7 +363,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
 
         String key = "7808_2";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -489,7 +489,7 @@ public class RangeTombstoneTest
                 current.unbuild()
                        .indexes(current.indexes.with(indexDef))
                        .build();
-            SchemaTestUtil.announceTableUpdate(updated, true);
+            SchemaTestUtil.announceTableUpdate(updated);
         }
 
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
@@ -595,7 +595,7 @@ public class RangeTombstoneTest
                 current.unbuild()
                        .indexes(current.indexes.with(indexDef))
                        .build();
-            SchemaTestUtil.announceTableUpdate(updated, true);
+            SchemaTestUtil.announceTableUpdate(updated);
         }
 
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);

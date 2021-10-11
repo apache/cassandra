@@ -40,7 +40,6 @@ import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.schema.*;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -242,7 +241,7 @@ public class SchemaLoader
         // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
         // Schema.instance.load(schemaDefinition());
         for (KeyspaceMetadata ksm : schema)
-            SchemaTestUtil.announceNewKeyspace(ksm, false);
+            SchemaTestUtil.announceNewKeyspace(ksm);
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
             useCompression(schema, compressionParams(CompressionParams.DEFAULT_CHUNK_LENGTH));
@@ -250,7 +249,7 @@ public class SchemaLoader
 
     public static void createKeyspace(String name, KeyspaceParams params)
     {
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of()), true);
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of()));
     }
 
     public static void createKeyspace(String name, KeyspaceParams params, TableMetadata.Builder... builders)
@@ -259,17 +258,17 @@ public class SchemaLoader
         for (TableMetadata.Builder builder : builders)
             tables.add(builder.build());
 
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables.build()), true);
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables.build()));
     }
 
     public static void createKeyspace(String name, KeyspaceParams params, TableMetadata... tables)
     {
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of(tables)), true);
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of(tables)));
     }
 
     public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
     {
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()), true);
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()));
     }
 
     public static void setupAuth(IRoleManager roleManager, IAuthenticator authenticator, IAuthorizer authorizer, INetworkAuthorizer networkAuthorizer)
@@ -278,7 +277,7 @@ public class SchemaLoader
         DatabaseDescriptor.setAuthenticator(authenticator);
         DatabaseDescriptor.setAuthorizer(authorizer);
         DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
-        SchemaTestUtil.announceNewKeyspace(AuthKeyspace.metadata(), true);
+        SchemaTestUtil.announceNewKeyspace(AuthKeyspace.metadata());
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
@@ -330,7 +329,7 @@ public class SchemaLoader
     {
         for (KeyspaceMetadata ksm : schema)
             for (TableMetadata cfm : ksm.tablesAndViews())
-                SchemaTestUtil.announceTableUpdate(cfm.unbuild().compression(compressionParams.copy()).build(), true);
+                SchemaTestUtil.announceTableUpdate(cfm.unbuild().compression(compressionParams.copy()).build());
     }
 
     public static TableMetadata.Builder counterCFMD(String ksName, String cfName)
@@ -765,19 +764,19 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
                                                        Views.none(),
                                                        Types.none(),
                                                        Functions.none());
-        MigrationManager.announce(SchemaTransformations.addKeyspace(ksm, true), true);
+        SchemaManager.instance.transform(SchemaTransformations.addKeyspace(ksm, true));
 
         for (String typeCQL : typesCQL)
         {
             Types types = SchemaManager.instance.getKeyspaceMetadata(keyspace).types;
             SchemaTransformation t = SchemaTransformations.addOrUpdateType(CreateTypeStatement.parse(typeCQL,
                                                                                                      keyspace, types));
-            MigrationManager.announce(t, true);
+            SchemaManager.instance.transform(t);
         }
 
         Types types = SchemaManager.instance.getKeyspaceMetadata(keyspace).types;
         TableMetadata metadata = CreateTableStatement.parse(schemaCQL, keyspace, types).build();
-        MigrationManager.announce(SchemaTransformations.addTable(metadata, true), true);
+        SchemaManager.instance.transform(SchemaTransformations.addTable(metadata, true));
     }
 
     private static CompressionParams compressionParams(int chunkLength)

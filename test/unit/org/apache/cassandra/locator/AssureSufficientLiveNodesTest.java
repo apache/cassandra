@@ -255,7 +255,7 @@ public class AssureSufficientLiveNodesTest
         String keyspaceName = keyspaceNameGen.get();
         KeyspaceMetadata initKsMeta = KeyspaceMetadata.create(keyspaceName, init, Tables.of(SchemaLoader.standardCFMD(keyspaceName, "Bar").build()));
         KeyspaceMetadata alterToKsMeta = initKsMeta.withSwapped(alterTo);
-        SchemaTestUtil.announceNewKeyspace(initKsMeta, true);
+        SchemaTestUtil.announceNewKeyspace(initKsMeta);
         Keyspace racedKs = Keyspace.open(keyspaceName);
         ExecutorService es = Executors.newFixedThreadPool(2);
         try (AutoCloseable ignore = () -> {

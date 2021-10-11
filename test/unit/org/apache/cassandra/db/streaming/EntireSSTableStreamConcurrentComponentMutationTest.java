@@ -247,7 +247,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
 
         // rewrite index summary file with new min/max index interval
         TableMetadata origin = store.metadata();
-        SchemaTestUtil.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build());
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstable, OperationType.INDEX_SUMMARY))
         {
@@ -257,7 +257,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         }
 
         // reset min/max index interval
-        SchemaTestUtil.announceTableUpdate(origin, true);
+        SchemaTestUtil.announceTableUpdate(origin);
         return true;
     }
 

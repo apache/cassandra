@@ -22,7 +22,6 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
@@ -41,7 +40,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -52,7 +50,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static java.util.Collections.singleton;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
@@ -208,7 +205,7 @@ public class MigrationManagerTest
         store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
-        SchemaTestUtil.announceTableDrop(ks.name, cfm.name, false);
+        SchemaTestUtil.announceTableDrop(ks.name, cfm.name);
 
         assertFalse(SchemaManager.instance.getKeyspaceMetadata(ks.name).tables.get(cfm.name).isPresent());
 
@@ -573,11 +570,14 @@ public class MigrationManagerTest
         TableMetadata table = addTestTable("ks0", "t", "");
         KeyspaceMetadata keyspace = KeyspaceMetadata.create("ks0", KeyspaceParams.simple(1), Tables.of(table));
 
-        Optional<Mutation> mutation = MigrationManager.evolveSystemKeyspace(keyspace, 0);
-        assertTrue(mutation.isPresent());
+        SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
+        Keyspaces before = Keyspaces.none();
+        Keyspaces after = transformation.apply(before);
+        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
-        SchemaManager.instance.merge(singleton(mutation.get()));
-        assertEquals(keyspace, SchemaManager.instance.getKeyspaceMetadata("ks0"));
+        assertTrue(diff.altered.isEmpty());
+        assertTrue(diff.dropped.isEmpty());
+        assertEquals(keyspace, diff.created.getNullable("ks0"));
     }
 
     @Test
@@ -586,12 +586,12 @@ public class MigrationManagerTest
         TableMetadata table = addTestTable("ks1", "t", "");
         KeyspaceMetadata keyspace = KeyspaceMetadata.create("ks1", KeyspaceParams.simple(1), Tables.of(table));
 
-        // create the keyspace, verify it's there
-        SchemaManager.instance.merge(singleton(SchemaKeyspace.makeCreateKeyspaceMutation(keyspace, 0).build()));
-        assertEquals(keyspace, SchemaManager.instance.getKeyspaceMetadata("ks1"));
+        SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
+        Keyspaces before = Keyspaces.of(keyspace);
+        Keyspaces after = transformation.apply(before);
+        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
-        Optional<Mutation> mutation = MigrationManager.evolveSystemKeyspace(keyspace, 0);
-        assertFalse(mutation.isPresent());
+        assertTrue(diff.isEmpty());
     }
 
     @Test
@@ -600,18 +600,18 @@ public class MigrationManagerTest
         TableMetadata table0 = addTestTable("ks2", "t", "");
         KeyspaceMetadata keyspace0 = KeyspaceMetadata.create("ks2", KeyspaceParams.simple(1), Tables.of(table0));
 
-        // create the keyspace, verify it's there
-        SchemaManager.instance.merge(singleton(SchemaKeyspace.makeCreateKeyspaceMutation(keyspace0, 0).build()));
-        assertEquals(keyspace0, SchemaManager.instance.getKeyspaceMetadata("ks2"));
-
         TableMetadata table1 = table0.unbuild().comment("comment").build();
         KeyspaceMetadata keyspace1 = KeyspaceMetadata.create("ks2", KeyspaceParams.simple(1), Tables.of(table1));
 
-        Optional<Mutation> mutation = MigrationManager.evolveSystemKeyspace(keyspace1, 1);
-        assertTrue(mutation.isPresent());
+        SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace1, 1);
+        Keyspaces before = Keyspaces.of(keyspace0);
+        Keyspaces after = transformation.apply(before);
+        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
-        SchemaManager.instance.merge(singleton(mutation.get()));
-        assertEquals(keyspace1, SchemaManager.instance.getKeyspaceMetadata("ks2"));
+        assertTrue(diff.created.isEmpty());
+        assertTrue(diff.dropped.isEmpty());
+        assertEquals(1, diff.altered.size());
+        assertEquals(keyspace1, diff.altered.get(0).after);
     }
 
     private TableMetadata addTestTable(String ks, String cf, String comment)

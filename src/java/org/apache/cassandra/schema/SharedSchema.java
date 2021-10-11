@@ -28,18 +28,33 @@ import com.google.common.base.Preconditions;
  */
 public class SharedSchema
 {
-    private final Keyspaces keyspaces;
+    public static final SharedSchema EMPTY = new SharedSchema(Keyspaces.none(), SchemaConstants.emptyVersion);
 
-    public SharedSchema(Keyspaces keyspaces)
+    private final Keyspaces keyspaces;
+    private final UUID version;
+
+    public SharedSchema(Keyspaces keyspaces, UUID version)
     {
         Objects.requireNonNull(keyspaces);
+        Objects.requireNonNull(version);
         this.keyspaces = keyspaces;
+        this.version = version;
         validate();
     }
 
     public Keyspaces getKeyspaces()
     {
         return keyspaces;
+    }
+
+    public boolean isEmpty()
+    {
+        return SchemaConstants.emptyVersion.equals(version);
+    }
+
+    public UUID getVersion()
+    {
+        return version;
     }
 
     /**
@@ -61,13 +76,13 @@ public class SharedSchema
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SharedSchema schema = (SharedSchema) o;
-        return keyspaces.equals(schema.keyspaces);
+        return keyspaces.equals(schema.keyspaces) && version.equals(schema.version);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspaces);
+        return Objects.hash(keyspaces, version);
     }
 
     private void validate()

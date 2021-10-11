@@ -73,6 +73,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -901,10 +902,7 @@ public class ReadCommandTest
     {
         TableParams newParams = cfs.metadata().params.unbuild().gcGraceSeconds(gcGrace).build();
         KeyspaceMetadata keyspaceMetadata = SchemaManager.instance.getKeyspaceMetadata(cfs.metadata().keyspace);
-        SchemaManager.instance.load(
-        keyspaceMetadata.withSwapped(
-        keyspaceMetadata.tables.withSwapped(
-        cfs.metadata().withSwapped(newParams))));
+        SchemaTestUtil.addOrUpdateKeyspace(keyspaceMetadata.withSwapped(keyspaceMetadata.tables.withSwapped(cfs.metadata().withSwapped(newParams))), true);
     }
 
     private long getAndResetOverreadCount(ColumnFamilyStore cfs)

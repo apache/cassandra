@@ -48,7 +48,7 @@ public class StandaloneSSTableUtil
         {
             // load keyspace descriptions.
             Util.initDatabaseDescriptor();
-            SchemaManager.instance.loadFromDisk(false);
+            SchemaManager.instance.loadFromDisk();
 
             TableMetadata metadata = SchemaManager.instance.getTableMetadata(options.keyspaceName, options.cfName);
             if (metadata == null)
