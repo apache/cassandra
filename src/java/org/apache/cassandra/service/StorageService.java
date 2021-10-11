@@ -3299,13 +3299,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             statusValue = epState.getApplicationState(statusState);
         }
         if (statusValue != null)
-            onChange(endpoint, statusState, statusValue);
+            Gossiper.instance.doOnChangeNotifications(endpoint, statusState, statusValue);
 
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.states())
         {
             if (entry.getKey() == ApplicationState.STATUS_WITH_PORT || entry.getKey() == ApplicationState.STATUS)
                 continue;
-            onChange(endpoint, entry.getKey(), entry.getValue());
+            Gossiper.instance.doOnChangeNotifications(endpoint, entry.getKey(), entry.getValue());
         }
     }
 
