@@ -41,13 +41,14 @@ public class SchemaCQLHelper
     /**
      * Generates the DDL statement for a {@code schema.cql} snapshot file.
      */
-    public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, Types types)
+    public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, KeyspaceMetadata keyspaceMetadata)
     {
         // Types come first, as table can't be created without them
-        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, types, true);
+        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, keyspaceMetadata.types, true);
 
         return Stream.concat(udts,
                              reCreateStatements(metadata,
+                                                keyspaceMetadata,
                                                 true,
                                                 true,
                                                 true,
@@ -55,6 +56,7 @@ public class SchemaCQLHelper
     }
 
     public static Stream<String> reCreateStatements(TableMetadata metadata,
+                                                    KeyspaceMetadata keyspaceMetadata,
                                                     boolean includeDroppedColumns,
                                                     boolean internals,
                                                     boolean ifNotExists,
@@ -63,6 +65,7 @@ public class SchemaCQLHelper
         // Record re-create schema statements
         Stream<String> r = Stream.of(metadata)
                                          .map((tm) -> SchemaCQLHelper.getTableMetadataAsCQL(tm,
+                                                                                            keyspaceMetadata,
                                                                                             includeDroppedColumns,
                                                                                             internals,
                                                                                             ifNotExists));
@@ -84,13 +87,13 @@ public class SchemaCQLHelper
      */
     @VisibleForTesting
     public static String getTableMetadataAsCQL(TableMetadata metadata,
+                                               KeyspaceMetadata keyspaceMetadata,
                                                boolean includeDroppedColumns,
                                                boolean internals,
                                                boolean ifNotExists)
     {
         if (metadata.isView())
         {
-            KeyspaceMetadata keyspaceMetadata = SchemaManager.instance.getKeyspaceMetadata(metadata.keyspace);
             ViewMetadata viewMetadata = keyspaceMetadata.views.get(metadata.name).orElse(null);
             assert viewMetadata != null;
             return viewMetadata.toCqlString(internals, ifNotExists);

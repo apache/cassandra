@@ -38,6 +38,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -933,9 +934,10 @@ public class ViewSchemaTest extends CQLTester
         String view = "mv";
         createView(view, createView);
 
-        ColumnFamilyStore mv = Keyspace.open(keyspace()).getColumnFamilyStore(view);
+        Keyspace keyspace = Keyspace.open(keyspace());
+        ColumnFamilyStore mv = keyspace.getColumnFamilyStore(view);
         
-        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(mv.metadata(), true, true, true)
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(mv.metadata(), keyspace.getMetadata(), true, true, true)
                                   .startsWith(String.format(viewSnapshotSchema,
                                                             keyspace(),
                                                             view,

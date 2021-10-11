@@ -391,5 +391,19 @@ public final class KeyspaceMetadata implements SchemaElement
 
             return Optional.of(new KeyspaceDiff(before, after, tables, views, types, udfs, udas));
         }
+
+        @Override
+        public String toString()
+        {
+            return "KeyspaceDiff{" +
+                   "before=" + before +
+                   ", after=" + after +
+                   ", tables=" + tables +
+                   ", views=" + views +
+                   ", types=" + types +
+                   ", udfs=" + udfs +
+                   ", udas=" + udas +
+                   '}';
+        }
     }
 }

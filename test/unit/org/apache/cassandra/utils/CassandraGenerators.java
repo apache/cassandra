@@ -283,7 +283,7 @@ public final class CassandraGenerators
                 {
                     // to make sure the correct indents are taken, convert to CQL, then replace newlines with the indents
                     // then prefix with the indents.
-                    String cql = SchemaCQLHelper.getTableMetadataAsCQL((TableMetadata) value, true, true, false);
+                    String cql = SchemaCQLHelper.getTableMetadataAsCQL((TableMetadata) value, null, true, true, false);
                     cql = NEWLINE_PATTERN.matcher(cql).replaceAll(Matcher.quoteReplacement("\n  " + spacer));
                     cql = "\n  " + spacer + cql;
                     value = cql;

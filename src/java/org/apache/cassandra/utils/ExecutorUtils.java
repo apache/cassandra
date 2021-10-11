@@ -20,9 +20,11 @@ package org.apache.cassandra.utils;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 
@@ -147,5 +149,15 @@ public class ExecutorUtils
     public static void shutdownNowAndWait(long timeout, TimeUnit unit, Object ... executors) throws TimeoutException, InterruptedException
     {
         shutdownNowAndWait(timeout, unit, Arrays.asList(executors));
+    }
+
+    public static <T> BiConsumer<T, Throwable> complete(CompletableFuture<T> f)
+    {
+        return (r, t) -> {
+            if (t != null)
+                f.completeExceptionally(t);
+            else
+                f.complete(r);
+        };
     }
 }

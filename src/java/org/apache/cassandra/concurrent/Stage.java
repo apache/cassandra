@@ -23,8 +23,8 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
@@ -44,6 +44,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ExecutorUtils;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -124,9 +125,21 @@ public enum Stage
     public void execute(Runnable command) { executor().execute(command); }
     public void execute(Runnable command, ExecutorLocals locals) { executor().execute(command, locals); }
     public void maybeExecuteImmediately(Runnable command) { executor().maybeExecuteImmediately(command); }
-    public <T> Future<T> submit(Callable<T> task) { return executor().submit(task); }
-    public Future<?> submit(Runnable task) { return executor().submit(task); }
-    public <T> Future<T> submit(Runnable task, T result) { return executor().submit(task, result); }
+    public <T> CompletableFuture<T> submit(Callable<T> task) { return CompletableFuture.supplyAsync(() -> {
+        try
+        {
+            return task.call();
+        }
+        catch (Exception e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }, executor()); }
+    public CompletableFuture<Void> submit(Runnable task) { return CompletableFuture.runAsync(task, executor()); }
+    public <T> CompletableFuture<T> submit(Runnable task, T result) { return CompletableFuture.supplyAsync(() -> {
+        task.run();
+        return result;
+    }, executor()); }
 
     public LocalAwareExecutorService executor()
     {
