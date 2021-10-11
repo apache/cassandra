@@ -52,9 +52,17 @@ public interface SchemaChangeListener
     {
     }
 
+    default void onPreAlterTable(TableMetadata before, TableMetadata after)
+    {
+    }
+
     // the boolean flag indicates whether the change that triggered this event may have a substantive
     // impact on statements using the column family.
     default void onAlterTable(TableMetadata before, TableMetadata after, boolean affectStatements)
+    {
+    }
+
+    default void onPreAlterView(ViewMetadata before, ViewMetadata after)
     {
     }
 

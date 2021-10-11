@@ -24,6 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 
 /**
  * Registers schema change listeners and sends the notifications. The interface of this class just takes the high level
@@ -89,6 +90,27 @@ public class SchemaChangeNotifier
         keyspace.tables.forEach(this::notifyDropTable);
         keyspace.types.forEach(this::notifyDropType);
         notifyDropKeyspace(keyspace);
+    }
+
+    public void notifyPreChanges(SchemaTransformationResult transformationResult)
+    {
+        transformationResult.diff.altered.forEach(this::notifyPreAlterKeyspace);
+    }
+
+    private void notifyPreAlterKeyspace(KeyspaceMetadata.KeyspaceDiff keyspaceDiff)
+    {
+        keyspaceDiff.tables.altered.forEach(this::notifyPreAlterTable);
+        keyspaceDiff.views.altered.forEach(this::notifyPreAlterView);
+    }
+
+    private void notifyPreAlterTable(Diff.Altered<TableMetadata> altered)
+    {
+        changeListeners.forEach(l -> l.onPreAlterTable(altered.before, altered.after));
+    }
+
+    private void notifyPreAlterView(Diff.Altered<ViewMetadata> altered)
+    {
+        changeListeners.forEach(l -> l.onPreAlterView(altered.before, altered.after));
     }
 
     private void notifyCreateKeyspace(KeyspaceMetadata ksm)
