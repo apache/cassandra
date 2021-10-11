@@ -482,7 +482,7 @@ public class SecondaryIndexTest
             current.unbuild()
                    .indexes(current.indexes.with(indexDef))
                    .build();
-        SchemaTestUtil.announceTableUpdate(updated, true);
+        SchemaTestUtil.announceTableUpdate(updated);
 
         // wait for the index to be built
         Index index = cfs.indexManager.getIndex(indexDef);

@@ -58,7 +58,7 @@ public class SSTableExpiredBlockers
 
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
-        SchemaManager.instance.loadFromDisk(false);
+        SchemaManager.instance.loadFromDisk();
 
         TableMetadata metadata = SchemaManager.instance.validateTable(keyspace, columnfamily);
 

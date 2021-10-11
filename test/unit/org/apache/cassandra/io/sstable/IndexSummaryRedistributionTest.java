@@ -88,7 +88,7 @@ public class IndexSummaryRedistributionTest
 
         int originalMinIndexInterval = cfs.metadata().params.minIndexInterval;
         // double the min_index_interval
-        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().minIndexInterval(originalMinIndexInterval * 2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().minIndexInterval(originalMinIndexInterval * 2).build());
         IndexSummaryManager.instance.redistributeSummaries();
 
         long newSize = 0;

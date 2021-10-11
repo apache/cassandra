@@ -30,12 +30,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaManager;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.CachingParams;
+import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
@@ -309,7 +312,7 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         dropTable("DROP TABLE %s");
-        SchemaManager.instance.updateVersion();
+        assert SchemaManager.instance.isSameVersion(SchemaKeyspace.calculateSchemaDigest());
 
         //Test loading for a dropped 2i/table
         CacheService.instance.keyCache.clear();

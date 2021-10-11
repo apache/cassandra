@@ -20,10 +20,12 @@ package org.apache.cassandra.schema;
 
 import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
@@ -42,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -62,6 +65,7 @@ import org.mockito.internal.creation.MockSettingsImpl;
 
 import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -394,5 +398,63 @@ public class MigrationCoordinatorTest
         assertThat(msg.getValue().payload).isEqualTo(mutations);
         assertThat(msg.getValue().verb()).isEqualTo(Verb.SCHEMA_PUSH_REQ);
         assertThat(targetEndpoint.getValue()).isEqualTo(regularNode);
+    }
+
+    @Test
+    public void pullSchemaFromAnyNode() throws UnknownHostException
+    {
+        Collection<Mutation> mutations = Arrays.asList(mock(Mutation.class));
+
+        Wrapper wrapper = new Wrapper();
+
+        // no live nodes
+        when(wrapper.gossiper.getLiveMembers()).thenReturn(Collections.emptySet());
+        Collection<Mutation> result = FBUtilities.waitOnFuture(wrapper.coordinator.pullSchemaFromAnyNode(), Duration.ofSeconds(10));
+        assertThat(result).isEmpty();
+
+        EndpointState invalidVersionState = mock(EndpointState.class);
+        when(invalidVersionState.getApplicationState(ApplicationState.RELEASE_VERSION)).thenReturn(VersionedValue.unsafeMakeVersionedValue("3.0", 0));
+
+        EndpointState validVersionState = mock(EndpointState.class);
+        when(validVersionState.getApplicationState(ApplicationState.RELEASE_VERSION)).thenReturn(VersionedValue.unsafeMakeVersionedValue(FBUtilities.getReleaseVersionString(), 0));
+
+        // some nodes
+        InetAddressAndPort thisNode = wrapper.configureMocksForEndpoint(FBUtilities.getBroadcastAddressAndPort(), validVersionState, MessagingService.current_version, false);
+        InetAddressAndPort noStateNode = wrapper.configureMocksForEndpoint("10.0.0.1:8000", null, MessagingService.current_version, false);
+        InetAddressAndPort diffMajorVersionNode = wrapper.configureMocksForEndpoint("10.0.0.2:8000", invalidVersionState, MessagingService.current_version, false);
+        InetAddressAndPort unkonwnNode = wrapper.configureMocksForEndpoint("10.0.0.2:8000", validVersionState, null, false);
+        InetAddressAndPort invalidMessagingVersionNode = wrapper.configureMocksForEndpoint("10.0.0.3:8000", validVersionState, MessagingService.VERSION_30, false);
+        InetAddressAndPort gossipOnlyMemberNode = wrapper.configureMocksForEndpoint("10.0.0.4:8000", validVersionState, MessagingService.current_version, true);
+        InetAddressAndPort regularNode1 = wrapper.configureMocksForEndpoint("10.0.0.5:8000", validVersionState, MessagingService.current_version, false);
+        InetAddressAndPort regularNode2 = wrapper.configureMocksForEndpoint("10.0.0.6:8000", validVersionState, MessagingService.current_version, false);
+        Set<InetAddressAndPort> nodes = new LinkedHashSet<>(Arrays.asList(thisNode, noStateNode, diffMajorVersionNode, unkonwnNode, invalidMessagingVersionNode, gossipOnlyMemberNode, regularNode1, regularNode2));
+        when(wrapper.gossiper.getLiveMembers()).thenReturn(nodes);
+        doAnswer(a -> {
+            Message msg = a.getArgument(0, Message.class);
+            InetAddressAndPort endpoint = a.getArgument(1, InetAddressAndPort.class);
+            RequestCallback callback = a.getArgument(2, RequestCallback.class);
+
+            assertThat(msg.verb()).isEqualTo(Verb.SCHEMA_PULL_REQ);
+            assertThat(endpoint).isEqualTo(regularNode1);
+            callback.onResponse(Message.remoteResponse(regularNode1, Verb.SCHEMA_PULL_RSP, mutations));
+            return null;
+        }).when(wrapper.messagingService).sendWithCallback(any(Message.class), any(InetAddressAndPort.class), any(RequestCallback.class));
+        result = FBUtilities.waitOnFuture(wrapper.coordinator.pullSchemaFromAnyNode(), Duration.ofSeconds(10));
+        assertThat(result).isEqualTo(mutations);
+
+        // failures
+        doAnswer(a -> {
+            Message msg = a.getArgument(0, Message.class);
+            InetAddressAndPort endpoint = a.getArgument(1, InetAddressAndPort.class);
+            RequestCallback callback = a.getArgument(2, RequestCallback.class);
+
+            assertThat(msg.verb()).isEqualTo(Verb.SCHEMA_PULL_REQ);
+            assertThat(endpoint).isEqualTo(regularNode1);
+            callback.onFailure(regularNode1, RequestFailureReason.UNKNOWN);
+            return null;
+        }).when(wrapper.messagingService).sendWithCallback(any(Message.class), any(InetAddressAndPort.class), any(RequestCallback.class));
+        assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> FBUtilities.waitOnFuture(wrapper.coordinator.pullSchemaFromAnyNode(), Duration.ofSeconds(10)))
+                                                         .withMessageContaining("Failed to get schema from");
+
     }
 }
