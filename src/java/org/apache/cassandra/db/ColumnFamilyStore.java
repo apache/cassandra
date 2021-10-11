@@ -1912,8 +1912,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
             try (PrintStream out = new PrintStream(schemaFile))
             {
-                SchemaCQLHelper.reCreateStatementsForSchemaCql(metadata(),
-                                                               keyspace.getMetadata().types)
+                SchemaCQLHelper.reCreateStatementsForSchemaCql(metadata(), keyspace.getMetadata())
                                .forEach(out::println);
             }
         }

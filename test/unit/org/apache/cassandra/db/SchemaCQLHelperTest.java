@@ -165,7 +165,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    pk1 varint,\n" +
                           "    ck1 varint,\n" +
                           "    PRIMARY KEY (pk1, ck1)\n) WITH ID =";
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata(), true, true, true);
 
         assertThat(actual,
                    allOf(startsWith(expected),
@@ -237,7 +237,7 @@ public class SchemaCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present as both column and as dropped column record.
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata(), true, true, true);
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace + '.' + table + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 varint,\n" +
@@ -274,7 +274,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true),
+        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata(), true, true, true),
                    startsWith(
                    "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
                    "    pk1 varint,\n" +
@@ -321,7 +321,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true),
+        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata(), true, true, true),
                    containsString("AND CLUSTERING ORDER BY (cl1 ASC)\n" +
                             "    AND DROPPED COLUMN RECORD reg1 ascii USING TIMESTAMP " + droppedTimestamp +"\n" +
                             "    AND additional_write_policy = 'ALWAYS'\n" +

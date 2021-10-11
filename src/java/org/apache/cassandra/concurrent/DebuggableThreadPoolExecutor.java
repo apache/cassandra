@@ -164,9 +164,17 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
                       : LocalSessionWrapper.create(command, null, locals));
     }
 
-    public void maybeExecuteImmediately(Runnable command)
+    public boolean canRunImmediately()
     {
-        execute(command);
+        return false;
+    }
+
+    public final void maybeExecuteImmediately(Runnable command)
+    {
+        if (canRunImmediately())
+            command.run();
+        else
+            execute(command);
     }
 
     // execute does not call newTaskFor

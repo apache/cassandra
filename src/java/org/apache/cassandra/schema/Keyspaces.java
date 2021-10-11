@@ -136,6 +136,37 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
                         .build();
     }
 
+    /**
+     * Returns a new {@link Keyspaces} equivalent to this one, but with the provided keyspace metadata either added (if
+     * this {@link Keyspaces} does not have that keyspace), or replaced by the provided definition.
+     *
+     * <p>Note that if this contains the provided keyspace, its pre-existing definition is discarded and completely
+     * replaced with the newly provided one. See {@link #withAddedOrUpdated(KeyspaceMetadata)} if you wish the provided
+     * definition to be "merged" with the existing one instead.
+     *
+     * @param keyspace the keyspace metadata to add, or replace the existing definition with.
+     * @return the newly created object.
+     */
+    public Keyspaces withAddedOrReplaced(KeyspaceMetadata keyspace)
+    {
+        return builder().add(Iterables.filter(this, k -> !k.name.equals(keyspace.name)))
+                        .add(keyspace)
+                        .build();
+    }
+
+    /**
+     * Calls {@link #withAddedOrReplaced(KeyspaceMetadata)} on all the keyspaces of the provided {@link Keyspaces}.
+     *
+     * @param keyspaces the keyspaces to add, or replace if existing.
+     * @return the newly created object.
+     */
+    public Keyspaces withAddedOrReplaced(Keyspaces keyspaces)
+    {
+        return builder().add(Iterables.filter(this, k -> !keyspaces.containsKeyspace(k.name)))
+                        .add(keyspaces)
+                        .build();
+    }
+
     public void validate()
     {
         keyspaces.values().forEach(KeyspaceMetadata::validate);
@@ -202,14 +233,14 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         }
     }
 
-    static KeyspacesDiff diff(Keyspaces before, Keyspaces after)
+    public static KeyspacesDiff diff(Keyspaces before, Keyspaces after)
     {
         return KeyspacesDiff.diff(before, after);
     }
 
     public static final class KeyspacesDiff
     {
-        static final KeyspacesDiff NONE = new KeyspacesDiff(Keyspaces.none(), Keyspaces.none(), ImmutableList.of());
+        public static final KeyspacesDiff NONE = new KeyspacesDiff(Keyspaces.none(), Keyspaces.none(), ImmutableList.of());
 
         public final Keyspaces created;
         public final Keyspaces dropped;
@@ -244,6 +275,16 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         public boolean isEmpty()
         {
             return created.isEmpty() && dropped.isEmpty() && altered.isEmpty();
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeyspacesDiff{" +
+                   "created=" + created +
+                   ", dropped=" + dropped +
+                   ", altered=" + altered +
+                   '}';
         }
     }
 }

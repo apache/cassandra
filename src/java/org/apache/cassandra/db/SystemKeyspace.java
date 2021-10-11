@@ -1162,6 +1162,20 @@ public final class SystemKeyspace
     }
 
     /**
+     * Gets the schema version or null if missing
+     */
+    public static UUID getSchemaVersion()
+    {
+        String req = "SELECT schema_version FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
+
+        if (!result.isEmpty() && result.one().has("schema_version"))
+            return result.one().getUUID("schema_version");
+
+        return null;
+    }
+
+    /**
      * Gets the stored rack for the local node, or null if none have been set yet.
      */
     public static String getRack()

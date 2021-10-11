@@ -27,6 +27,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * The unique identifier of a table.
  * <p>
@@ -68,7 +70,7 @@ public class TableId
     public static TableId forSystemTable(String keyspace, String table)
     {
         assert SchemaConstants.isLocalSystemKeyspace(keyspace) || SchemaConstants.isReplicatedSystemKeyspace(keyspace);
-        return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(), table.getBytes())));
+        return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(UTF_8), table.getBytes(UTF_8))));
     }
 
     public String toHexString()

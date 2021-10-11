@@ -49,7 +49,7 @@ public class MigrationManager
         Future<SchemaTransformationResult> future =
             MIGRATION.submit(() -> SchemaManager.instance.transform(transformation, locally, now));
 
-        SchemaTransformationResult result = Futures.getUnchecked(future);
+        SchemaTransformationResult result = FBUtilities.waitOnFuture(future);
 
         if (locally || result.diff.isEmpty())
             return result.diff;
