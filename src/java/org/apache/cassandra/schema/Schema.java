@@ -608,12 +608,14 @@ public class Schema implements SchemaProvider
         Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, now);
         SchemaKeyspace.applyChanges(mutations);
 
+        SchemaTransformationResult result = new SchemaTransformationResult(new DistributedSchema(before), new DistributedSchema(after), diff, mutations);
+        schemaChangeNotifier.notifyPreChanges(result);
         merge(diff);
         updateVersion();
         if (!locally)
             passiveAnnounceVersion();
 
-        return new SchemaTransformationResult(new DistributedSchema(before), new DistributedSchema(after), diff, mutations);
+        return result;
     }
 
     /**
@@ -633,7 +635,9 @@ public class Schema implements SchemaProvider
         // apply the schema mutations and fetch the new versions of the altered keyspaces
         Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
 
-        merge(Keyspaces.diff(before, after));
+        KeyspacesDiff diff = Keyspaces.diff(before, after);
+        schemaChangeNotifier.notifyPreChanges(new SchemaTransformationResult(new DistributedSchema(before), new DistributedSchema(after), diff, mutations));
+        merge(diff);
     }
 
     private void merge(KeyspacesDiff diff)
