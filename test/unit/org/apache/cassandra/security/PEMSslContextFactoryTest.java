@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,7 +44,7 @@ public class PEMSslContextFactoryTest
 {
     private Map<String,Object> commonConfig = new HashMap<>();
 
-    private static final String encoded_key =
+    private static final String private_key =
     "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" +
     "MIIE6jAcBgoqhkiG9w0BDAEDMA4ECOWqSzq5PBIdAgIFxQSCBMjXsCK30J0aT3J/\n" +
     "g5kcbmevTOY1pIhJGbf5QYYrMUPiuDK2ydxIbiPzoTE4/S+OkCeHhlqwn/YydpBl\n" +
@@ -96,7 +97,59 @@ public class PEMSslContextFactoryTest
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
 
-    private static final String encoded_certificates =
+    private static final String unencrypted_private_key =
+    "-----BEGIN PRIVATE KEY-----\n" +
+    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCOSZVf8dLj1xLw\n" +
+    "efqjbogbAwhwRXd3tmEfQY1zHyudJF3XR1T0Xp26BKNvAYUxxZRDNg16M3prPRZv\n" +
+    "wkhDJdE9NaN+BpZPJUavRsZOfGDq/CHN8j/2PPKrn3G/b065JjV3GZjfV/Sln047\n" +
+    "DeZptaSyOg7ZN7F8qjGqxEcnw+szV/wTzhnjGjZMlcbOm4jFGQAn6xUOooQCGsoB\n" +
+    "9FgxKB0nvNG3xVe/2eCNfbS4DabT3Y1wfQqZ62hOa5ZS0rwT+pw3tQs3zFFY1Sfi\n" +
+    "G7qYbqZrKTheWIZGojVVm6mqH4yA2ofOe5N3RsBitCwU/D0dpnaG9Wcl98nmXueM\n" +
+    "B6Rk04v7AgMBAAECggEAYnxIKjrFz/JkJ5MmiszM5HV698r9YB0aqHnFIHPoykIL\n" +
+    "uiCjiumantDrFsCkosixULwvI/BRwbxstTpyrheU9psT6P1CONICVPvV8ylgJAYU\n" +
+    "l+ofn56cEXKxVuICSWFLDH7pM1479g+IJJQAchbKQpqxAGTuMu3SpvJolfuj5srt\n" +
+    "bM7/RYhJFLwDuvHNA3ivlogMneItP03+C25aaxstM+lBuBf68+n78zMgSvt6J/6Y\n" +
+    "G2TOMKnxveMlG2qu9l2lAw/2i8daG/qre08nTH7wpRx0gZLZqNpe45exkrzticzF\n" +
+    "FgWYjG2K2brX21jqHroFgMhdXF7zhhRgLoIeC0BrIQKBgQDCfGfWrJESKBbVai5u\n" +
+    "7wqD9nlzjv6N6FXfTDOPXO1vz5frdvtLVWbs0SMPy+NglkaZK0iqHvb9mf2of8eC\n" +
+    "0D5cmewjn7WCDBQMypIMYgT912ak/BBVuGXcxb6UgD+xARfSARo2C8NG1hfprw1W\n" +
+    "ad14CjS5xhFMs44HpVYhI7iPYwKBgQC7SqVG/b37vZ7CINemdvoMujLvvYXDJJM8\n" +
+    "N21LqNJfVXdukdH3T0xuLnh9Z/wPHjJDMF/9+1foxSEPHijtyz5P19EilNEC/3qw\n" +
+    "fI19+VZoY0mdhPtXSGzy+rbTE2v71QgwFLizSos14Gr+eNiIjF7FYccK05++K/zk\n" +
+    "cd8ZA3bwiQKBgQCl+HTFBs9mpz+VMOAfW2+l3hkXPNiPUc62mNkHZ05ZNNd44jjh\n" +
+    "uSf0wSUiveR08MmevQlt5K7zDQ8jVKh2QjB15gVXAVxsdtJFeDnax2trFP9LnLBz\n" +
+    "9sE2/qn9INU5wK0LUlWD+dXUBbCyg+jl7cJKRqtoPldVFYYHkFlIPqup8QKBgHXv\n" +
+    "hyuw1FUVDkdHzwOvn70r8q8sNHKxMVWVwWkHIZGOi+pAQGrusD4hXRX6yKnsZdIR\n" +
+    "QCD6iFy25R5T64nxlYdJaxPPid3NakB/7ckJnPOWseBSwMIxhQlr/nvjmve1Kba9\n" +
+    "FaEwq4B9lGIxToiNe4/nBiM3JzvlDxX67nUdzWOhAoGAdFvriyvjshSJ4JHgIY9K\n" +
+    "37BVB0VKMcFV2P8fLVWO5oyRtE1bJhU4QVpQmauABU4RGSojJ3NPIVH1wxmJeYtj\n" +
+    "Q3b7EZaqI6ovna2eK2qtUx4WwxhRaXTT8xueBI2lgL6sBSTGG+K69ZOzGQzG/Mfr\n" +
+    "RXKInnLInFD9JD94VqmMozo=\n" +
+    "-----END PRIVATE KEY-----\n" +
+    "-----BEGIN CERTIFICATE-----\n" +
+    "MIIDkTCCAnmgAwIBAgIETxH5JDANBgkqhkiG9w0BAQsFADB5MRAwDgYDVQQGEwdV\n" +
+    "bmtub3duMRAwDgYDVQQIEwdVbmtub3duMRAwDgYDVQQHEwdVbmtub3duMRAwDgYD\n" +
+    "VQQKEwdVbmtub3duMRQwEgYDVQQLDAtzc2xfdGVzdGluZzEZMBcGA1UEAxMQQXBh\n" +
+    "Y2hlIENhc3NhbmRyYTAeFw0xNjAzMTgyMTI4MDJaFw0xNjA2MTYyMTI4MDJaMHkx\n" +
+    "EDAOBgNVBAYTB1Vua25vd24xEDAOBgNVBAgTB1Vua25vd24xEDAOBgNVBAcTB1Vu\n" +
+    "a25vd24xEDAOBgNVBAoTB1Vua25vd24xFDASBgNVBAsMC3NzbF90ZXN0aW5nMRkw\n" +
+    "FwYDVQQDExBBcGFjaGUgQ2Fzc2FuZHJhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n" +
+    "MIIBCgKCAQEAjkmVX/HS49cS8Hn6o26IGwMIcEV3d7ZhH0GNcx8rnSRd10dU9F6d\n" +
+    "ugSjbwGFMcWUQzYNejN6az0Wb8JIQyXRPTWjfgaWTyVGr0bGTnxg6vwhzfI/9jzy\n" +
+    "q59xv29OuSY1dxmY31f0pZ9OOw3mabWksjoO2TexfKoxqsRHJ8PrM1f8E84Z4xo2\n" +
+    "TJXGzpuIxRkAJ+sVDqKEAhrKAfRYMSgdJ7zRt8VXv9ngjX20uA2m092NcH0Kmeto\n" +
+    "TmuWUtK8E/qcN7ULN8xRWNUn4hu6mG6mayk4XliGRqI1VZupqh+MgNqHznuTd0bA\n" +
+    "YrQsFPw9HaZ2hvVnJffJ5l7njAekZNOL+wIDAQABoyEwHzAdBgNVHQ4EFgQUcdiD\n" +
+    "N6aylI91kAd34Hl2AzWY51QwDQYJKoZIhvcNAQELBQADggEBAG9q29ilUgCWQP5v\n" +
+    "iHkZHj10gXGEoMkdfrPBf8grC7dpUcaw1Qfku/DJ7kPvMALeEsmFDk/t78roeNbh\n" +
+    "IYBLJlzI1HZN6VPtpWQGsqxltAy5XN9Xw9mQM/tu70ShgsodGmE1UoW6eE5+/GMv\n" +
+    "6Fg+zLuICPvs2cFNmWUvukN5LW146tJSYCv0Q/rCPB3m9dNQ9pBxrzPUHXw4glwG\n" +
+    "qGnGddXmOC+tSW5lDLLG1BRbKv4zxv3UlrtIjqlJtZb/sQMT6WtG2ihAz7SKOBHa\n" +
+    "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
+    "n3MVF9w=\n" +
+    "-----END CERTIFICATE-----";
+
+    private static final String trusted_certificates =
     "-----BEGIN CERTIFICATE-----\n" +
     "MIIDkTCCAnmgAwIBAgIETxH5JDANBgkqhkiG9w0BAQsFADB5MRAwDgYDVQQGEwdV\n" +
     "bmtub3duMRAwDgYDVQQIEwdVbmtub3duMRAwDgYDVQQHEwdVbmtub3duMRAwDgYD\n" +
@@ -124,26 +177,36 @@ public class PEMSslContextFactoryTest
     public void setup()
     {
         commonConfig.put(TARGET_STORETYPE.getKeyName(), "PKCS12");
-        commonConfig.put(ENCODED_CERTIFICATES.getKeyName(), encoded_certificates);
+        commonConfig.put(ENCODED_CERTIFICATES.getKeyName(), trusted_certificates);
         commonConfig.put("require_client_auth", Boolean.FALSE);
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
-    private void addPEMKeyStoreOptions(Map<String,Object> config)
+    private void addKeyStoreOptions(Map<String,Object> config)
     {
-        config.put(ENCODED_KEY.getKeyName(), encoded_key);
+        config.put(ENCODED_KEY.getKeyName(), private_key);
         config.put(KEY_PASSWORD.getKeyName(), "cassandra");
     }
 
-    private void addFileBasePEMTrustStoreOptions(Map<String,Object> config)
+    private void addUnencryptedKeyStoreOptions(Map<String,Object> config)
+    {
+        config.put(ENCODED_KEY.getKeyName(), unencrypted_private_key);
+    }
+
+    private void addFileBaseTrustStoreOptions(Map<String,Object> config)
     {
         config.put("truststore", "test/conf/cassandra_ssl_test.truststore.pem");
     }
 
-    private void addFileBasePEMKeyStoreOptions(Map<String,Object> config)
+    private void addFileBaseKeyStoreOptions(Map<String,Object> config)
     {
         config.put("keystore", "test/conf/cassandra_ssl_test.keystore.pem");
         config.put("keystore_password", "cassandra");
+    }
+
+    private void addFileBaseUnencryptedKeyStoreOptions(Map<String,Object> config)
+    {
+        config.put("keystore", "test/conf/cassandra_ssl_test.unencrypted_keystore.pem");
     }
 
     //TODO
@@ -207,7 +270,7 @@ public class PEMSslContextFactoryTest
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.remove("encoded_certificates");
-        addFileBasePEMTrustStoreOptions(config);
+        addFileBaseTrustStoreOptions(config);
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
         sslContextFactory.checkedExpiry = false;
@@ -232,7 +295,7 @@ public class PEMSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        addPEMKeyStoreOptions(config);
+        addKeyStoreOptions(config);
         config.put("keystore_password", "HomeOfBadPasswords");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
@@ -249,7 +312,7 @@ public class PEMSslContextFactoryTest
         // Make sure the exiry check didn't happen so far for the private key
         Assert.assertFalse(sslContextFactory1.checkedExpiry);
 
-        addPEMKeyStoreOptions(config);
+        addKeyStoreOptions(config);
         PEMBasedSslContextFactory sslContextFactory2 = new PEMBasedSslContextFactory(config);
         // Trigger the private key loading. That will also check for expired private key
         sslContextFactory2.buildKeyManagerFactory();
@@ -268,7 +331,7 @@ public class PEMSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        addPEMKeyStoreOptions(config);
+        addKeyStoreOptions(config);
         config.put("keystore_password", config.get("keyPassword")+"-conflict");
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
@@ -280,7 +343,7 @@ public class PEMSslContextFactoryTest
     {
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        addPEMKeyStoreOptions(config);
+        addKeyStoreOptions(config);
         config.put("keystore_password", config.get("keyPassword"));
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
@@ -297,7 +360,7 @@ public class PEMSslContextFactoryTest
         // Make sure the exiry check didn't happen so far for the private key
         Assert.assertFalse(sslContextFactory1.checkedExpiry);
 
-        addFileBasePEMKeyStoreOptions(config);
+        addFileBaseKeyStoreOptions(config);
         PEMBasedSslContextFactory sslContextFactory2 = new PEMBasedSslContextFactory(config);
         // Trigger the private key loading. That will also check for expired private key
         sslContextFactory2.buildKeyManagerFactory();
@@ -309,6 +372,34 @@ public class PEMSslContextFactoryTest
         Assert.assertFalse(sslContextFactory3.checkedExpiry);
         sslContextFactory3.buildKeyManagerFactory();
         Assert.assertTrue(sslContextFactory3.checkedExpiry);
+    }
+
+    @Test
+    public void buildKeyManagerFactoryWithUnencryptedKey() throws IOException
+    {
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addUnencryptedKeyStoreOptions(config);
+
+        Assert.assertTrue("Unencrypted Key test must not specify a key password",
+                          StringUtils.isEmpty((String)config.get(KEY_PASSWORD.getKeyName())));
+
+        PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
+        sslContextFactory.buildKeyManagerFactory();
+    }
+
+    @Test
+    public void buildKeyManagerFactoryWithFileBasedUnencryptedKey() throws IOException
+    {
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addFileBaseUnencryptedKeyStoreOptions(config);
+
+        Assert.assertTrue("Unencrypted Key test must not specify a key password",
+                          StringUtils.isEmpty((String)config.get(KEY_PASSWORD.getKeyName())));
+
+        PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
+        sslContextFactory.buildKeyManagerFactory();
     }
 
     //@Test
