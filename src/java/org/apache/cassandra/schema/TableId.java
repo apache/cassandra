@@ -28,6 +28,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * The unique identifier of a table.
  * <p>
@@ -76,7 +78,7 @@ public class TableId
 
     public static TableId unsafeDeterministic(String keyspace, String table)
     {
-        return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(), table.getBytes())));
+        return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(UTF_8), table.getBytes(UTF_8))));
     }
 
     public String toHexString()
