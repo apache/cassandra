@@ -86,28 +86,28 @@ final class SchemaDiagnostics
                                             delta.before, delta, null, null, null, null));
     }
 
-    static void keyspaceDroping(SchemaManager schemaManager, KeyspaceMetadata keyspace)
+    static void keyspaceDropping(SchemaManager schemaManager, KeyspaceMetadata keyspace)
     {
         if (isEnabled(SchemaEventType.KS_DROPPING))
             service.publish(new SchemaEvent(SchemaEventType.KS_DROPPING, schemaManager, keyspace,
                                             null, null, null, null, null, null));
     }
 
-    static void keyspaceDroped(SchemaManager schemaManager, KeyspaceMetadata keyspace)
+    static void keyspaceDropped(SchemaManager schemaManager, KeyspaceMetadata keyspace)
     {
         if (isEnabled(SchemaEventType.KS_DROPPED))
             service.publish(new SchemaEvent(SchemaEventType.KS_DROPPED, schemaManager, keyspace,
                                             null, null, null, null, null, null));
     }
 
-    static void schemataLoading(SchemaManager schemaManager)
+    static void schemaLoading(SchemaManager schemaManager)
     {
         if (isEnabled(SchemaEventType.SCHEMATA_LOADING))
             service.publish(new SchemaEvent(SchemaEventType.SCHEMATA_LOADING, schemaManager, null,
                                             null, null, null, null, null, null));
     }
 
-    static void schemataLoaded(SchemaManager schemaManager)
+    static void schemaLoaded(SchemaManager schemaManager)
     {
         if (isEnabled(SchemaEventType.SCHEMATA_LOADED))
             service.publish(new SchemaEvent(SchemaEventType.SCHEMATA_LOADED, schemaManager, null,
@@ -121,7 +121,7 @@ final class SchemaDiagnostics
                                             null, null, null, null, null, null));
     }
 
-    static void schemataCleared(SchemaManager schemaManager)
+    static void schemaCleared(SchemaManager schemaManager)
     {
         if (isEnabled(SchemaEventType.SCHEMATA_CLEARED))
             service.publish(new SchemaEvent(SchemaEventType.SCHEMATA_CLEARED, schemaManager, null,
