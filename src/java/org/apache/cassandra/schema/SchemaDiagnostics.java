@@ -86,28 +86,28 @@ final class SchemaDiagnostics
                                             delta.before, delta, null, null, null, null));
     }
 
-    static void keyspaceDroping(SchemaManager schema, KeyspaceMetadata keyspace)
+    static void keyspaceDropping(SchemaManager schema, KeyspaceMetadata keyspace)
     {
         if (isEnabled(SchemaEventType.KS_DROPPING))
             service.publish(new SchemaEvent(SchemaEventType.KS_DROPPING, schema, keyspace,
                                             null, null, null, null, null, null));
     }
 
-    static void keyspaceDroped(SchemaManager schema, KeyspaceMetadata keyspace)
+    static void keyspaceDropped(SchemaManager schema, KeyspaceMetadata keyspace)
     {
         if (isEnabled(SchemaEventType.KS_DROPPED))
             service.publish(new SchemaEvent(SchemaEventType.KS_DROPPED, schema, keyspace,
                                             null, null, null, null, null, null));
     }
 
-    static void schemataLoading(SchemaManager schema)
+    static void schemaLoading(SchemaManager schema)
     {
         if (isEnabled(SchemaEventType.SCHEMATA_LOADING))
             service.publish(new SchemaEvent(SchemaEventType.SCHEMATA_LOADING, schema, null,
                                             null, null, null, null, null, null));
     }
 
-    static void schemataLoaded(SchemaManager schema)
+    static void schemaLoaded(SchemaManager schema)
     {
         if (isEnabled(SchemaEventType.SCHEMATA_LOADED))
             service.publish(new SchemaEvent(SchemaEventType.SCHEMATA_LOADED, schema, null,
@@ -121,7 +121,7 @@ final class SchemaDiagnostics
                                             null, null, null, null, null, null));
     }
 
-    static void schemataCleared(SchemaManager schema)
+    static void schemaCleared(SchemaManager schema)
     {
         if (isEnabled(SchemaEventType.SCHEMATA_CLEARED))
             service.publish(new SchemaEvent(SchemaEventType.SCHEMATA_CLEARED, schema, null,

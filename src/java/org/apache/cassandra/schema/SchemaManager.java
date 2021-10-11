@@ -106,11 +106,11 @@ public final class SchemaManager implements SchemaProvider
      */
     public void loadFromDisk(boolean updateVersion)
     {
-        SchemaDiagnostics.schemataLoading(this);
+        SchemaDiagnostics.schemaLoading(this);
         SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
         if (updateVersion)
             updateVersion();
-        SchemaDiagnostics.schemataLoaded(this);
+        SchemaDiagnostics.schemaLoaded(this);
     }
 
     /**
@@ -570,7 +570,7 @@ public final class SchemaManager implements SchemaProvider
     {
         getNonSystemKeyspaces().forEach(this::unload);
         updateVersionAndAnnounce();
-        SchemaDiagnostics.schemataCleared(this);
+        SchemaDiagnostics.schemaCleared(this);
     }
 
     /*
@@ -696,7 +696,7 @@ public final class SchemaManager implements SchemaProvider
 
     private void dropKeyspace(KeyspaceMetadata keyspace)
     {
-        SchemaDiagnostics.keyspaceDroping(this, keyspace);
+        SchemaDiagnostics.keyspaceDropping(this, keyspace);
 
         boolean initialized = Keyspace.isInitialized();
         Keyspace ks = initialized ? getKeyspaceInstance(keyspace.name) : null;
@@ -720,7 +720,7 @@ public final class SchemaManager implements SchemaProvider
         }
 
         schemaChangeNotifier.notifyKeyspaceDropped(keyspace);
-        SchemaDiagnostics.keyspaceDroped(this, keyspace);
+        SchemaDiagnostics.keyspaceDropped(this, keyspace);
     }
 
     private void dropView(Keyspace keyspace, ViewMetadata metadata)
