@@ -39,7 +39,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.LoadingMap;
 
 import org.slf4j.Logger;
@@ -51,6 +50,20 @@ import static com.google.common.collect.Iterables.size;
 import static org.apache.cassandra.config.DatabaseDescriptor.isDaemonInitialized;
 import static org.apache.cassandra.config.DatabaseDescriptor.isToolInitialized;
 
+/**
+ * Manages shared schema, keyspace instances and table metadata refs. Provides methods to initialize, modify and query
+ * both the shared and local schema, as well as to register listeners.
+ * <p>
+ * This class should be the only entity used to query and manage schema. Internal details should not be access in
+ * production code (would be great if they were not accessed in the test code as well).
+ * <p>
+ * TL;DR: All modifications are made using the implementation of {@link SchemaUpdateHandler} obtained from the provided
+ * factory. After each modification, the internally managed table metadata refs and keyspaces instances are updated and
+ * notifications are sent to the registered listeners.
+ * When the schema change is applied by the update handler (regardless it is initiated locally or received from outside),
+ * the registered callback is executed which performs the remaining updates for tables metadata refs and keyspace
+ * instances (see {@link #mergeAndUpdateVersion(SchemaTransformationResult)}).
+ */
 public class Schema implements SchemaProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(Schema.class);
@@ -94,9 +107,7 @@ public class Schema implements SchemaProvider
                               : Keyspaces.none();
 
         this.localKeyspaces.forEach(this::loadNew);
-        this.updateHandler = online
-                             ? new DefaultSchemaUpdateHandler(this::mergeAndUpdateVersion)
-                             : new OfflineSchemaUpdateHandler(this::mergeAndUpdateVersion);
+        this.updateHandler = SchemaUpdateHandlerFactoryProvider.instance.get().getSchemaUpdateHandler(online, this::mergeAndUpdateVersion);
     }
 
     public void startSync()
