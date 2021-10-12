@@ -53,6 +53,7 @@
                  <exclude name="**/cassandra.yaml"/>
                  <exclude name="**/cassandra-murmur.yaml"/>
                  <exclude name="**/cassandra-seeds.yaml"/>
+                 <exclude name="**/harry-generic.yaml"/>
                  <exclude NAME="**/doc/antora.yml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
                  <exclude name="**/test/conf/cassandra-old.yaml"/>
