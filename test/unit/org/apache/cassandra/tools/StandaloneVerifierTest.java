@@ -70,6 +70,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
         assertEquals(0, tool.getExitCode());
         assertCorrectEnvPostTest();
+        tool.assertOnCleanExit();
+
     }
 
     @Test
@@ -78,8 +80,9 @@ public class StandaloneVerifierTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, "--debug", "system_schema", "tables");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("debug=true"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        tool.assertOnExitCode();
         assertCorrectEnvPostTest();
+        tool.assertOnCleanExit();
+
     }
 
     @Test
@@ -92,8 +95,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
                                                        "tables");
             assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("extended=true"));
             Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            tool.assertOnExitCode();
             assertCorrectEnvPostTest();
+            tool.assertOnCleanExit();
         });
     }
 
@@ -107,8 +110,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
                                                        "tables");
             assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("quick=true"));
             Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            tool.assertOnExitCode();
             assertCorrectEnvPostTest();
+            tool.assertOnCleanExit();
         });
     }
 
@@ -122,8 +125,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
                                                        "tables");
             assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("mutateRepairStatus=true"));
             Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            tool.assertOnExitCode();
             assertCorrectEnvPostTest();
+            tool.assertOnCleanExit();
         });
     }
 
@@ -134,8 +137,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
             ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, arg);
             assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
             Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            tool.assertOnExitCode();
             assertCorrectEnvPostTest();
+            tool.assertOnCleanExit();
         });
     }
 
@@ -149,8 +152,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
                                                        "tables");
             assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("verbose=true"));
             Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            tool.assertOnExitCode();
             assertCorrectEnvPostTest();
+            tool.assertOnCleanExit();
         });
     }
 

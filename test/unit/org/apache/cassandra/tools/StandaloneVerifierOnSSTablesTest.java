@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.File;
 import java.io.RandomAccessFile;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -45,12 +47,17 @@ import static org.junit.Assert.assertEquals;
 /**
  * Class that tests tables for StandaloneVerifier by updating using SchemaLoader
  * Similar in vein to other SchemaLoader type tests, as well as {@link StandaloneUpgraderOnSStablesTest}
+ * Since the tool mainly exercises the {@link org.apache.cassandra.db.compaction.Verifier}, we elect to
+ * not run every conceivable option as many tests are already covered by {@link org.apache.cassandra.db.VerifyTest}.
  */
 public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 {
     @BeforeClass
-    public static void setup() throws Exception
+    public static void setup()
     {
+        // since legacy tables test data uses ByteOrderedPartitioner that's what we need
+        // for the check version to work
+        System.setProperty("cassandra.partitioner", "org.apache.cassandra.dht.ByteOrderedPartitioner");
         System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing`
         SchemaLoader.loadSchema();
         StorageService.instance.initServer();
@@ -61,6 +68,54 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     {
         SchemaLoader.cleanupAndLeaveDirs();
         System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+    }
+
+    @Test
+    public void testCheckVersionValidVersion() throws Exception
+    {
+        String keyspaceName = "StandaloneVerifierTestCheckVersionWorking";
+        String workingTable = "workingCheckTable";
+
+        createAndPopulateTable(keyspaceName, workingTable, x -> {});
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable, "-c");
+        assertEquals(0, tool.getExitCode());
+        assertCorrectEnvPostTest();
+        tool.assertOnCleanExit();
+    }
+
+    @Test
+    public void testCheckVersionWithWrongVersion() throws Exception {
+        String keyspace = "StandaloneVerifierTestWrongVersions";
+        String tableName = "legacy_ma_simple";
+
+        createAndPopulateTable(keyspace, tableName, cfs -> {
+            // lets just copy old version files from test data into the source dir
+            File testDataDir = new File("test/data/legacy-sstables/ma/legacy_tables/legacy_ma_simple");
+            for (File cfsDir : cfs.getDirectories().getCFDirectories())
+            {
+                FileUtils.copyDirectory(testDataDir, cfsDir);
+            }
+        });
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspace, tableName, "-c");
+
+        assertEquals(1, tool.getExitCode());
+        Assertions.assertThat(tool.getStdout()).contains("is not the latest version, run upgradesstables");
+    }
+
+    @Test
+    public void testWorkingDataFile() throws Exception
+    {
+        String keyspaceName = "StandaloneVerifierTestWorkingDataKs";
+        String workingTable = "workingTable";
+
+        createAndPopulateTable(keyspaceName, workingTable, x -> {});
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable);
+        assertEquals(0, tool.getExitCode());
+        assertCorrectEnvPostTest();
+        tool.assertOnCleanExit();
     }
 
     @Test
@@ -75,12 +130,11 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
                 file.seek(0);
                 file.writeBytes(StringUtils.repeat('z', 2));
             }
-
         });
 
         ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, corruptStatsTable);
 
-        assertEquals(0, tool.getExitCode());
+        assertEquals(1, tool.getExitCode());
         Assertions.assertThat(tool.getStderr()).contains("Error Loading", corruptStatsTable);
     }
 
@@ -94,13 +148,12 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
             long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
             long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
-            long startPosition = row0Start < row1Start ? row0Start : row1Start;
-            long endPosition = row0Start < row1Start ? row1Start : row0Start;
+            long startPosition = Math.min(row0Start, row1Start);
 
             try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))
             {
                 file.seek(startPosition);
-                file.writeBytes(StringUtils.repeat('z', (int) 2));
+                file.writeBytes(StringUtils.repeat('z', 2));
             }
         });
 
@@ -109,22 +162,12 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
         Assertions.assertThat(tool.getStdout()).contains("Invalid SSTable", corruptDataTable);
     }
 
-    @Test
-    public void testWorkingDataFile() throws Exception
-    {
-        String keyspaceName = "StandaloneVerifierTestWorkingDataKs";
-        String workingTable = "workingTable";
 
-        createAndPopulateTable(keyspaceName, workingTable, x -> {});
 
-        ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, keyspaceName, workingTable);
-        assertEquals(0, tool.getExitCode());
-        assertCorrectEnvPostTest();
-    }
 
     /**
      * Since we are testing a verifier, we'd like to corrupt files to verify code paths
-     * This function defiintion is used by {@link this#createAndPopulateTable}.
+     * This function definition is used by {@link this#createAndPopulateTable}.
      *
      * CFS is the open ColumnFamilyStore for a given keyspace, table
      */
@@ -134,13 +177,14 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 
     /**
      * This function sets up the keyspace, and table schema for a standardCFMD table.
-     * This will also populate the tableiName with a few rows.  After completion the
+
+     * This will also populate the tableName with a few rows.  After completion the
      * server will be shutdown.
      *
      * @param keyspace name the table should be created in
-     * @param tableName new table name of the standard cfmd table
+     * @param tableName new table name of the standard CFMD table
      *
-     * @param corruptionFn function called to corrupt or change the contents on disk.  is pased the Cfs of the table name
+     * @param corruptionFn function called to corrupt or change the contents on disk, is passed the Cfs of the table name.
      *
      * @throws Exception on error.
      */
@@ -174,4 +218,3 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     }
 
 }
-

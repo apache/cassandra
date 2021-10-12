@@ -110,6 +110,7 @@ public class StandaloneVerifier
                     System.err.println(String.format("Error Loading %s: %s", entry.getKey(), e.getMessage()));
                     if (options.debug)
                         e.printStackTrace(System.err);
+                    System.exit(1);
                 }
             }
             Verifier.Options verifyOptions = Verifier.options().invokeDiskFailurePolicy(false)
