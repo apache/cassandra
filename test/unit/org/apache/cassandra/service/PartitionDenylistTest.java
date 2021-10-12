@@ -18,34 +18,31 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.Tables;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.UnsupportedEncodingException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.Tables;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class PartitionDenylistTest
 {
-    final static String ks_cql = "partition_denylist_keyspace";
+    private final static String ks_cql = "partition_denylist_keyspace";
 
     @BeforeClass
-    public static void init() throws ConfigurationException, RequestExecutionException
+    public static void init()
     {
         CQLTester.prepareServer();
 
@@ -81,7 +78,8 @@ public class PartitionDenylistTest
     }
 
     @Before
-    public void setup() throws RequestExecutionException, UnsupportedEncodingException, InterruptedException {
+    public void setup()
+    {
         DatabaseDescriptor.setEnablePartitionDenylist(true);
         resetDenylist();
 
@@ -108,9 +106,9 @@ public class PartitionDenylistTest
     }
 
 
-    private static void denylist(String table, final String key) throws RequestExecutionException
+    private static void denylist(String table, final String key)
     {
-        StorageProxy.instance.denylistKey("" + ks_cql + "", table, key);
+        StorageProxy.instance.denylistKey(ks_cql, table, key);
     }
 
     private static void refreshList()
@@ -122,58 +120,64 @@ public class PartitionDenylistTest
      * @return Whether the *attempt* to remove the denylisted key and refresh succeeded. Doesn't necessarily indicate the key
      * was previously blocked and found.
      */
-    private static boolean removeDenylist(final String ks, final String table, final String key) throws RequestExecutionException
+    private static boolean removeDenylist(final String ks, final String table, final String key)
     {
         return StorageProxy.instance.removeDenylistKey(ks, table, key);
     }
 
     @Test
-    public void testRead() throws RequestExecutionException
+    public void testRead()
     {
         process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='aaa' and keytwo='bbb'", ConsistencyLevel.ONE);
     }
 
-    @Test(expected = InvalidRequestException.class)
-    public void testReadDenylisted() throws Throwable
+    @Test
+    public void testReadDenylisted()
     {
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read denylisted partition");
     }
 
     @Test
-    public void testReadUndenylisted() throws RequestExecutionException, InterruptedException, UnsupportedEncodingException
+    public void testReadUndenylisted()
     {
         resetDenylist();
         process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
     }
 
     @Test
-    public void testWrite() throws RequestExecutionException
+    public void testWrite()
     {
         process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('eee', 'fff', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
         process("DELETE FROM " + ks_cql + ".table1 WHERE keyone='eee' and keytwo='fff'", ConsistencyLevel.ONE);
     }
 
-    @Test(expected = InvalidRequestException.class)
-    public void testWriteDenylisted() throws Throwable
+    @Test
+    public void testWriteDenylisted()
     {
-        process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testCASWriteDenylisted()
-    {
-        process("UPDATE " + ks_cql + ".table1 SET foo='w' WHERE keyone='bbb' AND keytwo='ccc' AND qux='eee' AND quz='fff' IF foo='v'", ConsistencyLevel.LOCAL_SERIAL);
+        assertThatThrownBy(() -> process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to write to denylisted partition");
     }
 
     @Test
-    public void testWriteUndenylisted() throws RequestExecutionException, InterruptedException, UnsupportedEncodingException
+    public void testCASWriteDenylisted()
+    {
+        assertThatThrownBy(() -> process("UPDATE " + ks_cql + ".table1 SET foo='w' WHERE keyone='bbb' AND keytwo='ccc' AND qux='eee' AND quz='fff' IF foo='v'", ConsistencyLevel.LOCAL_SERIAL))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to CAS write to denylisted partition");
+    }
+
+    @Test
+    public void testWriteUndenylisted()
     {
         resetDenylist();
         process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
     }
 
     @Test
-    public void testRangeSlice() throws RequestExecutionException
+    public void testRangeSlice()
     {
         UntypedResultSet rows;
         rows = process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) < token('bbb', 'ccc')", ConsistencyLevel.ONE);
@@ -190,46 +194,75 @@ public class PartitionDenylistTest
         Assert.assertEquals(2, rows.size());
     }
 
-    @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted() throws Throwable
+    @Test
+    public void testRangeDenylisted()
     {
-        process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE);
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted2()
-    {
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('aaa', 'bbb') and token (keyone, keytwo) <= token('bbb', 'ccc')", ConsistencyLevel.ONE);
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted3()
-    {
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('bbb', 'ccc') and token (keyone, keytwo) <= token('ccc', 'ddd')", ConsistencyLevel.ONE);
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted4()
-    {
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb') and token (keyone, keytwo) < token('ccc', 'ddd')", ConsistencyLevel.ONE);
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted5()
-    {
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb')", ConsistencyLevel.ONE);
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testRangeDenylisted6()
-    {
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) < token('ddd', 'eee')", ConsistencyLevel.ONE);
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read range [, ) containing 1 denylisted keys");
     }
 
     @Test
-    public void testReadInvalidCF()
+    public void testRangeDenylisted2()
     {
-        denylist("table1", "hohoho");
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('aaa', 'bbb') and token (keyone, keytwo) <= token('bbb', 'ccc')", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read range")
+                           .hasMessageContaining("containing 1 denylisted keys");
+    }
+
+    @Test
+    public void testRangeDenylisted3()
+    {
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('bbb', 'ccc') and token (keyone, keytwo) <= token('ccc', 'ddd')", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read range")
+                           .hasMessageContaining("containing 1 denylisted keys");
+    }
+
+    @Test
+    public void testRangeDenylisted4()
+    {
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb') and token (keyone, keytwo) < token('ccc', 'ddd')", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read range")
+                           .hasMessageContaining("containing 1 denylisted keys");
+    }
+
+    @Test
+    public void testRangeDenylisted5()
+    {
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb')", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read range")
+                           .hasMessageContaining("containing 1 denylisted keys");
+    }
+
+    @Test
+    public void testRangeDenylisted6()
+    {
+        assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) < token('ddd', 'eee')", ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read range")
+                           .hasMessageContaining("containing 1 denylisted keys");
+    }
+
+    @Test
+    public void testInsertUnknownPKIsGraceful()
+    {
+        Assert.assertTrue(StorageProxy.instance.denylistKey(ks_cql, "table1", "hohoho"));
+    }
+
+    @Test
+    public void testInsertInvalidTableIsGraceful()
+    {
+        Assert.assertFalse(StorageProxy.instance.denylistKey(ks_cql, "asldkfjadlskjf", "alksdjfads"));
+    }
+
+    @Test
+    public void testInsertInvalidKSIsGraceful()
+    {
+        Assert.assertFalse(StorageProxy.instance.denylistKey("asdklfjas", "asldkfjadlskjf", "alksdjfads"));
     }
 
     @Test
@@ -248,10 +281,10 @@ public class PartitionDenylistTest
     public void testRemoveMissingIsGraceful()
     {
         confirmDenied("table1", "bbb", "ccc");
-        Assert.assertTrue(removeDenylist("" + ks_cql + "", "table1", "bbb:ccc"));
+        Assert.assertTrue(removeDenylist(ks_cql, "table1", "bbb:ccc"));
 
         // We expect this to silently not find and succeed at *trying* to remove it
-        Assert.assertTrue(removeDenylist("" + ks_cql + "", "table1", "bbb:ccc"));
+        Assert.assertTrue(removeDenylist(ks_cql, "table1", "bbb:ccc"));
         refreshList();
 
         confirmAllowed("table1", "bbb", "ccc");
@@ -262,7 +295,7 @@ public class PartitionDenylistTest
      * persist after their removal and reload from CQL.
      */
     @Test
-    public void testRemoveWorksOnReload() throws InterruptedException
+    public void testRemoveWorksOnReload()
     {
         denyAllKeys();
         refreshList();
@@ -272,7 +305,7 @@ public class PartitionDenylistTest
         confirmDenied("table1", "iii", "jjj");
 
         // poke a hole in the middle and reload
-        removeDenylist("" + ks_cql + "", "table1", "eee:fff");
+        removeDenylist(ks_cql, "table1", "eee:fff");
         refreshList();
 
         confirmAllowed("table1", "eee", "fff");
@@ -320,11 +353,11 @@ public class PartitionDenylistTest
         confirmAllowed("table1", "iii", "jjj");
 
         // Now, we remove the denylist entries for our first 5, drop the limit back down, and confirm those overflowed keys now block
-        removeDenylist("" + ks_cql + "", "table1", "aaa:bbb");
-        removeDenylist("" + ks_cql + "", "table1", "bbb:ccc");
-        removeDenylist("" + ks_cql + "", "table1", "ccc:ddd");
-        removeDenylist("" + ks_cql + "", "table1", "ddd:eee");
-        removeDenylist("" + ks_cql + "", "table1", "eee:fff");
+        removeDenylist(ks_cql, "table1", "aaa:bbb");
+        removeDenylist(ks_cql, "table1", "bbb:ccc");
+        removeDenylist(ks_cql, "table1", "ccc:ddd");
+        removeDenylist(ks_cql, "table1", "ddd:eee");
+        removeDenylist(ks_cql, "table1", "eee:fff");
         refreshList();
         confirmDenied("table1", "iii", "jjj");
     }
@@ -394,17 +427,10 @@ public class PartitionDenylistTest
 
     private void confirmDenied(String table, String keyOne, String keyTwo)
     {
-        boolean denied = false;
         String query = String.format("SELECT * FROM " + ks_cql + "." + table + " WHERE keyone='%s' and keytwo='%s'", keyOne, keyTwo);
-        try
-        {
-            process(query, ConsistencyLevel.ONE);
-        }
-        catch (InvalidRequestException ire)
-        {
-            denied = true;
-        }
-        Assert.assertTrue(String.format("Expected query to be denied but was allowed! %s", query), denied);
+        assertThatThrownBy(() -> process(query, ConsistencyLevel.ONE))
+                           .isInstanceOf(InvalidRequestException.class)
+                           .hasMessageContaining("Unable to read denylisted partition");
     }
 
     private void confirmAllowed(String table, String keyOne, String keyTwo)

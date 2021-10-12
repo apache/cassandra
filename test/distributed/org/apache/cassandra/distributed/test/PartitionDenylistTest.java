@@ -36,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class PartitionDenylistTest extends TestBaseImpl
 {
@@ -86,10 +87,10 @@ public class PartitionDenylistTest extends TestBaseImpl
     // To be called inside the instance with runOnInstance
     static private void waitUntilStarted(int waitDuration, TimeUnit waitUnits)
     {
-        long deadlineInMillis = System.currentTimeMillis() + Math.max(1, waitUnits.toMillis(waitDuration));
+        long deadlineInMillis = currentTimeMillis() + Math.max(1, waitUnits.toMillis(waitDuration));
         while (!StorageService.instance.getOperationMode().equals("NORMAL"))
         {
-            if (System.currentTimeMillis() >= deadlineInMillis)
+            if (currentTimeMillis() >= deadlineInMillis)
             {
                 throw new RuntimeException("Instance did not reach application state NORMAL before timeout");
             }
@@ -100,9 +101,9 @@ public class PartitionDenylistTest extends TestBaseImpl
     // To be called inside the instance with runOnInstance
     static private void checkNoUnavailables()
     {
-        long deadlineInMillis = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
+        long deadlineInMillis = currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
 
-        while (System.currentTimeMillis() < deadlineInMillis &&
+        while (currentTimeMillis() < deadlineInMillis &&
                StorageProxy.instance.getPartitionDenylistLoadSuccesses() == 0)
         {
             Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
@@ -118,7 +119,7 @@ public class PartitionDenylistTest extends TestBaseImpl
     // and not enough nodes are available to succeed, so it should just retry a few times
     static private void checkTimerActive()
     {
-        long deadlineInMillis = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
+        long deadlineInMillis = currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
 
         do
         {
@@ -129,7 +130,7 @@ public class PartitionDenylistTest extends TestBaseImpl
                 return;
             }
             Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
-        } while (System.currentTimeMillis() < deadlineInMillis);
+        } while (currentTimeMillis() < deadlineInMillis);
 
         Assert.fail("Node did not retry loading on timeout in 30s");
     }

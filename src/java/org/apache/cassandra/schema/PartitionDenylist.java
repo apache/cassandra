@@ -47,7 +47,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
-import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -151,8 +151,7 @@ public class PartitionDenylist
         // This path will also be taken on other failures other than UnavailableException,
         // but seems like a good idea to retry anyway.
         int retryInSeconds = DatabaseDescriptor.getDenylistInitialLoadRetrySeconds();
-        logger.info(retryReason + " while loading partition denylist cache.  Scheduled retry in {} seconds.",
-                    retryInSeconds);
+        logger.info("{} while loading partition denylist cache. Scheduled retry in {} seconds.", retryReason, retryInSeconds);
         ScheduledExecutors.optionalTasks.schedule(this::initialLoad, retryInSeconds, TimeUnit.SECONDS);
     }
 
@@ -233,11 +232,8 @@ public class PartitionDenylist
         if (!canDenylistKeyspace(keyspace))
             return false;
 
-        final byte[] keyBytes = new byte[key.remaining()];
-        key.slice().get(keyBytes);
-
         final String insert = String.format("INSERT INTO system_distributed.partition_denylist (ks_name, table_name, key) VALUES ('%s', '%s', 0x%s)",
-                                            keyspace, table, Hex.bytesToHex(keyBytes));
+                                            keyspace, table, ByteBufferUtil.bytesToHex(key));
 
         try
         {
@@ -246,7 +242,7 @@ public class PartitionDenylist
         }
         catch (final RequestExecutionException e)
         {
-            logger.error("Failed to denylist key [{}] in {}/{}", Hex.bytesToHex(keyBytes), keyspace, table, e);
+            logger.error("Failed to denylist key [{}] in {}/{}", ByteBufferUtil.bytesToHex(key), keyspace, table, e);
         }
         return false;
     }
@@ -256,14 +252,11 @@ public class PartitionDenylist
      */
     public boolean removeKeyFromDenylist(final String keyspace, final String table, final ByteBuffer key)
     {
-        final byte[] keyBytes = new byte[key.remaining()];
-        key.slice().get(keyBytes);
-
         final String delete = String.format("DELETE FROM system_distributed.partition_denylist " +
                                             "WHERE ks_name = '%s' " +
                                             "AND table_name = '%s' " +
                                             "AND key = 0x%s",
-                                            keyspace, table, Hex.bytesToHex(keyBytes));
+                                            keyspace, table, ByteBufferUtil.bytesToHex(key));
 
         try
         {
@@ -272,7 +265,7 @@ public class PartitionDenylist
         }
         catch (final RequestExecutionException e)
         {
-            logger.error("Failed to remove key from denylist: [{}] in {}/{}", Hex.bytesToHex(keyBytes), keyspace, table, e);
+            logger.error("Failed to remove key from denylist: [{}] in {}/{}", ByteBufferUtil.bytesToHex(key), keyspace, table, e);
         }
         return false;
     }
@@ -308,7 +301,6 @@ public class PartitionDenylist
             DenylistEntry entry = denylist.get(tid);
             if (entry == null)
                 return true;
-            boolean result = !entry.keys.contains(key);
             return !entry.keys.contains(key);
         }
         catch (final Exception e)
@@ -330,15 +322,15 @@ public class PartitionDenylist
     /**
      * @return number of denylisted keys in range
      */
-    public int getDeniedKeysInRange(final String keyspace, final String table, final AbstractBounds<PartitionPosition> range)
+    public int getDeniedKeysInRangeCount(final String keyspace, final String table, final AbstractBounds<PartitionPosition> range)
     {
-        return getDeniedKeysInRange(getTableId(keyspace, table), range);
+        return getDeniedKeysInRangeCount(getTableId(keyspace, table), range);
     }
 
     /**
      * @return number of denylisted keys in range
      */
-    public int getDeniedKeysInRange(final TableId tid, final AbstractBounds<PartitionPosition> range)
+    public int getDeniedKeysInRangeCount(final TableId tid, final AbstractBounds<PartitionPosition> range)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
         if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !canDenylistKeyspace(tmd.keyspace))

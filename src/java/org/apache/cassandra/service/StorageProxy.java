@@ -138,7 +138,6 @@ import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.Pair;
@@ -312,8 +311,6 @@ public class StorageProxy implements StorageProxyMBean
             if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistWrites() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
             {
                 denylistMetrics.incrementWritesRejected();
-                final byte[] keyBytes  = new byte[key.getKey().remaining()];
-                key.getKey().slice().get(keyBytes);
                 throw new InvalidRequestException(String.format("Unable to CAS write to denylisted partition [0x%s] in %s/%s",
                                                                 key.toString(), keyspaceName, cfName));
             }
@@ -1086,19 +1083,11 @@ public class StorageProxy implements StorageProxyMBean
                     if (!partitionDenylist.isKeyPermitted(tid, mutation.key().getKey()))
                     {
                         denylistMetrics.incrementWritesRejected();
-                        final byte[] keyBytes = new byte[mutation.key().getKey().remaining()];
-                        mutation.key().getKey().slice().get(keyBytes);
+                        // While Schema.instance.getTableMetadata() can return a null value, in this case the isKeyPermitted
+                        // call above ensures that we cannot have a null associated tid at this point.
                         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-                        if (tmd != null)
-                        {
-                            throw new InvalidRequestException(String.format("Unable to write to denylisted partition [0x%s] in %s/%s",
-                                                                            Hex.bytesToHex(keyBytes), tmd.keyspace, tmd.name));
-                        }
-                        else
-                        {
-                            throw new InvalidRequestException(String.format("Unable to write to denylisted partition [0x%s] for unknown CF with id %s",
-                                                                            Hex.bytesToHex(keyBytes), tid.toString()));
-                        }
+                        throw new InvalidRequestException(String.format("Unable to write to denylisted partition [0x%s] for unknown Table with id %s",
+                                                                        mutation.key().toString(), tid.toString()));
                     }
                 }
             }
@@ -1794,10 +1783,8 @@ public class StorageProxy implements StorageProxyMBean
                 if (!partitionDenylist.isKeyPermitted(command.metadata().id, command.partitionKey().getKey()))
                 {
                     denylistMetrics.incrementReadsRejected();
-                    final byte[] keyBytes = new byte[command.partitionKey().getKey().remaining()];
-                    command.partitionKey().getKey().slice().get(keyBytes);
                     throw new InvalidRequestException(String.format("Unable to read denylisted partition [0x%s] in %s/%s",
-                                                                    Hex.bytesToHex(keyBytes), command.metadata().keyspace, command.metadata().name));
+                                                                    command.partitionKey().toString(), command.metadata().keyspace, command.metadata().name));
                 }
             }
         }
@@ -2137,7 +2124,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistRangeReads())
         {
-            final int denylisted = partitionDenylist.getDeniedKeysInRange(command.metadata().id, command.dataRange().keyRange());
+            final int denylisted = partitionDenylist.getDeniedKeysInRangeCount(command.metadata().id, command.dataRange().keyRange());
             if (denylisted > 0)
             {
                 denylistMetrics.incrementRangeReadsRejected();
@@ -2885,14 +2872,12 @@ public class StorageProxy implements StorageProxyMBean
     public void setDenylistMaxKeysPerTable(int value)
     {
         DatabaseDescriptor.setDenylistMaxKeysPerTable(value);
-        loadPartitionDenylist();
     }
 
     @Override
     public void setDenylistMaxKeysTotal(int value)
     {
         DatabaseDescriptor.setDenylistMaxKeysTotal(value);
-        loadPartitionDenylist();
     }
 
     /**
