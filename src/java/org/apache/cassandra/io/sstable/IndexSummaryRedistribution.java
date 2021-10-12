@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -46,6 +47,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class IndexSummaryRedistribution extends CompactionInfo.Holder
 {
@@ -80,6 +82,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
     public List<SSTableReader> redistributeSummaries() throws IOException
     {
+        long start = nanoTime();
         logger.info("Redistributing index summaries");
         List<SSTableReader> redistribute = new ArrayList<>();
         for (LifecycleTransaction txn : transactions.values())
@@ -91,7 +94,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         for (SSTableReader sstable : redistribute)
             total += sstable.getIndexSummaryOffHeapSize();
 
-        logger.trace("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
+        logger.info("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
                      redistribute.size(), memoryPoolBytes / 1024L / 1024L, total / 1024.0 / 1024.0);
 
         final Map<SSTableReader, Double> readRates = new HashMap<>(redistribute.size());
@@ -129,9 +132,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         total = nonRedistributingOffHeapSize;
         for (SSTableReader sstable : newSSTables)
             total += sstable.getIndexSummaryOffHeapSize();
-        if (logger.isTraceEnabled())
-            logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
-                     FBUtilities.prettyPrintMemory(total));
+
+        logger.info("Completed resizing of index summaries; current approximate memory used: {} MB, time spent: {}ms",
+                    total / 1024.0 / 1024.0, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
 
         return newSSTables;
     }
@@ -243,6 +246,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         }
 
         // downsample first, then upsample
+        logger.info("index summaries: downsample: {}, force resample: {}, upsample: {}, force upsample: {}", toDownsample.size(), forceResample.size(), toUpsample.size(), forceUpsample.size());
         toDownsample.addAll(forceResample);
         toDownsample.addAll(toUpsample);
         toDownsample.addAll(forceUpsample);

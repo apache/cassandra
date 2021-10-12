@@ -30,6 +30,8 @@ import java.util.concurrent.TimeoutException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -231,7 +233,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         Pair<Long, Map<TableId, LifecycleTransaction>> redistributionTransactionInfo = getRestributionTransactions();
         Map<TableId, LifecycleTransaction> transactions = redistributionTransactionInfo.right;
         long nonRedistributingOffHeapSize = redistributionTransactionInfo.left;
-        try
+        try (Timer.Context ctx = CompactionManager.instance.getMetrics().indexSummaryRedistributionTime.time())
         {
             redistributeSummaries(new IndexSummaryRedistribution(transactions,
                                                                  nonRedistributingOffHeapSize,
