@@ -17,19 +17,28 @@
  */
 package org.apache.cassandra.service.snapshot;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StartupChecks;
 
 public class TableSnapshot
 {
+    private static final Logger logger = LoggerFactory.getLogger(StartupChecks.class);
+
     private final String keyspace;
     private final String table;
     private final String tag;
@@ -113,6 +122,9 @@ public class TableSnapshot
 
     public long computeTrueSizeBytes()
     {
+        // FIXME: move this to outside this class which should be CFS independent
+        if (trueDiskSizeComputer == null)
+            return computeSizeOnDiskBytes();
         return snapshotDirs.stream().mapToLong(trueDiskSizeComputer::apply).sum();
     }
 
@@ -162,5 +174,52 @@ public class TableSnapshot
                         .stream()
                         .filter(entry -> !skipExpiring || !entry.getValue().isExpiring())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    static class Builder {
+        private final String keyspace;
+        private final String table;
+        private final String tag;
+
+        private Instant createdAt = null;
+        private Instant expiresAt = null;
+
+        private final Set<File> snapshotDirs = new HashSet<>();
+
+        Builder(String keyspace, String table, String tag)
+        {
+            this.keyspace = keyspace;
+            this.table = table;
+            this.tag = tag;
+        }
+
+        void addSnapshotDir(File snapshotDir)
+        {
+            snapshotDirs.add(snapshotDir);
+            File manifestFile = new File(snapshotDir, "manifest.json");
+            if (manifestFile.exists() && createdAt == null && expiresAt == null) {
+                loadTimestampsFromManifest(manifestFile);
+            }
+        }
+
+        private void loadTimestampsFromManifest(File manifestFile)
+        {
+            try
+            {
+                logger.info("Loading manifest from {}", manifestFile);
+                SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
+                createdAt = manifest.createdAt;
+                expiresAt = manifest.expiresAt;
+            }
+            catch (IOException e)
+            {
+                logger.warn("Cannot read manifest file {} of snapshot {}.", manifestFile, tag, e);
+            }
+        }
+
+        TableSnapshot build()
+        {
+            return new TableSnapshot(keyspace, table, tag, createdAt, expiresAt, snapshotDirs, null);
+        }
     }
 }

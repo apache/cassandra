@@ -181,6 +181,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static final boolean REQUIRE_SCHEMAS = !BOOTSTRAP_SKIP_SCHEMA_CHECK.getBoolean();
 
+    // Empty string on "nodetool clearsnapshot" means: delete-all-snapshots
+    public static final String ALL_SNAPSHOTS_TAG = "";
+
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
     private static int getRingDelay()
@@ -3985,7 +3988,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
-        if (tag == null || tag.equals(""))
+        if (tag == null || tag.equals(ALL_SNAPSHOTS_TAG))
             throw new IOException("You must supply a snapshot name.");
 
         Iterable<Keyspace> keyspaces;
@@ -4002,10 +4005,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // Do a check to see if this snapshot exists before we actually snapshot
-        for (Keyspace keyspace : keyspaces)
-            if (keyspace.snapshotExists(tag))
-                throw new IOException("Snapshot " + tag + " already exists.");
-
+        if (snapshotManager.exists(tag))
+        {
+            throw new IOException("Snapshot " + tag + " already exists.");
+        }
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
         Instant creationTime = now();
@@ -4030,6 +4033,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void takeMultipleTableSnapshot(String tag, boolean skipFlush, DurationSpec ttl, String... tableList)
             throws IOException
     {
+        if (snapshotManager.exists(tag))
+        {
+            throw new IOException("Snapshot " + tag + " already exists.");
+        }
+
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
         for (String table : tableList)
         {
@@ -4046,16 +4054,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 if (tableName == null)
                     throw new IOException("You must supply a table name");
-                if (tag == null || tag.equals(""))
+                if (tag == null || tag.equals(ALL_SNAPSHOTS_TAG))
                     throw new IOException("You must supply a snapshot name.");
 
                 Keyspace keyspace = getValidKeyspace(keyspaceName);
-                ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-                // As there can be multiple column family from same keyspace check if snapshot exist for that specific
-                // columnfamily and not for whole keyspace
-
-                if (columnFamilyStore.snapshotExists(tag))
-                    throw new IOException("Snapshot " + tag + " already exists.");
                 if (!keyspaceColumnfamily.containsKey(keyspace))
                 {
                     keyspaceColumnfamily.put(keyspace, new ArrayList<String>());
@@ -4104,47 +4106,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        if(tag == null)
-            tag = "";
-
-        Set<String> keyspaces = new HashSet<>();
-        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            for(String keyspaceDir : new File(dataDir).tryListNames())
-            {
-                // Only add a ks if it has been specified as a param, assuming params were actually provided.
-                if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
-                    continue;
-                keyspaces.add(keyspaceDir);
-            }
-        }
-
-        for (String keyspace : keyspaces)
-            Keyspace.clearSnapshot(tag, keyspace);
+        Set<String> keyspaces = new HashSet<>(Arrays.asList(keyspaceNames));
+        Collection<TableSnapshot> cleared = snapshotManager.clearSnapshots(s -> tag.equals(ALL_SNAPSHOTS_TAG) || s.getTag().equals(tag) && (keyspaces.isEmpty() || keyspaces.contains(s.getKeyspace())));
 
         if (logger.isDebugEnabled())
-            logger.debug("Cleared out snapshot directories");
+            logger.debug("Cleared snapshots: {}", cleared);
     }
 
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
-        Map<String, TabularData> snapshotMap = new HashMap<>();
-        for (Keyspace keyspace : Keyspace.all())
-        {
-            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-            {
-                for (Map.Entry<String, TableSnapshot> snapshotDetail : TableSnapshot.filter(cfStore.listSnapshots(), options).entrySet())
-                {
-                    TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshotDetail.getKey());
-                    if (data == null)
-                    {
-                        data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
-                        snapshotMap.put(snapshotDetail.getKey(), data);
-                    }
+        boolean skipExpiring = Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
 
-                    SnapshotDetailsTabularData.from(snapshotDetail.getValue(), data);
-                }
-            }
+        Map<String, TabularData> snapshotMap = new HashMap<>();
+        for (TableSnapshot s : snapshotManager.getSnapshots(s -> !skipExpiring || !s.isExpiring()))
+        {
+            TabularDataSupport data = (TabularDataSupport) snapshotMap.computeIfAbsent(s.getTag(), k -> new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE));
+            SnapshotDetailsTabularData.from(s, data);
         }
         return snapshotMap;
     }

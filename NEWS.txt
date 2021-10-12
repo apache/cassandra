@@ -160,6 +160,9 @@ New features
 
 Upgrading
 ---------
+    - Creation of snapshots with the same tag of an existing snapshot is no longer allowed. Previously it
+      was possible to create a snapshot with the same tag of another snapshot as long as the new snapshot
+      was from a different keyspace.
     - We added new JMX methods `setStreamThroughputMbitPerSec`, `getStreamThroughputMbitPerSec`, `setInterDCStreamThroughputMbitPerSec`,
       `getInterDCStreamThroughputMbitPerSec` to the JMX MBean `org.apache.cassandra.db:type=StorageService`. They replace the now
       deprecated methods `setStreamThroughputMbPerSec`, `getStreamThroughputMbPerSec`, `setInterDCStreamThroughputMbPerSec`, and
