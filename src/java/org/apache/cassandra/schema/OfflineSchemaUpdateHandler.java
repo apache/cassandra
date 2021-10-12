@@ -59,15 +59,10 @@ public class OfflineSchemaUpdateHandler implements SchemaUpdateHandler
         return true;
     }
 
-    private SharedSchema schema()
-    {
-        return schema;
-    }
-
     @Override
     public synchronized SchemaTransformationResult apply(SchemaTransformation transformation, boolean local)
     {
-        SharedSchema before = schema();
+        SharedSchema before = schema;
         Keyspaces afterKeyspaces = transformation.apply(before.getKeyspaces());
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before.getKeyspaces(), afterKeyspaces);
 
