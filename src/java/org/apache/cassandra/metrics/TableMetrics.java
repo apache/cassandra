@@ -290,7 +290,7 @@ public class TableMetrics
     {
         long total = 0;
         long filtered = 0;
-        for (String keyspace : SchemaManager.instance.getNonSystemKeyspaces())
+        for (String keyspace : SchemaManager.instance.getNonSystemKeyspaces().names())
         {
 
             Keyspace k = SchemaManager.instance.getKeyspaceInstance(keyspace);

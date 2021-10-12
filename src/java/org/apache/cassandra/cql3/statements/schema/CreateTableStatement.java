@@ -117,7 +117,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             if (Guardrails.tablesLimit.enabled(state))
             {
                 // guardrails on number of tables
-                int totalUserTables = SchemaManager.instance.getNonInternalKeyspaces().stream().map(Keyspace::open)
+                int totalUserTables = SchemaManager.instance.getNonInternalKeyspaces().names().stream().map(Keyspace::open)
                                                             .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
                                                             .sum();
                 Guardrails.tablesLimit.guard(totalUserTables + 1, tableName, false, state);

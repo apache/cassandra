@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -72,7 +72,7 @@ public class PendingRangeCalculatorService
             {
                 PendingRangeCalculatorServiceDiagnostics.taskStarted(instance, updateJobs);
                 long start = System.currentTimeMillis();
-                List<String> keyspaces = SchemaManager.instance.getNonLocalStrategyKeyspaces();
+                Collection<String> keyspaces = SchemaManager.instance.getNonLocalStrategyKeyspaces().names();
                 for (String keyspaceName : keyspaces)
                     calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
                 if (logger.isTraceEnabled())

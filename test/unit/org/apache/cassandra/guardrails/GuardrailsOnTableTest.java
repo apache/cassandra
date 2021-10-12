@@ -89,7 +89,7 @@ public class GuardrailsOnTableTest extends GuardrailTester
             Thread.sleep(1000);
         }
 
-        int currentTables = SchemaManager.instance.getNonInternalKeyspaces().stream().map(Keyspace::open)
+        int currentTables = SchemaManager.instance.getNonInternalKeyspaces().stream().map(ksm -> Keyspace.open(ksm.name))
                                                   .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size()).sum();
         long warn = currentTables + 1;
         long fail = currentTables + 3;

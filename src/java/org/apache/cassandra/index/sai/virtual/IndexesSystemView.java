@@ -91,7 +91,7 @@ public class IndexesSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        for (String ks : SchemaManager.instance.getUserKeyspaces())
+        for (String ks : SchemaManager.instance.getUserKeyspaces().names())
         {
             Keyspace keyspace = SchemaManager.instance.getKeyspaceInstance(ks);
             if (keyspace == null)

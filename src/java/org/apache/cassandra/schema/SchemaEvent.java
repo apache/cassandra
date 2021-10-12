@@ -29,7 +29,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MapDifference;
@@ -44,8 +43,8 @@ public final class SchemaEvent extends DiagnosticEvent
     private final ImmutableCollection<String> keyspaces;
     private final ImmutableMap<String, String> indexTables;
     private final ImmutableCollection<String> tables;
-    private final ImmutableList<String> nonSystemKeyspaces;
-    private final ImmutableList<String> userKeyspaces;
+    private final ImmutableCollection<String> nonSystemKeyspaces;
+    private final ImmutableCollection<String> userKeyspaces;
     private final int numberOfTables;
     private final UUID version;
 
@@ -102,18 +101,18 @@ public final class SchemaEvent extends DiagnosticEvent
         this.viewsDiff = viewsDiff;
         this.indexesDiff = indexesDiff;
 
-        this.keyspaces = schemaManager.getKeyspaces();
-        this.nonSystemKeyspaces = schemaManager.getNonSystemKeyspaces();
-        this.userKeyspaces = schemaManager.getUserKeyspaces();
+        this.keyspaces = schemaManager.sharedAndLocalKeyspaces().names();
+        this.nonSystemKeyspaces = schemaManager.sharedKeyspaces().names();
+        this.userKeyspaces = schemaManager.getUserKeyspaces().names();
         this.numberOfTables = schemaManager.getNumberOfTables();
         this.version = schemaManager.getVersion();
 
-        this.indexTables = schemaManager.snapshot().stream()
+        this.indexTables = schemaManager.sharedKeyspaces().stream()
                                         .flatMap(ks -> ks.tables.indexTables().entrySet().stream())
                                         .collect(Collectors3.toImmutableMap(e -> String.format("%s,%s", e.getValue().keyspace, e.getKey()),
                                                                             e -> String.format("%s,%s,%s", e.getValue().id.toHexString(), e.getValue().keyspace, e.getValue().name)));
 
-        this.tables = schemaManager.snapshot().stream()
+        this.tables = schemaManager.sharedKeyspaces().stream()
                                    .flatMap(ks -> StreamSupport.stream(ks.tablesAndViews().spliterator(), false))
                                    .map(e -> String.format("%s,%s,%s", e.id.toHexString(), e.keyspace, e.name))
                                    .collect(Collectors3.toImmutableList());

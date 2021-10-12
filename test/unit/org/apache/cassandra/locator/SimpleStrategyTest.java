@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -160,7 +161,7 @@ public class SimpleStrategyTest
     {
         TokenMetadata tmd;
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces())
+        for (String keyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces().names())
         {
             tmd = new TokenMetadata();
             strategy = getStrategy(keyspaceName, tmd, new SimpleSnitch());
@@ -188,7 +189,7 @@ public class SimpleStrategyTest
     public void testSimpleStrategyKeyspacesArePartitioned()
     {
         //local strategy keyspaces should not be returned here since they are not partitioned
-        List<String> partitionedKeyspaces = SchemaManager.instance.getPartitionedKeyspaces();
+        Collection<String> partitionedKeyspaces = SchemaManager.instance.getPartitionedKeyspaces().names();
         assertEquals(2, partitionedKeyspaces.size());
         assertEquals(Sets.newHashSet(KEYSPACE1, MULTIDC), Sets.newHashSet(partitionedKeyspaces));
     }
@@ -224,7 +225,7 @@ public class SimpleStrategyTest
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
-        for (String keyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces())
+        for (String keyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd, new SimpleSnitch());
 

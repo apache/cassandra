@@ -765,12 +765,12 @@ public class Keyspace
 
     public static Iterable<Keyspace> nonSystem()
     {
-        return Iterables.transform(SchemaManager.instance.getNonSystemKeyspaces(), Keyspace::open);
+        return Iterables.transform(SchemaManager.instance.getNonSystemKeyspaces().names(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> nonLocalStrategy()
     {
-        return Iterables.transform(SchemaManager.instance.getNonLocalStrategyKeyspaces(), Keyspace::open);
+        return Iterables.transform(SchemaManager.instance.getNonLocalStrategyKeyspaces().names(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> system()
