@@ -26,6 +26,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -47,7 +49,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
@@ -55,10 +56,9 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import javax.annotation.Nullable;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.junit.Assert.assertEquals;
@@ -194,7 +194,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
     {
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP,
                                                                     1,
-                                                                    new DefaultConnectionFactory(),
+                                                                    new NettyStreamingConnectionFactory(),
                                                                     false,
                                                                     false,
                                                                     null,
@@ -213,7 +213,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                          Collections.emptyList(),
                                                          StreamSession.State.INITIALIZED));
 
-        StreamSession session = streamCoordinator.getOrCreateNextSession(peer);
+        StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);
 
         return session;

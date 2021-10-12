@@ -41,9 +41,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class CompactionLogger
 {
@@ -103,7 +109,7 @@ public class CompactionLogger
 
     private static final JsonNodeFactory json = JsonNodeFactory.instance;
     private static final Logger logger = LoggerFactory.getLogger(CompactionLogger.class);
-    private static final Writer serializer = new CompactionLogSerializer();
+    private static final CompactionLogSerializer serializer = new CompactionLogSerializer();
     private final WeakReference<ColumnFamilyStore> cfsRef;
     private final WeakReference<CompactionStrategyManager> csmRef;
     private final AtomicInteger identifier = new AtomicInteger(0);
@@ -220,7 +226,7 @@ public class CompactionLogger
             return;
         node.put("keyspace", cfs.keyspace.getName());
         node.put("table", cfs.getTableName());
-        node.put("time", System.currentTimeMillis());
+        node.put("time", currentTimeMillis());
     }
 
     private JsonNode startStrategies()
@@ -295,7 +301,7 @@ public class CompactionLogger
     private static class CompactionLogSerializer implements Writer
     {
         private static final String logDirectory = System.getProperty("cassandra.logdir", ".");
-        private final ExecutorService loggerService = Executors.newFixedThreadPool(1);
+        private final ExecutorPlus loggerService = executorFactory().sequential("CompactionLogger");
         // This is only accessed on the logger service thread, so it does not need to be thread safe
         private final Set<Object> rolled = new HashSet<>();
         private OutputStreamWriter stream;
@@ -303,13 +309,13 @@ public class CompactionLogger
         private static OutputStreamWriter createStream() throws IOException
         {
             int count = 0;
-            Path compactionLog = Paths.get(logDirectory, "compaction.log");
+            Path compactionLog = new File(logDirectory, "compaction.log").toPath();
             if (Files.exists(compactionLog))
             {
                 Path tryPath = compactionLog;
                 while (Files.exists(tryPath))
                 {
-                    tryPath = Paths.get(logDirectory, String.format("compaction-%d.log", count++));
+                    tryPath = new File(logDirectory, String.format("compaction-%d.log", count++)).toPath();
                 }
                 Files.move(compactionLog, tryPath);
             }
@@ -357,4 +363,10 @@ public class CompactionLogger
             });
         }
     }
+
+    public static void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, serializer.loggerService);
+    }
+
 }

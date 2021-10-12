@@ -21,6 +21,7 @@ package org.apache.cassandra.net;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +37,7 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertFalse;
 
 public class AsyncStreamingInputPlusTest
@@ -183,13 +185,13 @@ public class AsyncStreamingInputPlusTest
         consumeUntilTestCycle(2, 8, 0, 16);
     }
 
-    @Test(expected = EOFException.class)
+    @Test(expected = ClosedChannelException.class)
     public void consumeUntil_SingleBuffer_Fails() throws IOException
     {
         consumeUntilTestCycle(1, 8, 0, 9);
     }
 
-    @Test(expected = EOFException.class)
+    @Test(expected = ClosedChannelException.class)
     public void consumeUntil_MultipleBuffer_Fails() throws IOException
     {
         consumeUntilTestCycle(2, 8, 0, 17);
@@ -263,7 +265,7 @@ public class AsyncStreamingInputPlusTest
         long timeoutMillis = 1000;
         inputPlus = new AsyncStreamingInputPlus(channel, timeoutMillis, TimeUnit.MILLISECONDS);
 
-        long startNanos = System.nanoTime();
+        long startNanos = nanoTime();
         try
         {
             inputPlus.readInt();
@@ -274,7 +276,7 @@ public class AsyncStreamingInputPlusTest
             // this is the success case, and is expected. any other exception is a failure.
         }
 
-        long durationNanos = System.nanoTime() - startNanos;
+        long durationNanos = nanoTime() - startNanos;
         Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
     }
 }

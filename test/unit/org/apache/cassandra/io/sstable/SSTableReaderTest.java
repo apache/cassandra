@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -26,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -496,7 +496,7 @@ public class SSTableReaderTest
         // check that only the summary is regenerated when it is deleted
         components.add(Component.FILTER);
         summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
-        summaryFile.delete();
+        summaryFile.tryDelete();
 
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
         bloomModified = Files.getLastModifiedTime(bloomPath).toMillis();
@@ -794,7 +794,7 @@ public class SSTableReaderTest
         SSTableReader sstable = getNewSSTable(cfs);
         cfs.clearUnsafe();
         sstable.selfRef().release();
-        File tmpdir = Files.createTempDirectory("testMoveAndOpen").toFile();
+        File tmpdir = new File(Files.createTempDirectory("testMoveAndOpen"));
         tmpdir.deleteOnExit();
         Descriptor notLiveDesc = new Descriptor(tmpdir, sstable.descriptor.ksname, sstable.descriptor.cfname, 100);
         // make sure the new directory is empty and that the old files exist:
@@ -861,7 +861,7 @@ public class SSTableReaderTest
 
         // delete the compression info, so it is corrupted.
         File compressionInfoFile = new File(desc.filenameFor(Component.COMPRESSION_INFO));
-        compressionInfoFile.delete();
+        compressionInfoFile.tryDelete();
         assertFalse("CompressionInfo file should not exist", compressionInfoFile.exists());
 
         // discovert the components on disk after deletion
@@ -881,7 +881,7 @@ public class SSTableReaderTest
 
         // mark the toc file not readable in order to trigger the FSReadError
         File tocFile = new File(desc.filenameFor(Component.TOC));
-        tocFile.setReadable(false);
+        tocFile.trySetReadable(false);
 
         expectedException.expect(FSReadError.class);
         expectedException.expectMessage("TOC.txt");

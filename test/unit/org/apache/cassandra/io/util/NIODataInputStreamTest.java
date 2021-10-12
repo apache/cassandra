@@ -25,7 +25,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -41,6 +40,7 @@ import com.google.common.primitives.UnsignedBytes;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 public class NIODataInputStreamTest
@@ -51,7 +51,7 @@ public class NIODataInputStreamTest
 
     void init()
     {
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         //seed = 365238103404423L;
         System.out.println("Seed " + seed);
         r = new Random(seed);
@@ -223,7 +223,7 @@ public class NIODataInputStreamTest
         assertEquals(8190 - 10 - 4096, is.available());
 
         File f = FileUtils.createTempFile("foo", "bar");
-        RandomAccessFile fos = new RandomAccessFile(f, "rw");
+        RandomAccessFile fos = new RandomAccessFile(f.toJavaIOFile(), "rw");
         fos.write(new byte[10]);
         fos.seek(0);
 

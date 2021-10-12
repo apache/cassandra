@@ -159,7 +159,7 @@ public class OutboundConnectionSettings
 
     public boolean authenticate()
     {
-        return authenticator.authenticate(to.address, to.port);
+        return authenticator.authenticate(to.getAddress(), to.getPort());
     }
 
     public boolean withEncryption()

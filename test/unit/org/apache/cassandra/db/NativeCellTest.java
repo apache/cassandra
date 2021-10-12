@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.NativeAllocator;
@@ -47,7 +48,7 @@ public class NativeCellTest
     private static final NativeAllocator nativeAllocator = new NativePool(Integer.MAX_VALUE,
                                                                           Integer.MAX_VALUE,
                                                                           1f,
-                                                                          () -> CompletableFuture.completedFuture(true)).newAllocator();
+                                                                          () -> ImmediateFuture.success(true)).newAllocator(null);
     @SuppressWarnings("resource")
     private static final OpOrder.Group group = new OpOrder().start();
     private static Random rand;

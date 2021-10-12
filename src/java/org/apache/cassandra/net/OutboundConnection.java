@@ -23,7 +23,6 @@ import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,7 +33,9 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +56,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -68,6 +70,7 @@ import static org.apache.cassandra.net.SocketFactory.*;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 /**
  * Represents a connection type to a peer, and handles the state transistions on the connection and the netty {@link Channel}.
@@ -1031,7 +1034,7 @@ public class OutboundConnection
                 }
                 catch (InterruptedException e)
                 {
-                    throw new RuntimeException(e);
+                    throw new UncheckedInterruptedException(e);
                 }
             });
         }
@@ -1097,7 +1100,7 @@ public class OutboundConnection
 
                 if (hasPending())
                 {
-                    Promise<Result<MessagingSuccess>> result = new AsyncPromise<>(eventLoop);
+                    Promise<Result<MessagingSuccess>> result = AsyncPromise.withExecutor(eventLoop);
                     state = new Connecting(state.disconnected(), result, eventLoop.schedule(() -> attempt(result), max(100, retryRateMillis), MILLISECONDS));
                     retryRateMillis = min(1000, retryRateMillis * 2);
                 }
@@ -1226,7 +1229,7 @@ public class OutboundConnection
 
             Future<Result<MessagingSuccess>> initiate()
             {
-                Promise<Result<MessagingSuccess>> result = new AsyncPromise<>(eventLoop);
+                Promise<Result<MessagingSuccess>> result = AsyncPromise.withExecutor(eventLoop);
                 state = new Connecting(state.disconnected(), result);
                 attempt(result);
                 return result;
@@ -1514,13 +1517,12 @@ public class OutboundConnection
 
         Runnable clearQueue = () ->
         {
-            CountDownLatch done = new CountDownLatch(1);
+            CountDownLatch done = newCountDownLatch(1);
             queue.runEventually(withLock -> {
                 withLock.consume(this::onClosed);
-                done.countDown();
+                done.decrement();
             });
-            //noinspection UnstableApiUsage
-            Uninterruptibles.awaitUninterruptibly(done);
+            done.awaitUninterruptibly();
         };
 
         if (flushQueue)

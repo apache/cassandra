@@ -24,18 +24,23 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * A thread that reclaims memory from a MemtablePool on demand.  The actual reclaiming work is delegated to the
  * cleaner Runnable, e.g., FlushLargestColumnFamily
  */
-public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopExecutor
+public class MemtableCleanerThread<P extends MemtablePool> implements Interruptible
 {
     private static final Logger logger = LoggerFactory.getLogger(MemtableCleanerThread.class);
 
-    public static class Clean<P extends MemtablePool> implements InterruptibleRunnable
+    private static class Clean<P extends MemtablePool> implements Interruptible.SimpleTask
     {
         /** This is incremented when a cleaner is invoked and decremented when a cleaner has completed */
         final AtomicInteger numPendingTasks = new AtomicInteger(0);
@@ -47,7 +52,7 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
         final MemtableCleaner cleaner;
 
         /** signalled whenever needsCleaning() may return true */
-        final WaitQueue wait = new WaitQueue();
+        final WaitQueue wait = newWaitQueue();
 
         private Clean(P pool, MemtableCleaner cleaner)
         {
@@ -79,7 +84,7 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
                 if (logger.isTraceEnabled())
                     logger.trace("Invoking cleaner with {} tasks pending", numPendingTasks);
 
-                cleaner.clean().handle(this::apply);
+                cleaner.clean().addCallback(this::apply);
             }
         }
 
@@ -98,14 +103,20 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
 
             return res;
         }
+
+        public String toString()
+        {
+            return pool.toString() + ' ' + cleaner.toString();
+        }
     }
 
+    private final Interruptible executor;
     private final Runnable trigger;
     private final Clean<P> clean;
 
     private MemtableCleanerThread(Clean<P> clean)
     {
-        super(clean.pool.getClass().getSimpleName() + "Cleaner", clean);
+        this.executor = executorFactory().infiniteLoop(clean.pool.getClass().getSimpleName() + "Cleaner", clean, true);
         this.trigger = clean.wait::signal;
         this.clean = clean;
     }
@@ -126,5 +137,35 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
     public int numPendingTasks()
     {
         return clean.numPendingTasks();
+    }
+
+    @Override
+    public void interrupt()
+    {
+        executor.interrupt();
+    }
+
+    @Override
+    public boolean isTerminated()
+    {
+        return executor.isTerminated();
+    }
+
+    @Override
+    public void shutdown()
+    {
+        executor.shutdown();
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        return executor.shutdownNow();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        return executor.awaitTermination(timeout, units);
     }
 }

@@ -18,7 +18,7 @@
 package org.apache.cassandra.streaming.messages;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 
 public class CompleteMessage extends StreamMessage
@@ -30,7 +30,7 @@ public class CompleteMessage extends StreamMessage
             return new CompleteMessage();
         }
 
-        public void serialize(CompleteMessage message, DataOutputStreamPlus out, int version, StreamSession session) {}
+        public void serialize(CompleteMessage message, StreamingDataOutputPlus out, int version, StreamSession session) {}
 
         public long serializedSize(CompleteMessage message, int version)
         {

@@ -19,6 +19,14 @@
 version: 2.1
 
 default_env_vars: &default_env_vars
+
+    # The values of some of these environment variables are meant to be frequently changed by developers.
+    # The generate.sh script contains a list of accepted environment variables that should contain some of
+    # these variables. Also, some variables are mentioned in the documentation, at least in
+    # .circleci/readme.md and in doc/source/development/testing.rst.
+    # If you modify these variables, or if you add new variables whose values are meant to be changed frequently,
+    # please remember to modify the generate.sh script and the documentation accordingly.
+
     ANT_HOME: /usr/share/ant
     JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64

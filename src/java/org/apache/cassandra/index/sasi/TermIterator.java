@@ -24,9 +24,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
@@ -34,10 +34,16 @@ import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.lang.String.format;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode.CONTAINS;
+import static org.apache.cassandra.index.sasi.plan.Expression.Op.PREFIX;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class TermIterator extends RangeIterator<Long, Token>
 {
@@ -53,16 +59,8 @@ public class TermIterator extends RangeIterator<Long, Token>
             logger.info("Search Concurrency Factor is set to {} for {}", concurrencyFactor, currentThread);
 
             return (concurrencyFactor <= 1)
-                    ? MoreExecutors.newDirectExecutorService()
-                    : Executors.newFixedThreadPool(concurrencyFactor, new ThreadFactory()
-            {
-                public final AtomicInteger count = new AtomicInteger();
-
-                public Thread newThread(Runnable task)
-                {
-                    return NamedThreadFactory.createThread(task, currentThread + "-SEARCH-" + count.incrementAndGet(), true);
-                }
-            });
+                    ? ImmediateExecutor.INSTANCE
+                    : executorFactory().pooled(currentThread + "-SEARCH-", concurrencyFactor);
         }
     };
 
@@ -99,14 +97,14 @@ public class TermIterator extends RangeIterator<Long, Token>
 
         try
         {
-            final CountDownLatch latch = new CountDownLatch(perSSTableIndexes.size());
+            final CountDownLatch latch = newCountDownLatch(perSSTableIndexes.size());
             final ExecutorService searchExecutor = SEARCH_EXECUTOR.get();
 
             for (final SSTableIndex index : perSSTableIndexes)
             {
-                if (e.getOp() == Expression.Op.PREFIX &&
-                    index.mode() == OnDiskIndexBuilder.Mode.CONTAINS && !index.hasMarkedPartials())
-                    throw new UnsupportedOperationException(String.format("The index %s has not yet been upgraded " +
+                if (e.getOp() == PREFIX &&
+                    index.mode() == CONTAINS && !index.hasMarkedPartials())
+                    throw new UnsupportedOperationException(format("The index %s has not yet been upgraded " +
                                                                           "to support prefix queries in CONTAINS mode. " +
                                                                           "Wait for compaction or rebuild the index.",
                                                                           index.getPath()));
@@ -114,7 +112,7 @@ public class TermIterator extends RangeIterator<Long, Token>
 
                 if (!index.reference())
                 {
-                    latch.countDown();
+                    latch.decrement();
                     continue;
                 }
 
@@ -142,16 +140,16 @@ public class TermIterator extends RangeIterator<Long, Token>
                         releaseIndex(referencedIndexes, index);
 
                         if (logger.isDebugEnabled())
-                            logger.debug(String.format("Failed search an index %s, skipping.", index.getPath()), e1);
+                            logger.debug(format("Failed search an index %s, skipping.", index.getPath()), e1);
                     }
                     finally
                     {
-                        latch.countDown();
+                        latch.decrement();
                     }
                 });
             }
 
-            Uninterruptibles.awaitUninterruptibly(latch);
+            latch.awaitUninterruptibly();
 
             // checkpoint right away after all indexes complete search because we might have crossed the quota
             e.checkpoint();

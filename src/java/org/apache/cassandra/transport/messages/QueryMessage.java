@@ -35,6 +35,8 @@ import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * A CQL query
  */
@@ -90,6 +92,12 @@ public class QueryMessage extends Message.Request
     }
 
     @Override
+    protected boolean isTrackable()
+    {
+        return true;
+    }
+
+    @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         CQLStatement statement = null;
@@ -101,7 +109,7 @@ public class QueryMessage extends Message.Request
             if (traceRequest)
                 traceQuery(state);
 
-            long queryStartTime = System.currentTimeMillis();
+            long queryStartTime = currentTimeMillis();
 
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();
             statement = queryHandler.parse(query, state, options);

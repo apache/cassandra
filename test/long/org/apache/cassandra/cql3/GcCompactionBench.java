@@ -46,6 +46,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class GcCompactionBench extends CQLTester
 {
     private static final String SIZE_TIERED_STRATEGY = "SizeTieredCompactionStrategy', 'min_sstable_size' : '0";
@@ -183,9 +185,9 @@ public class GcCompactionBench extends CQLTester
             if (ii % (FLUSH_FREQ * 10) == 0)
             {
                 System.out.println("C");
-                long startTime = System.nanoTime();
+                long startTime = nanoTime();
                 getCurrentColumnFamilyStore().enableAutoCompaction(true);
-                long endTime = System.nanoTime();
+                long endTime = nanoTime();
                 compactionTimeNanos += endTime - startTime;
                 getCurrentColumnFamilyStore().disableAutoCompaction();
             }

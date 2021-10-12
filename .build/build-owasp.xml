@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<project basedir="." name="apache-cassandra-owasp-tasks">
+    <property name="dependency-check.version" value="6.3.2"/>
+    <property name="dependency-check.home" value="${build.dir}/dependency-check-ant-${dependency-check.version}"/>
+
+    <condition property="is.dependency.check.jar">
+        <available file="${dependency-check.home}/dependency-check-ant/dependency-check-ant.jar" type="file" />
+    </condition>
+
+    <target name="dependency-check-download"
+            depends="build"
+            description="Fetch OWASP Dependency checker"
+            unless="is.dependency.check.jar">
+
+        <echo>Downloading OWASP Dependency checks ...</echo>
+
+        <mkdir dir="${dependency-check.home}"/>
+
+        <get src="https://github.com/jeremylong/DependencyCheck/releases/download/v${dependency-check.version}/dependency-check-ant-${dependency-check.version}-release.zip"
+             dest="${dependency-check.home}/dependency-check-ant-${dependency-check.version}-release.zip"/>
+
+        <unzip src="${dependency-check.home}/dependency-check-ant-${dependency-check.version}-release.zip" dest="${dependency-check.home}"/>
+    </target>
+
+    <target name="dependency-check" description="Dependency-Check Analysis" depends="dependency-check-download,resolver-dist-lib">
+
+        <path id="dependency-check.path">
+            <fileset dir="${dependency-check.home}/dependency-check-ant/lib">
+                <include name="*.jar"/>
+            </fileset>
+        </path>
+
+        <taskdef resource="dependency-check-taskdefs.properties">
+            <classpath refid="dependency-check.path" />
+        </taskdef>
+
+        <!--
+            default value for cveValidForHours is 4 after which sync is done again
+
+            skipping using two specific caches at the end is solving (1)
+
+            failBuildOnCVSS is by default 11 so build would never fail,
+            the table categorising vulnerabilities is here (2), so by setting
+            "failBuildOnCVSS" to 1, we will fail the build on any CVE found
+            if it is not suppressed already dependency-check-suppressions.xml
+
+            If a vendor provides no details about a vulnerability,
+            NVD will score that vulnerability as 10.0 (the highest rating translating to critical).
+
+            (1) https://github.com/jeremylong/DependencyCheck/issues/2166
+            (2) https://nvd.nist.gov/vuln-metrics/cvss
+        -->
+        <dependency-check projectname="Apache Cassandra"
+                          reportoutputdirectory="${basedir}/build"
+                          reportformat="HTML"
+                          prettyPrint="true"
+                          cveValidForHours="1"
+                          centralAnalyzerUseCache="false"
+                          nodeAuditAnalyzerUseCache="false"
+                          failBuildOnCVSS="1"
+                          assemblyAnalyzerEnabled="false"
+                          dataDirectory="${dependency-check.home}/data"
+                          suppressionFile="${basedir}/.build/dependency-check-suppressions.xml">
+            <fileset dir="lib">
+                <include name="**/*.jar"/>
+            </fileset>
+        </dependency-check>
+    </target>
+</project>

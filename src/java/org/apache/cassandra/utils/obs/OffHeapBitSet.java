@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.utils.obs;
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
+import java.io.*;
 import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -145,7 +143,7 @@ public class OffHeapBitSet implements IBitSet
     }
 
     @SuppressWarnings("resource")
-    public static OffHeapBitSet deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
+    public static <I extends InputStream & DataInput> OffHeapBitSet deserialize(I in, boolean oldBfFormat) throws IOException
     {
         long byteCount = in.readInt() * 8L;
         Memory memory = Memory.allocate(byteCount);

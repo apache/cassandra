@@ -25,7 +25,6 @@ import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +38,11 @@ import org.slf4j.LoggerFactory;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * Archives binary log files immediately when they are rolled using a configure archive command.
@@ -57,7 +61,7 @@ public class ExternalArchiver implements BinLogArchiver
      */
     private final DelayQueue<DelayFile> archiveQueue = new DelayQueue<>();
     private final String archiveCommand;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(new NamedThreadFactory("BinLogArchiver"));
+    private final ExecutorService executor = executorFactory().sequential("BinLogArchiver");
     private final Path path;
     /**
      * for testing, to be able to make sure that the command is executed
@@ -134,7 +138,11 @@ public class ExternalArchiver implements BinLogArchiver
             // and try to archive all remaining files before exiting
             archiveExisting(path);
         }
-        catch (InterruptedException | ExecutionException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
         {
             throw new RuntimeException(e);
         }
@@ -184,12 +192,12 @@ public class ExternalArchiver implements BinLogArchiver
         public DelayFile(File file, long delay, TimeUnit delayUnit, int retries)
         {
             this.file = file;
-            this.delayTime = System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(delay, delayUnit);
+            this.delayTime = currentTimeMillis() + MILLISECONDS.convert(delay, delayUnit);
             this.retries = retries;
         }
         public long getDelay(TimeUnit unit)
         {
-            return unit.convert(delayTime - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+            return unit.convert(delayTime - currentTimeMillis(), TimeUnit.MILLISECONDS);
         }
 
         public int compareTo(Delayed o)

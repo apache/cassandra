@@ -22,10 +22,13 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +52,8 @@ import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * State related to a client connection.
@@ -198,7 +203,7 @@ public class ClientState
     {
         while (true)
         {
-            long current = System.currentTimeMillis() * 1000;
+            long current = currentTimeMillis() * 1000;
             long last = lastTimestampMicros.get();
             long tstamp = last >= current ? last + 1 : current;
             if (lastTimestampMicros.compareAndSet(last, tstamp))
@@ -248,11 +253,11 @@ public class ClientState
      * it may be returned multiple times). Note that we still ensure Paxos "ballot" are unique (for different
      * proposal) by (securely) randomizing the non-timestamp part of the UUID.
      */
-    public long getTimestampForPaxos(long minTimestampToUse)
+    public static long getTimestampForPaxos(long minTimestampToUse)
     {
         while (true)
         {
-            long current = Math.max(System.currentTimeMillis() * 1000, minTimestampToUse);
+            long current = Math.max(currentTimeMillis() * 1000, minTimestampToUse);
             long last = lastTimestampMicros.get();
             long tstamp = last >= current ? last + 1 : current;
             // Note that if we ended up picking minTimestampMicrosToUse (it was "in the future"), we don't
@@ -262,6 +267,11 @@ public class ClientState
             if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
+    }
+
+    public static long getLastTimestampMicros()
+    {
+        return lastTimestampMicros.get();
     }
 
     public Optional<String> getDriverName()
@@ -423,7 +433,11 @@ public class ClientState
 
     private void ensurePermissionOnResourceChain(Permission perm, IResource resource)
     {
-        for (IResource r : Resources.chain(resource))
+        List<? extends IResource> resources = Resources.chain(resource);
+        if (DatabaseDescriptor.getAuthFromRoot())
+            resources = Lists.reverse(resources);
+
+        for (IResource r : resources)
             if (authorize(r).contains(perm))
                 return;
 

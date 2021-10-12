@@ -224,7 +224,7 @@ public class SamplerTest
     public void waitForEmpty(int timeoutMs) throws TimeoutException
     {
         int timeout = 0;
-        while (!Sampler.samplerExecutor.getQueue().isEmpty())
+        while (Sampler.samplerExecutor.getPendingTaskCount() > 0)
         {
             timeout++;
             Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);

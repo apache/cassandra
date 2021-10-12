@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -49,10 +48,13 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Utility to write SSTables.
@@ -239,7 +241,7 @@ public class CQLSSTableWriter implements Closeable
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
         SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
 
-        long now = System.currentTimeMillis();
+        long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(insert.metadata,
@@ -377,7 +379,7 @@ public class CQLSSTableWriter implements Closeable
         {
             if (!directory.exists())
                 throw new IllegalArgumentException(directory + " doesn't exists");
-            if (!directory.canWrite())
+            if (!directory.isWritable())
                 throw new IllegalArgumentException(directory + " exists but is not writable");
 
             this.directory = directory;

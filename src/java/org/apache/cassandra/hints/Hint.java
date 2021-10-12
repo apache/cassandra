@@ -19,7 +19,6 @@ package org.apache.cassandra.hints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
@@ -34,11 +33,14 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.vint.VIntCoding;
 import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Encapsulates the hinted mutation, its creation time, and the gc grace seconds param for each table involved.
@@ -93,7 +95,7 @@ public final class Hint
     /**
      * Applies the contained mutation unless it's expired, filtering out any updates for truncated tables
      */
-    CompletableFuture<?> applyFuture()
+    Future<?> applyFuture()
     {
         if (isLive())
         {
@@ -107,7 +109,7 @@ public final class Hint
                 return filtered.applyFuture();
         }
 
-        return CompletableFuture.completedFuture(null);
+        return ImmediateFuture.success(null);
     }
 
     void apply()
@@ -135,7 +137,7 @@ public final class Hint
      */
     public boolean isLive()
     {
-        return isLive(creationTime, System.currentTimeMillis(), ttl());
+        return isLive(creationTime, currentTimeMillis(), ttl());
     }
 
     static boolean isLive(long creationTime, long now, int hintTTL)

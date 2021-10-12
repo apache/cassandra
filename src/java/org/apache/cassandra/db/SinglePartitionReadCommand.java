@@ -848,6 +848,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             long currentMaxTs = sstable.getMaxTimestamp();
             filter = reduceFilter(filter, result, currentMaxTs);
+
             if (filter == null)
                 break;
 
@@ -940,7 +941,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
     }
 
-    private ClusteringIndexNamesFilter reduceFilter(ClusteringIndexNamesFilter filter, Partition result, long sstableTimestamp)
+    private ClusteringIndexNamesFilter reduceFilter(ClusteringIndexNamesFilter filter, ImmutableBTreePartition result, long sstableTimestamp)
     {
         if (result == null)
             return filter;
@@ -966,6 +967,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         NavigableSet<Clustering<?>> toRemove = null;
+
+        DeletionInfo deletionInfo = result.deletionInfo();
+
+        if (deletionInfo.hasRanges())
+        {
+            for (Clustering<?> clustering : clusterings)
+            {
+                RangeTombstone rt = deletionInfo.rangeCovering(clustering);
+                if (rt != null && rt.deletionTime().deletes(sstableTimestamp))
+                {
+                    if (toRemove == null)
+                        toRemove = new TreeSet<>(result.metadata().comparator);
+                    toRemove.add(clustering);
+                }
+            } 
+        }
+
         try (UnfilteredRowIterator iterator = result.unfilteredIterator(columnFilter(), clusterings, false))
         {
             while (iterator.hasNext())
@@ -1016,10 +1034,21 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     private boolean isRowComplete(Row row, Columns requestedColumns, long sstableTimestamp)
     {
+        // Static rows do not have row deletion or primary key liveness info
+        if (!row.isStatic())
+        {
+            // If the row has been deleted or is part of a range deletion we know that we have enough information and can
+            // stop at this point.
+            // Note that deleted rows in compact tables (non static) do not have a row deletion. Single column
+            // cells are deleted instead. By consequence this check will not work for those, but the row will appear as complete later on
+            // in the method.
+            if (!row.deletion().isLive() && row.deletion().time().deletes(sstableTimestamp))
+                return true;
 
-        // Note that compact tables will always have an empty primary key liveness info.
-        if (!metadata().isCompactTable() && (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp))
-            return false;
+            // Note that compact tables will always have an empty primary key liveness info.
+            if (!metadata().isCompactTable() && (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp))
+                return false;
+        }
 
         for (ColumnMetadata column : requestedColumns)
         {

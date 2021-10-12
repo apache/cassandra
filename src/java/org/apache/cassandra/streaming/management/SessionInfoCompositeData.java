@@ -90,10 +90,10 @@ public class SessionInfoCompositeData
     {
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());
-        valueMap.put(ITEM_NAMES[1], sessionInfo.peer.address.getHostAddress());
-        valueMap.put(ITEM_NAMES[2], sessionInfo.peer.port);
-        valueMap.put(ITEM_NAMES[3], sessionInfo.connecting.address.getHostAddress());
-        valueMap.put(ITEM_NAMES[4], sessionInfo.connecting.port);
+        valueMap.put(ITEM_NAMES[1], sessionInfo.peer.getAddress().getHostAddress());
+        valueMap.put(ITEM_NAMES[2], sessionInfo.peer.getPort());
+        valueMap.put(ITEM_NAMES[3], sessionInfo.connecting.getAddress().getHostAddress());
+        valueMap.put(ITEM_NAMES[4], sessionInfo.connecting.getPort());
         Function<StreamSummary, CompositeData> fromStreamSummary = new Function<StreamSummary, CompositeData>()
         {
             public CompositeData apply(StreamSummary input)

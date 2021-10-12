@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOError;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.io.*;
+
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -28,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -41,6 +44,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
@@ -199,7 +203,10 @@ public class Scrubber implements Closeable
                 DecoratedKey key = null;
                 try
                 {
-                    key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
+                    ByteBuffer raw = ByteBufferUtil.readWithShortLength(dataFile);
+                    if (!cfs.metadata.getLocal().isIndex())
+                        cfs.metadata.getLocal().partitionKeyType.validate(raw);
+                    key = sstable.decorateKey(raw);
                 }
                 catch (Throwable th)
                 {
@@ -258,6 +265,8 @@ public class Scrubber implements Closeable
                         key = sstable.decorateKey(currentIndexKey);
                         try
                         {
+                            if (!cfs.metadata.getLocal().isIndex())
+                                cfs.metadata.getLocal().partitionKeyType.validate(key.getKey());
                             dataFile.seek(dataStartFromIndex);
 
                             if (tryAppend(prevKey, key, writer))

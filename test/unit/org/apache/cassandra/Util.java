@@ -21,7 +21,6 @@ package org.apache.cassandra;
 
 import java.io.Closeable;
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOError;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -38,6 +37,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
@@ -792,11 +792,11 @@ public class Util
         int fileCount = 0;
         for (File f : cfs.getDirectories().getCFDirectories())
         {
-            for (File sst : f.listFiles())
+            for (File sst : f.tryList())
             {
-                if (sst.getName().contains("Data"))
+                if (sst.name().contains("Data"))
                 {
-                    Descriptor d = Descriptor.fromFilename(sst.getAbsolutePath());
+                    Descriptor d = Descriptor.fromFilename(sst.absolutePath());
                     assertTrue(liveGenerations.contains(d.generation));
                     fileCount++;
                 }

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,6 +33,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
+import org.apache.cassandra.io.util.File;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -403,7 +403,7 @@ public class CompactionStrategyManagerTest
         Directories.DataDirectory[] directories = new Directories.DataDirectory[disks];
         for (int i = 0; i < disks; ++i)
         {
-            File tempDir = Files.createTempDir();
+            File tempDir = new File(Files.createTempDir());
             tempDir.deleteOnExit();
             directories[i] = new Directories.DataDirectory(tempDir);
         }

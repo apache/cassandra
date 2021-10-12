@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +65,7 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import static java.lang.Math.min;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
@@ -259,7 +261,7 @@ public class ConnectionBurnTest
             Reporters reporters = new Reporters(endpoints, connections);
             try
             {
-                long deadline = System.nanoTime() + runForNanos;
+                long deadline = nanoTime() + runForNanos;
                 Verb._TEST_2.unsafeSetHandler(() -> message -> {});
                 Verb._TEST_2.unsafeSetSerializer(() -> serializer);
                 inbound.sockets.open().get();
@@ -345,7 +347,7 @@ public class ConnectionBurnTest
                 executor.execute(() -> {
                     Thread.currentThread().setName("Test-Reconnect");
                     ThreadLocalRandom random = ThreadLocalRandom.current();
-                    while (deadline > System.nanoTime())
+                    while (deadline > nanoTime())
                     {
                         try
                         {
@@ -411,7 +413,7 @@ public class ConnectionBurnTest
                     };
 
                     int count = 0;
-                    while (deadline > System.nanoTime())
+                    while (deadline > nanoTime())
                     {
 
                         try
@@ -465,7 +467,7 @@ public class ConnectionBurnTest
                     }
                 });
 
-                while (deadline > System.nanoTime() && failed.getCount() > 0)
+                while (deadline > nanoTime() && failed.getCount() > 0)
                 {
                     reporters.update();
                     reporters.print();
@@ -481,7 +483,7 @@ public class ConnectionBurnTest
                 reporters.print();
 
                 inbound.sockets.close().get();
-                new FutureCombiner(Arrays.stream(connections)
+                FutureCombiner.allOf(Arrays.stream(connections)
                                          .map(c -> c.outbound.close(false))
                                          .collect(Collectors.toList()))
                 .get();

@@ -35,13 +35,14 @@ import com.datastax.shaded.netty.channel.socket.SocketChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeSSTableLoaderClient;
 import org.apache.cassandra.utils.OutputHandler;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BulkLoader
 {
@@ -56,7 +57,7 @@ public class BulkLoader
         DatabaseDescriptor.toolInitialization();
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
-                options.directory.getAbsoluteFile(),
+                options.directory.toAbsolute(),
                 new ExternalClient(
                         options.hosts,
                         options.storagePort,
@@ -127,11 +128,11 @@ public class BulkLoader
         private long peak = 0;
         private int totalFiles = 0;
 
-        private final Multimap<InetAddressAndPort, SessionInfo> sessionsByHost = HashMultimap.create();
+        private final Multimap<InetSocketAddress, SessionInfo> sessionsByHost = HashMultimap.create();
 
         public ProgressIndicator()
         {
-            start = lastTime = System.nanoTime();
+            start = lastTime = nanoTime();
         }
 
         public void onSuccess(StreamState finalState)
@@ -157,7 +158,7 @@ public class BulkLoader
                     progressInfo = ((StreamEvent.ProgressEvent) event).progress;
                 }
 
-                long time = System.nanoTime();
+                long time = nanoTime();
                 long deltaTime = time - lastTime;
 
                 StringBuilder sb = new StringBuilder();
@@ -168,7 +169,7 @@ public class BulkLoader
 
                 boolean updateTotalFiles = totalFiles == 0;
                 // recalculate progress across all sessions in all hosts and display
-                for (InetAddressAndPort peer : sessionsByHost.keySet())
+                for (InetSocketAddress peer : sessionsByHost.keySet())
                 {
                     sb.append("[").append(peer).append("]");
 
@@ -230,7 +231,7 @@ public class BulkLoader
 
         private void printSummary(int connectionsPerHost)
         {
-            long end = System.nanoTime();
+            long end = nanoTime();
             long durationMS = ((end - start) / (1000000));
 
             StringBuilder sb = new StringBuilder();
@@ -299,7 +300,7 @@ public class BulkLoader
         }
 
         @Override
-        public StreamConnectionFactory getConnectionFactory()
+        public StreamingChannel.Factory getConnectionFactory()
         {
             return new BulkLoadConnectionFactory(sslStoragePort, serverEncOptions, false);
         }

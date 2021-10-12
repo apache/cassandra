@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
@@ -29,23 +29,16 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import com.vdurmont.semver4j.Semver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
-@Shared
 public class InstanceConfig implements IInstanceConfig
 {
-    private static final Object NULL = new Object();
-    private static final Logger logger = LoggerFactory.getLogger(InstanceConfig.class);
-
     public final int num;
     public int num() { return num; }
 
@@ -130,7 +123,6 @@ public class InstanceConfig implements IInstanceConfig
         this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
     }
 
-
     @Override
     public InetSocketAddress broadcastAddress()
     {
@@ -193,18 +185,12 @@ public class InstanceConfig implements IInstanceConfig
 
     public InstanceConfig set(String fieldName, Object value)
     {
-        if (value == null)
-            value = NULL;
         getParams(fieldName).put(fieldName, value);
         return this;
     }
 
-    private InstanceConfig forceSet(String fieldName, Object value)
+    public InstanceConfig forceSet(String fieldName, Object value)
     {
-        if (value == null)
-            value = NULL;
-
-        // test value
         getParams(fieldName).put(fieldName, value);
         return this;
     }
@@ -251,7 +237,7 @@ public class InstanceConfig implements IInstanceConfig
     public static InstanceConfig generate(int nodeNum,
                                           INodeProvisionStrategy provisionStrategy,
                                           NetworkTopology networkTopology,
-                                          File root,
+                                          Path root,
                                           String token,
                                           int datadirCount)
     {
@@ -273,9 +259,9 @@ public class InstanceConfig implements IInstanceConfig
                                   provisionStrategy.nativeTransportPort(nodeNum));
     }
 
-    private static String[] datadirs(int datadirCount, File root, int nodeNum)
+    private static String[] datadirs(int datadirCount, Path root, int nodeNum)
     {
-        String datadirFormat = String.format("%s/node%d/data%%d", root.getPath(), nodeNum);
+        String datadirFormat = String.format("%s/node%d/data%%d", root, nodeNum);
         String [] datadirs = new String[datadirCount];
         for (int i = 0; i < datadirs.length; i++)
             datadirs[i] = String.format(datadirFormat, i);

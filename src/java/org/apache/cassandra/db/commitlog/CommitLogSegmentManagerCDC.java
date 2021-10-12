@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -28,6 +27,7 @@ import java.util.concurrent.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +38,8 @@ import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 {
@@ -163,8 +165,8 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         super.handleReplayedSegment(file);
 
         // delete untracked cdc segment hard link files if their index files do not exist
-        File cdcFile = new File(DatabaseDescriptor.getCDCLogLocation(), file.getName());
-        File cdcIndexFile = new File(DatabaseDescriptor.getCDCLogLocation(), CommitLogDescriptor.fromFileName(file.getName()).cdcIndexFileName());
+        File cdcFile = new File(DatabaseDescriptor.getCDCLogLocation(), file.name());
+        File cdcIndexFile = new File(DatabaseDescriptor.getCDCLogLocation(), CommitLogDescriptor.fromFileName(file.name()).cdcIndexFileName());
         if (cdcFile.exists() && !cdcIndexFile.exists())
         {
             logger.trace("(Unopened) CDC segment {} is no longer needed and will be deleted now", cdcFile);
@@ -208,7 +210,11 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         public void start()
         {
             size = 0;
-            cdcSizeCalculationExecutor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.SECONDS, new SynchronousQueue<>(), new ThreadPoolExecutor.DiscardPolicy());
+            cdcSizeCalculationExecutor = executorFactory().configureSequential("CDCSizeCalculationExecutor")
+                                                          .withRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy())
+                                                          .withQueueLimit(0)
+                                                          .withKeepAlive(1000, TimeUnit.SECONDS)
+                                                          .build();
         }
 
         /**

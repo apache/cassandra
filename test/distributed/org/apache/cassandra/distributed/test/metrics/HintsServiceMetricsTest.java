@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.test.metrics;
 
 import java.util.Arrays;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,6 +37,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.awaitility.core.ThrowingRunnable;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -221,7 +221,7 @@ public class HintsServiceMetricsTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static CompletableFuture<?> execute(@SuperCall Callable<CompletableFuture<?>> r) throws Exception
+        public static Future<?> execute(@SuperCall Callable<Future<?>> r) throws Exception
         {
             if (numHints.incrementAndGet() <= NUM_FAILURES_PER_NODE)
                 throw new RuntimeException("Injected failure");

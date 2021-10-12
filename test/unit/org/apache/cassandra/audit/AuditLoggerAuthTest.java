@@ -287,8 +287,8 @@ public class AuditLoggerAuthTest
 
     private static void assertSource(AuditLogEntry logEntry, String username)
     {
-        assertEquals(InetAddressAndPort.getLoopbackAddress().address, logEntry.getSource().address);
-        assertTrue(logEntry.getSource().port > 0);
+        assertEquals(InetAddressAndPort.getLoopbackAddress().getAddress(), logEntry.getSource().getAddress());
+        assertTrue(logEntry.getSource().getPort() > 0);
         if (logEntry.getType() != AuditLogEntryType.LOGIN_ERROR)
             assertEquals(username, logEntry.getUser());
     }

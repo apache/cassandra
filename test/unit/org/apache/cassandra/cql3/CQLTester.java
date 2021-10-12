@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -46,6 +45,9 @@ import javax.management.remote.rmi.RMIConnectorServer;
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.File;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,6 +91,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.assertj.core.api.Assertions;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
@@ -612,7 +615,7 @@ public abstract class CQLTester
         // clean up data directory which are stored as data directory/keyspace/data files
         for (File d : Directories.getKSChildDirectories(ks))
         {
-            if (d.exists() && containsAny(d.getName(), tables))
+            if (d.exists() && containsAny(d.name(), tables))
                 FileUtils.deleteRecursive(d);
         }
     }
@@ -1526,6 +1529,13 @@ public abstract class CQLTester
                 assertMessageContains(errorMessage, e);
             }
         }
+    }
+
+    protected void assertInvalidRequestMessage(String errorMessage, String query, Object... values)
+    {
+        Assertions.assertThatThrownBy(() -> execute(query, values))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(errorMessage);
     }
 
     /**

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.apache.cassandra.distributed.impl.RowUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -27,17 +26,26 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+import com.datastax.driver.core.exceptions.DriverInternalError;
+import com.datastax.driver.core.policies.LoadBalancingPolicy;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.impl.RowUtil;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.distributed.shared.AssertUtils.*;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class NativeProtocolTest extends TestBaseImpl
 {
-
     @Test
     public void withClientRequests() throws Throwable
     {

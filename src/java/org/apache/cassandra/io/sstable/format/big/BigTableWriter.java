@@ -17,13 +17,15 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.io.*;
+
+import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +51,8 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Transactional;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class BigTableWriter extends SSTableWriter
 {
@@ -384,7 +388,7 @@ public class BigTableWriter extends SSTableWriter
     private SSTableReader openFinal(SSTableReader.OpenReason openReason)
     {
         if (maxDataAge < 0)
-            maxDataAge = System.currentTimeMillis();
+            maxDataAge = currentTimeMillis();
 
         StatsMetadata stats = statsMetadata();
         // finalize in-memory state for the reader
@@ -468,7 +472,7 @@ public class BigTableWriter extends SSTableWriter
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, file.getPath());
+            throw new FSWriteError(e, file.path());
         }
     }
 
@@ -545,13 +549,12 @@ public class BigTableWriter extends SSTableWriter
             if (components.contains(Component.FILTER))
             {
                 String path = descriptor.filenameFor(Component.FILTER);
-                try (FileOutputStream fos = new FileOutputStream(path);
-                     DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos))
+                try (FileOutputStreamPlus stream = new FileOutputStreamPlus(path))
                 {
                     // bloom filter
                     BloomFilterSerializer.serialize((BloomFilter) bf, stream);
                     stream.flush();
-                    SyncUtil.sync(fos);
+                    stream.sync();
                 }
                 catch (IOException e)
                 {

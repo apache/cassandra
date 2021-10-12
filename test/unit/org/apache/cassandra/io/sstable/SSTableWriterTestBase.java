@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
@@ -27,6 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -49,7 +49,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class SSTableWriterTestBase extends SchemaLoader
 {
@@ -146,11 +145,11 @@ public class SSTableWriterTestBase extends SchemaLoader
         }
         for (File dir : cfs.getDirectories().getCFDirectories())
         {
-            for (File f : dir.listFiles())
+            for (File f : dir.tryList())
             {
-                if (f.getName().contains("Data"))
+                if (f.name().contains("Data"))
                 {
-                    Descriptor d = Descriptor.fromFilename(f.getAbsolutePath());
+                    Descriptor d = Descriptor.fromFilename(f.absolutePath());
                     assertTrue(d.toString(), liveDescriptors.contains(d.generation));
                 }
             }

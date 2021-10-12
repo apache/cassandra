@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
@@ -32,6 +31,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -90,20 +90,14 @@ public class Descriptor
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
-        try
-        {
-            this.directory = directory.getCanonicalFile();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        this.directory = directory.toCanonical();
         this.ksname = ksname;
         this.cfname = cfname;
         this.generation = generation;
         this.formatType = formatType;
 
-        hashCode = Objects.hashCode(version, this.directory, generation, ksname, cfname, formatType);
+        // directory is unnecessary for hashCode, and for simulator consistency we do not include it
+        hashCode = Objects.hashCode(version, generation, ksname, cfname, formatType);
     }
 
     public Descriptor withGeneration(int newGeneration)
@@ -139,7 +133,7 @@ public class Descriptor
     public String baseFilename()
     {
         StringBuilder buff = new StringBuilder();
-        buff.append(directory).append(File.separatorChar);
+        buff.append(directory).append(File.pathSeparator());
         appendFileName(buff);
         return buff.toString();
     }
@@ -156,7 +150,7 @@ public class Descriptor
         final StringBuilder buff = new StringBuilder();
         if (Directories.isSecondaryIndexFolder(directory))
         {
-            buff.append(directory.getName()).append(File.separator);
+            buff.append(directory.name()).append(File.pathSeparator());
         }
 
         appendFileName(buff);
@@ -172,7 +166,7 @@ public class Descriptor
     /** Return any temporary files found in the directory */
     public List<File> getTemporaryFiles()
     {
-        File[] tmpFiles = directory.listFiles((dir, name) ->
+        File[] tmpFiles = directory.tryList((dir, name) ->
                                               name.endsWith(Descriptor.TMP_EXT));
 
         List<File> ret = new ArrayList<>(tmpFiles.length);
@@ -184,7 +178,7 @@ public class Descriptor
 
     public static boolean isValidFile(File file)
     {
-        String filename = file.getName();
+        String filename = file.name();
         return filename.endsWith(".db") && !LEGACY_TMP_REGEX.matcher(filename).matches();
     }
 
@@ -242,9 +236,9 @@ public class Descriptor
         // We need to extract the keyspace and table names from the parent directories, so make sure we deal with the
         // absolute path.
         if (!file.isAbsolute())
-            file = file.getAbsoluteFile();
+            file = file.toAbsolute();
 
-        String name = file.getName();
+        String name = file.name();
         List<String> tokens = filenameSplitter.splitToList(name);
         int size = tokens.size();
 
@@ -300,25 +294,25 @@ public class Descriptor
         String indexName = "";
         if (Directories.isSecondaryIndexFolder(tableDir))
         {
-            indexName = tableDir.getName();
+            indexName = tableDir.name();
             tableDir = parentOf(name, tableDir);
         }
 
         // Then it can be a backup or a snapshot
-        if (tableDir.getName().equals(Directories.BACKUPS_SUBDIR))
-            tableDir = tableDir.getParentFile();
-        else if (parentOf(name, tableDir).getName().equals(Directories.SNAPSHOT_SUBDIR))
+        if (tableDir.name().equals(Directories.BACKUPS_SUBDIR))
+            tableDir = tableDir.parent();
+        else if (parentOf(name, tableDir).name().equals(Directories.SNAPSHOT_SUBDIR))
             tableDir = parentOf(name, parentOf(name, tableDir));
 
-        String table = tableDir.getName().split("-")[0] + indexName;
-        String keyspace = parentOf(name, tableDir).getName();
+        String table = tableDir.name().split("-")[0] + indexName;
+        String keyspace = parentOf(name, tableDir).name();
 
         return Pair.create(new Descriptor(version, directory, keyspace, table, generation, format), component);
     }
 
     private static File parentOf(String name, File file)
     {
-        File parent = file.getParentFile();
+        File parent = file.parent();
         if (parent == null)
             throw invalidSSTable(name, "cannot extract keyspace and table name; make sure the sstable is in the proper sub-directories");
         return parent;

@@ -58,6 +58,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * Utility to write SSTables.
  * <p>
@@ -245,7 +247,7 @@ public class StressCQLSSTableWriter implements Closeable
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
         SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
 
-        long now = System.currentTimeMillis();
+        long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(insert.metadata(),
@@ -329,7 +331,7 @@ public class StressCQLSSTableWriter implements Closeable
      */
     public File getInnermostDirectory()
     {
-        return cfs.getDirectories().getDirectoryForNewSSTables();
+        return cfs.getDirectories().getDirectoryForNewSSTables().toJavaIOFile();
     }
 
     /**
@@ -611,7 +613,7 @@ public class StressCQLSSTableWriter implements Closeable
                                      .build();
 
             Keyspace.setInitialized();
-            Directories directories = new Directories(tableMetadata, directoryList.stream().map(Directories.DataDirectory::new).collect(Collectors.toList()));
+            Directories directories = new Directories(tableMetadata, directoryList.stream().map(f -> new Directories.DataDirectory(new org.apache.cassandra.io.util.File(f.toPath()))).collect(Collectors.toList()));
 
             Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
             ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, tableMetadata.name, TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);

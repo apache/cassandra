@@ -22,7 +22,6 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -55,7 +54,7 @@ public class SettingsGraph implements Serializable
 
         if (inGraphMode())
         {
-            temporaryLogFile = FileUtils.createTempFile("cassandra-stress", ".log");
+            temporaryLogFile = FileUtils.createTempFile("cassandra-stress", ".log").toJavaIOFile();
         }
         else
         {

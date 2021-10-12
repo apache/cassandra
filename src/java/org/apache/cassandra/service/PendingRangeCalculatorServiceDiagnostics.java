@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.service.PendingRangeCalculatorServiceEvent.PendingRangeCalculatorServiceEventType;
 
@@ -34,35 +32,30 @@ final class PendingRangeCalculatorServiceDiagnostics
     {
     }
     
-    static void taskStarted(PendingRangeCalculatorService calculatorService, AtomicInteger taskCount)
+    static void taskStarted(int taskCount)
     {
         if (isEnabled(PendingRangeCalculatorServiceEventType.TASK_STARTED))
             service.publish(new PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType.TASK_STARTED,
-                                                                   calculatorService,
-                                                                   taskCount.get()));
+                                                                   taskCount));
     }
 
-    static void taskFinished(PendingRangeCalculatorService calculatorService, AtomicInteger taskCount)
+    static void taskFinished()
     {
         if (isEnabled(PendingRangeCalculatorServiceEventType.TASK_FINISHED_SUCCESSFULLY))
-            service.publish(new PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType.TASK_FINISHED_SUCCESSFULLY,
-                                                                   calculatorService,
-                                                                   taskCount.get()));
+            service.publish(new PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType.TASK_FINISHED_SUCCESSFULLY));
     }
 
-    static void taskRejected(PendingRangeCalculatorService calculatorService, AtomicInteger taskCount)
+    static void taskRejected(int taskCount)
     {
         if (isEnabled(PendingRangeCalculatorServiceEventType.TASK_EXECUTION_REJECTED))
             service.publish(new PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType.TASK_EXECUTION_REJECTED,
-                                                                   calculatorService,
-                                                                   taskCount.get()));
+                                                                   taskCount));
     }
 
-    static void taskCountChanged(PendingRangeCalculatorService calculatorService, int taskCount)
+    static void taskCountChanged(int taskCount)
     {
         if (isEnabled(PendingRangeCalculatorServiceEventType.TASK_COUNT_CHANGED))
             service.publish(new PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType.TASK_COUNT_CHANGED,
-                                                                   calculatorService,
                                                                    taskCount));
     }
 

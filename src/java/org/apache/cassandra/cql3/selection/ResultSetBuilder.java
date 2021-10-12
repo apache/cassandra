@@ -106,6 +106,11 @@ public final class ResultSetBuilder
         return thresholdKB > 0 && size > thresholdKB << 10;
     }
 
+    public long getSize()
+    {
+        return size;
+    }
+
     public void add(ByteBuffer v)
     {
         current.add(v);

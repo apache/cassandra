@@ -143,6 +143,13 @@ role_manager: CassandraRoleManager
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer: AllowAllNetworkAuthorizer
 
+# Depending on the auth strategy of the cluster, it can be beneficial to iterate
+# from root to table (root -> ks -> table) instead of table to root (table -> ks -> root).
+# As the auth entries are whitelisting, once a permission is found you know it to be
+# valid. We default to false as the legacy behavior is to query at the table level then
+# move back up to the root. See CASSANDRA-17016 for details.
+# traverse_auth_from_root = false
+
 # Validity period for roles cache (fetching granted roles can be an expensive
 # operation depending on the role manager, CassandraRoleManager is one example)
 # Granted roles are cached for authenticated sessions in AuthenticatedUser and
@@ -897,6 +904,19 @@ sstable_preemptive_open_interval_in_mb: 50
 # When unset, the default is 200 Mbps or 25 MB/s
 # inter_dc_stream_throughput_outbound_megabits_per_sec: 200
 
+# Server side timeouts for requests. The server will return a timeout exception
+# to the client if it can't complete an operation within the corresponding
+# timeout. Those settings are a protection against:
+#   1) having client wait on an operation that might never terminate due to some
+#      failures.
+#   2) operations that use too much CPU/read too much data (leading to memory build
+#      up) by putting a limit to how long an operation will execute.
+# For this reason, you should avoid putting these settings too high. In other words, 
+# if you are timing out requests because of underlying resource constraints then 
+# increasing the timeout will just cause more problems. Of course putting them too 
+# low is equally ill-advised since clients could get timeouts even for successful 
+# operations just because the timeout setting is too tight.
+
 # How long the coordinator should wait for read operations to complete.
 # Lowest acceptable value is 10 ms.
 read_request_timeout_in_ms: 5000
@@ -1426,6 +1446,10 @@ report_unconfirmed_repaired_data_mismatches: false
 # table_count_warn_threshold: 150
 # keyspace_count_warn_threshold: 40
 
+# configure the read and write consistency levels for modifications to auth tables
+# auth_read_consistency_level: LOCAL_QUORUM
+# auth_write_consistency_level: EACH_QUORUM
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################
@@ -1455,15 +1479,25 @@ enable_drop_compact_storage: false
 #    - 127.0.0.0/31
 
 # Enables tracking warnings/aborts across all replicas for reporting back to client.
-# Scheduled to enable in 4.2
 # See: CASSANDRA-16850
-# See: tombstone_warn_threshold, tombstone_failure_threshold, client_large_read_warn_threshold_kb, and client_large_read_abort_threshold_kb
-#client_track_warnings_enabled: false
-
-# When client_track_warnings_enabled: true, this tracks the materialized size of a query on the
-# coordinator. If client_large_read_warn_threshold_kb is greater than 0, this will emit a warning
-# to clients with details on what query triggered this as well as the size of the result set; if
-# client_large_read_abort_threshold_kb is greater than 0, this will abort the query after it
-# has exceeded this threshold, returning a read error to the user.
-#client_large_read_warn_threshold_kb: 0
-#client_large_read_abort_threshold_kb: 0
+#track_warnings:
+#	# Scheduled to enable in 4.2
+#	enabled: false
+#	# When track_warnings.enabled: true, this tracks the materialized size of a query on the
+#	# coordinator. If coordinator_large_read.warn_threshold_kb is greater than 0, this will emit a warning
+#	# to clients with details on what query triggered this as well as the size of the result set; if
+#	# coordinator_large_read.abort_threshold_kb is greater than 0, this will abort the query after it
+#	# has exceeded this threshold, returning a read error to the user.
+#	coordinator_large_read:
+#		warn_threshold_kb: 0
+#		abort_threshold_kb: 0
+#	# When track_warnings.enabled: true, this tracks the size of the local read (as defined by
+#	# heap size), and will warn/abort based off these thresholds; 0 disables these checks.
+#	local_read_size:
+#		warn_threshold_kb: 0
+#		abort_threshold_kb: 0
+#	# When track_warnings.enabled: true, this tracks the expected memory size of the RowIndexEntry
+#	# and will warn/abort based off these thresholds; 0 disables these checks.
+#	row_index_size:
+#		warn_threshold_kb: 0
+#		abort_threshold_kb: 0

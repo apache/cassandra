@@ -18,15 +18,22 @@
 
 package org.apache.cassandra.concurrent;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public interface ResizableThreadPool
 {
     /**
-     * Returns maximum pool size of thread pool.
+     * Returns core pool size of thread pool, the minimum
+     * number of workers (where that makes sense for a thread pool,
+     * SEPExecutor does not have a minimum size).
      */
     public int getCorePoolSize();
 
     /**
-     * Allows user to resize maximum size of the thread pool.
+     * Allows user to resize minimum size of the thread pool.
      */
     public void setCorePoolSize(int newCorePoolSize);
 
@@ -39,4 +46,37 @@ public interface ResizableThreadPool
      * Allows user to resize maximum size of the thread pool.
      */
     public void setMaximumPoolSize(int newMaximumPoolSize);
+
+    /**
+     * Returns the approximate number of threads that are actively
+     * executing tasks.
+     *
+     * @return the number of threads
+     */
+    int getActiveTaskCount();
+
+    /**
+     * Returns the approximate total number of tasks that have
+     * completed execution. Because the states of tasks and threads
+     * may change dynamically during computation, the returned value
+     * is only an approximation, but one that does not ever decrease
+     * across successive calls.
+     *
+     * @return the number of tasks
+     */
+    long getCompletedTaskCount();
+
+    /**
+     * Returns the approximate total of tasks waiting to be executed.
+     * Because the states of tasks and threads may change dynamically
+     * during computation, the returned value is only an approximation.
+     *
+     * @return the number of tasks
+     */
+    int getPendingTaskCount();
+
+    default int getMaxTasksQueued()
+    {
+        return -1;
+    }
 }

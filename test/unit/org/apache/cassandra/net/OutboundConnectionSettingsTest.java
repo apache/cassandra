@@ -34,8 +34,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
-import static org.apache.cassandra.net.MessagingService.current_version;
-import static org.apache.cassandra.net.ConnectionType.*;
 import static org.apache.cassandra.net.OutboundConnectionsTest.LOCAL_ADDR;
 import static org.apache.cassandra.net.OutboundConnectionsTest.REMOTE_ADDR;
 

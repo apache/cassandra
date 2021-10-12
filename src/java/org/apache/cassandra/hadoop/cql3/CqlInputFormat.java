@@ -54,7 +54,8 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.utils.*;
 
-import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
@@ -135,7 +136,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         logger.trace("partitioner is {}", partitioner);
 
         // canonical ranges, split into pieces, fetching the splits in parallel
-        ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+        ExecutorService executor = executorFactory().pooled("HadoopInput", 128);
         List<org.apache.hadoop.mapreduce.InputSplit> splits = new ArrayList<>();
 
         String[] inputInitialAddress = ConfigHelper.getInputInitialAddress(conf).split(",");
@@ -242,7 +243,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         }
 
         assert splits.size() > 0;
-        Collections.shuffle(splits, new Random(System.nanoTime()));
+        Collections.shuffle(splits, new Random(nanoTime()));
         return splits;
     }
 

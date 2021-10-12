@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +27,7 @@ import java.util.function.Predicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +37,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.SyncUtil;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Encapsulates the state of a peer's hints: the queue of hints files for dispatch, and the current writer (if any).
@@ -185,7 +187,7 @@ final class HintsStore
     void delete(HintsDescriptor descriptor)
     {
         File hintsFile = new File(hintsDirectory, descriptor.fileName());
-        if (hintsFile.delete())
+        if (hintsFile.tryDelete())
             logger.info("Deleted hint file {}", descriptor.fileName());
         else if (hintsFile.exists())
             logger.error("Failed to delete hint file {}", descriptor.fileName());
@@ -193,7 +195,7 @@ final class HintsStore
             logger.info("Already deleted hint file {}", descriptor.fileName());
 
         //noinspection ResultOfMethodCallIgnored
-        new File(hintsDirectory, descriptor.checksumFileName()).delete();
+        new File(hintsDirectory, descriptor.checksumFileName()).tryDelete();
     }
 
     boolean hasFiles()
@@ -247,7 +249,7 @@ final class HintsStore
 
     private HintsWriter openWriter()
     {
-        lastUsedTimestamp = Math.max(System.currentTimeMillis(), lastUsedTimestamp + 1);
+        lastUsedTimestamp = Math.max(currentTimeMillis(), lastUsedTimestamp + 1);
         HintsDescriptor descriptor = new HintsDescriptor(hostId, lastUsedTimestamp, writerParams);
 
         try

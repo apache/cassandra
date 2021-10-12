@@ -29,6 +29,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressListener;
@@ -134,7 +135,7 @@ public abstract class TraceState implements ProgressEventNotifier
             }
             catch (InterruptedException e)
             {
-                throw new RuntimeException();
+                throw new UncheckedInterruptedException(e);
             }
         }
         if (status == Status.ACTIVE)

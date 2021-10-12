@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.junit.Assert;
@@ -70,7 +69,7 @@ public class RangeFetchMapCalculatorTest
 
             private int getIPLastPart(InetAddressAndPort endpoint)
             {
-                String str = endpoint.address.toString();
+                String str = endpoint.getAddress().toString();
                 int index = str.lastIndexOf(".");
                 return Integer.parseInt(str.substring(index + 1).trim());
             }

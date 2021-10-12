@@ -17,17 +17,29 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.*;
+
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -49,11 +61,17 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
@@ -64,10 +82,6 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.batchlog.BatchlogManager;
-import org.apache.cassandra.concurrent.ExecutorLocals;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Duration;
@@ -110,6 +124,7 @@ import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -126,6 +141,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.concurrent.FutureTask.callable;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
@@ -134,6 +150,9 @@ import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFami
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.service.ActiveRepairService.*;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -155,7 +174,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static int getRingDelay()
     {
-        String newdelay = System.getProperty("cassandra.ring_delay_ms");
+        String newdelay = CassandraRelevantProperties.RING_DELAY.getString();
         if (newdelay != null)
         {
             logger.info("Overriding RING_DELAY to {}ms", newdelay);
@@ -392,7 +411,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 setGossipTokens(tokens);
 
             Gossiper.instance.forceNewerGeneration();
-            Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
+            Gossiper.instance.start((int) (currentTimeMillis() / 1000));
             gossipActive = true;
         }
     }
@@ -725,7 +744,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initialized = true;
         gossipActive = true;
         Gossiper.instance.register(this);
-        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+        Gossiper.instance.start((int) (currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         MessagingService.instance().listen();
     }
@@ -1358,7 +1377,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException("Interrupted while waiting on rebuild streaming");
+            throw new UncheckedInterruptedException(e);
         }
         catch (ExecutionException e)
         {
@@ -1486,8 +1505,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setStreamThroughputMbPerSec(int value)
     {
+        int oldValue = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
-        logger.info("setstreamthroughput: throttle set to {}", value);
+        StreamManager.StreamRateLimiter.updateThroughput();
+        logger.info("setstreamthroughput: throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
     }
 
     public int getStreamThroughputMbPerSec()
@@ -1497,8 +1518,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setInterDCStreamThroughputMbPerSec(int value)
     {
+        int oldValue = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(value);
-        logger.info("setinterdcstreamthroughput: throttle set to {}", value);
+        StreamManager.StreamRateLimiter.updateInterDCThroughput();
+        logger.info("setinterdcstreamthroughput: throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
     }
 
     public int getInterDCStreamThroughputMbPerSec()
@@ -1693,7 +1716,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 catch (InterruptedException e)
                 {
-                    throw new AssertionError(e);
+                    throw new UncheckedInterruptedException(e);
                 }
 
                 // check for operator errors...
@@ -1703,7 +1726,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     if (existing != null)
                     {
                         long nanoDelay = schemaDelay * 1000000L;
-                        if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (System.nanoTime() - nanoDelay))
+                        if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (nanoTime() - nanoDelay))
                             throw new UnsupportedOperationException("Cannot replace a live node... ");
                         collisions.add(existing);
                     }
@@ -1721,7 +1744,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 catch (InterruptedException e)
                 {
-                    throw new AssertionError(e);
+                    throw new UncheckedInterruptedException(e);
                 }
 
             }
@@ -1753,8 +1776,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, replacing?
                                                             valueFactory.bootReplacingWithPort(DatabaseDescriptor.getReplaceAddress()) :
                                                             valueFactory.bootstrapping(tokens)));
-            states.add(Pair.create(ApplicationState.STATUS, replacing?
-                                                            valueFactory.bootReplacing(DatabaseDescriptor.getReplaceAddress().address) :
+            states.add(Pair.create(ApplicationState.STATUS, replacing ?
+                                                            valueFactory.bootReplacing(DatabaseDescriptor.getReplaceAddress().getAddress()) :
                                                             valueFactory.bootstrapping(tokens)));
             Gossiper.instance.addLocalApplicationStates(states);
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
@@ -1797,6 +1820,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     public Future<StreamState> startBootstrap(Collection<Token> tokens)
+    {
+        return startBootstrap(tokens, replacing);
+    }
+
+    public Future<StreamState> startBootstrap(Collection<Token> tokens, boolean replacing)
     {
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddressAndPort(), tokens, tokenMetadata);
@@ -1848,8 +1876,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // already bootstrapped ranges are filtered during bootstrap
             BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddressAndPort(), tokens, tokenMetadata);
             bootstrapper.addProgressListener(progressSupport);
-            ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
-            Futures.addCallback(bootstrapStream, new FutureCallback<StreamState>()
+            Future<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
+            bootstrapStream.addCallback(new FutureCallback<StreamState>()
             {
                 @Override
                 public void onSuccess(StreamState streamState)
@@ -1897,7 +1925,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.ERROR, 1, 1, message));
                     progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                 }
-            }, MoreExecutors.directExecutor());
+            });
             return true;
         }
         else
@@ -1980,7 +2008,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
-            return endpoint.address.getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
+            return endpoint.getAddress().getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
         else
             return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value + ":" + DatabaseDescriptor.getNativeTransportPort();
     }
@@ -2469,8 +2497,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     try
                     {
                         InetAddressAndPort address = InetAddressAndPort.getByName(entry.getValue().value);
-                        native_address = address.address;
-                        native_port = address.port;
+                        native_address = address.getAddress();
+                        native_port = address.getPort();
                     }
                     catch (UnknownHostException e)
                     {
@@ -2708,7 +2736,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 tokensToUpdateInMetadata.add(token);
                 tokensToUpdateInSystemKeyspace.add(token);
             }
-            else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
+            // Note: in test scenarios, there may not be any delta between the heartbeat generations of the old
+            // and new nodes, so we first check whether the new endpoint is marked as a replacement for the old.
+            else if (endpoint.equals(tokenMetadata.getReplacementNode(currentOwner).orElse(null)) || Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
             {
                 tokensToUpdateInMetadata.add(token);
                 tokensToUpdateInSystemKeyspace.add(token);
@@ -3218,7 +3248,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             });
         });
         StreamResultFuture future = stream.execute();
-        Futures.addCallback(future, new FutureCallback<StreamState>()
+        future.addCallback(new FutureCallback<StreamState>()
         {
             public void onSuccess(StreamState finalState)
             {
@@ -3231,7 +3261,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // We still want to send the notification
                 sendReplicationNotification(notifyEndpoint);
             }
-        }, MoreExecutors.directExecutor());
+        });
     }
 
     /**
@@ -3481,7 +3511,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Pair<Token, InetAddressAndPort> node : tokenMetadata.getMovingEndpoints())
         {
-            endpoints.add(node.right.address.getHostAddress());
+            endpoints.add(node.right.getAddress().getHostAddress());
         }
 
         return endpoints;
@@ -3976,7 +4006,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Set<String> keyspaces = new HashSet<>();
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            for(String keyspaceDir : new File(dataDir).list())
+            for(String keyspaceDir : new File(dataDir).tryListNames())
             {
                 // Only add a ks if it has been specified as a param, assuming params were actually provided.
                 if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
@@ -4096,6 +4126,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Pair<Integer, Future<?>> repair(String keyspace, Map<String, String> repairSpec, List<ProgressListener> listeners)
     {
         RepairOption option = RepairOption.parse(repairSpec, tokenMetadata.partitioner);
+        return repair(keyspace, option, listeners);
+    }
+
+    public Pair<Integer, Future<?>> repair(String keyspace, RepairOption option, List<ProgressListener> listeners)
+    {
         // if ranges are not specified
         if (option.getRanges().isEmpty())
         {
@@ -4116,10 +4151,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().allReplicas < 2)
-            return Pair.create(0, Futures.immediateFuture(null));
+            return Pair.create(0, ImmediateFuture.success(null));
 
         int cmd = nextRepairCommand.incrementAndGet();
-        return Pair.create(cmd, ActiveRepairService.repairCommandExecutor().submit(createRepairTask(cmd, keyspace, option, listeners)));
+        return Pair.create(cmd, repairCommandExecutor().submit(createRepairTask(cmd, keyspace, option, listeners)));
     }
 
     /**
@@ -4178,21 +4213,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             task.addProgressListener(listener);
 
         if (options.isTraced())
-        {
-            Runnable r = () ->
-            {
-                try
-                {
-                    task.run();
-                }
-                finally
-                {
-                    ExecutorLocals.set(null);
-                }
-            };
-            return new FutureTask<>(r, null);
-        }
-        return new FutureTask<>(task, null);
+            return new FutureTaskWithResources<>(() -> ExecutorLocals::clear, task);
+        return new FutureTask<>(task);
     }
 
     public void forceTerminateAllRepairSessions()
@@ -4200,10 +4222,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ActiveRepairService.instance.terminateSessions();
     }
 
+    // TODO: remove this after forward-porting Paxos, before final commit
+    public Future<?> startRepairPaxosForTopologyChange(String reason)
+    {
+        // PLACEHOLDER METHOD for simple porting of Simulator without breaking correctness
+        return ImmediateFuture.success(null);
+    }
+
     @Nullable
     public List<String> getParentRepairStatus(int cmd)
     {
-        Pair<ActiveRepairService.ParentRepairStatus, List<String>> pair = ActiveRepairService.instance.getRepairStatus(cmd);
+        Pair<ParentRepairStatus, List<String>> pair = ActiveRepairService.instance.getRepairStatus(cmd);
         return pair == null ? null :
                ImmutableList.<String>builder().add(pair.left.name()).addAll(pair.right).build();
     }
@@ -4348,7 +4377,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, cf, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
-        replicas.forEach(r -> inetList.add(r.endpoint().address));
+        replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
         return inetList;
     }
 
@@ -4362,7 +4391,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
-        replicas.forEach(r -> inetList.add(r.endpoint().address));
+        replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
         return inetList;
     }
 
@@ -4558,7 +4587,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException("Node interrupted while decommissioning");
+            throw new UncheckedInterruptedException(e);
         }
         catch (ExecutionException e)
         {
@@ -4584,7 +4613,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Uninterruptibles.sleepUninterruptibly(delay, MILLISECONDS);
     }
 
-    private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
+    public Supplier<Future<StreamState>> prepareUnbootstrapStreaming()
     {
         Map<String, EndpointsByReplica> rangesToStream = new HashMap<>();
 
@@ -4598,11 +4627,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             rangesToStream.put(keyspaceName, rangesMM);
         }
 
+        return () -> streamRanges(rangesToStream);
+    }
+
+    private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
+    {
+        Supplier<Future<StreamState>> startStreaming = prepareUnbootstrapStreaming();
+
         setMode(Mode.LEAVING, "replaying batch log and streaming data to other nodes", true);
 
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
-        Future<StreamState> streamSuccess = streamRanges(rangesToStream);
+        Future<StreamState> streamSuccess = startStreaming.get();
 
         // Wait for batch log to complete before streaming hints.
         logger.debug("waiting for batch log processing.");
@@ -4722,7 +4758,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 relocator.stream().get();
             }
-            catch (ExecutionException | InterruptedException e)
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException e)
             {
                 throw new RuntimeException("Interrupted while waiting for stream/fetch ranges to finish: " + e.getMessage());
             }
@@ -5211,10 +5251,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             InetAddressAndPort endpoint = tokenMetadata.getEndpoint(entry.getKey());
             Float tokenOwnership = entry.getValue();
-            if (nodeMap.containsKey(endpoint.address))
-                nodeMap.put(endpoint.address, nodeMap.get(endpoint.address) + tokenOwnership);
+            if (nodeMap.containsKey(endpoint.getAddress()))
+                nodeMap.put(endpoint.getAddress(), nodeMap.get(endpoint.getAddress()) + tokenOwnership);
             else
-                nodeMap.put(endpoint.address, tokenOwnership);
+                nodeMap.put(endpoint.getAddress(), tokenOwnership);
         }
         return nodeMap;
     }
@@ -5318,7 +5358,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         LinkedHashMap<InetAddressAndPort, Float> result = getEffectiveOwnership(keyspace);
         LinkedHashMap<InetAddress, Float> asInets = new LinkedHashMap<>();
-        result.entrySet().stream().forEachOrdered(entry -> asInets.put(entry.getKey().address, entry.getValue()));
+        result.entrySet().stream().forEachOrdered(entry -> asInets.put(entry.getKey().getAddress(), entry.getValue()));
         return asInets;
     }
 
@@ -6043,7 +6083,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<UUID, Set<InetAddressAndPort>> outstanding = MigrationCoordinator.instance.outstandingVersions();
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
-                                                                        e -> e.getValue().stream().map(i -> i.address).collect(Collectors.toSet())));
+                                                                        e -> e.getValue().stream().map(InetSocketAddress::getAddress).collect(Collectors.toSet())));
     }
 
     @Override
@@ -6051,7 +6091,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<UUID, Set<InetAddressAndPort>> outstanding = MigrationCoordinator.instance.outstandingVersions();
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
-                                                                        e -> e.getValue().stream().map(InetAddressAndPort::toString).collect(Collectors.toSet())));
+                                                                        e -> e.getValue().stream().map(Object::toString).collect(Collectors.toSet())));
     }
 
     public boolean autoOptimiseIncRepairStreams()
@@ -6128,41 +6168,105 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public long getClientLargeReadWarnThresholdKB()
+    public boolean getTrackWarningsEnabled()
     {
-        return DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
+        return DatabaseDescriptor.getTrackWarningsEnabled();
     }
 
     @Override
-    public void setClientLargeReadWarnThresholdKB(long threshold)
+    public void setTrackWarningsEnabled(boolean value)
     {
-        DatabaseDescriptor.setClientLargeReadWarnThresholdKB(threshold);
-        logger.info("updated client_large_read_warn_threshold_kb to {}", threshold);
+        DatabaseDescriptor.setTrackWarningsEnabled(value);
+        logger.info("updated track_warnings.enabled to {}", value);
     }
 
     @Override
-    public long getClientLargeReadAbortThresholdKB()
+    public long getCoordinatorLargeReadWarnThresholdKB()
     {
-        return DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
+        return DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
     }
 
     @Override
-    public void setClientLargeReadAbortThresholdKB(long threshold)
+    public void setCoordinatorLargeReadWarnThresholdKB(long threshold)
     {
-        DatabaseDescriptor.setClientLargeReadAbortThresholdKB(threshold);
-        logger.info("updated client_large_read_abort_threshold_kb to {}", threshold);
+        if (threshold < 0)
+            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
+        DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(threshold);
+        logger.info("updated track_warnings.coordinator_large_read.warn_threshold_kb to {}", threshold);
     }
 
     @Override
-    public boolean getClientTrackWarningsEnabled()
+    public long getCoordinatorLargeReadAbortThresholdKB()
     {
-        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+        return DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
     }
 
     @Override
-    public void setClientTrackWarningsEnabled(boolean value)
+    public void setCoordinatorLargeReadAbortThresholdKB(long threshold)
     {
-        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
-        logger.info("updated client_track_warnings_enabled to {}", value);
+        if (threshold < 0)
+            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
+        DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(threshold);
+        logger.info("updated track_warnings.coordinator_large_read.abort_threshold_kb to {}", threshold);
+    }
+
+    @Override
+    public long getLocalReadTooLargeWarnThresholdKb()
+    {
+        return DatabaseDescriptor.getLocalReadSizeWarnThresholdKb();
+    }
+
+    @Override
+    public void setLocalReadTooLargeWarnThresholdKb(long value)
+    {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
+        DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(value);
+        logger.info("updated track_warnings.local_read_size.warn_threshold_kb to {}", value);
+    }
+
+    @Override
+    public long getLocalReadTooLargeAbortThresholdKb()
+    {
+        return DatabaseDescriptor.getLocalReadSizeAbortThresholdKb();
+    }
+
+    @Override
+    public void setLocalReadTooLargeAbortThresholdKb(long value)
+    {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
+        DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(value);
+        logger.info("updated track_warnings.local_read_size.abort_threshold_kb to {}", value);
+    }
+
+    @Override
+    public int getRowIndexSizeWarnThresholdKb()
+    {
+        return DatabaseDescriptor.getRowIndexSizeWarnThresholdKb();
+    }
+
+    @Override
+    public void setRowIndexSizeWarnThresholdKb(int value)
+    {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
+        DatabaseDescriptor.setRowIndexSizeWarnThresholdKb(value);
+        logger.info("updated track_warnings.row_index_size.warn_threshold_kb to {}", value);
+    }
+
+    @Override
+    public int getRowIndexSizeAbortThresholdKb()
+    {
+        return DatabaseDescriptor.getRowIndexSizeAbortThresholdKb();
+    }
+
+    @Override
+    public void setRowIndexSizeAbortThresholdKb(int value)
+    {
+        if (value < 0)
+            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
+        DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(value);
+        logger.info("updated track_warnings.row_index_size.abort_threshold_kb to {}", value);
     }
 }

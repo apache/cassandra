@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.Pair;
 import static java.util.function.Predicate.isEqual;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -550,7 +551,7 @@ public class BatchStatement implements CQLStatement
         if (hasConditions)
             return executeInternalWithConditions(batchOptions, queryState);
 
-        executeInternalWithoutCondition(queryState, batchOptions, System.nanoTime());
+        executeInternalWithoutCondition(queryState, batchOptions, nanoTime());
         return new ResultMessage.Void();
     }
 

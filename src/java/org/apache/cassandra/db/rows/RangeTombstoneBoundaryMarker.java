@@ -23,6 +23,7 @@ import java.util.Objects;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -30,6 +31,8 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  */
 public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<ClusteringBoundary<?>>
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneBoundaryMarker(new ArrayClusteringBoundary(ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY, new byte[][] { new byte[0]}), null, null));
+
     private final DeletionTime endDeletion;
     private final DeletionTime startDeletion;
 
@@ -185,6 +188,12 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         bound.digest(digest);
         endDeletion.digest(digest);
         startDeletion.digest(digest);
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        return EMPTY_SIZE + startDeletion.unsharedHeapSize() + endDeletion.unsharedHeapSize();
     }
 
     public String toString(TableMetadata metadata)

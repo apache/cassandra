@@ -35,7 +35,6 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getDirectories;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.updateAddress;

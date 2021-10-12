@@ -47,6 +47,9 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class CompactionTask extends AbstractCompactionTask
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
@@ -117,10 +120,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
         {
-            Instant creationTime = Instant.now();
-            cfs.snapshotWithoutFlush(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
+            long epochMilli = currentTimeMillis();
+            Instant creationTime = Instant.ofEpochMilli(epochMilli);
+            cfs.snapshotWithoutFlush(epochMilli + "-compact-" + cfs.name, creationTime);
         }
-
 
         try (CompactionController controller = getCompactionController(transaction.originals()))
         {
@@ -155,8 +158,8 @@ public class CompactionTask extends AbstractCompactionTask
             logger.info("Compacting ({}) {}", taskId, ssTableLoggerMsg);
 
             RateLimiter limiter = CompactionManager.instance.getRateLimiter();
-            long start = System.nanoTime();
-            long startTime = System.currentTimeMillis();
+            long start = nanoTime();
+            long startTime = currentTimeMillis();
             long totalKeysWritten = 0;
             long estimatedKeys = 0;
             long inputSizeBytes;
@@ -206,10 +209,10 @@ public class CompactionTask extends AbstractCompactionTask
 
                         lastBytesScanned = bytesScanned;
 
-                        if (System.nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
+                        if (nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
                         {
                             controller.maybeRefreshOverlaps();
-                            lastCheckObsoletion = System.nanoTime();
+                            lastCheckObsoletion = nanoTime();
                         }
                     }
 
@@ -225,53 +228,48 @@ public class CompactionTask extends AbstractCompactionTask
             }
 
             if (transaction.isOffline())
+                return;
+
+            // log a bunch of statistics about the result and save to system table compaction_history
+            long durationInNano = nanoTime() - start;
+            long dTime = TimeUnit.NANOSECONDS.toMillis(durationInNano);
+            long startsize = inputSizeBytes;
+            long endsize = SSTableReader.getTotalBytes(newSStables);
+            double ratio = (double) endsize / (double) startsize;
+
+            StringBuilder newSSTableNames = new StringBuilder();
+            for (SSTableReader reader : newSStables)
+                newSSTableNames.append(reader.descriptor.baseFilename()).append(",");
+            long totalSourceRows = 0;
+            for (int i = 0; i < mergedRowCounts.length; i++)
+                totalSourceRows += mergedRowCounts[i] * (i + 1);
+
+            String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
+
+            logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+                                       taskId,
+                                       transaction.originals().size(),
+                                       newSSTableNames.toString(),
+                                       getLevel(),
+                                       FBUtilities.prettyPrintMemory(startsize),
+                                       FBUtilities.prettyPrintMemory(endsize),
+                                       (int) (ratio * 100),
+                                       dTime,
+                                       FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
+                                       FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
+                                       (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
+                                       totalSourceRows,
+                                       totalKeysWritten,
+                                       mergeSummary));
+            if (logger.isTraceEnabled())
             {
-                Refs.release(Refs.selfRefs(newSStables));
+                logger.trace("CF Total Bytes Compacted: {}", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize)));
+                logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
             }
-            else
-            {
-                // log a bunch of statistics about the result and save to system table compaction_history
+            cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), currentTimeMillis(), newSStables);
 
-                long durationInNano = System.nanoTime() - start;
-                long dTime = TimeUnit.NANOSECONDS.toMillis(durationInNano);
-                long startsize = inputSizeBytes;
-                long endsize = SSTableReader.getTotalBytes(newSStables);
-                double ratio = (double) endsize / (double) startsize;
-
-                StringBuilder newSSTableNames = new StringBuilder();
-                for (SSTableReader reader : newSStables)
-                    newSSTableNames.append(reader.descriptor.baseFilename()).append(",");
-                long totalSourceRows = 0;
-                for (int i = 0; i < mergedRowCounts.length; i++)
-                    totalSourceRows += mergedRowCounts[i] * (i + 1);
-
-                String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
-
-                logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
-                                           taskId,
-                                           transaction.originals().size(),
-                                           newSSTableNames.toString(),
-                                           getLevel(),
-                                           FBUtilities.prettyPrintMemory(startsize),
-                                           FBUtilities.prettyPrintMemory(endsize),
-                                           (int) (ratio * 100),
-                                           dTime,
-                                           FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
-                                           FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
-                                           (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
-                                           totalSourceRows,
-                                           totalKeysWritten,
-                                           mergeSummary));
-                if (logger.isTraceEnabled())
-                {
-                    logger.trace("CF Total Bytes Compacted: {}", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize)));
-                    logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
-                }
-                cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), System.currentTimeMillis(), newSStables);
-
-                // update the metrics
-                cfs.metric.compactionBytesWritten.inc(endsize);
-            }
+            // update the metrics
+            cfs.metric.compactionBytesWritten.inc(endsize);
         }
     }
 
@@ -298,7 +296,7 @@ public class CompactionTask extends AbstractCompactionTask
             mergeSummary.append(String.format("%d:%d, ", rows, count));
             mergedRows.put(rows, count);
         }
-        SystemKeyspace.updateCompactionHistory(keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
+        SystemKeyspace.updateCompactionHistory(keyspaceName, columnFamilyName, currentTimeMillis(), startSize, endSize, mergedRows);
         return mergeSummary.toString();
     }
 

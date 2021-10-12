@@ -531,8 +531,9 @@
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
             <exclusion groupId="com.google.guava" artifactId="guava"/>
           </dependency>
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.9" scope="test"/>
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.10" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
+          <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="8.40" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
             <exclusion groupId="commons-logging" artifactId="commons-logging"/>
@@ -572,7 +573,7 @@
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3">
             <exclusion groupId="org.hibernate" artifactId="hibernate-validator" />
            </dependency>
-          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
+          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.4" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.8">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
            </dependency>
@@ -714,16 +715,18 @@
                 artifactId="cassandra-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
-        <dependency groupId="junit" artifactId="junit"/>
-        <dependency groupId="commons-io" artifactId="commons-io"/>
-        <dependency groupId="org.mockito" artifactId="mockito-core"/>
-        <dependency groupId="org.quicktheories" artifactId="quicktheories"/>
-        <dependency groupId="org.reflections" artifactId="reflections"/>
-        <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}"/>
-        <dependency groupId="org.apache.cassandra" artifactId="dtest-api"/>
-        <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
-        <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
-        <dependency groupId="org.apache.ant" artifactId="ant-junit"/>
+        <dependency groupId="junit" artifactId="junit" scope="test"/>
+        <dependency groupId="commons-io" artifactId="commons-io" scope="test"/>
+        <dependency groupId="org.mockito" artifactId="mockito-core" scope="test"/>
+        <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" scope="test"/>
+        <dependency groupId="org.quicktheories" artifactId="quicktheories" scope="test"/>
+        <dependency groupId="org.reflections" artifactId="reflections" scope="test"/>
+        <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test"/>
+        <dependency groupId="org.apache.cassandra" artifactId="dtest-api" scope="test"/>
+        <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" scope="test"/>
+        <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" scope="test"/>
+        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
+        <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" scope="test"/>
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
@@ -857,6 +860,7 @@
           <pathelement location="${test.conf}"/>
         </classpath>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
         <jvmarg line="${java11-jvmargs}"/>
@@ -866,7 +870,7 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
+    <target name="build" depends="resolver-retrieve-build,build-project,checkstyle" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -942,6 +946,10 @@
         </testmacro>
     </target>
 
+    <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest -Dtest.methods=simpleGaussian
+    -->
     <target name="stress-test-some" depends="stress-build-test, build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}"
                        timeout="${test.timeout}">
@@ -1368,6 +1376,7 @@
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+        <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg line="${java11-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
@@ -1506,7 +1515,8 @@
     </antcall>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
@@ -1521,8 +1531,9 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
-    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ViewLongTest -Dtest.methods=testConflictResolution
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
   -->
   <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
     <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
@@ -1533,8 +1544,9 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
-    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testAllocate
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testPoolAllocateWithRecyclePartially
   -->
   <target name="burn-testsome" depends="build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
@@ -1658,6 +1670,10 @@
     </sequential>
   </target>
 
+  <!-- Use this with an simple class name for test class, and an optional csv list of methods like this:
+    ant cql-test-some -Dtest.name=ListsTest
+    ant cql-test-some -Dtest.name=ListsTest -Dtest.methods=testPrecisionTime_getNext_simple
+  -->
   <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
     <sequential>
       <echo message="running ${test.methods} tests from ${test.name}"/>
@@ -1681,7 +1697,8 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <test name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
       </junit>
     </sequential>
   </target>
@@ -1860,7 +1877,8 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
     -->
   <target name="test-jvm-dtest-some" depends="build-test" description="Execute some in-jvm dtests">
@@ -2096,6 +2114,32 @@
         </java>
   </target>
 
+  <target name="init-checkstyle" depends="maven-ant-tasks-retrieve-build,build-project">
+      <path id="checkstyle.lib.path">
+          <fileset dir="${test.lib}/jars" includes="*.jar"/>
+      </path>
+      <!-- Sevntu custom checks are retrieved by Ivy into lib folder
+         and will be accessible to checkstyle-->
+      <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
+               classpathref="checkstyle.lib.path"/>
+  </target>
+
+  <target name="checkstyle" depends="init-checkstyle,maven-ant-tasks-retrieve-build,build-project" description="Run custom checkstyle code analysis" if="java.version.8">
+      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
+      <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
+      <mkdir  dir="${checkstyle.log.dir}" />
+
+      <property name="checkstyle.properties" value="${basedir}/checkstyle.xml" />
+      <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
+      <checkstyle config="${checkstyle.properties}"
+                  failureProperty="checkstyle.failure"
+                  failOnViolation="true">
+          <formatter type="plain"/>
+          <formatter type="xml" tofile="${checkstyle.report.file}"/>
+          <fileset dir="${build.src.java}" includes="**/*.java"/>
+      </checkstyle>
+  </target>
+
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
@@ -2146,4 +2190,5 @@
 
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
+  <import file="${basedir}/.build/build-owasp.xml"/>
 </project>

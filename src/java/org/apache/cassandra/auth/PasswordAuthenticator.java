@@ -44,7 +44,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mindrot.jbcrypt.BCrypt;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRole;
+import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleRead;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * PasswordAuthenticator is an IAuthenticator implementation
@@ -104,7 +105,7 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         try
         {
-            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(username),
+            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRoleRead(username),
                     Lists.newArrayList(ByteBufferUtil.bytes(username)));
 
             ResultMessage.Rows rows = select(authenticateStatement, options);
@@ -130,7 +131,7 @@ public class PasswordAuthenticator implements IAuthenticator
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+        return statement.execute(QueryState.forInternalCalls(), options, nanoTime());
     }
 
     public Set<DataResource> protectedResources()

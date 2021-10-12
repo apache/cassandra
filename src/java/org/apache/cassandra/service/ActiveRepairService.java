@@ -20,7 +20,10 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.management.openmbean.CompositeData;
 import java.util.function.Predicate;
@@ -32,20 +35,18 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-import com.google.common.util.concurrent.AbstractFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -92,10 +93,19 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
+import static java.util.Collections.synchronizedSet;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.Config.RepairCommandPoolFullStrategy.reject;
+import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.net.Message.out;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -150,46 +160,23 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public static class RepairCommandExecutorHandle
     {
-        private static final ThreadPoolExecutor repairCommandExecutor =
-            initializeExecutor(DatabaseDescriptor.getRepairCommandPoolSize(),
-                               DatabaseDescriptor.getRepairCommandPoolFullStrategy());
+        private static final ExecutorPlus repairCommandExecutor = initializeExecutor(getRepairCommandPoolSize(), getRepairCommandPoolFullStrategy());
     }
 
     @VisibleForTesting
-    static ThreadPoolExecutor initializeExecutor(int maxPoolSize, Config.RepairCommandPoolFullStrategy strategy)
+    static ExecutorPlus initializeExecutor(int maxPoolSize, Config.RepairCommandPoolFullStrategy strategy)
     {
-        int corePoolSize = 1;
-        BlockingQueue<Runnable> queue;
-        if (strategy == Config.RepairCommandPoolFullStrategy.reject)
-        {
-            // new threads will be created on demand up to max pool
-            // size so we can leave corePoolSize at 1 to start with
-            queue = new SynchronousQueue<>();
-        }
-        else
-        {
-            // new threads are only created if > corePoolSize threads are running
-            // and the queue is full, so set corePoolSize to the desired max as the
-            // queue will _never_ be full. Idle core threads will eventually time
-            // out and may be re-created if/when subsequent tasks are submitted.
-            corePoolSize = maxPoolSize;
-            queue = new LinkedBlockingQueue<>();
-        }
-
-        ThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(corePoolSize,
-                                                                       maxPoolSize,
-                                                                       1,
-                                                                       TimeUnit.HOURS,
-                                                                       queue,
-                                                                       new NamedThreadFactory("Repair-Task"),
-                                                                       "internal",
-                                                                       new ThreadPoolExecutor.AbortPolicy());
-        // allow idle core threads to be terminated
-        executor.allowCoreThreadTimeOut(true);
-        return executor;
+        return executorFactory()
+                .localAware()       // we do trace repair sessions, and seem to rely on local aware propagation (though could do with refactoring)
+                .withJmxInternal()
+                .configurePooled("Repair-Task", maxPoolSize)
+                .withKeepAlive(1, TimeUnit.HOURS)
+                .withQueueLimit(strategy == reject ? 0 : Integer.MAX_VALUE)
+                .withRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy())
+                .build();
     }
 
-    public static ThreadPoolExecutor repairCommandExecutor()
+    public static ExecutorPlus repairCommandExecutor()
     {
         return RepairCommandExecutorHandle.repairCommandExecutor;
     }
@@ -332,7 +319,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean pullRepair,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
-                                             ListeningExecutorService executor,
+                                             ExecutorPlus executor,
                                              String... cfnames)
     {
         if (range.endpoints.isEmpty())
@@ -378,7 +365,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         DatabaseDescriptor.useOffheapMerkleTrees(value);
     }
 
-    private <T extends AbstractFuture &
+    private <T extends Future &
                IEndpointStateChangeSubscriber &
                IFailureDetectionEventListener> void registerOnFdAndGossip(final T task)
     {
@@ -396,7 +383,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 failureDetector.unregisterFailureDetectionEventListener(task);
                 gossiper.unregister(task);
             }
-        }, MoreExecutors.directExecutor());
+        });
     }
 
     public synchronized void terminateSessions()
@@ -511,7 +498,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // end up skipping replicas
         if (options.isIncremental() && options.isGlobal() && ! force)
         {
-            return System.currentTimeMillis();
+            return currentTimeMillis();
         }
         else
         {
@@ -540,15 +527,15 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         long repairedAt = getRepairedAt(options, isForcedRepair);
         registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
-        final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
+        final CountDownLatch prepareLatch = newCountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
-        final Set<String> failedNodes = Collections.synchronizedSet(new HashSet<String>());
+        final Set<String> failedNodes = synchronizedSet(new HashSet<String>());
         RequestCallback callback = new RequestCallback()
         {
             @Override
             public void onResponse(Message msg)
             {
-                prepareLatch.countDown();
+                prepareLatch.decrement();
             }
 
             @Override
@@ -556,7 +543,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 status.set(false);
                 failedNodes.add(from.toString());
-                prepareLatch.countDown();
+                prepareLatch.decrement();
             }
 
             @Override
@@ -575,7 +562,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             if (FailureDetector.instance.isAlive(neighbour))
             {
                 PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
-                Message<RepairMessage> msg = Message.out(PREPARE_MSG, message);
+                Message<RepairMessage> msg = out(PREPARE_MSG, message);
                 MessagingService.instance().sendWithCallback(msg, neighbour, callback);
             }
             else
@@ -584,7 +571,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 // remaining ones go down, we still want to fail so we don't create repair sessions that can't complete
                 if (isForcedRepair && !options.isIncremental())
                 {
-                    prepareLatch.countDown();
+                    prepareLatch.decrement();
                 }
                 else
                 {
@@ -596,7 +583,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
         try
         {
-            if (!prepareLatch.await(DatabaseDescriptor.getRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+            if (!prepareLatch.await(getRpcTimeout(MILLISECONDS), MILLISECONDS))
                 failRepair(parentRepairSession, "Did not get replies from all endpoints.");
         }
         catch (InterruptedException e)

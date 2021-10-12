@@ -18,6 +18,7 @@
 package org.apache.cassandra.metrics;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -261,8 +262,18 @@ public class TableMetrics
 
     public final TableMeter clientTombstoneWarnings;
     public final TableMeter clientTombstoneAborts;
-    public final TableMeter clientReadSizeWarnings;
-    public final TableMeter clientReadSizeAborts;
+
+    public final TableMeter coordinatorReadSizeWarnings;
+    public final TableMeter coordinatorReadSizeAborts;
+    public final TableHistogram coordinatorReadSize;
+
+    public final TableMeter localReadSizeWarnings;
+    public final TableMeter localReadSizeAborts;
+    public final TableHistogram localReadSize;
+
+    public final TableMeter rowIndexSizeWarnings;
+    public final TableMeter rowIndexSizeAborts;
+    public final TableHistogram rowIndexSize;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -922,8 +933,17 @@ public class TableMetrics
         clientTombstoneWarnings = createTableMeter("ClientTombstoneWarnings", cfs.keyspace.metric.clientTombstoneWarnings);
         clientTombstoneAborts = createTableMeter("ClientTombstoneAborts", cfs.keyspace.metric.clientTombstoneAborts);
 
-        clientReadSizeWarnings = createTableMeter("ClientReadSizeWarnings", cfs.keyspace.metric.clientReadSizeWarnings);
-        clientReadSizeAborts = createTableMeter("ClientReadSizeAborts", cfs.keyspace.metric.clientReadSizeAborts);
+        coordinatorReadSizeWarnings = createTableMeter("CoordinatorReadSizeWarnings", cfs.keyspace.metric.coordinatorReadSizeWarnings);
+        coordinatorReadSizeAborts = createTableMeter("CoordinatorReadSizeAborts", cfs.keyspace.metric.coordinatorReadSizeAborts);
+        coordinatorReadSize = createTableHistogram("CoordinatorReadSize", cfs.keyspace.metric.coordinatorReadSize, false);
+
+        localReadSizeWarnings = createTableMeter("LocalReadSizeWarnings", cfs.keyspace.metric.localReadSizeWarnings);
+        localReadSizeAborts = createTableMeter("LocalReadSizeAborts", cfs.keyspace.metric.localReadSizeAborts);
+        localReadSize = createTableHistogram("LocalReadSize", cfs.keyspace.metric.localReadSize, false);
+
+        rowIndexSizeWarnings = createTableMeter("RowIndexSizeWarnings", cfs.keyspace.metric.rowIndexSizeWarnings);
+        rowIndexSizeAborts = createTableMeter("RowIndexSizeAborts", cfs.keyspace.metric.rowIndexSizeAborts);
+        rowIndexSize = createTableHistogram("RowIndexSize", cfs.keyspace.metric.rowIndexSize, false);
     }
 
     public void updateSSTableIterated(int count)
@@ -1272,12 +1292,12 @@ public class TableMetrics
             private Context(Timer [] all)
             {
                 this.all = all;
-                start = System.nanoTime();
+                start = nanoTime();
             }
 
             public void close()
             {
-                long duration = System.nanoTime() - start;
+                long duration = nanoTime() - start;
                 for (Timer t : all)
                     t.update(duration, TimeUnit.NANOSECONDS);
             }

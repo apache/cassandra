@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import java.io.DataInputStream;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,8 +37,9 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 
-import java.io.File;
 import java.io.FileInputStream;
+
+import org.apache.cassandra.io.util.File;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -80,7 +82,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             testBloomFilterWrite1000(true);
         }
 
-        try (DataInputStream in = getInput("4.0", "utils.BloomFilter1000.bin");
+        try (FileInputStreamPlus in = getInput("4.0", "utils.BloomFilter1000.bin");
              IFilter filter = BloomFilterSerializer.deserialize(in, false))
         {
             boolean present;
@@ -96,7 +98,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             }
         }
 
-        try (DataInputStream in = getInput("3.0", "utils.BloomFilter1000.bin");
+        try (FileInputStreamPlus in = getInput("3.0", "utils.BloomFilter1000.bin");
              IFilter filter = BloomFilterSerializer.deserialize(in, true))
         {
             boolean present;
@@ -123,7 +125,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         Murmur3Partitioner partitioner = new Murmur3Partitioner();
 
-        try (DataInputStream in = new DataInputStream(new FileInputStream(new File(file)));
+        try (DataInputStream in = new DataInputStream(new FileInputStreamPlus(new File(file)));
              IFilter filter = BloomFilterSerializer.deserialize(in, oldBfFormat))
         {
             for (int i = 1; i <= 10; i++)
@@ -176,7 +178,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testEstimatedHistogramWrite();
 
-        try (DataInputStreamPlus in = getInput("utils.EstimatedHistogram.bin"))
+        try (FileInputStreamPlus in = getInput("utils.EstimatedHistogram.bin"))
         {
             Assert.assertNotNull(EstimatedHistogram.serializer.deserialize(in));
             Assert.assertNotNull(EstimatedHistogram.serializer.deserialize(in));

@@ -37,6 +37,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class ExecuteMessage extends Message.Request
 {
     public static final Message.Codec<ExecuteMessage> codec = new Message.Codec<ExecuteMessage>()
@@ -110,6 +112,12 @@ public class ExecuteMessage extends Message.Request
     }
 
     @Override
+    protected boolean isTrackable()
+    {
+        return true;
+    }
+
+    @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         QueryHandler.Prepared prepared = null;
@@ -133,7 +141,7 @@ public class ExecuteMessage extends Message.Request
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
 
-            long requestStartTime = System.currentTimeMillis();
+            long requestStartTime = currentTimeMillis();
 
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
 

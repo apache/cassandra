@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
@@ -37,8 +36,8 @@ import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.cassandra.io.util.File;
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,20 +67,16 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -89,6 +84,8 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.WindowsTimer;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
@@ -217,7 +214,7 @@ public class CassandraDaemon
     public CassandraDaemon(boolean runManaged)
     {
         this.runManaged = runManaged;
-        this.startupChecks = new StartupChecks().withDefaultTests();
+        this.startupChecks = new StartupChecks().withDefaultTests().withTest(new FileSystemOwnershipCheck());
         this.setupCompleted = false;
     }
 
@@ -274,7 +271,7 @@ public class CassandraDaemon
         // This should be the first write to SystemKeyspace (CASSANDRA-11742)
         SystemKeyspace.persistLocalMetadata();
 
-        Thread.setDefaultUncaughtExceptionHandler(CassandraDaemon::uncaughtException);
+        Thread.setDefaultUncaughtExceptionHandler(JVMStabilityInspector::uncaughtException);
 
         SystemKeyspaceMigrator40.migrate();
 
@@ -574,33 +571,18 @@ public class CassandraDaemon
             nativeTransportService = new NativeTransportService();
     }
 
-    @VisibleForTesting
-    public static void uncaughtException(Thread t, Throwable e)
-    {
-        StorageMetrics.uncaughtExceptions.inc();
-        logger.error("Exception in thread {}", t, e);
-        Tracing.trace("Exception in thread {}", t, e);
-        for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
-        {
-            // make sure error gets logged exactly once.
-            if (e2 != e && (e2 instanceof FSError || e2 instanceof CorruptSSTableException))
-                logger.error("Exception in thread {}", t, e2);
-        }
-        JVMStabilityInspector.inspectThrowable(e);
-    }
-
     /*
      * Asynchronously load the row and key cache in one off threads and return a compound future of the result.
      * Error handling is pushed into the cache load since cache loads are allowed to fail and are handled by logging.
      */
-    private ListenableFuture<?> loadRowAndKeyCacheAsync()
+    private Future<?> loadRowAndKeyCacheAsync()
     {
-        final ListenableFuture<Integer> keyCacheLoad = CacheService.instance.keyCache.loadSavedAsync();
+        final Future<Integer> keyCacheLoad = CacheService.instance.keyCache.loadSavedAsync();
 
-        final ListenableFuture<Integer> rowCacheLoad = CacheService.instance.rowCache.loadSavedAsync();
+        final Future<Integer> rowCacheLoad = CacheService.instance.rowCache.loadSavedAsync();
 
         @SuppressWarnings("unchecked")
-        ListenableFuture<List<Integer>> retval = Futures.successfulAsList(keyCacheLoad, rowCacheLoad);
+        Future<List<Integer>> retval = FutureCombiner.allOf(ImmutableList.of(keyCacheLoad, rowCacheLoad));
 
         return retval;
     }

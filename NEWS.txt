@@ -38,16 +38,24 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
-      to be enabled in 4.2; it is controlled with the configuration client_track_warnings_enabled,
+      to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
       setting to true will enable this feature.  Each check has its own warn/abort thresholds, currently
-      tombstones (tombstone_warn_threshold, and tombstone_failure_threshold) and coordinator result set
-      materialized size (client_large_read_warn_threshold_kb, and client_large_read_abort_threshold_kb)
-      are supported; more checks will be added over time.
+      tombstones (tombstone_warn_threshold, and tombstone_failure_threshold), coordinator result set
+      materialized size (track_warnings.coordinator_large_read.warn_threshold_kb, and
+      track_warnings.coordinator_large_read.abort_threshold_kb), local read materialized heap size
+      (track_warnings.local_read_size.warn_threshold_kb and track_warnings.local_read_size.abort_threshold_kb),
+      and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
+      track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
 
 Upgrading
 ---------
+    - Before you upgrade, if you are using `cassandra.auth_bcrypt_gensalt_log2_rounds` property,
+      confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
+      for further details. You also need to regenerate passwords for users for who the password
+      was created while the above property was set to be more than 30 otherwise they will not be able to log in.
 
 Deprecation
 -----------
@@ -140,6 +148,9 @@ New features
       See CASSANDRA-10190 for details.
     - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
     - It is now possible to rate limit snapshot creation/clearing. See CASSANDRA-13019
+    - Authentication reads and writes have been changed from a mix of ONE, LOCAL_ONE, and QUORUM
+      to LOCAL_QUORUM on reads and EACH_QUORUM on writes. This is configurable via cassandra.yaml with
+      auth_read_consistency_level and auth_write_consistency_level respectively. See CASSANDRA-12988.
 
 Upgrading
 ---------

@@ -17,9 +17,11 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
-import java.io.*;
+
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +32,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,8 +45,8 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
 
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -69,12 +75,11 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.SelfRefCounted;
-import org.apache.cassandra.utils.BloomFilterSerializer;
+import org.apache.cassandra.utils.concurrent.*;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * An SSTableReader can be constructed in a number of places, but typically is either
@@ -139,17 +144,21 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
-    private static final ScheduledThreadPoolExecutor syncExecutor = initSyncExecutor();
-    private static ScheduledThreadPoolExecutor initSyncExecutor()
+    private static final boolean TRACK_ACTIVITY = CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING.getBoolean();
+
+    private static final ScheduledExecutorPlus syncExecutor = initSyncExecutor();
+    private static ScheduledExecutorPlus initSyncExecutor()
     {
         if (DatabaseDescriptor.isClientOrToolInitialized())
             return null;
 
         // Do NOT start this thread pool in client mode
 
-        ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("read-hotness-tracker"));
+        ScheduledExecutorPlus syncExecutor = executorFactory().scheduled("read-hotness-tracker");
         // Immediately remove readMeter sync task when cancelled.
-        syncExecutor.setRemoveOnCancelPolicy(true);
+        // TODO: should we set this by default on all scheduled executors?
+        if (syncExecutor instanceof ScheduledThreadPoolExecutor)
+            ((ScheduledThreadPoolExecutor)syncExecutor).setRemoveOnCancelPolicy(true);
         return syncExecutor;
     }
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
@@ -525,46 +534,52 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
                                                     final TableMetadataRef metadata)
     {
-        final Collection<SSTableReader> sstables = new LinkedBlockingQueue<>();
+        final Collection<SSTableReader> sstables = newBlockingQueue();
 
-        ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
-        for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
+        ExecutorPlus executor = executorFactory().pooled("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
+        try
         {
-            Runnable runnable = new Runnable()
+            for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
             {
-                public void run()
+                Runnable runnable = new Runnable()
                 {
-                    SSTableReader sstable;
-                    try
+                    public void run()
                     {
-                        sstable = open(entry.getKey(), entry.getValue(), metadata);
+                        SSTableReader sstable;
+                        try
+                        {
+                            sstable = open(entry.getKey(), entry.getValue(), metadata);
+                        }
+                        catch (CorruptSSTableException ex)
+                        {
+                            JVMStabilityInspector.inspectThrowable(ex);
+                            logger.error("Corrupt sstable {}; skipping table", entry, ex);
+                            return;
+                        }
+                        catch (FSError ex)
+                        {
+                            JVMStabilityInspector.inspectThrowable(ex);
+                            logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
+                            return;
+                        }
+                        sstables.add(sstable);
                     }
-                    catch (CorruptSSTableException ex)
-                    {
-                        JVMStabilityInspector.inspectThrowable(ex);
-                        logger.error("Corrupt sstable {}; skipping table", entry, ex);
-                        return;
-                    }
-                    catch (FSError ex)
-                    {
-                        JVMStabilityInspector.inspectThrowable(ex);
-                        logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
-                        return;
-                    }
-                    sstables.add(sstable);
-                }
-            };
-            executor.submit(runnable);
+                };
+                executor.submit(runnable);
+            }
+        }
+        finally
+        {
+            executor.shutdown();
         }
 
-        executor.shutdown();
         try
         {
             executor.awaitTermination(7, TimeUnit.DAYS);
         }
         catch (InterruptedException e)
         {
-            throw new AssertionError(e);
+            throw new UncheckedInterruptedException(e);
         }
 
         return sstables;
@@ -613,7 +628,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
                 {
                     String compressionInfoFileName = descriptor.filenameFor(Component.COMPRESSION_INFO);
-                    throw new CorruptSSTableException(new FileNotFoundException(compressionInfoFileName), compressionInfoFileName);
+                    throw new CorruptSSTableException(new NoSuchFileException(compressionInfoFileName), compressionInfoFileName);
                 }
             }
             catch (IOException e)
@@ -719,7 +734,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (summariesFile.exists())
             FileUtils.deleteWithConfirm(summariesFile);
 
-        try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile)))
+        try (DataOutputStreamPlus oStream = new FileOutputStreamPlus(summariesFile))
         {
             IndexSummary.serializer.serialize(summary, oStream);
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
@@ -738,7 +753,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
     {
         File filterFile = new File(descriptor.filenameFor(Component.FILTER));
-        try (DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(new FileOutputStream(filterFile)))
+        try (DataOutputStreamPlus stream = new FileOutputStreamPlus(filterFile))
         {
             BloomFilterSerializer.serialize((BloomFilter) filter, stream);
             stream.flush();
@@ -1620,7 +1635,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 continue;
             if (null != limiter)
                 limiter.acquire();
-            File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+            File targetLink = new File(snapshotDirectoryPath, sourceFile.name());
             FileUtils.createHardLink(sourceFile, targetLink);
         }
     }
@@ -1968,7 +1983,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     void setup(boolean trackHotness)
     {
-        tidy.setup(this, trackHotness);
+        tidy.setup(this, TRACK_ACTIVITY && trackHotness);
         this.readMeter = tidy.global.readMeter;
     }
 
@@ -2084,6 +2099,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     if (logger.isTraceEnabled())
                         logger.trace("Async instance tidier for {}, completed", descriptor);
                 }
+
+                @Override
+                public String toString()
+                {
+                    return "Tidy " + descriptor.ksname + '.' + descriptor.cfname + '-' + descriptor.generation;
+                }
             });
         }
 
@@ -2137,7 +2158,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
             // the read meter when in client mode.
             // Also, do not track read rates when running in client or tools mode (syncExecuter isn't available in these modes)
-            if (SchemaConstants.isLocalSystemKeyspace(desc.ksname) || DatabaseDescriptor.isClientOrToolInitialized())
+            if (!TRACK_ACTIVITY || SchemaConstants.isLocalSystemKeyspace(desc.ksname) || DatabaseDescriptor.isClientOrToolInitialized())
             {
                 readMeter = null;
                 readMeterSyncFuture = NULL;

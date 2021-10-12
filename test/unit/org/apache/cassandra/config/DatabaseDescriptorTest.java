@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -264,7 +265,7 @@ public class DatabaseDescriptorTest
             }
         }
     }
-    
+
     @Test
     public void testTokensFromString()
     {
@@ -336,7 +337,7 @@ public class DatabaseDescriptorTest
         testConfig.cas_contention_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
         testConfig.counter_write_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
         testConfig.request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        
+
         assertTrue(testConfig.read_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertTrue(testConfig.range_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertTrue(testConfig.write_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
@@ -589,5 +590,166 @@ public class DatabaseDescriptorTest
 
         Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
         Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
+    }
+
+    // coordinator read
+    @Test
+    public void testClientLargeReadWarnAndAbortNegative()
+    {
+        Config conf = new Config();
+        conf.track_warnings.coordinator_read_size.warn_threshold_kb = -2;
+        conf.track_warnings.coordinator_read_size.abort_threshold_kb = -2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        Assertions.assertThat(conf.track_warnings.coordinator_read_size.warn_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.track_warnings.coordinator_read_size.abort_threshold_kb).isEqualTo(0);
+    }
+
+    @Test
+    public void testClientLargeReadWarnGreaterThanAbort()
+    {
+        Config conf = new Config();
+        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
+        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.coordinator_read_size");
+    }
+
+    @Test
+    public void testClientLargeReadWarnEqAbort()
+    {
+        Config conf = new Config();
+        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
+        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testClientLargeReadWarnEnabledAbortDisabled()
+    {
+        Config conf = new Config();
+        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
+        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 0;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testClientLargeReadAbortEnabledWarnDisabled()
+    {
+        Config conf = new Config();
+        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 0;
+        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    // local read
+    @Test
+    public void testLocalLargeReadWarnAndAbortNegative()
+    {
+        Config conf = new Config();
+        conf.track_warnings.local_read_size.warn_threshold_kb = -2;
+        conf.track_warnings.local_read_size.abort_threshold_kb = -2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        Assertions.assertThat(conf.track_warnings.local_read_size.warn_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.track_warnings.local_read_size.abort_threshold_kb).isEqualTo(0);
+    }
+
+    @Test
+    public void testLocalLargeReadWarnGreaterThanAbort()
+    {
+        Config conf = new Config();
+        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
+        conf.track_warnings.local_read_size.abort_threshold_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.local_read_size");
+    }
+
+    @Test
+    public void testLocalLargeReadWarnEqAbort()
+    {
+        Config conf = new Config();
+        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
+        conf.track_warnings.local_read_size.abort_threshold_kb = 2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testLocalLargeReadWarnEnabledAbortDisabled()
+    {
+        Config conf = new Config();
+        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
+        conf.track_warnings.local_read_size.abort_threshold_kb = 0;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testLocalLargeReadAbortEnabledWarnDisabled()
+    {
+        Config conf = new Config();
+        conf.track_warnings.local_read_size.warn_threshold_kb = 0;
+        conf.track_warnings.local_read_size.abort_threshold_kb = 2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    // row index entry
+    @Test
+    public void testRowIndexSizeWarnAndAbortNegative()
+    {
+        Config conf = new Config();
+        conf.track_warnings.row_index_size.warn_threshold_kb = -2;
+        conf.track_warnings.row_index_size.abort_threshold_kb = -2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        Assertions.assertThat(conf.track_warnings.row_index_size.warn_threshold_kb).isEqualTo(0);
+        Assertions.assertThat(conf.track_warnings.row_index_size.abort_threshold_kb).isEqualTo(0);
+    }
+
+    @Test
+    public void testRowIndexSizeWarnGreaterThanAbort()
+    {
+        Config conf = new Config();
+        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
+        conf.track_warnings.row_index_size.abort_threshold_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.row_index_size");
+    }
+
+    @Test
+    public void testRowIndexSizeWarnEqAbort()
+    {
+        Config conf = new Config();
+        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
+        conf.track_warnings.row_index_size.abort_threshold_kb = 2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testRowIndexSizeWarnEnabledAbortDisabled()
+    {
+        Config conf = new Config();
+        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
+        conf.track_warnings.row_index_size.abort_threshold_kb = 0;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testRowIndexSizeAbortEnabledWarnDisabled()
+    {
+        Config conf = new Config();
+        conf.track_warnings.row_index_size.warn_threshold_kb = 0;
+        conf.track_warnings.row_index_size.abort_threshold_kb = 2;
+        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testDefaultSslContextFactoryConfiguration() {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
+                            config.client_encryption_options.ssl_context_factory.class_name);
+        Assert.assertTrue(config.client_encryption_options.ssl_context_factory.parameters.isEmpty());
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
+                            config.server_encryption_options.ssl_context_factory.class_name);
+        Assert.assertTrue(config.server_encryption_options.ssl_context_factory.parameters.isEmpty());
     }
 }

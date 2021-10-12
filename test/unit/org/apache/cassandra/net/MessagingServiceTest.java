@@ -100,7 +100,7 @@ public class MessagingServiceTest
         DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
         DatabaseDescriptor.setInternodeMessagingEncyptionOptions(originalServerEncryptionOptions);
         DatabaseDescriptor.setShouldListenOnBroadcastAddress(false);
-        DatabaseDescriptor.setListenAddress(originalListenAddress.address);
+        DatabaseDescriptor.setListenAddress(originalListenAddress.getAddress());
         FBUtilities.reset();
     }
 
@@ -329,7 +329,7 @@ public class MessagingServiceTest
         if (listenOnBroadcastAddr)
         {
             DatabaseDescriptor.setShouldListenOnBroadcastAddress(true);
-            listenAddress = InetAddresses.increment(FBUtilities.getBroadcastAddressAndPort().address);
+            listenAddress = InetAddresses.increment(FBUtilities.getBroadcastAddressAndPort().getAddress());
             DatabaseDescriptor.setListenAddress(listenAddress);
             FBUtilities.reset();
         }
@@ -348,9 +348,9 @@ public class MessagingServiceTest
                 expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getSSLStoragePort()));
             if (listenOnBroadcastAddr)
             {
-                expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().address, DatabaseDescriptor.getStoragePort()));
+                expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().getAddress(), DatabaseDescriptor.getStoragePort()));
                 if (settings.encryption.enable_legacy_ssl_storage_port)
-                    expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().address, DatabaseDescriptor.getSSLStoragePort()));
+                    expect.add(InetAddressAndPort.getByAddressOverrideDefaults(FBUtilities.getBroadcastAddressAndPort().getAddress(), DatabaseDescriptor.getSSLStoragePort()));
             }
 
             Assert.assertEquals(expect.size(), connections.sockets().size());
@@ -361,8 +361,8 @@ public class MessagingServiceTest
                 Assert.assertEquals(serverEncryptionOptions.isEnabled(), socket.settings.encryption.isEnabled());
                 Assert.assertEquals(serverEncryptionOptions.isOptional(), socket.settings.encryption.isOptional());
                 if (!serverEncryptionOptions.isEnabled())
-                    assertNotEquals(legacySslPort, socket.settings.bindAddress.port);
-                if (legacySslPort == socket.settings.bindAddress.port)
+                    assertNotEquals(legacySslPort, socket.settings.bindAddress.getPort());
+                if (legacySslPort == socket.settings.bindAddress.getPort())
                     Assert.assertFalse(socket.settings.encryption.isOptional());
                 Assert.assertTrue(socket.settings.bindAddress.toString(), expect.remove(socket.settings.bindAddress));
             }

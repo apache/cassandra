@@ -36,12 +36,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
@@ -102,6 +105,16 @@ public class UUIDGen
     }
 
     /**
+     * Creates a type 1 UUID (time-based UUID) with the timestamp of @param when, in milliseconds.
+     *
+     * @return a UUID instance
+     */
+    public static UUID getTimeUUIDWithClockSeqAndNode(long when, long clockSeqAndNode)
+    {
+        return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
+    }
+
+    /**
      * Returns a version 1 UUID using the provided timestamp and the local clock and sequence.
      * <p>
      * Note that this method is generally only safe to use if you can guarantee that the provided
@@ -128,14 +141,42 @@ public class UUIDGen
      * through randomization.
      *
      * @param whenInMicros a unix time in microseconds.
+     * @param flag a value between 0 and 9 (inclusive) to put in least significant (and unused) part of the timestamp
      * @return a new UUID {@code id} such that {@code microsTimestamp(id) == whenInMicros}. The UUID returned
      * by different calls will be unique even if {@code whenInMicros} is not.
      */
+    public static UUID getRandomTimeUUIDFromMicros(long whenInMicros, int flag)
+    {
+        Preconditions.checkArgument(0 <= flag  && flag < 10);
+        long whenInMillis = whenInMicros / 1000;
+        long nanos = (whenInMicros - (whenInMillis * 1000)) * 10 + flag;
+        return new UUID(createTime(fromUnixTimestamp(whenInMillis, nanos)), secureRandom.nextLong());
+    }
+
+    @Deprecated
     public static UUID getRandomTimeUUIDFromMicros(long whenInMicros)
     {
+        return getRandomTimeUUIDFromMicros(whenInMicros, 0);
+    }
+
+    /**
+     * Similar to {@link #getTimeUUIDFromMicros}, but randomize (using SecureRandom) the clock and sequence.
+     * <p>
+     * If you can guarantee that the {@code whenInMicros} argument is unique (for this JVM instance) for
+     * every call, then you should prefer {@link #getTimeUUIDFromMicros} which is faster. If you can't
+     * guarantee this however, this method will ensure the returned UUID are still unique (accross calls)
+     * through randomization.
+     *
+     * @param whenInMicros a unix time in microseconds.
+     * @return a new UUID {@code id} such that {@code microsTimestamp(id) == whenInMicros}. The UUID returned
+     * by different calls will be unique even if {@code whenInMicros} is not.
+     */
+    public static UUID getRandomTimeUUIDFromMicrosAndRandom(long whenInMicros, long randomPart, int flag)
+    {
+        Preconditions.checkArgument(0 <= flag && flag < 10);
         long whenInMillis = whenInMicros / 1000;
-        long nanos = (whenInMicros - (whenInMillis * 1000)) * 10;
-        return new UUID(createTime(fromUnixTimestamp(whenInMillis, nanos)), secureRandom.nextLong());
+        long nanos = (whenInMicros - (whenInMillis * 1000)) * 10 + flag;
+        return new UUID(createTime(fromUnixTimestamp(whenInMillis, nanos)), randomPart);
     }
 
     public static UUID getTimeUUID(long when, long nanos)
@@ -278,7 +319,11 @@ public class UUIDGen
 
     private static byte[] createTimeUUIDBytes(long msb)
     {
-        long lsb = clockSeqAndNode;
+        return createTimeUUIDBytes(msb, clockSeqAndNode);
+    }
+
+    public static byte[] createTimeUUIDBytes(long msb, long lsb)
+    {
         byte[] uuidBytes = new byte[16];
 
         for (int i = 0; i < 8; i++)
@@ -306,6 +351,15 @@ public class UUIDGen
 
     private static long makeClockSeqAndNode()
     {
+        if (Boolean.getBoolean("cassandra.unsafe.deterministicuuidnode"))
+            return FBUtilities.getBroadcastAddressAndPort().addressBytes[3];
+
+        Long specified = Long.getLong("cassandra.unsafe.timeuuidnode");
+        if (specified != null)
+            return specified
+                    ^ FBUtilities.getBroadcastAddressAndPort().addressBytes[3]
+                    ^ (FBUtilities.getBroadcastAddressAndPort().addressBytes[2] << 8);
+
         long clock = new SecureRandom().nextLong();
 
         long lsb = 0;
@@ -323,7 +377,7 @@ public class UUIDGen
         while (true)
         {
             //Generate a candidate value for new lastNanos
-            newLastNanos = (System.currentTimeMillis() - START_EPOCH) * 10000;
+            newLastNanos = (currentTimeMillis() - START_EPOCH) * 10000;
             long originalLastNanos = lastNanos.get();
             if (newLastNanos > originalLastNanos)
             {
@@ -350,7 +404,7 @@ public class UUIDGen
         return createTime(nanosSince);
     }
 
-    private static long createTime(long nanosSince)
+    public static long createTime(long nanosSince)
     {
         long msb = 0L;
         msb |= (0x00000000ffffffffL & nanosSince) << 32;
@@ -396,13 +450,13 @@ public class UUIDGen
         for(InetAddressAndPort addr : data)
         {
             hasher.putBytes(addr.addressBytes);
-            hasher.putInt(addr.port);
+            hasher.putInt(addr.getPort());
         }
 
         // Identify the process on the load: we use both the PID and class loader hash.
         long pid = NativeLibrary.getProcessID();
         if (pid < 0)
-            pid = new Random(System.currentTimeMillis()).nextLong();
+            pid = new Random(currentTimeMillis()).nextLong();
         updateWithLong(hasher, pid);
 
         ClassLoader loader = UUIDGen.class.getClassLoader();

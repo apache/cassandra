@@ -18,18 +18,16 @@
 package org.apache.cassandra.metrics;
 
 import java.util.*;
-import java.util.concurrent.ThreadPoolExecutor;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.compaction.ActiveCompactions;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -64,7 +62,7 @@ public class CompactionMetrics
     /** Total number of compactions which have outright failed due to lack of disk space */
     public final Counter compactionsAborted;
 
-    public CompactionMetrics(final ThreadPoolExecutor... collectors)
+    public CompactionMetrics(final ExecutorPlus... collectors)
     {
         pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
         {
@@ -139,7 +137,7 @@ public class CompactionMetrics
             public Long getValue()
             {
                 long completedTasks = 0;
-                for (ThreadPoolExecutor collector : collectors)
+                for (ExecutorPlus collector : collectors)
                     completedTasks += collector.getCompletedTaskCount();
                 return completedTasks;
             }

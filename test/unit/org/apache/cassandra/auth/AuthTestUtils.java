@@ -80,7 +80,7 @@ public class AuthTestUtils
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
-        UntypedResultSet process(String query) throws RequestExecutionException
+        UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
         {
             return QueryProcessor.executeInternal(query);
         }
@@ -139,7 +139,7 @@ public class AuthTestUtils
         return rolesTable.metric.readLatency.latency.getCount();
     }
 
-    public static RoleOptions getLoginRoleOprions()
+    public static RoleOptions getLoginRoleOptions()
     {
         RoleOptions roleOptions = new RoleOptions();
         roleOptions.setOption(IRoleManager.Option.SUPERUSER, false);

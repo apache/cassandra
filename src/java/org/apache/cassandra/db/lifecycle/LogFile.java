@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -30,6 +29,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Throwables.merge;
 
 /**
@@ -76,7 +77,7 @@ final class LogFile implements AutoCloseable
 
     static LogFile make(File logReplica)
     {
-        return make(logReplica.getName(), Collections.singletonList(logReplica));
+        return make(logReplica.name(), Collections.singletonList(logReplica));
     }
 
     static LogFile make(String fileName, List<File> logReplicas)
@@ -138,7 +139,7 @@ final class LogFile implements AutoCloseable
 
     static boolean isLogFile(File file)
     {
-        return LogFile.FILE_REGEX.matcher(file.getName()).matches();
+        return LogFile.FILE_REGEX.matcher(file.name()).matches();
     }
 
     LogFile(OperationType type, UUID id, List<File> replicas)
@@ -274,12 +275,12 @@ final class LogFile implements AutoCloseable
 
     void commit()
     {
-        addRecord(LogRecord.makeCommit(System.currentTimeMillis()));
+        addRecord(LogRecord.makeCommit(currentTimeMillis()));
     }
 
     void abort()
     {
-        addRecord(LogRecord.makeAbort(System.currentTimeMillis()));
+        addRecord(LogRecord.makeAbort(currentTimeMillis()));
     }
 
     private boolean isLastRecordValidWithType(Type type)
@@ -323,7 +324,7 @@ final class LogFile implements AutoCloseable
         for (SSTableReader sstable : tables)
         {
             File directory = sstable.descriptor.directory;
-            String fileName = StringUtils.join(directory, File.separator, getFileName());
+            String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
             replicas.maybeCreateReplica(directory, fileName, records);
         }
         return LogRecord.make(type, tables);
@@ -332,7 +333,7 @@ final class LogFile implements AutoCloseable
     private LogRecord makeAddRecord(SSTable table)
     {
         File directory = table.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.separator, getFileName());
+        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
         replicas.maybeCreateReplica(directory, fileName, records);
         return LogRecord.make(Type.ADD, table);
     }
@@ -347,7 +348,7 @@ final class LogFile implements AutoCloseable
         assert type == Type.ADD || type == Type.REMOVE;
 
         File directory = table.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.separator, getFileName());
+        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
         replicas.maybeCreateReplica(directory, fileName, records);
         return record.asType(type);
     }
@@ -443,7 +444,7 @@ final class LogFile implements AutoCloseable
     private static Set<File> getRecordFiles(NavigableSet<File> files, LogRecord record)
     {
         String fileName = record.fileName();
-        return files.stream().filter(f -> f.getName().startsWith(fileName)).collect(Collectors.toSet());
+        return files.stream().filter(f -> f.name().startsWith(fileName)).collect(Collectors.toSet());
     }
 
     boolean exists()

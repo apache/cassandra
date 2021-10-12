@@ -18,25 +18,34 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -44,6 +53,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,35 +65,46 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IClassTransformer;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.IMessageSink;
 import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
-import org.apache.cassandra.distributed.shared.Isolated;
+import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.shared.Shared;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.Shared.Recursive;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.reflections.Reflections;
+import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
+import static java.util.stream.Stream.of;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAndPort;
+import static org.apache.cassandra.utils.Shared.Recursive.ALL;
+import static org.apache.cassandra.utils.Shared.Recursive.NONE;
+import static org.apache.cassandra.utils.Shared.Scope.ANY;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.reflections.ReflectionUtils.forNames;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -109,7 +130,6 @@ import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAnd
  * handlers for internode to have more control over it. Messaging is wired by passing verbs manually.
  * coordinator-handling code and hooks to the callbacks can be found in {@link Coordinator}.
  */
-@Shared
 public abstract class AbstractCluster<I extends IInstance> implements ICluster<I>, AutoCloseable
 {
     public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());
@@ -121,20 +141,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private static final AtomicInteger GENERATION = new AtomicInteger();
 
     // include byteman so tests can use
-    private static final Set<String> SHARED_CLASSES = findClassesMarkedForSharedClassLoader();
-    private static final Set<String> ISOLATED_CLASSES = findClassesMarkedForInstanceClassLoader();
-    private static final Predicate<String> SHARED_PREDICATE = s -> {
-        if (ISOLATED_CLASSES.contains(s))
-            return false;
-
-        return SHARED_CLASSES.contains(s) ||
-               InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
-               s.startsWith("org.jboss.byteman");
-    };
+    public static final Predicate<String> SHARED_PREDICATE = getSharedClassPredicate(ANY);
 
     private final UUID clusterId = UUID.randomUUID();
-    private final File root;
+    private final Path root;
     private final ClassLoader sharedClassLoader;
+    private final Predicate<String> sharedClassPredicate;
+    private final IClassTransformer classTransformer;
     private final int subnet;
     private final TokenSupplier tokenSupplier;
     private final Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
@@ -150,11 +163,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // mutated by user-facing API
     private final MessageFilters filters;
     private final INodeProvisionStrategy.Strategy nodeProvisionStrategy;
-    private final BiConsumer<ClassLoader, Integer> instanceInitializer;
+    private final IInstanceInitializer instanceInitializer;
     private final int datadirCount;
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
     private volatile BiPredicate<Integer, Throwable> ignoreUncaughtThrowable = null;
     private final List<Throwable> uncaughtExceptions = new CopyOnWriteArrayList<>();
+
+    private final ThreadGroup clusterThreadGroup = new ThreadGroup(clusterId.toString());
+
+    private volatile IMessageSink messageSink;
 
     /**
      * Common builder, add methods that are applicable to both Cluster and Upgradable cluster here.
@@ -167,6 +184,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         public AbstractBuilder(Factory<I, C, B> factory)
         {
             super(factory);
+            withSharedClasses(SHARED_PREDICATE);
         }
 
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
@@ -213,11 +231,33 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, SHARED_PREDICATE);
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, sharedClassPredicate, classTransformer);
+            ThreadGroup threadGroup = new ThreadGroup(clusterThreadGroup, "node" + config.num() + (generation > 1 ? "_" + generation : ""));
             if (instanceInitializer != null)
-                instanceInitializer.accept(classLoader, config.num());
-            return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
-                                        .apply(config.forVersion(version.version), classLoader);
+                instanceInitializer.initialise(classLoader, threadGroup, config.num(), generation);
+
+            IInvokableInstance instance;
+            try
+            {
+                instance = Instance.transferAdhoc((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
+                                   .apply(config.forVersion(version.version), classLoader, root.getFileSystem());
+            }
+            catch (NoSuchMethodError e)
+            {
+                instance = Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
+                                   .apply(config.forVersion(version.version), classLoader);
+            }
+
+            if (instanceInitializer != null)
+                instanceInitializer.beforeStartup(instance);
+
+            return instance;
+        }
+
+        public Executor executorFor(int verb)
+        {
+            // this method must be lock-free to avoid Simulator deadlock
+            return delegate().executorFor(verb);
         }
 
         public IInstanceConfig config()
@@ -239,7 +279,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         public synchronized void startup()
         {
             startup(AbstractCluster.this);
+            postStartup();
         }
+
         public synchronized void startup(ICluster cluster)
         {
             if (cluster != AbstractCluster.this)
@@ -282,6 +324,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 throw t;
             }
             updateMessagingVersions();
+
+            if (instanceInitializer != null)
+                instanceInitializer.afterStartup(this);
         }
 
         @Override
@@ -340,6 +385,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
 
         @Override
+        public void receiveMessageWithInvokingThread(IMessage message)
+        {
+            IInvokableInstance delegate = this.delegate;
+            if (isRunning() && delegate != null) // since we sync directly on the other node, we drop messages immediately if we are shutdown
+                delegate.receiveMessageWithInvokingThread(message);
+        }
+
+        @Override
         public boolean getLogsEnabled()
         {
             return delegate().getLogsEnabled();
@@ -386,8 +439,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected AbstractCluster(AbstractBuilder<I, ? extends ICluster<I>, ?> builder)
     {
-        this.root = builder.getRoot();
+        this.root = builder.getRootPath();
         this.sharedClassLoader = builder.getSharedClassLoader();
+        this.sharedClassPredicate = builder.getSharedClasses();
+        this.classTransformer = builder.getClassTransformer();
         this.subnet = builder.getSubnet();
         this.tokenSupplier = builder.getTokenSupplier();
         this.nodeIdTopology = builder.getNodeIdTopology();
@@ -398,7 +453,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.instanceMap = new ConcurrentHashMap<>();
         this.initialVersion = builder.getVersion();
         this.filters = new MessageFilters();
-        this.instanceInitializer = builder.getInstanceInitializer();
+        this.instanceInitializer = builder.getInstanceInitializer2();
         this.datadirCount = builder.getDatadirCount();
 
         int generation = GENERATION.incrementAndGet();
@@ -524,7 +579,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                                               i.config().localRack().equals(rackName));
     }
 
-    public void run(Consumer<? super I> action,  Predicate<I> filter)
+    public void run(Consumer<? super I> action, Predicate<I> filter)
     {
         run(Collections.singletonList(action), filter);
     }
@@ -590,6 +645,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public IMessageFilters filters()
     {
         return filters;
+    }
+
+    public synchronized void setMessageSink(IMessageSink sink)
+    {
+        if (messageSink != null && sink != null)
+            throw new IllegalStateException();
+        this.messageSink = sink;
+    }
+
+    public void deliverMessage(InetSocketAddress to, IMessage message)
+    {
+        IMessageSink sink = messageSink;
+        if (sink == null) get(to).receiveMessage(message);
+        else sink.accept(to, message);
     }
 
     public IMessageFilters.Builder verbs(Verb... verbs)
@@ -672,7 +741,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public abstract class ChangeMonitor implements AutoCloseable
     {
         final List<IListen.Cancel> cleanup;
-        final SimpleCondition completed;
+        final Condition completed;
         private final long timeOut;
         private final TimeUnit timeoutUnit;
         protected Predicate<IInstance> instanceFilter;
@@ -684,7 +753,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             this.timeoutUnit = timeoutUnit;
             this.instanceFilter = i -> true;
             this.cleanup = new ArrayList<>(instances.size());
-            this.completed = new SimpleCondition();
+            this.completed = newOneTimeCondition();
         }
 
         public void ignoreStoppedInstances()
@@ -694,7 +763,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         protected void signal()
         {
-            if (initialized && !completed.isSignaled() && isCompleted())
+            if (initialized && !completed.isSignalled() && isCompleted())
                 completed.signalAll();
         }
 
@@ -813,8 +882,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                     startParallel.add(instance);
             }
 
-            forEach(startSequentially, I::startup);
-            parallelForEach(startParallel, I::startup, 0, null);
+            forEach(startSequentially, i -> {
+                i.startup(this);
+                i.postStartup();
+            });
+            parallelForEach(startParallel, i -> {
+                i.startup(this);
+                i.postStartup();
+            }, 0, null);
             monitor.waitForCompletion();
         }
     }
@@ -855,9 +930,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         instances.clear();
         instanceMap.clear();
+        PathUtils.setDeletionListener(ignore -> {});
         // Make sure to only delete directory when threads are stopped
-        if (root.exists())
-            FileUtils.deleteRecursive(root);
+        if (Files.exists(root))
+            PathUtils.deleteRecursive(root);
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
         previousHandler = null;
         checkAndResetUncaughtExceptions();
@@ -924,22 +1000,213 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                .collect(Collectors.toList());
     }
 
-    private static Set<String> findClassesMarkedForSharedClassLoader()
+    private static Set<String> findClassesMarkedForSharedClassLoader(Class<?>[] share, Shared.Scope ... scopes)
     {
-        return findClassesMarkedWith(Shared.class);
+        return findClassesMarkedForSharedClassLoader(share, ImmutableSet.copyOf(scopes)::contains);
     }
 
-    private static Set<String> findClassesMarkedForInstanceClassLoader()
+    private static Set<String> findClassesMarkedForSharedClassLoader(Class<?>[] share, Predicate<Shared.Scope> scopes)
     {
-        return findClassesMarkedWith(Isolated.class);
+        Set<Class<?>> classes = findClassesMarkedWith(Shared.class, a -> of(a.scope()).anyMatch(scopes));
+        Collections.addAll(classes, share);
+        assertTransitiveClosure(classes);
+        return toNames(classes);
     }
 
-    private static Set<String> findClassesMarkedWith(Class<? extends Annotation> annotation)
+    private static Set<String> findClassesMarkedForInstanceClassLoader(Class<?>[] isolate)
     {
-        return new Reflections(ConfigurationBuilder.build("org.apache.cassandra").setExpandSuperTypes(false))
-               .getTypesAnnotatedWith(annotation).stream()
-               .map(Class::getName)
+        Set<Class<?>> classes = findClassesMarkedWith(Isolated.class, ignore -> true);
+        Collections.addAll(classes, isolate);
+        return toNames(classes);
+    }
+
+    public static Predicate<String> getSharedClassPredicate(Shared.Scope ... scopes)
+    {
+        return getSharedClassPredicate(new Class[0], new Class[0], scopes);
+    }
+
+    public static Predicate<String> getSharedClassPredicate(Class<?>[] isolate, Class<?>[] share, Shared.Scope ... scopes)
+    {
+        Set<String> shared = findClassesMarkedForSharedClassLoader(share, scopes);
+        Set<String> isolated = findClassesMarkedForInstanceClassLoader(isolate);
+        return s -> {
+            if (isolated.contains(s))
+                return false;
+
+            return shared.contains(s) ||
+                   InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
+                   s.startsWith("org.jboss.byteman");
+        };
+    }
+
+    private static <A extends Annotation> Set<Class<?>> findClassesMarkedWith(Class<A> annotation, Predicate<A> testAnnotation)
+    {
+        Reflections reflections = new Reflections(ConfigurationBuilder.build("org.apache.cassandra").setExpandSuperTypes(false));
+        return forNames(reflections.getStore().getAll(TypeAnnotationsScanner.class, annotation.getName()),
+                        reflections.getConfiguration().getClassLoaders())
+               .stream()
+               .filter(testAnnotation(annotation, testAnnotation))
+               .flatMap(expander())
                .collect(Collectors.toSet());
+    }
+
+    private static Set<String> toNames(Set<Class<?>> classes)
+    {
+        return classes.stream().map(Class::getName).collect(Collectors.toSet());
+    }
+
+    private static <A extends Annotation> Predicate<Class<?>> testAnnotation(Class<A> annotation, Predicate<A> test)
+    {
+        return clazz -> {
+            A[] annotations = clazz.getDeclaredAnnotationsByType(annotation);
+            for (A a : annotations)
+            {
+                if (!test.test(a))
+                    return false;
+            }
+            return true;
+        };
+    }
+
+    private static void assertTransitiveClosure(Set<Class<?>> classes)
+    {
+        Set<Class<?>> tested = new HashSet<>();
+        for (Class<?> clazz : classes)
+        {
+            forEach(test -> {
+                if (!classes.contains(test))
+                    throw new AssertionError(clazz.getName() + " is shared, but its dependency " + test + " is not");
+            }, new SharedParams(ALL, ALL, NONE), clazz, tested);
+        }
+    }
+
+    private static class SharedParams
+    {
+        final Recursive ancestors, members, inner;
+
+        private SharedParams(Recursive ancestors, Recursive members, Recursive inner)
+        {
+            this.ancestors = ancestors;
+            this.members = members;
+            this.inner = inner;
+        }
+
+        private SharedParams(Shared shared)
+        {
+            this.ancestors = shared.ancestors();
+            this.members = shared.members();
+            this.inner = shared.inner();
+        }
+    }
+
+    private static void forEach(Consumer<Class<?>> forEach, SharedParams shared, Class<?> cur, Set<Class<?>> done)
+    {
+        if (null == (cur = consider(cur, done)))
+            return;
+
+        forEach.accept(cur);
+
+        switch (shared.ancestors)
+        {
+            case ALL:
+                forEach(forEach, shared, cur.getSuperclass(), done);
+            case INTERFACES:
+                for (Class<?> i : cur.getInterfaces())
+                    forEach(forEach, shared, i, done);
+        }
+
+        if (shared.members != NONE)
+        {
+            for (Field field : cur.getDeclaredFields())
+            {
+                if ((field.getModifiers() & Modifier.PRIVATE) == 0)
+                    forEachMatch(shared.members, forEach, shared, field.getType(), done);
+            }
+
+            for (Method method : cur.getDeclaredMethods())
+            {
+                if ((method.getModifiers() & Modifier.PRIVATE) == 0)
+                {
+                    forEachMatch(shared.members, forEach, shared, method.getReturnType(), done);
+                    forEachMatch(shared.members, forEach, shared, method.getParameterTypes(), done);
+                }
+            }
+        }
+
+        if (shared.inner != NONE)
+            forEachMatch(shared.inner, forEach, shared, cur.getDeclaredClasses(), done);
+    }
+
+    private static void forEachMatch(Recursive ifMatches, Consumer<Class<?>> forEach, SharedParams shared, Class<?>[] classes, Set<Class<?>> done)
+    {
+        for (Class<?> cur : classes)
+            forEachMatch(ifMatches, forEach, shared, cur, done);
+    }
+
+    private static void forEachMatch(Recursive ifMatches, Consumer<Class<?>> forEach, SharedParams shared, Class<?> cur, Set<Class<?>> done)
+    {
+        if (ifMatches == ALL || isInterface(cur))
+            forEach(forEach, shared, cur, done);
+    }
+
+    private static boolean isInterface(Class<?> test)
+    {
+        return test.isInterface() || test.isEnum() || Throwable.class.isAssignableFrom(test);
+    }
+
+    private static Function<Class<?>, Stream<Class<?>>> expander()
+    {
+        Set<Class<?>> done = new HashSet<>();
+        return clazz -> expand(clazz, done);
+    }
+
+    private static Stream<Class<?>> expand(Class<?> clazz, Set<Class<?>> done)
+    {
+        Optional<Shared> maybeShared = of(clazz.getDeclaredAnnotationsByType(Shared.class)).findFirst();
+        if (!maybeShared.isPresent())
+            return Stream.of(clazz);
+
+        Shared shared = maybeShared.get();
+        if (shared.inner() == NONE && shared.members() == NONE && shared.ancestors() == NONE)
+            return Stream.of(clazz);
+
+        Set<Class<?>> closure = new HashSet<>();
+        forEach(closure::add, new SharedParams(shared), clazz, done);
+        return closure.stream();
+    }
+
+    private static Class<?> consider(Class<?> consider, Set<Class<?>> considered)
+    {
+        if (consider == null) return null;
+        while (consider.isArray()) // TODO (future): this is inadequate handling of array types (fine for now)
+            consider = consider.getComponentType();
+
+        if (consider.isPrimitive()) return null;
+        if (consider.getPackage() != null && consider.getPackage().getName().startsWith("java.")) return null;
+        if (!considered.add(consider)) return null;
+        if (InstanceClassLoader.getDefaultLoadSharedFilter().test(consider.getName())) return null;
+
+        return consider;
+    }
+
+    // 3.0 and earlier clusters must have unique InetAddressAndPort for each InetAddress
+    public static <I extends IInstance> Map<InetSocketAddress, I> getUniqueAddressLookup(ICluster<I> cluster)
+    {
+        return getUniqueAddressLookup(cluster, Function.identity());
+    }
+
+    public static <I extends IInstance, V> Map<InetSocketAddress, V> getUniqueAddressLookup(ICluster<I> cluster, Function<I, V> function)
+    {
+        Map<InetSocketAddress, V> lookup = new HashMap<>();
+        cluster.stream().forEach(instance -> {
+            InetSocketAddress address = instance.broadcastAddress();
+            if (!address.equals(instance.config().broadcastAddress()))
+                throw new IllegalStateException("addressAndPort mismatch: " + address + " vs " + instance.config().broadcastAddress());
+            V prev = lookup.put(address, function.apply(instance));
+            if (null != prev)
+                throw new IllegalStateException("This version of Cassandra does not support multiple nodes with the same InetAddress: " + address + " vs " + prev);
+        });
+        return lookup;
     }
 }
 

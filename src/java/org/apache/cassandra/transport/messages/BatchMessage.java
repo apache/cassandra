@@ -46,6 +46,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class BatchMessage extends Message.Request
 {
     public static final Message.Codec<BatchMessage> codec = new Message.Codec<BatchMessage>()
@@ -161,6 +163,12 @@ public class BatchMessage extends Message.Request
     }
 
     @Override
+    protected boolean isTrackable()
+    {
+        return true;
+    }
+
+    @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         List<QueryHandler.Prepared> prepared = null;
@@ -217,7 +225,7 @@ public class BatchMessage extends Message.Request
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
-            long queryTime = System.currentTimeMillis();
+            long queryTime = currentTimeMillis();
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
             if (queries != null)
                 QueryEvents.instance.notifyBatchSuccess(batchType, statements, queries, values, options, state, queryTime, response);

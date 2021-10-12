@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -536,7 +537,7 @@ public abstract class Lists
             {
                 if (remainingInBatch == 0)
                 {
-                    long time = PrecisionTime.REFERENCE_TIME - (System.currentTimeMillis() - PrecisionTime.REFERENCE_TIME);
+                    long time = PrecisionTime.REFERENCE_TIME - (currentTimeMillis() - PrecisionTime.REFERENCE_TIME);
                     remainingInBatch = Math.min(PrecisionTime.MAX_NANOS, i) + 1;
                     pt = PrecisionTime.getNext(time, remainingInBatch);
                 }

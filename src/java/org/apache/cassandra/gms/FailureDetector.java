@@ -27,8 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.*;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.Replica;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.DatabaseDescriptor.newFailureDetector;
 import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
 /**
@@ -71,7 +72,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return DEFAULT_MAX_PAUSE;
     }
 
-    public static final IFailureDetector instance = new FailureDetector();
+    public static final IFailureDetector instance = newFailureDetector();
     public static final Predicate<InetAddressAndPort> isEndpointAlive = instance::isAlive;
     public static final Predicate<Replica> isReplicaAlive = r -> isEndpointAlive.test(r.endpoint());
 
@@ -254,7 +255,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, (path == null) ? null : path.toFile());
+            throw new FSWriteError(e, path);
         }
     }
 

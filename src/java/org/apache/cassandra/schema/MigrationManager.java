@@ -19,12 +19,11 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.*;
 import java.lang.management.ManagementFactory;
 import java.util.function.LongSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Futures;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -225,7 +224,7 @@ public class MigrationManager
         Future<Schema.TransformationResult> future =
             MIGRATION.submit(() -> Schema.instance.transform(transformation, locally, now));
 
-        Schema.TransformationResult result = Futures.getUnchecked(future);
+        Schema.TransformationResult result = future.syncUninterruptibly().getNow();
         if (!result.success)
             throw result.exception;
 

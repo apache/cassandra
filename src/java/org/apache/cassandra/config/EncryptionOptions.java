@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.File;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -29,15 +33,23 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * This holds various options used for enabling SSL/TLS encryption.
+ * Examples of such options are: supported cipher-suites, ssl protocol with version, accepted protocols, end-point
+ * verification, require client-auth/cert etc.
+ */
 public class EncryptionOptions
 {
     Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
 
     public enum TlsEncryptionPolicy
     {
-        UNENCRYPTED("unencrypted"), OPTIONAL("optionally encrypted"), ENCRYPTED("encrypted");
+        UNENCRYPTED("unencrypted"),
+        OPTIONAL("optionally encrypted"),
+        ENCRYPTED("encrypted");
 
         private final String description;
 
@@ -52,6 +64,12 @@ public class EncryptionOptions
         }
     }
 
+    /*
+     * If the ssl_context_factory is configured, most likely it won't use file based keystores and truststores and
+     * can choose to completely customize SSL context's creation. Most likely it won't also use keystore_password and
+     * truststore_passwords configurations as they are in plaintext format.
+     */
+    public final ParameterizedClass ssl_context_factory;
     public final String keystore;
     public final String keystore_password;
     public final String truststore;
@@ -73,11 +91,58 @@ public class EncryptionOptions
     protected Boolean optional;
 
     // Calculated by calling applyConfig() after populating/parsing
-    protected Boolean isEnabled = null;
-    protected Boolean isOptional = null;
+    protected Boolean isEnabled;
+    protected Boolean isOptional;
+
+    /*
+     * We will wait to initialize this until applyConfig() call to make sure we do it only when the caller is ready
+     * to use this option instance.
+     */
+    public ISslContextFactory sslContextFactoryInstance;
+
+    public enum ConfigKey
+    {
+        KEYSTORE("keystore"),
+        KEYSTORE_PASSWORD("keystore_password"),
+        TRUSTSTORE("truststore"),
+        TRUSTSTORE_PASSWORD("truststore_password"),
+        CIPHER_SUITES("cipher_suites"),
+        PROTOCOL("protocol"),
+        ACCEPTED_PROTOCOLS("accepted_protocols"),
+        ALGORITHM("algorithm"),
+        STORE_TYPE("store_type"),
+        REQUIRE_CLIENT_AUTH("require_client_auth"),
+        REQUIRE_ENDPOINT_VERIFICATION("require_endpoint_verification"),
+        ENABLED("enabled"),
+        OPTIONAL("optional");
+
+        final String keyName;
+
+        ConfigKey(String keyName)
+        {
+            this.keyName=keyName;
+        }
+
+        String getKeyName()
+        {
+            return keyName;
+        }
+
+        static Set<String> asSet()
+        {
+            Set<String> valueSet = new HashSet<>();
+            ConfigKey[] values = values();
+            for(ConfigKey key: values) {
+                valueSet.add(key.getKeyName().toLowerCase());
+            }
+            return valueSet;
+        }
+    }
 
     public EncryptionOptions()
     {
+        ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
+                                                     new HashMap<>());
         keystore = "conf/.keystore";
         keystore_password = "cassandra";
         truststore = "conf/.truststore";
@@ -93,8 +158,13 @@ public class EncryptionOptions
         optional = null;
     }
 
-    public EncryptionOptions(String keystore, String keystore_password, String truststore, String truststore_password, List<String> cipher_suites, String protocol, List<String> accepted_protocols, String algorithm, String store_type, boolean require_client_auth, boolean require_endpoint_verification, Boolean enabled, Boolean optional)
+    public EncryptionOptions(ParameterizedClass ssl_context_factory, String keystore, String keystore_password,
+                             String truststore, String truststore_password, List<String> cipher_suites,
+                             String protocol, List<String> accepted_protocols, String algorithm, String store_type,
+                             boolean require_client_auth, boolean require_endpoint_verification, Boolean enabled,
+                             Boolean optional)
     {
+        this.ssl_context_factory = ssl_context_factory;
         this.keystore = keystore;
         this.keystore_password = keystore_password;
         this.truststore = truststore;
@@ -112,6 +182,7 @@ public class EncryptionOptions
 
     public EncryptionOptions(EncryptionOptions options)
     {
+        ssl_context_factory = options.ssl_context_factory;
         keystore = options.keystore;
         keystore_password = options.keystore_password;
         truststore = options.truststore;
@@ -130,10 +201,14 @@ public class EncryptionOptions
     /* Computes enabled and optional before use. Because the configuration can be loaded
      * through pluggable mechanisms this is the only safe way to make sure that
      * enabled and optional are set correctly.
+     *
+     * It also initializes the ISslContextFactory's instance
      */
     public EncryptionOptions applyConfig()
     {
         ensureConfigNotApplied();
+
+        initializeSslContextFactory();
 
         isEnabled = this.enabled != null && enabled;
 
@@ -144,7 +219,7 @@ public class EncryptionOptions
         // If someone is asking for an _insecure_ connection and not explicitly telling us to refuse
         // encrypted connections AND they have a keystore file, we assume they would like to be able
         // to transition to encrypted connections in the future.
-        else if (new File(keystore).exists())
+        else if (sslContextFactoryInstance.hasKeystore())
         {
             isOptional = !isEnabled;
         }
@@ -154,6 +229,63 @@ public class EncryptionOptions
             isOptional = false;
         }
         return this;
+    }
+
+    /**
+     * Prepares the parameterized keys provided in the configuration for {@link ISslContextFactory} to be passed in
+     * as the constructor for its implementation.
+     *
+     * @throws IllegalArgumentException in case any pre-defined key, as per {@link ConfigKey}, for the encryption
+     * options is duplicated in the parameterized keys.
+     */
+    private void prepareSslContextFactoryParameterizedKeys(Map<String,Object> sslContextFactoryParameters)
+    {
+        if (ssl_context_factory.parameters != null)
+        {
+            Set<String> configKeys = ConfigKey.asSet();
+            for (Map.Entry<String, String> entry : ssl_context_factory.parameters.entrySet())
+            {
+                if(configKeys.contains(entry.getKey().toLowerCase()))
+                {
+                    throw new IllegalArgumentException("SslContextFactory "+ssl_context_factory.class_name+" should " +
+                                                       "configure '"+entry.getKey()+"' as encryption_options instead of" +
+                                                       " parameterized keys");
+                }
+                sslContextFactoryParameters.put(entry.getKey(),entry.getValue());
+            }
+        }
+    }
+
+    private void initializeSslContextFactory() {
+        Map<String,Object> sslContextFactoryParameters = new HashMap<>();
+        prepareSslContextFactoryParameterizedKeys(sslContextFactoryParameters);
+
+        /*
+         * Copy all configs to the Map to pass it on to the ISslContextFactory's implementation
+         */
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.KEYSTORE, this.keystore);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.KEYSTORE_PASSWORD, this.keystore_password);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.TRUSTSTORE, this.truststore);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.TRUSTSTORE_PASSWORD, this.truststore_password);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.CIPHER_SUITES, this.cipher_suites);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.PROTOCOL, this.protocol);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ACCEPTED_PROTOCOLS, this.accepted_protocols);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ALGORITHM, this.algorithm);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.STORE_TYPE, this.store_type);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.REQUIRE_CLIENT_AUTH, this.require_client_auth);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.REQUIRE_ENDPOINT_VERIFICATION, this.require_endpoint_verification);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ENABLED, this.enabled);
+        putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.OPTIONAL, this.optional);
+
+        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
+                                                                     sslContextFactoryParameters);
+    }
+
+    private void putSslContextFactoryParameter(Map<String,Object> existingParameters, ConfigKey configKey,
+                                               Object value) {
+        if (value != null) {
+            existingParameters.put(configKey.getKeyName(), value);
+        }
     }
 
     private void ensureConfigApplied()
@@ -236,59 +368,15 @@ public class EncryptionOptions
         this.accepted_protocols = accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols);
     }
 
-    /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
-     * by extracting it from the default "TLS" SSL Context instance
-     */
-    static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
-
-    /**
-     * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
-     * explicit protocols for the previous catchall default of "TLS"
-     * @return array of protocol names suitable for passing to SslContextBuilder.protocols, or null if the default
-     */
     public List<String> acceptedProtocols()
     {
-        if (accepted_protocols == null)
-        {
-            if (protocol == null)
-            {
-                return null;
-            }
-            // TLS is accepted by SSLContext.getInstance as a shorthand for give me an engine that
-            // can speak some of the TLS protocols.  It is not supported by SSLEngine.setAcceptedProtocols
-            // so substitute if the user hasn't provided an accepted protocol configuration
-            else if (protocol.equalsIgnoreCase("TLS"))
-            {
-                return TLS_PROTOCOL_SUBSTITUTION;
-            }
-            else // the user was trying to limit to a single specific protocol, so try that
-            {
-                return ImmutableList.of(protocol);
-            }
-        }
-
-        if (protocol != null && !protocol.equalsIgnoreCase("TLS") &&
-            accepted_protocols.stream().noneMatch(ap -> ap.equalsIgnoreCase(protocol)))
-        {
-            // If the user provided a non-generic default protocol, append it to accepted_protocols - they wanted
-            // it after all.
-            return ImmutableList.<String>builder().addAll(accepted_protocols).add(protocol).build();
-        }
-        else
-        {
-            return accepted_protocols;
-        }
+        return sslContextFactoryInstance.getAcceptedProtocols();
     }
 
     public String[] acceptedProtocolsArray()
     {
         List<String> ap = acceptedProtocols();
         return ap == null ?  new String[0] : ap.toArray(new String[0]);
-    }
-
-    public String[] cipherSuitesArray()
-    {
-        return cipher_suites == null ? new String[0] : cipher_suites.toArray(new String[0]);
     }
 
     public TlsEncryptionPolicy tlsEncryptionPolicy()
@@ -307,104 +395,126 @@ public class EncryptionOptions
         }
     }
 
+    public EncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass) {
+        return new EncryptionOptions(sslContextFactoryClass, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites,protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification,enabled,
+                                     optional).applyConfig();
+    }
+
     public EncryptionOptions withKeyStore(String keystore)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites,protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withKeyStorePassword(String keystore_password)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites,protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withTrustStore(String truststore)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withTrustStorePassword(String truststore_password)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withCipherSuites(List<String> cipher_suites)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withCipherSuites(String ... cipher_suites)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, ImmutableList.copyOf(cipher_suites),
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, ImmutableList.copyOf(cipher_suites), protocol,
+                                     accepted_protocols, algorithm, store_type, require_client_auth,
+                                     require_endpoint_verification, enabled, optional).applyConfig();
     }
 
     public EncryptionOptions withProtocol(String protocol)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
 
     public EncryptionOptions withAcceptedProtocols(List<String> accepted_protocols)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites, protocol,
-                                     accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols),
-                                     algorithm, store_type, require_client_auth, require_endpoint_verification, enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites,protocol, accepted_protocols == null ? null :
+                                                                                  ImmutableList.copyOf(accepted_protocols),
+                                     algorithm, store_type, require_client_auth, require_endpoint_verification,
+                                     enabled, optional).applyConfig();
     }
 
 
     public EncryptionOptions withAlgorithm(String algorithm)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withStoreType(String store_type)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withRequireClientAuth(boolean require_client_auth)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withRequireEndpointVerification(boolean require_endpoint_verification)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withEnabled(boolean enabled)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     public EncryptionOptions withOptional(Boolean optional)
     {
-        return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                           protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                           enabled, optional).applyConfig();
+        return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                     truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
+                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     optional).applyConfig();
     }
 
     /**
@@ -432,7 +542,8 @@ public class EncryptionOptions
                Objects.equals(accepted_protocols, opt.accepted_protocols) &&
                Objects.equals(algorithm, opt.algorithm) &&
                Objects.equals(store_type, opt.store_type) &&
-               Objects.equals(cipher_suites, opt.cipher_suites);
+               Objects.equals(cipher_suites, opt.cipher_suites) &&
+               Objects.equals(ssl_context_factory, opt.ssl_context_factory);
     }
 
     /**
@@ -456,6 +567,7 @@ public class EncryptionOptions
         result += 31 * (cipher_suites == null ? 0 : cipher_suites.hashCode());
         result += 31 * Boolean.hashCode(require_client_auth);
         result += 31 * Boolean.hashCode(require_endpoint_verification);
+        result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.hashCode());
         return result;
     }
 
@@ -475,16 +587,16 @@ public class EncryptionOptions
             this.enable_legacy_ssl_storage_port = false;
         }
 
-        public ServerEncryptionOptions(String keystore, String keystore_password, String truststore,
-                                       String truststore_password, List<String> cipher_suites, String protocol,
-                                       List<String> accepted_protocols, String algorithm, String store_type,
-                                       boolean require_client_auth, boolean require_endpoint_verification,
-                                       Boolean optional, InternodeEncryption internode_encryption,
-                                       boolean enable_legacy_ssl_storage_port)
+        public ServerEncryptionOptions(ParameterizedClass sslContextFactoryClass, String keystore,
+                                       String keystore_password, String truststore, String truststore_password,
+                                       List<String> cipher_suites, String protocol, List<String> accepted_protocols,
+                                       String algorithm, String store_type, boolean require_client_auth,
+                                       boolean require_endpoint_verification, Boolean optional,
+                                       InternodeEncryption internode_encryption, boolean enable_legacy_ssl_storage_port)
         {
-            super(keystore, keystore_password, truststore, truststore_password, cipher_suites, protocol,
-                  accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                  null, optional);
+            super(sslContextFactoryClass, keystore, keystore_password, truststore, truststore_password, cipher_suites,
+            protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
+            null, optional);
             this.internode_encryption = internode_encryption;
             this.enable_legacy_ssl_storage_port = enable_legacy_ssl_storage_port;
         }
@@ -562,110 +674,148 @@ public class EncryptionOptions
             return optional != null && optional;
         }
 
+        public ServerEncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass)
+        {
+            return new ServerEncryptionOptions(sslContextFactoryClass, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
+        }
+
         public ServerEncryptionOptions withKeyStore(String keystore)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withKeyStorePassword(String keystore_password)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withTrustStore(String truststore)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withTrustStorePassword(String truststore_password)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withCipherSuites(List<String> cipher_suites)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withCipherSuites(String ... cipher_suites)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, ImmutableList.copyOf(cipher_suites),
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, Arrays.asList(cipher_suites), protocol,
+                                               accepted_protocols, algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withProtocol(String protocol)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withAcceptedProtocols(List<String> accepted_protocols)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols),
-                                               algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withAlgorithm(String algorithm)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withStoreType(String store_type)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withRequireClientAuth(boolean require_client_auth)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withRequireEndpointVerification(boolean require_endpoint_verification)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withOptional(boolean optional)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withInternodeEncryption(InternodeEncryption internode_encryption)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withLegacySslStoragePort(boolean enable_legacy_ssl_storage_port)
         {
-            return new ServerEncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
-                                               protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-                                               optional, internode_encryption, enable_legacy_ssl_storage_port).applyConfigInternal();
+            return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
+                                               truststore_password, cipher_suites, protocol, accepted_protocols,
+                                               algorithm, store_type, require_client_auth,
+                                               require_endpoint_verification, optional, internode_encryption,
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
     }

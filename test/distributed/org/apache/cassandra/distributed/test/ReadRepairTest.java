@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,7 +37,6 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -52,14 +52,14 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+
+import static org.apache.cassandra.db.Keyspace.open;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
@@ -68,6 +68,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.apache.cassandra.net.Verb.READ_REQ;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.fail;
 
 public class ReadRepairTest extends TestBaseImpl
@@ -365,7 +366,7 @@ public class ReadRepairTest extends TestBaseImpl
                                  "    PRIMARY KEY (key, column1)\n" +
                                  ") WITH CLUSTERING ORDER BY (column1 ASC)");
 
-            cluster.forEach(i -> i.runOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").disableAutoCompaction()));
+            cluster.forEach(i -> i.runOnInstance(() -> open(KEYSPACE).getColumnFamilyStore("tbl").disableAutoCompaction()));
 
             for (int i = 1; i <= 2; i++)
             {
@@ -378,9 +379,9 @@ public class ReadRepairTest extends TestBaseImpl
             cluster.get(3).flush(KEYSPACE);
 
             // pause the read until we have bootstrapped a new node below
-            SimpleCondition continueRead = new SimpleCondition();
-            SimpleCondition readStarted = new SimpleCondition();
-            cluster.filters().outbound().from(3).to(1,2).verbs(Verb.READ_REQ.id).messagesMatching((i, i1, iMessage) -> {
+            Condition continueRead = newOneTimeCondition();
+            Condition readStarted = newOneTimeCondition();
+            cluster.filters().outbound().from(3).to(1,2).verbs(READ_REQ.id).messagesMatching((i, i1, iMessage) -> {
                 try
                 {
                     readStarted.signalAll();
@@ -394,7 +395,7 @@ public class ReadRepairTest extends TestBaseImpl
             }).drop();
             Future<Object[][]> read = es.submit(() -> cluster.coordinator(3)
                                                           .execute("SELECT * FROM distributed_test_keyspace.tbl WHERE key=? and column1 >= ? and column1 <= ?",
-                                                                   ConsistencyLevel.ALL, key, 20, 40));
+                                                                   ALL, key, 20, 40));
             readStarted.await();
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);

@@ -28,7 +28,9 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -39,13 +41,16 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.apache.cassandra.io.sstable.format.SSTableReader.OpenReason.NORMAL;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public abstract class SSTableReaderBuilder
 {
@@ -125,7 +130,7 @@ public abstract class SSTableReaderBuilder
         if (!summariesFile.exists())
         {
             if (logger.isDebugEnabled())
-                logger.debug("SSTable Summary File {} does not exist", summariesFile.getAbsolutePath());
+                logger.debug("SSTable Summary File {} does not exist", summariesFile.absolutePath());
             return;
         }
 
@@ -144,7 +149,7 @@ public abstract class SSTableReaderBuilder
         {
             if (summary != null)
                 summary.close();
-            logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.getPath(), e.getMessage());
+            logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.path(), e.getMessage());
             // corrupted; delete it and fall back to creating a new summary
             FileUtils.closeQuietly(iStream);
             // delete it and fall back to creating a new summary
@@ -233,7 +238,7 @@ public abstract class SSTableReaderBuilder
      */
     IFilter loadBloomFilter() throws IOException
     {
-        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(descriptor.filenameFor(Component.FILTER))))))
+        try (FileInputStreamPlus stream = new File(descriptor.filenameFor(Component.FILTER)).newInputStream())
         {
             return BloomFilterSerializer.deserialize(stream, descriptor.version.hasOldBfFormat());
         }
@@ -270,7 +275,7 @@ public abstract class SSTableReaderBuilder
                         StatsMetadata statsMetadata,
                         SerializationHeader header)
         {
-            super(descriptor, metadataRef, System.currentTimeMillis(), components, statsMetadata, SSTableReader.OpenReason.NORMAL, header);
+            super(descriptor, metadataRef, currentTimeMillis(), components, statsMetadata, NORMAL, header);
         }
 
         @Override
@@ -338,7 +343,7 @@ public abstract class SSTableReaderBuilder
                        StatsMetadata statsMetadata,
                        SerializationHeader header)
         {
-            super(descriptor, metadataRef, System.currentTimeMillis(), components, statsMetadata, SSTableReader.OpenReason.NORMAL, header);
+            super(descriptor, metadataRef, currentTimeMillis(), components, statsMetadata, NORMAL, header);
             this.validationMetadata = validationMetadata;
             this.isOffline = isOffline;
         }
@@ -353,9 +358,9 @@ public abstract class SSTableReaderBuilder
             try
             {
                 // load index and filter
-                long start = System.nanoTime();
+                long start = nanoTime();
                 load(validationMetadata, isOffline, components, DatabaseDescriptor.getDiskOptimizationStrategy(), statsMetadata);
-                logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
             }
             catch (IOException t)
             {

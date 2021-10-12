@@ -24,6 +24,8 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.utils.ExecutorUtils;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
 /**
  * Centralized location for shared executors
  */
@@ -32,26 +34,26 @@ public class ScheduledExecutors
     /**
      * This pool is used for periodic fast (sub-microsecond) tasks.
      */
-    public static final DebuggableScheduledThreadPoolExecutor scheduledFastTasks = new DebuggableScheduledThreadPoolExecutor("ScheduledFastTasks");
+    public static final ScheduledExecutorPlus scheduledFastTasks = executorFactory().scheduled("ScheduledFastTasks");
 
     /**
      * This pool is used for periodic short (sub-second) tasks.
      */
-     public static final DebuggableScheduledThreadPoolExecutor scheduledTasks = new DebuggableScheduledThreadPoolExecutor("ScheduledTasks");
+     public static final ScheduledExecutorPlus scheduledTasks = executorFactory().scheduled("ScheduledTasks");
 
     /**
      * This executor is used for tasks that can have longer execution times, and usually are non periodic.
      */
-    public static final DebuggableScheduledThreadPoolExecutor nonPeriodicTasks = new DebuggableScheduledThreadPoolExecutor("NonPeriodicTasks");
+    public static final ScheduledExecutorPlus nonPeriodicTasks = executorFactory().scheduled("NonPeriodicTasks");
 
     /**
      * This executor is used for tasks that do not need to be waited for on shutdown/drain.
      */
-    public static final DebuggableScheduledThreadPoolExecutor optionalTasks = new DebuggableScheduledThreadPoolExecutor("OptionalTasks");
+    public static final ScheduledExecutorPlus optionalTasks = executorFactory().scheduled(false, "OptionalTasks");
 
     @VisibleForTesting
-    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    public static void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownNowAndWait(timeout, unit, scheduledFastTasks, scheduledTasks, nonPeriodicTasks, optionalTasks);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, scheduledTasks, scheduledFastTasks, nonPeriodicTasks, optionalTasks);
     }
 }

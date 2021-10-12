@@ -227,8 +227,8 @@ good idea to check if compactions are even running using
     pending tasks: 2
     - keyspace.table: 2
 
-    id                                   compaction type keyspace table completed total    unit  progress
-    2062b290-7f3a-11e8-9358-cd941b956e60 Compaction      keyspace table 21848273  97867583 bytes 22.32%
+    id                                   compaction type keyspace table sstables completed total    unit  progress
+    2062b290-7f3a-11e8-9358-cd941b956e60 Compaction      keyspace table 3        21848273  97867583 bytes 22.32%
     Active compaction remaining time :   0h00m04s
 
 In this case there is a single compaction running on the ``keyspace.table``

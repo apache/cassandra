@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 
+import org.apache.cassandra.io.util.File;
+
 public class TokenSerializer
 {
     private static final Logger logger = LoggerFactory.getLogger(TokenSerializer.class);

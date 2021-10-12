@@ -18,10 +18,10 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
@@ -38,6 +38,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class StandaloneSplitter
 {
@@ -115,7 +116,7 @@ public class StandaloneSplitter
             // Do not load sstables since they might be broken
             Keyspace keyspace = Keyspace.openWithoutSSTables(ksName);
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
-            String snapshotName = "pre-split-" + System.currentTimeMillis();
+            String snapshotName = "pre-split-" + currentTimeMillis();
 
             List<SSTableReader> sstables = new ArrayList<>();
             for (Map.Entry<Descriptor, Set<Component>> fn : parsedFilenames.entrySet())
@@ -132,7 +133,7 @@ public class StandaloneSplitter
 
                     if (options.snapshot) {
                         File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
-                        sstable.createLinks(snapshotDirectory.getPath());
+                        sstable.createLinks(snapshotDirectory.path());
                     }
 
                 }

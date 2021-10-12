@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -28,6 +27,7 @@ import javax.annotation.Nullable;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +35,8 @@ import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * A paged non-compressed hints reader that provides two iterators:
@@ -164,7 +166,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
     final class HintsIterator extends AbstractIterator<Hint>
     {
         private final InputPosition offset;
-        private final long now = System.currentTimeMillis();
+        private final long now = currentTimeMillis();
 
         HintsIterator(InputPosition offset)
         {
@@ -270,7 +272,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
     final class BuffersIterator extends AbstractIterator<ByteBuffer>
     {
         private final InputPosition offset;
-        private final long now = System.currentTimeMillis();
+        private final long now = currentTimeMillis();
 
         BuffersIterator(InputPosition offset)
         {

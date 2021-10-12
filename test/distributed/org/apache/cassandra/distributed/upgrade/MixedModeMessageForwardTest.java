@@ -28,11 +28,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.shared.Shared;
+import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
-@Shared
 public class MixedModeMessageForwardTest extends UpgradeTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(MixedModeMessageForwardTest.class);

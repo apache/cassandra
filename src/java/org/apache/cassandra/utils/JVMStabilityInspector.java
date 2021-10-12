@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.nio.file.FileSystemException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -29,6 +30,8 @@ import java.util.function.Consumer;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.tracing.Tracing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +43,7 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 /**
  * Responsible for deciding whether to kill the JVM if it gets in an "unstable" state (think OOM).
@@ -56,6 +60,20 @@ public final class JVMStabilityInspector
     public static OnKillHook killerHook;
 
     private JVMStabilityInspector() {}
+
+    public static void uncaughtException(Thread thread, Throwable t)
+    {
+        try { StorageMetrics.uncaughtExceptions.inc(); } catch (Throwable ignore) { /* might not be initialised */ }
+        logger.error("Exception in thread {}", thread, t);
+        Tracing.trace("Exception in thread {}", thread, t);
+        for (Throwable t2 = t; t2 != null; t2 = t2.getCause())
+        {
+            // make sure error gets logged exactly once.
+            if (t2 != t && (t2 instanceof FSError || t2 instanceof CorruptSSTableException))
+                logger.error("Exception in thread {}", thread, t2);
+        }
+        JVMStabilityInspector.inspectThrowable(t);
+    }
 
     /**
      * Certain Throwables and Exceptions represent "Die" conditions for the server.
@@ -114,6 +132,9 @@ public final class JVMStabilityInspector
             isUnstable = true;
         }
 
+        if (t instanceof InterruptedException)
+            throw new UncheckedInterruptedException((InterruptedException) t);
+
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
                 isUnstable = true;
@@ -121,7 +142,7 @@ public final class JVMStabilityInspector
         fn.accept(t);
 
         // Check for file handle exhaustion
-        if (t instanceof FileNotFoundException || t instanceof SocketException)
+        if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)
             if (t.getMessage() != null && t.getMessage().contains("Too many open files"))
                 isUnstable = true;
 

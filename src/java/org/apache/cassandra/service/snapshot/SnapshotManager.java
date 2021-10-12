@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.snapshot;
 
 
-import java.io.File;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
@@ -29,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
@@ -42,11 +41,13 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ExecutorUtils;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class SnapshotManager {
 
-    private static final DebuggableScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("SnapshotCleanup");
+    private static final ScheduledExecutorPlus executor = executorFactory().scheduled(false, "SnapshotCleanup");
 
     private static final Logger logger = LoggerFactory.getLogger(SnapshotManager.class);
 

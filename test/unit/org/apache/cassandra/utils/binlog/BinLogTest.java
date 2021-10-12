@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -29,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,6 +40,7 @@ import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -50,7 +51,7 @@ public class BinLogTest
 {
     public static Path tempDir() throws Exception
     {
-        return Files.createTempDirectory("binlogtest" + System.nanoTime());
+        return Files.createTempDirectory("binlogtest" + nanoTime());
     }
 
     private static final String testString = "ry@nlikestheyankees";
@@ -78,9 +79,9 @@ public class BinLogTest
         {
             binLog.stop();
         }
-        for (File f : path.toFile().listFiles())
+        for (File f : new File(path).tryList())
         {
-            f.delete();
+            f.tryDelete();
         }
     }
 

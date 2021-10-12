@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -43,6 +42,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -290,14 +290,14 @@ public class RandomAccessReaderTest
     private static void testReadFully(Parameters params) throws IOException
     {
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             builder.mmapped(params.mmappedRegions);
             try (FileHandle fh = builder.complete();
                  RandomAccessReader reader = fh.createReader())
             {
-                assertEquals(f.getAbsolutePath(), reader.getPath());
+                assertEquals(f.absolutePath(), reader.getPath());
                 assertEquals(f.length(), reader.length());
                 assertEquals(f.length(), reader.bytesRemaining());
                 assertEquals(Math.min(Integer.MAX_VALUE, f.length()), reader.available());
@@ -331,11 +331,11 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath());
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path());
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
-            assertEquals(f.getAbsolutePath(), reader.getPath());
+            assertEquals(f.absolutePath(), reader.getPath());
             assertEquals(expected.length(), reader.length());
 
             ByteBuffer b = ByteBufferUtil.read(reader, expected.length());
@@ -362,7 +362,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath());
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path());
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
@@ -428,7 +428,7 @@ public class RandomAccessReaderTest
         final File f = FileUtils.createTempFile("testMark", "1");
         final byte[] expected = new byte[1 << 16];
 
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         //seed = 365238103404423L;
         logger.info("Seed {}", seed);
         Random r = new Random(seed);
@@ -442,7 +442,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath()))
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path()))
         {
             final Runnable worker = () ->
             {
@@ -519,7 +519,7 @@ public class RandomAccessReaderTest
     {
         Parameters params = new Parameters(8192, 4096);
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             builder.mmapped(params.mmappedRegions);
@@ -537,7 +537,7 @@ public class RandomAccessReaderTest
     {
         Parameters params = new Parameters(8192, 4096);
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             try (FileHandle fh = builder.complete();
@@ -552,7 +552,7 @@ public class RandomAccessReaderTest
     private static void testSkipBytes(Parameters params, int expectationMultiples) throws IOException
     {
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             builder.mmapped(params.mmappedRegions);

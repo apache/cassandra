@@ -44,6 +44,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAn
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopAbrupt;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.validateRows;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class HostReplacementAbruptDownedInstanceTest extends TestBaseImpl
 {
@@ -82,14 +83,14 @@ public class HostReplacementAbruptDownedInstanceTest extends TestBaseImpl
 //            peers.forEach(p -> validateRows(p.coordinator(), expectedState));
 
             // now create a new node to replace the other node
-            long startNanos = System.nanoTime();
+            long startNanos = nanoTime();
             IInvokableInstance replacingNode = replaceHostAndStart(cluster, nodeToRemove, properties -> {
                 // since node2 was killed abruptly its possible that node2's gossip state has an old schema version
                 // if this happens then bootstrap will fail waiting for a schema version it will never see; to avoid
                 // this, setting this property to log the warning rather than fail bootstrap
                 properties.set(BOOTSTRAP_SKIP_SCHEMA_CHECK, true);
             });
-            logger.info("Host replacement of {} with {} took {}", nodeToRemove, replacingNode, Duration.ofNanos(System.nanoTime() - startNanos));
+            logger.info("Host replacement of {} with {} took {}", nodeToRemove, replacingNode, Duration.ofNanos(nanoTime() - startNanos));
             peers.forEach(p -> awaitRingJoin(p, replacingNode));
 
             // make sure all nodes are healthy

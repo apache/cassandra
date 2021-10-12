@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.File;
 import java.util.*;
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
@@ -34,6 +32,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
@@ -58,7 +57,7 @@ public class Upgrader
         this.sstable = txn.onlyOne();
         this.outputHandler = outputHandler;
 
-        this.directory = new File(sstable.getFilename()).getParentFile();
+        this.directory = new File(sstable.getFilename()).parent();
 
         this.controller = new UpgradeController(cfs);
 

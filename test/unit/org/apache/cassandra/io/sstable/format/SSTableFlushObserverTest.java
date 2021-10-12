@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -26,6 +25,7 @@ import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -85,11 +85,11 @@ public class SSTableFlushObserverTest
         FlushObserver observer = new FlushObserver();
 
         String sstableDirectory = DatabaseDescriptor.getAllDataFileLocations()[0];
-        File directory = new File(sstableDirectory + File.pathSeparator + KS_NAME + File.pathSeparator + CF_NAME);
+        File directory = new File(sstableDirectory + File.pathSeparator() + KS_NAME + File.pathSeparator() + CF_NAME);
         directory.deleteOnExit();
 
-        if (!directory.exists() && !directory.mkdirs())
-            throw new FSWriteError(new IOException("failed to create tmp directory"), directory.getAbsolutePath());
+        if (!directory.exists() && !directory.tryCreateDirectories())
+            throw new FSWriteError(new IOException("failed to create tmp directory"), directory.absolutePath());
 
         SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
 

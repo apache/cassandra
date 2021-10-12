@@ -81,6 +81,8 @@ public class Config
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
+    public volatile boolean use_deterministic_table_id = false;
+
     /* initial token in the ring */
     public String initial_token;
     public Integer num_tokens;
@@ -118,6 +120,7 @@ public class Config
     public int concurrent_writes = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
+    public int available_processors = -1;
 
     @Deprecated
     public Integer concurrent_replicates = null;
@@ -142,6 +145,8 @@ public class Config
     public String broadcast_address;
     public boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
+
+    public boolean traverse_auth_from_root = false;
 
     /*
      * RPC address and interface refer to the address/interface used for the native protocol used to communicate with
@@ -280,6 +285,8 @@ public class Config
     public int dynamic_snitch_reset_interval_in_ms = 600000;
     public double dynamic_snitch_badness_threshold = 1.0;
 
+    public String failure_detector = "FailureDetector";
+
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
 
@@ -312,6 +319,8 @@ public class Config
     public Long counter_cache_size_in_mb = null;
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
+
+    public Long paxos_cache_size_in_mb = null;
 
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
@@ -346,18 +355,15 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
+    public final TrackWarnings track_warnings = new TrackWarnings();
+
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
-
-    public volatile long client_large_read_warn_threshold_kb = 0;
-    public volatile long client_large_read_abort_threshold_kb = 0;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     public volatile Long index_summary_capacity_in_mb;
     public volatile int index_summary_resize_interval_in_minutes = 60;
-
-    public volatile boolean client_track_warnings_enabled = false; // should set to true in 4.2
 
     public int gc_log_threshold_in_ms = 200;
     public int gc_warn_threshold_in_ms = 1000;
@@ -515,6 +521,11 @@ public class Config
      */
     public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
 
+    // Using String instead of ConsistencyLevel here to keep static initialization from cascading and starting
+    // threads during tool usage mode. See CASSANDRA-12988 and DatabaseDescriptorRefTest for details
+    public volatile String auth_read_consistency_level = "LOCAL_QUORUM";
+    public volatile String auth_write_consistency_level = "EACH_QUORUM";
+
     /**
      * The intial capacity for creating RangeTombstoneList.
      */
@@ -618,6 +629,7 @@ public class Config
     public enum MemtableAllocationType
     {
         unslabbed_heap_buffers,
+        unslabbed_heap_buffers_logged,
         heap_buffers,
         offheap_buffers,
         offheap_objects

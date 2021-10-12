@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.db.compaction.writers;
 
-import java.io.File;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

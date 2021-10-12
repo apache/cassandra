@@ -68,6 +68,11 @@ public class TableId
     public static TableId forSystemTable(String keyspace, String table)
     {
         assert SchemaConstants.isLocalSystemKeyspace(keyspace) || SchemaConstants.isReplicatedSystemKeyspace(keyspace);
+        return unsafeDeterministic(keyspace, table);
+    }
+
+    public static TableId unsafeDeterministic(String keyspace, String table)
+    {
         return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(), table.getBytes())));
     }
 

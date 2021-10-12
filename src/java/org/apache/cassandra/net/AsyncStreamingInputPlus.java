@@ -20,8 +20,8 @@ package org.apache.cassandra.net;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -32,9 +32,12 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.apache.cassandra.io.util.RebufferingInputStream;
+import org.apache.cassandra.streaming.StreamingDataInputPlus;
+
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 // TODO: rewrite
-public class AsyncStreamingInputPlus extends RebufferingInputStream
+public class AsyncStreamingInputPlus extends RebufferingInputStream implements StreamingDataInputPlus
 {
     public static class InputTimeoutException extends IOException
     {
@@ -65,7 +68,7 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream
         super(Unpooled.EMPTY_BUFFER.nioBuffer());
         currentBuf = Unpooled.EMPTY_BUFFER;
 
-        queue = new LinkedBlockingQueue<>();
+        queue = newBlockingQueue();
         rebufferTimeoutNanos = rebufferTimeoutUnit.toNanos(rebufferTimeout);
 
         this.channel = channel;
@@ -107,7 +110,7 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream
      * the {@link #rebufferTimeoutNanos} elapses while blocking. It's then not safe to reuse this instance again.
      */
     @Override
-    protected void reBuffer() throws EOFException, InputTimeoutException
+    protected void reBuffer() throws ClosedChannelException, InputTimeoutException
     {
         if (queue.isEmpty())
             channel.read();
@@ -130,7 +133,7 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream
             throw new InputTimeoutException();
 
         if (next == Unpooled.EMPTY_BUFFER) // Unpooled.EMPTY_BUFFER is the indicator that the input is closed
-            throw new EOFException();
+            throw new ClosedChannelException();
 
         currentBuf = next;
         buffer = next.nioBuffer();

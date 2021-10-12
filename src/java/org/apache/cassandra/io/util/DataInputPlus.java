@@ -19,11 +19,15 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.vint.VIntCoding;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Extension to DataInput that provides support for reading varints
  */
+@Shared(scope = SIMULATION)
 public interface DataInputPlus extends DataInput
 {
     default long readVInt() throws IOException
@@ -60,6 +64,8 @@ public interface DataInputPlus extends DataInput
 
     /**
      * Wrapper around an InputStream that provides no buffering but can decode varints
+     *
+     * TODO: probably shouldn't use DataInputStream as a parent
      */
     public class DataInputStreamPlus extends DataInputStream implements DataInputPlus
     {

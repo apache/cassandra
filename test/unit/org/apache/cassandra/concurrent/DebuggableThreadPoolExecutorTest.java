@@ -21,16 +21,14 @@ package org.apache.cassandra.concurrent;
  */
 
 
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import com.google.common.base.Throwables;
 import com.google.common.net.InetAddresses;
-import com.google.common.util.concurrent.ListenableFutureTask;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,6 +39,9 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.TraceStateImpl;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.WrappedRunnable;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class DebuggableThreadPoolExecutorTest
 {
@@ -53,12 +54,7 @@ public class DebuggableThreadPoolExecutorTest
     @Test
     public void testSerialization()
     {
-        LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
-        DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.MILLISECONDS,
-                                                                                 q,
-                                                                                 new NamedThreadFactory("TEST"));
+        ExecutorPlus executor = executorFactory().configureSequential("TEST").withQueueLimit(1).build();
         WrappedRunnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws InterruptedException
@@ -66,36 +62,36 @@ public class DebuggableThreadPoolExecutorTest
                 Thread.sleep(50);
             }
         };
-        long start = System.nanoTime();
+        long start = nanoTime();
         for (int i = 0; i < 10; i++)
         {
             executor.execute(runnable);
         }
-        assert q.size() > 0 : q.size();
+        assert executor.getPendingTaskCount() > 0 : executor.getPendingTaskCount();
         while (executor.getCompletedTaskCount() < 10)
             continue;
-        long delta = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        long delta = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
         assert delta >= 9 * 50 : delta;
     }
 
     @Test
     public void testExecuteFutureTaskWhileTracing()
     {
-        LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
-        DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.MILLISECONDS,
-                                                                                 q,
-                                                                                 new NamedThreadFactory("TEST"));
+        SettableUncaughtExceptionHandler ueh = new SettableUncaughtExceptionHandler();
+        ExecutorPlus executor = executorFactory()
+                                .localAware()
+                                .configureSequential("TEST")
+                                .withUncaughtExceptionHandler(ueh)
+                                .withQueueLimit(1).build();
         Runnable test = () -> executor.execute(failingTask());
         try
         {
             // make sure the non-tracing case works
-            Throwable cause = catchUncaughtExceptions(test);
+            Throwable cause = catchUncaughtExceptions(ueh, test);
             Assert.assertEquals(DebuggingThrowsException.class, cause.getClass());
 
             // tracing should have the same semantics
-            cause = catchUncaughtExceptions(() -> withTracing(test));
+            cause = catchUncaughtExceptions(ueh, () -> withTracing(test));
             Assert.assertEquals(DebuggingThrowsException.class, cause.getClass());
         }
         finally
@@ -107,21 +103,20 @@ public class DebuggableThreadPoolExecutorTest
     @Test
     public void testSubmitFutureTaskWhileTracing()
     {
-        LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
-        DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.MILLISECONDS,
-                                                                                 q,
-                                                                                 new NamedThreadFactory("TEST"));
+        SettableUncaughtExceptionHandler ueh = new SettableUncaughtExceptionHandler();
+        ExecutorPlus executor = executorFactory().localAware()
+                                                 .configureSequential("TEST")
+                                                 .withUncaughtExceptionHandler(ueh)
+                                                 .withQueueLimit(1).build();
         FailingRunnable test = () -> executor.submit(failingTask()).get();
         try
         {
             // make sure the non-tracing case works
-            Throwable cause = catchUncaughtExceptions(test);
+            Throwable cause = catchUncaughtExceptions(ueh, test);
             Assert.assertEquals(DebuggingThrowsException.class, cause.getClass());
 
             // tracing should have the same semantics
-            cause = catchUncaughtExceptions(() -> withTracing(test));
+            cause = catchUncaughtExceptions(ueh, () -> withTracing(test));
             Assert.assertEquals(DebuggingThrowsException.class, cause.getClass());
         }
         finally
@@ -134,17 +129,17 @@ public class DebuggableThreadPoolExecutorTest
     public void testSubmitWithResultFutureTaskWhileTracing()
     {
         LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
-        DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.MILLISECONDS,
-                                                                                 q,
-                                                                                 new NamedThreadFactory("TEST"));
+        SettableUncaughtExceptionHandler ueh = new SettableUncaughtExceptionHandler();
+        ExecutorPlus executor = executorFactory().localAware()
+                                                 .configureSequential("TEST")
+                                                 .withUncaughtExceptionHandler(ueh)
+                                                 .withQueueLimit(1).build();
         FailingRunnable test = () -> executor.submit(failingTask(), 42).get();
         try
         {
-            Throwable cause = catchUncaughtExceptions(test);
+            Throwable cause = catchUncaughtExceptions(ueh, test);
             Assert.assertEquals(DebuggingThrowsException.class, cause.getClass());
-            cause = catchUncaughtExceptions(() -> withTracing(test));
+            cause = catchUncaughtExceptions(ueh, () -> withTracing(test));
             Assert.assertEquals(DebuggingThrowsException.class, cause.getClass());
         }
         finally
@@ -166,14 +161,34 @@ public class DebuggableThreadPoolExecutorTest
         }
     }
 
-    private static Throwable catchUncaughtExceptions(Runnable fn)
+    private static class SettableUncaughtExceptionHandler implements UncaughtExceptionHandler
     {
-        Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        volatile Supplier<UncaughtExceptionHandler> cur;
+
+        @Override
+        public void uncaughtException(Thread t, Throwable e)
+        {
+            cur.get().uncaughtException(t, e);
+        }
+
+        void set(Supplier<UncaughtExceptionHandler> set)
+        {
+            cur = set;
+        }
+
+        void clear()
+        {
+            cur = Thread::getDefaultUncaughtExceptionHandler;
+        }
+    }
+
+    private static Throwable catchUncaughtExceptions(SettableUncaughtExceptionHandler ueh, Runnable fn)
+    {
         try
         {
             AtomicReference<Throwable> ref = new AtomicReference<>(null);
             CountDownLatch latch = new CountDownLatch(1);
-            Thread.setDefaultUncaughtExceptionHandler((thread, cause) -> {
+            ueh.set(() -> (thread, cause) -> {
                 ref.set(cause);
                 latch.countDown();
             });
@@ -190,7 +205,7 @@ public class DebuggableThreadPoolExecutorTest
         }
         finally
         {
-            Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
+            ueh.clear();
         }
     }
 
@@ -201,7 +216,7 @@ public class DebuggableThreadPoolExecutorTest
 
     private static RunnableFuture<String> failingTask()
     {
-        return ListenableFutureTask.create(DebuggableThreadPoolExecutorTest::failingFunction);
+        return new FutureTask<>(DebuggableThreadPoolExecutorTest::failingFunction);
     }
 
     private static final class DebuggingThrowsException extends RuntimeException {

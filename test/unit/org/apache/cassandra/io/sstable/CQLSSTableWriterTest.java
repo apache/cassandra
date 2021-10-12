@@ -17,18 +17,18 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.FilenameFilter;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Files;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -86,8 +86,8 @@ public class CQLSSTableWriterTest
         keyspace = "cql_keyspace" + idGen.incrementAndGet();
         table = "table" + idGen.incrementAndGet();
         qualifiedTable = keyspace + '.' + table;
-        dataDir = new File(tempFolder.newFolder().getAbsolutePath() + File.separator + keyspace + File.separator + table);
-        assert dataDir.mkdirs();
+        dataDir = new File(tempFolder.newFolder().getAbsolutePath() + File.pathSeparator() + keyspace + File.pathSeparator() + table);
+        assert dataDir.tryCreateDirectories();
     }
 
     @Test
@@ -191,14 +191,8 @@ public class CQLSSTableWriterTest
         writer.addRow(1, val);
         writer.close();
 
-        FilenameFilter filterDataFiles = new FilenameFilter()
-        {
-            public boolean accept(File dir, String name)
-            {
-                return name.endsWith("-Data.db");
-            }
-        };
-        assert dataDir.list(filterDataFiles).length > 1 : Arrays.toString(dataDir.list(filterDataFiles));
+        BiPredicate<File, String> filterDataFiles = (dir, name) -> name.endsWith("-Data.db");
+        assert dataDir.tryListNames(filterDataFiles).length > 1 : Arrays.toString(dataDir.tryListNames(filterDataFiles));
     }
 
 

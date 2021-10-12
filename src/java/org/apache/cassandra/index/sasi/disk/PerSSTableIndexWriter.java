@@ -17,16 +17,14 @@
  */
 package org.apache.cassandra.index.sasi.disk;
 
-import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -43,36 +41,34 @@ import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class PerSSTableIndexWriter implements SSTableFlushObserver
 {
     private static final Logger logger = LoggerFactory.getLogger(PerSSTableIndexWriter.class);
 
     private static final int POOL_SIZE = 8;
-    private static final ThreadPoolExecutor INDEX_FLUSHER_MEMTABLE;
-    private static final ThreadPoolExecutor INDEX_FLUSHER_GENERAL;
+    private static final ExecutorPlus INDEX_FLUSHER_MEMTABLE;
+    private static final ExecutorPlus INDEX_FLUSHER_GENERAL;
 
     static
     {
-        INDEX_FLUSHER_GENERAL = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, TimeUnit.MINUTES,
-                                                                 new LinkedBlockingQueue<>(),
-                                                                 new NamedThreadFactory("SASI-General"),
-                                                                 "internal");
-        INDEX_FLUSHER_GENERAL.allowCoreThreadTimeOut(true);
+        INDEX_FLUSHER_GENERAL = executorFactory().withJmxInternal()
+                                                 .pooled("SASI-General", POOL_SIZE);
 
-        INDEX_FLUSHER_MEMTABLE = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, TimeUnit.MINUTES,
-                                                                  new LinkedBlockingQueue<>(),
-                                                                  new NamedThreadFactory("SASI-Memtable"),
-                                                                  "internal");
-        INDEX_FLUSHER_MEMTABLE.allowCoreThreadTimeOut(true);
+        INDEX_FLUSHER_MEMTABLE = executorFactory().withJmxInternal()
+                                                  .pooled("SASI-Memtable", POOL_SIZE);
     }
 
     private final int nowInSec = FBUtilities.nowInSeconds();
@@ -139,11 +135,11 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
         try
         {
-            CountDownLatch latch = new CountDownLatch(indexes.size());
+            CountDownLatch latch = newCountDownLatch(indexes.size());
             for (Index index : indexes.values())
                 index.complete(latch);
 
-            Uninterruptibles.awaitUninterruptibly(latch);
+            latch.awaitUninterruptibly();
         }
         finally
         {
@@ -251,7 +247,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             final String segmentFile = filename(isFinal);
 
             return () -> {
-                long start = System.nanoTime();
+                long start = nanoTime();
 
                 try
                 {
@@ -266,7 +262,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                 finally
                 {
                     if (!isFinal)
-                        logger.info("Flushed index segment {}, took {} ms.", segmentFile, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                        logger.info("Flushed index segment {}, took {} ms.", segmentFile, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
                 }
             };
         }
@@ -276,7 +272,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             logger.info("Scheduling index flush to {}", outputFile);
 
             getExecutor().submit((Runnable) () -> {
-                long start1 = System.nanoTime();
+                long start1 = nanoTime();
 
                 OnDiskIndex[] parts = new OnDiskIndex[segments.size() + 1];
 
@@ -294,7 +290,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     {
                         @SuppressWarnings("resource")
                         OnDiskIndex last = scheduleSegmentFlush(false).call();
-                        segments.add(Futures.immediateFuture(last));
+                        segments.add(ImmediateFuture.success(last));
                     }
 
                     int index = 0;
@@ -324,7 +320,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                 }
                 finally
                 {
-                    logger.info("Index flush to {} took {} ms.", outputFile, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start1));
+                    logger.info("Index flush to {} took {} ms.", outputFile, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start1));
 
                     for (int segment = 0; segment < segmentNumber; segment++)
                     {
@@ -337,7 +333,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                         FileUtils.delete(outputFile + "_" + segment);
                     }
 
-                    latch.countDown();
+                    latch.decrement();
                 }
             });
         }

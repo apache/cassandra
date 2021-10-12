@@ -52,14 +52,15 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.streaming.DefaultConnectionFactory;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.streaming.StreamConnectionFactory;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.UUIDGen;
@@ -72,7 +73,7 @@ public class CassandraStreamManagerTest
     private static final String KEYSPACE = null;
     private String keyspace = null;
     private static final String table = "tbl";
-    private static final StreamConnectionFactory connectionFactory = new DefaultConnectionFactory();
+    private static final StreamingChannel.Factory connectionFactory = new NettyStreamingConnectionFactory();
 
     private TableMetadata tbm;
     private ColumnFamilyStore cfs;
@@ -99,6 +100,8 @@ public class CassandraStreamManagerTest
             return new StreamSession(StreamOperation.REPAIR,
                                      InetAddressAndPort.getByName("127.0.0.1"),
                                      connectionFactory,
+                                     null,
+                                     MessagingService.current_version,
                                      false,
                                      0,
                                      pendingRepair,
@@ -222,7 +225,7 @@ public class CassandraStreamManagerTest
                 }
             }
         };
-        Thread t = NamedThreadFactory.createThread(r);
+        Thread t = NamedThreadFactory.createAnonymousThread(r);
         try
         {
             t.start();

@@ -28,9 +28,9 @@ import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.service.CassandraDaemon;
 
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -173,12 +173,6 @@ public class SyncUtil
         }
     }
 
-    public static void sync(RandomAccessFile ras) throws IOException
-    {
-        Preconditions.checkNotNull(ras);
-        sync(ras.getFD());
-    }
-
     public static void sync(FileOutputStream fos) throws IOException
     {
         Preconditions.checkNotNull(fos);
@@ -198,7 +192,7 @@ public class SyncUtil
         if (SKIP_SYNC)
             return;
 
-        int directoryFD = NativeLibrary.tryOpenDirectory(dir.getPath());
+        int directoryFD = NativeLibrary.tryOpenDirectory(dir.path());
         try
         {
             trySync(directoryFD);

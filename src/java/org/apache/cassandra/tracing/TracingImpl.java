@@ -28,6 +28,8 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 
 /**
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
@@ -55,7 +57,7 @@ class TracingImpl extends Tracing
         final TraceStateImpl state = getStateImpl();
         assert state != null;
 
-        final long startedAt = System.currentTimeMillis();
+        final long startedAt = currentTimeMillis();
         final ByteBuffer sessionId = state.sessionIdBytes;
         final String command = state.traceType.toString();
         final int ttl = state.ttl;

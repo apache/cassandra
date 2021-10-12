@@ -73,7 +73,7 @@ public class InboundConnectionSettings
 
     public boolean authenticate(InetAddressAndPort endpoint)
     {
-        return authenticator.authenticate(endpoint.address, endpoint.port);
+        return authenticator.authenticate(endpoint.getAddress(), endpoint.getPort());
     }
 
     public boolean authenticate(InetAddress address, int port)
@@ -84,7 +84,7 @@ public class InboundConnectionSettings
     public String toString()
     {
         return format("address: (%s), nic: %s, encryption: %s",
-                      bindAddress, FBUtilities.getNetworkInterface(bindAddress.address), SocketFactory.encryptionOptionsSummary(encryption));
+                      bindAddress, FBUtilities.getNetworkInterface(bindAddress.getAddress()), SocketFactory.encryptionOptionsSummary(encryption));
     }
 
     public InboundConnectionSettings withAuthenticator(IInternodeAuthenticator authenticator)
@@ -168,9 +168,9 @@ public class InboundConnectionSettings
     public InboundConnectionSettings withDefaults()
     {
         // this is for the socket that can be plain, only ssl, or optional plain/ssl
-        if (bindAddress.port != DatabaseDescriptor.getStoragePort() && bindAddress.port != DatabaseDescriptor.getSSLStoragePort())
+        if (bindAddress.getPort() != DatabaseDescriptor.getStoragePort() && bindAddress.getPort() != DatabaseDescriptor.getSSLStoragePort())
             throw new ConfigurationException(format("Local endpoint port %d doesn't match YAML configured port %d or legacy SSL port %d",
-                                                    bindAddress.port, DatabaseDescriptor.getStoragePort(), DatabaseDescriptor.getSSLStoragePort()));
+                                                    bindAddress.getPort(), DatabaseDescriptor.getStoragePort(), DatabaseDescriptor.getSSLStoragePort()));
 
         IInternodeAuthenticator authenticator = this.authenticator;
         ServerEncryptionOptions encryption = this.encryption;

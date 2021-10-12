@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
 import org.apache.cassandra.utils.concurrent.Ref;
+
+import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
 
 /**
  * Cassandra SSTable bulk loader.
@@ -62,7 +64,7 @@ public class SSTableLoader implements StreamEventHandler
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler, int connectionsPerHost, String targetKeyspace)
     {
         this.directory = directory;
-        this.keyspace = targetKeyspace != null ? targetKeyspace : directory.getParentFile().getName();
+        this.keyspace = targetKeyspace != null ? targetKeyspace : directory.parent().name();
         this.client = client;
         this.outputHandler = outputHandler;
         this.connectionsPerHost = connectionsPerHost;
@@ -76,8 +78,8 @@ public class SSTableLoader implements StreamEventHandler
         LifecycleTransaction.getFiles(directory.toPath(),
                                       (file, type) ->
                                       {
-                                          File dir = file.getParentFile();
-                                          String name = file.getName();
+                                          File dir = file.parent();
+                                          String name = file.name();
 
                                           if (type != Directories.FileType.FINAL)
                                           {
@@ -99,15 +101,15 @@ public class SSTableLoader implements StreamEventHandler
                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
 
                                           if (metadata == null && // we did not find metadata
-                                              directory.getName().equals(Directories.BACKUPS_SUBDIR)) // and it's likely we hit CASSANDRA-16235
+                                              directory.name().equals(Directories.BACKUPS_SUBDIR)) // and it's likely we hit CASSANDRA-16235
                                           {
-                                              File parentDirectory = directory.getParentFile();
-                                              File parentParentDirectory = parentDirectory != null ? parentDirectory.getParentFile() : null;
+                                              File parentDirectory = directory.parent();
+                                              File parentParentDirectory = parentDirectory != null ? parentDirectory.parent() : null;
                                               // check that descriptor's cfname and ksname are 1 directory closer to root than they should be
                                               if (parentDirectory != null &&
                                                   parentParentDirectory != null &&
-                                                  desc.cfname.equals(parentDirectory.getName()) &&
-                                                  desc.ksname.equals(parentParentDirectory.getName()))
+                                                  desc.cfname.equals(parentDirectory.name()) &&
+                                                  desc.ksname.equals(parentParentDirectory.name()))
                                               {
                                                   Descriptor newDesc = new Descriptor(desc.directory,
                                                                                       desc.ksname,
@@ -287,9 +289,9 @@ public class SSTableLoader implements StreamEventHandler
          *
          * @return StreamConnectionFactory to use
          */
-        public StreamConnectionFactory getConnectionFactory()
+        public StreamingChannel.Factory getConnectionFactory()
         {
-            return new DefaultConnectionFactory();
+            return streamingFactory();
         }
 
         /**

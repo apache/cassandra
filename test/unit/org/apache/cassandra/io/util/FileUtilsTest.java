@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -88,11 +87,11 @@ public class FileUtilsTest
         byte[] b = Files.readAllBytes(file.toPath());
         assertEquals(expected, new String(b, StandardCharsets.UTF_8));
 
-        FileUtils.truncate(file.getAbsolutePath(), 10);
+        FileUtils.truncate(file.absolutePath(), 10);
         b = Files.readAllBytes(file.toPath());
         assertEquals("The quick ", new String(b, StandardCharsets.UTF_8));
 
-        FileUtils.truncate(file.getAbsolutePath(), 0);
+        FileUtils.truncate(file.absolutePath(), 0);
         b = Files.readAllBytes(file.toPath());
         assertEquals(0, b.length);
     }
@@ -103,7 +102,7 @@ public class FileUtilsTest
         File folder = createFolder(Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0], "testFolderSize"));
         folder.deleteOnExit();
 
-        File childFolder = createFolder(Paths.get(folder.getPath(), "child"));
+        File childFolder = createFolder(Paths.get(folder.path(), "child"));
 
         File[] files = {
                        createFile(new File(folder, "001"), 10000),
@@ -222,14 +221,14 @@ public class FileUtilsTest
 
     private File createFolder(Path path)
     {
-        File folder = path.toFile();
+        File folder = new File(path);
         FileUtils.createDirectory(folder);
         return folder;
     }
 
     private File createFile(File file, long size)
     {
-        try (RandomAccessFile f = new RandomAccessFile(file, "rw"))
+        try (RandomAccessFile f = new RandomAccessFile(file.toJavaIOFile(), "rw"))
         {
             f.setLength(size);
         }

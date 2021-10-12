@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -40,7 +38,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Futures;
+import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,10 +62,13 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
+
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
-    private static final Future<Void> FINISHED_FUTURE = Futures.immediateFuture(null);
+    private static final Future<Void> FINISHED_FUTURE = ImmediateFuture.success(null);
 
     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
 
@@ -75,7 +79,7 @@ public class MigrationCoordinator
     }
 
 
-    private static final int MIGRATION_DELAY_IN_MS = 60000;
+    private static final int MIGRATION_DELAY_IN_MS = CassandraRelevantProperties.MIGRATION_DELAY.getInt();
     private static final int MAX_OUTSTANDING_VERSION_REQUESTS = 3;
 
     public static final MigrationCoordinator instance = new MigrationCoordinator();
@@ -131,7 +135,7 @@ public class MigrationCoordinator
         final Set<InetAddressAndPort> outstandingRequests = Sets.newConcurrentHashSet();
         final Deque<InetAddressAndPort> requestQueue      = new ArrayDeque<>();
 
-        private final WaitQueue waitQueue = new WaitQueue();
+        private final WaitQueue waitQueue = newWaitQueue();
 
         volatile boolean receivedSchema;
 
@@ -416,7 +420,7 @@ public class MigrationCoordinator
 
     Future<Void> scheduleSchemaPull(InetAddressAndPort endpoint, VersionInfo info)
     {
-        FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)), null);
+        FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)));
         if (shouldPullImmediately(endpoint, info.version))
         {
             submitToMigrationIfNotShutdown(task);
@@ -559,12 +563,12 @@ public class MigrationCoordinator
             logger.debug("Nothing in versionInfo - so no schemas to wait for");
         }
 
-        WaitQueue.Signal signal = null;
+        List<WaitQueue.Signal> signalList = null;
         try
         {
             synchronized (this)
             {
-                List<WaitQueue.Signal> signalList = new ArrayList<>(versionInfo.size());
+                signalList = new ArrayList<>(versionInfo.size());
                 for (VersionInfo version : versionInfo.values())
                 {
                     if (version.wasReceived())
@@ -575,22 +579,15 @@ public class MigrationCoordinator
 
                 if (signalList.isEmpty())
                     return true;
-
-                WaitQueue.Signal[] signals = new WaitQueue.Signal[signalList.size()];
-                signalList.toArray(signals);
-                signal = WaitQueue.all(signals);
             }
 
-            return signal.awaitUntil(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis));
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
+            long deadline = nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis);
+            return signalList.stream().allMatch(signal -> signal.awaitUntilUninterruptibly(deadline));
         }
         finally
         {
-            if (signal != null)
-                signal.cancel();
+            if (signalList != null)
+                signalList.forEach(WaitQueue.Signal::cancel);
         }
     }
 }

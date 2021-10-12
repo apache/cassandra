@@ -38,6 +38,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -60,6 +61,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
+import org.apache.cassandra.io.util.File;
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
@@ -765,7 +767,7 @@ public class VerifyTest
 
     protected long simpleFullChecksum(String filename) throws IOException
     {
-        try (FileInputStream inputStream = new FileInputStream(filename))
+        try (FileInputStreamPlus inputStream = new FileInputStreamPlus(filename))
         {
             CRC32 checksum = new CRC32();
             CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);

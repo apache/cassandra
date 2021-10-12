@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -50,6 +49,7 @@ import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -57,7 +57,7 @@ import static org.junit.Assert.assertTrue;
 public class CQLUserAuditTest
 {
     private static EmbeddedCassandraService embedded;
-    private static final BlockingQueue<AuditEvent> auditEvents = new LinkedBlockingQueue<>();
+    private static final BlockingQueue<AuditEvent> auditEvents = newBlockingQueue();
 
     @BeforeClass
     public static void setup() throws Exception
@@ -230,9 +230,9 @@ public class CQLUserAuditTest
         AuditEvent event = auditEvents.poll(100, TimeUnit.MILLISECONDS);
         assertEquals(expectedAuthType, event.getType());
         assertTrue(!authFailed || event.getType() == AuditLogEntryType.LOGIN_ERROR);
-        assertEquals(InetAddressAndPort.getLoopbackAddress().address,
-                     event.getEntry().getSource().address);
-        assertTrue(event.getEntry().getSource().port > 0);
+        assertEquals(InetAddressAndPort.getLoopbackAddress().getAddress(),
+                     event.getEntry().getSource().getAddress());
+        assertTrue(event.getEntry().getSource().getPort() > 0);
         if (event.getType() != AuditLogEntryType.LOGIN_ERROR)
             assertEquals(username, event.toMap().get("user"));
 

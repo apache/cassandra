@@ -38,6 +38,8 @@ import io.netty.util.concurrent.SucceededFuture;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 class InboundSockets
 {
@@ -125,7 +127,7 @@ class InboundSockets
                 if (listen != null)
                     closing.add(listen.close());
                 closing.add(connections.close());
-                new FutureCombiner(closing)
+                FutureCombiner.nettySuccessListener(closing)
                        .addListener(future -> {
                            executor.shutdownGracefully();
                            shutdownExecutors.accept(executor);
@@ -224,7 +226,7 @@ class InboundSockets
         for (InboundSocket socket : sockets)
             opening.add(socket.open(pipelineInjector));
 
-        return new FutureCombiner(opening);
+        return FutureCombiner.nettySuccessListener(opening);
     }
 
     public Future<Void> open()
@@ -232,7 +234,7 @@ class InboundSockets
         List<Future<Void>> opening = new ArrayList<>();
         for (InboundSocket socket : sockets)
             opening.add(socket.open());
-        return new FutureCombiner(opening);
+        return FutureCombiner.nettySuccessListener(opening);
     }
 
     public boolean isListening()
@@ -248,7 +250,7 @@ class InboundSockets
         List<Future<Void>> closing = new ArrayList<>();
         for (InboundSocket address : sockets)
             closing.add(address.close(shutdownExecutors));
-        return new FutureCombiner(closing);
+        return FutureCombiner.nettySuccessListener(closing);
     }
     public Future<Void> close()
     {

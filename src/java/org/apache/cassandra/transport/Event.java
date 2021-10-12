@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.transport;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.List;
@@ -116,17 +115,17 @@ public abstract class Event
 
         public static TopologyChange newNode(InetAddressAndPort address)
         {
-            return new TopologyChange(Change.NEW_NODE, new InetSocketAddress(address.address, address.port));
+            return new TopologyChange(Change.NEW_NODE, new InetSocketAddress(address.getAddress(), address.getPort()));
         }
 
         public static TopologyChange removedNode(InetAddressAndPort address)
         {
-            return new TopologyChange(Change.REMOVED_NODE, new InetSocketAddress(address.address, address.port));
+            return new TopologyChange(Change.REMOVED_NODE, new InetSocketAddress(address.getAddress(), address.getPort()));
         }
 
         public static TopologyChange movedNode(InetAddressAndPort address)
         {
-            return new TopologyChange(Change.MOVED_NODE, new InetSocketAddress(address.address, address.port));
+            return new TopologyChange(Change.MOVED_NODE, new InetSocketAddress(address.getAddress(), address.getPort()));
         }
 
         // Assumes the type has already been deserialized
@@ -187,12 +186,12 @@ public abstract class Event
 
         public static StatusChange nodeUp(InetAddressAndPort address)
         {
-            return new StatusChange(Status.UP, new InetSocketAddress(address.address, address.port));
+            return new StatusChange(Status.UP, new InetSocketAddress(address.getAddress(), address.getPort()));
         }
 
         public static StatusChange nodeDown(InetAddressAndPort address)
         {
-            return new StatusChange(Status.DOWN, new InetSocketAddress(address.address, address.port));
+            return new StatusChange(Status.DOWN, new InetSocketAddress(address.getAddress(), address.getPort()));
         }
 
         // Assumes the type has already been deserialized

@@ -24,13 +24,14 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 /**
  * See {@link AsyncPromise} and {@link io.netty.channel.ChannelPromise}
  *
  * This class is all boiler plate, just ensuring we return ourselves and invoke the correct Promise method.
  */
-public class AsyncChannelPromise extends AsyncPromise<Void> implements ChannelPromise
+public class AsyncChannelPromise extends AsyncPromise.WithExecutor<Void> implements ChannelPromise
 {
     private final Channel channel;
 
@@ -92,7 +93,7 @@ public class AsyncChannelPromise extends AsyncPromise<Void> implements ChannelPr
         return setSuccess(null);
     }
 
-    public ChannelPromise setSuccess(Void v)
+    public AsyncChannelPromise setSuccess(Void v)
     {
         super.setSuccess(v);
         return this;
@@ -103,58 +104,56 @@ public class AsyncChannelPromise extends AsyncPromise<Void> implements ChannelPr
         return trySuccess(null);
     }
 
-    public ChannelPromise setFailure(Throwable throwable)
+    public AsyncChannelPromise setFailure(Throwable throwable)
     {
         super.setFailure(throwable);
         return this;
     }
 
-    public ChannelPromise sync() throws InterruptedException
+    public AsyncChannelPromise sync() throws InterruptedException
     {
         super.sync();
         return this;
     }
 
-    public ChannelPromise syncUninterruptibly()
+    public AsyncChannelPromise syncUninterruptibly()
     {
         super.syncUninterruptibly();
         return this;
     }
 
-    public ChannelPromise await() throws InterruptedException
+    public AsyncChannelPromise await() throws InterruptedException
     {
         super.await();
         return this;
     }
 
-    public ChannelPromise awaitUninterruptibly()
+    public AsyncChannelPromise awaitUninterruptibly()
     {
         super.awaitUninterruptibly();
         return this;
     }
 
-    public ChannelPromise addListener(GenericFutureListener<? extends Future<? super Void>> listener)
+    public AsyncChannelPromise addListener(GenericFutureListener<? extends Future<? super Void>> listener)
     {
         super.addListener(listener);
         return this;
     }
 
-    public ChannelPromise addListeners(GenericFutureListener<? extends Future<? super Void>>... listeners)
+    public AsyncChannelPromise addListeners(GenericFutureListener<? extends Future<? super Void>>... listeners)
     {
         super.addListeners(listeners);
         return this;
     }
 
-    public ChannelPromise removeListener(GenericFutureListener<? extends Future<? super Void>> listener)
+    public AsyncChannelPromise removeListener(GenericFutureListener<? extends Future<? super Void>> listener)
     {
-        super.removeListener(listener);
-        return this;
+        throw new UnsupportedOperationException();
     }
 
-    public ChannelPromise removeListeners(GenericFutureListener<? extends Future<? super Void>>... listeners)
+    public AsyncChannelPromise removeListeners(GenericFutureListener<? extends Future<? super Void>>... listeners)
     {
-        super.removeListeners(listeners);
-        return this;
+        throw new UnsupportedOperationException();
     }
 
     public ChannelPromise unvoid()

@@ -21,10 +21,10 @@ import static org.apache.cassandra.tools.Util.BLUE;
 import static org.apache.cassandra.tools.Util.CYAN;
 import static org.apache.cassandra.tools.Util.RESET;
 import static org.apache.cassandra.tools.Util.WHITE;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -59,6 +59,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tools.Util.TermHistogram;
@@ -232,9 +233,9 @@ public class SSTableMetadataViewer
                                     cellCount++;
                                     double percentComplete = Math.min(1.0, cellCount / totalCells);
                                     if (lastPercent != (int) (percentComplete * 100) &&
-                                        (System.currentTimeMillis() - lastPercentTime) > 1000)
+                                        (currentTimeMillis() - lastPercentTime) > 1000)
                                     {
-                                        lastPercentTime = System.currentTimeMillis();
+                                        lastPercentTime = currentTimeMillis();
                                         lastPercent = (int) (percentComplete * 100);
                                         if (color)
                                             out.printf("\r%sAnalyzing SSTable...  %s%s %s(%%%s)", BLUE, CYAN,
@@ -371,7 +372,7 @@ public class SSTableMetadataViewer
                 field("maxClusteringValues", Arrays.toString(maxValues));
             }
             field("Estimated droppable tombstones",
-                  stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - this.gc));
+                  stats.getEstimatedDroppableTombstoneRatio((int) (currentTimeMillis() / 1000) - this.gc));
             field("SSTable Level", stats.sstableLevel);
             field("Repaired at", stats.repairedAt, toDateString(stats.repairedAt, TimeUnit.MILLISECONDS));
             field("Pending repair", stats.pendingRepair);
@@ -543,7 +544,7 @@ public class SSTableMetadataViewer
             File sstable = new File(fname);
             if (sstable.exists())
             {
-                metawriter.printSStableMetadata(sstable.getAbsolutePath(), fullScan);
+                metawriter.printSStableMetadata(sstable.absolutePath(), fullScan);
             }
             else
             {

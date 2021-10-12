@@ -36,7 +36,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         assertEquals(1, tool.getExitCode());
         assertThat(tool.getCleanedStderr(), CoreMatchers.containsString("Missing sstable directory argument"));
         
-        assertNoUnexpectedThreadsStarted(null, null);
+        assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -58,7 +58,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(null, new String[]{"globalEventExecutor-1-1", "globalEventExecutor-1-2"});
+        assertNoUnexpectedThreadsStarted(new String[]{ "ObjectCleanerThread", "globalEventExecutor-[1-9]-[1-9]", "globalEventExecutor-[1-9]-[1-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -82,7 +82,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(null, new String[] { "globalEventExecutor-1-1", "globalEventExecutor-1-2" });
+        assertNoUnexpectedThreadsStarted(new String[]{ "ObjectCleanerThread", "globalEventExecutor-[1-9]-[1-9]", "globalEventExecutor-[1-9]-[1-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -106,7 +106,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(null, new String[] { "globalEventExecutor-1-1", "globalEventExecutor-1-2" });
+        assertNoUnexpectedThreadsStarted(new String[]{ "ObjectCleanerThread", "globalEventExecutor-[1-9]-[1-9]", "globalEventExecutor-[1-9]-[1-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

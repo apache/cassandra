@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Instant;
@@ -32,6 +31,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,25 +48,22 @@ public class TableSnapshotTest
     @ClassRule
     public static TemporaryFolder tempFolder = new TemporaryFolder();
 
-    public Set<File> createFolders() throws IOException
-    {
-        File folder = tempFolder.newFolder();
+    public static Set<File> createFolders(TemporaryFolder temp) throws IOException {
+        File folder = new File(temp.newFolder());
         Set<File> folders = new HashSet<>();
-        for (String folderName : Arrays.asList("foo", "bar", "buzz"))
-        {
+        for (String folderName : Arrays.asList("foo", "bar", "buzz")) {
             File subfolder = new File(folder, folderName);
-            subfolder.mkdir();
-            assertThat(subfolder).exists();
+            subfolder.tryCreateDirectories();
+            assertThat(subfolder.exists());
             folders.add(subfolder);
-        }
-
+        };
         return folders;
     }
 
     @Test
     public void testSnapshotExists() throws IOException
     {
-        Set<File> folders = createFolders();
+        Set<File> folders = createFolders(tempFolder);
 
         TableSnapshot snapshot = new TableSnapshot(
         "ks",
@@ -87,7 +85,7 @@ public class TableSnapshotTest
     @Test
     public void testSnapshotExpiring() throws IOException
     {
-        Set<File> folders = createFolders();
+        Set<File> folders = createFolders(tempFolder);
 
         TableSnapshot snapshot = new TableSnapshot(
         "ks",
@@ -144,7 +142,7 @@ public class TableSnapshotTest
 
     private Long writeBatchToFile(File file) throws IOException
     {
-        FileOutputStream out = new FileOutputStream(file);
+        FileOutputStreamPlus out = new FileOutputStreamPlus(file);
         out.write(1);
         out.write(2);
         out.write(3);
@@ -155,7 +153,7 @@ public class TableSnapshotTest
     @Test
     public void testComputeSizeOnDisk() throws IOException
     {
-        Set<File> folders = createFolders();
+        Set<File> folders = createFolders(tempFolder);
 
         TableSnapshot tableDetails = new TableSnapshot(
         "ks",
@@ -184,7 +182,7 @@ public class TableSnapshotTest
     @Test
     public void testComputeTrueSize() throws IOException
     {
-        Set<File> folders = createFolders();
+        Set<File> folders = createFolders(tempFolder);
 
         TableSnapshot tableDetails = new TableSnapshot(
         "ks",
@@ -211,7 +209,7 @@ public class TableSnapshotTest
     @Test
     public void testGetCreatedAt() throws IOException
     {
-        Set<File> folders = createFolders();
+        Set<File> folders = createFolders(tempFolder);
 
         // When createdAt is not null, getCreatedAt() should return it
         Instant createdAt = Instant.EPOCH;

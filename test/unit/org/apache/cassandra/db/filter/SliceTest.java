@@ -21,7 +21,6 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.List;
 
 import org.apache.cassandra.db.*;
 import org.junit.Test;

@@ -33,6 +33,8 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * Broadcaster for notifying JMX clients on newly available data. Periodically sends {@link Notification}s
  * containing a list of event types and greatest event IDs. Consumers may use this information to
@@ -100,7 +102,7 @@ final class LastEventIdBroadcaster extends NotificationBroadcasterSupport implem
     {
         // ensure monotonic properties of ids
         if (summary.compute(key, (k, v) -> v == null ? id : id.compareTo(v) > 0 ? id : v) == id) {
-            summary.put("last_updated_at", System.currentTimeMillis());
+            summary.put("last_updated_at", currentTimeMillis());
             scheduleBroadcast();
         }
     }
@@ -132,7 +134,7 @@ final class LastEventIdBroadcaster extends NotificationBroadcasterSupport implem
         Notification notification = new Notification("event_last_id_summary",
                                                      "LastEventIdBroadcaster",
                                                      notificationSerialNumber.incrementAndGet(),
-                                                     System.currentTimeMillis(),
+                                                     currentTimeMillis(),
                                                      "Event last IDs summary");
         notification.setUserData(summary);
         sendNotification(notification);

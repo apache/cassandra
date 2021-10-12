@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 
-import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**

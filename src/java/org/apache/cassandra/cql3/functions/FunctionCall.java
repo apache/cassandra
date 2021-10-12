@@ -148,6 +148,12 @@ public class FunctionCall extends Term.NonTerminal
             return new Raw(name, Collections.singletonList(raw));
         }
 
+        public static Raw newCast(Term.Raw raw, CQL3Type type)
+        {
+            FunctionName name = FunctionName.nativeFunction(CastFcts.getFunctionName(type));
+            return new Raw(name, Collections.singletonList(raw));
+        }
+
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);

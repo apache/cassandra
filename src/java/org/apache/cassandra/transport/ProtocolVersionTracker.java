@@ -26,6 +26,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * This class tracks the last 100 connections per protocol version
  */
@@ -47,13 +49,13 @@ public class ProtocolVersionTracker
         for (ProtocolVersion version : ProtocolVersion.values())
         {
             clientsByProtocolVersion.put(version, Caffeine.newBuilder().maximumSize(capacity)
-                                                          .build(key -> System.currentTimeMillis()));
+                                                          .build(key -> currentTimeMillis()));
         }
     }
 
     void addConnection(InetAddress addr, ProtocolVersion version)
     {
-        clientsByProtocolVersion.get(version).put(addr, System.currentTimeMillis());
+        clientsByProtocolVersion.get(version).put(addr, currentTimeMillis());
     }
 
     List<ClientStat> getAll()

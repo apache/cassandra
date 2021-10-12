@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.net.InetAddress;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.*;
@@ -29,7 +28,6 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -37,7 +35,9 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.hsqldb.Table;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * Provides a means to take snapshots when triggered by anomalous events or when the breaking of invariants is
@@ -64,7 +64,7 @@ public class DiagnosticSnapshotService
     private static final Logger logger = LoggerFactory.getLogger(DiagnosticSnapshotService.class);
 
     public static final DiagnosticSnapshotService instance =
-        new DiagnosticSnapshotService(Executors.newSingleThreadExecutor(new NamedThreadFactory("DiagnosticSnapshot")));
+        new DiagnosticSnapshotService(executorFactory().sequential("DiagnosticSnapshot"));
 
     public static final String REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX = "RepairedDataMismatch-";
     public static final String DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX = "DuplicateRows-";
@@ -119,7 +119,7 @@ public class DiagnosticSnapshotService
 
     private void maybeTriggerSnapshot(TableMetadata metadata, String prefix, Iterable<InetAddressAndPort> endpoints)
     {
-        long now = System.nanoTime();
+        long now = nanoTime();
         AtomicLong cached = lastSnapshotTimes.computeIfAbsent(metadata.id, u -> new AtomicLong(0));
         long last = cached.get();
         long interval = Long.getLong("cassandra.diagnostic_snapshot_interval_nanos", SNAPSHOT_INTERVAL_NANOS);

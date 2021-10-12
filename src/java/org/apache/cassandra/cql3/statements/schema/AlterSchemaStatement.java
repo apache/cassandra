@@ -35,7 +35,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformation
+abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
     protected final String keyspaceName; // name of the keyspace affected by the statement
 
@@ -52,6 +52,12 @@ abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformatio
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
         return execute(state, false);
+    }
+
+    @Override
+    public String keyspace()
+    {
+        return keyspaceName;
     }
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)

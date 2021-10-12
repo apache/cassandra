@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public final class Throwables
 {
@@ -86,6 +87,9 @@ public final class Throwables
 
         if (fail instanceof RuntimeException)
             throw (RuntimeException) fail;
+
+        if (fail instanceof InterruptedException)
+            throw new UncheckedInterruptedException((InterruptedException) fail);
 
         if (checked != null && checked.isInstance(fail))
             throw checked.cast(fail);
@@ -148,7 +152,7 @@ public final class Throwables
     @SafeVarargs
     public static void perform(File against, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
     {
-        perform(against.getPath(), opType, actions);
+        perform(against.path(), opType, actions);
     }
 
     @SafeVarargs
@@ -237,7 +241,10 @@ public final class Throwables
      */
     public static RuntimeException unchecked(Throwable t)
     {
-        return t instanceof RuntimeException ? (RuntimeException)t : new RuntimeException(t);
+        return t instanceof RuntimeException ? (RuntimeException)t :
+               t instanceof InterruptedException
+               ? new UncheckedInterruptedException((InterruptedException) t)
+               : new RuntimeException(t);
     }
 
     /**

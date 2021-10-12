@@ -21,7 +21,6 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.List;
 
 import org.apache.cassandra.db.Columns;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.RegularAndStaticColumns;

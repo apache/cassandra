@@ -32,9 +32,11 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -334,7 +336,7 @@ public class RangeTombstoneListTest
         int MAX_IT_DISTANCE = 10;
         int MAX_MARKEDAT = 10;
 
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         Random rand = new Random(seed);
 
         for (int i = 0; i < TEST_COUNT; i++)
@@ -609,7 +611,7 @@ public class RangeTombstoneListTest
         }
     }
 
-    private void assertHasException(IsolatedExecutor.ThrowingRunnable block, Consumer<Throwable> verifier)
+    private void assertHasException(ThrowingRunnable block, Consumer<Throwable> verifier)
     {
         try
         {

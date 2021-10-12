@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -33,7 +34,6 @@ import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.OutboundConnectionInitiator.Result;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
@@ -83,7 +83,7 @@ public class HandshakeTest
                               new OutboundConnectionSettings(endpoint)
                                                     .withAcceptVersions(acceptOutbound)
                                                     .withDefaults(ConnectionCategory.MESSAGING),
-                              req, new AsyncPromise<>(eventLoop));
+                              req, AsyncPromise.withExecutor(eventLoop));
             return future.get();
         }
         finally

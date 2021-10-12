@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Random;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -94,6 +93,6 @@ public class CommitlogShutdownTest
         CommitLog.instance.shutdownBlocking();
 
         // the shutdown should block until all logs except the currently active one and perhaps a new, empty one are gone
-        Assert.assertTrue(new File(DatabaseDescriptor.getCommitLogLocation()).listFiles().length <= 2);
+        Assert.assertTrue(new File(DatabaseDescriptor.getCommitLogLocation()).tryList().length <= 2);
     }
 }

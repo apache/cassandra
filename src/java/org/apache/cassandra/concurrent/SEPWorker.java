@@ -30,6 +30,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
@@ -47,11 +48,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     long prevStopCheck = 0;
     long soleSpinnerSpinTime = 0;
 
-    SEPWorker(Long workerId, Work initialState, SharedExecutorPool pool)
+    SEPWorker(ThreadGroup threadGroup, Long workerId, Work initialState, SharedExecutorPool pool)
     {
         this.pool = pool;
         this.workerId = workerId;
-        thread = new FastThreadLocalThread(this, pool.poolName + "-Worker-" + workerId);
+        thread = new FastThreadLocalThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
         thread.setDaemon(true);
         set(initialState);
         thread.start();
@@ -117,6 +118,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
                     // we know there is work waiting, as we have a work permit, so poll() will always succeed
                     task.run();
+                    assigned.onCompletion();
                     task = null;
 
                     if (shutdown = assigned.shuttingDown)
@@ -162,9 +164,14 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             if (assigned != null)
                 assigned.returnWorkPermit();
             if (task != null)
+            {
                 logger.error("Failed to execute task, unexpected exception killed worker", t);
+                assigned.onCompletion();
+            }
             else
+            {
                 logger.error("Unexpected exception killed worker", t);
+            }
         }
     }
 
@@ -257,7 +264,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         sleep *= ThreadLocalRandom.current().nextDouble();
         sleep = Math.max(10000, sleep);
 
-        long start = System.nanoTime();
+        long start = nanoTime();
 
         // place ourselves in the spinning collection; if we clash with another thread just exit
         Long target = start + sleep;
@@ -269,7 +276,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         pool.spinning.remove(target, this);
 
         // finish timing and grab spinningTime (before we finish timing so it is under rather than overestimated)
-        long end = System.nanoTime();
+        long end = nanoTime();
         long spin = end - start;
         long stopCheck = pool.stopCheck.addAndGet(spin);
         maybeStop(stopCheck, end);

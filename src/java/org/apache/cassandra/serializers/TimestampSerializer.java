@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 
 public class TimestampSerializer extends TypeSerializer<Date>
 {
@@ -139,7 +141,7 @@ public class TimestampSerializer extends TypeSerializer<Date>
     public static long dateStringToTimestamp(String source) throws MarshalException
     {
         if (source.equalsIgnoreCase("now"))
-            return System.currentTimeMillis();
+            return currentTimeMillis();
 
         // Milliseconds since epoch?
         if (timestampPattern.matcher(source).matches())

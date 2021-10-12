@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.triggers;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.CassandraException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
@@ -44,7 +44,7 @@ public class TriggerExecutor
     public static final TriggerExecutor instance = new TriggerExecutor();
 
     private final Map<String, ITrigger> cachedTriggers = Maps.newConcurrentMap();
-    private final ClassLoader parent = Thread.currentThread().getContextClassLoader();
+    private final ClassLoader parent = TriggerExecutor.class.getClassLoader();
     private volatile ClassLoader customClassLoader;
 
     private TriggerExecutor()

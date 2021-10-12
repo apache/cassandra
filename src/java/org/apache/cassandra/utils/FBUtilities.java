@@ -17,7 +17,14 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.net.*;
@@ -25,7 +32,10 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -35,15 +45,16 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
-import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.audit.IAuditLogger;
+import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
@@ -66,9 +77,13 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 
 public class FBUtilities
@@ -100,11 +115,17 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
+    private static int availableProcessors = Integer.getInteger("cassandra.available_processors", DatabaseDescriptor.getAvailableProcessors());
+
+    public static void setAvailableProcessors(int value)
+    {
+        availableProcessors = value;
+    }
+
     public static int getAvailableProcessors()
     {
-        String availableProcessors = System.getProperty("cassandra.available_processors");
-        if (!Strings.isNullOrEmpty(availableProcessors))
-            return Integer.parseInt(availableProcessors);
+        if (availableProcessors > 0)
+            return availableProcessors;
         else
             return Runtime.getRuntime().availableProcessors();
     }
@@ -226,7 +247,7 @@ public class FBUtilities
      */
     public static void setBroadcastInetAddressAndPort(InetAddressAndPort addr)
     {
-        broadcastInetAddress = addr.address;
+        broadcastInetAddress = addr.getAddress();
         broadcastInetAddressAndPort = addr;
     }
 
@@ -358,7 +379,7 @@ public class FBUtilities
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
 
-        return new File(scpurl.getFile()).getAbsolutePath();
+        return new File(scpurl.getFile()).absolutePath();
     }
 
     public static File cassandraTriggerDir()
@@ -426,12 +447,12 @@ public class FBUtilities
     {
         // we use microsecond resolution for compatibility with other client libraries, even though
         // we can't actually get microsecond precision.
-        return System.currentTimeMillis() * 1000;
+        return currentTimeMillis() * 1000;
     }
 
     public static int nowInSeconds()
     {
-        return (int) (System.currentTimeMillis() / 1000);
+        return (int) (currentTimeMillis() / 1000);
     }
 
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
@@ -451,7 +472,7 @@ public class FBUtilities
     {
         long endNanos = 0;
         if (timeout > 0)
-            endNanos = System.nanoTime() + units.toNanos(timeout);
+            endNanos = nanoTime() + units.toNanos(timeout);
         List<T> results = new ArrayList<>();
         Throwable fail = null;
         for (Future<? extends T> f : futures)
@@ -464,7 +485,7 @@ public class FBUtilities
                 }
                 else
                 {
-                    long waitFor = Math.max(1, endNanos - System.nanoTime());
+                    long waitFor = Math.max(1, endNanos - nanoTime());
                     results.add(f.get(waitFor, TimeUnit.NANOSECONDS));
                 }
             }
@@ -489,11 +510,11 @@ public class FBUtilities
         }
         catch (InterruptedException ie)
         {
-            throw new AssertionError(ie);
+            throw new UncheckedInterruptedException(ie);
         }
     }
 
-    public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
+    public static <T, F extends Future<? extends T>> F waitOnFirstFuture(Iterable<? extends F> futures)
     {
         return waitOnFirstFuture(futures, 100);
     }
@@ -502,105 +523,49 @@ public class FBUtilities
      * @param futures The futures to wait on
      * @return future that completed.
      */
-    public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures, long delay)
+    public static <T, F extends Future<? extends T>> F waitOnFirstFuture(Iterable<? extends F> futures, long delay)
     {
         while (true)
         {
-            for (Future<? extends T> f : futures)
+            Iterator<? extends F> iter = futures.iterator();
+            if (!iter.hasNext())
+                throw new IllegalArgumentException();
+
+            while (true)
             {
-                if (f.isDone())
+                F f = iter.next();
+                boolean isDone;
+                if ((isDone = f.isDone()) || !iter.hasNext())
                 {
                     try
                     {
-                        f.get();
+                        f.get(delay, TimeUnit.MILLISECONDS);
                     }
                     catch (InterruptedException e)
                     {
-                        throw new AssertionError(e);
+                        throw new UncheckedInterruptedException(e);
                     }
                     catch (ExecutionException e)
                     {
                         throw new RuntimeException(e);
                     }
+                    catch (TimeoutException e)
+                    {
+                        if (!isDone) // prevent infinite loops on bad implementations (not encountered)
+                            break;
+                    }
                     return f;
                 }
             }
-            Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
         }
     }
 
     /**
      * Returns a new {@link Future} wrapping the given list of futures and returning a list of their results.
      */
-    public static Future<List> allOf(Collection<Future> futures)
+    public static <T> org.apache.cassandra.utils.concurrent.Future<List<T>> allOf(Collection<? extends org.apache.cassandra.utils.concurrent.Future<? extends T>> futures)
     {
-        if (futures.isEmpty())
-            return CompletableFuture.completedFuture(null);
-
-        return new Future<List>()
-        {
-            @Override
-            @SuppressWarnings("unchecked")
-            public List get() throws InterruptedException, ExecutionException
-            {
-                List result = new ArrayList<>(futures.size());
-                for (Future current : futures)
-                {
-                    result.add(current.get());
-                }
-                return result;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public List get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
-            {
-                List result = new ArrayList<>(futures.size());
-                long deadline = System.nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, unit);
-                for (Future current : futures)
-                {
-                    long remaining = deadline - System.nanoTime();
-                    if (remaining <= 0)
-                        throw new TimeoutException();
-
-                    result.add(current.get(remaining, TimeUnit.NANOSECONDS));
-                }
-                return result;
-            }
-
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning)
-            {
-                for (Future current : futures)
-                {
-                    if (!current.cancel(mayInterruptIfRunning))
-                        return false;
-                }
-                return true;
-            }
-
-            @Override
-            public boolean isCancelled()
-            {
-                for (Future current : futures)
-                {
-                    if (!current.isCancelled())
-                        return false;
-                }
-                return true;
-            }
-
-            @Override
-            public boolean isDone()
-            {
-                for (Future current : futures)
-                {
-                    if (!current.isDone())
-                        return false;
-                }
-                return true;
-            }
-        };
+        return FutureCombiner.allOf(futures);
     }
 
     /**
@@ -670,7 +635,7 @@ public class FBUtilities
         }
         return FBUtilities.construct(className, "network authorizer");
     }
-    
+
     public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
     {
         if (!className.contains("."))
@@ -684,6 +649,22 @@ public class FBUtilities
         catch (Exception ex)
         {
             throw new ConfigurationException("Unable to create instance of IAuditLogger.", ex);
+        }
+    }
+
+    public static ISslContextFactory newSslContextFactory(String className, Map<String,Object> parameters) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.security." + className;
+
+        try
+        {
+            Class<?> sslContextFactoryClass = Class.forName(className);
+            return (ISslContextFactory) sslContextFactoryClass.getConstructor(Map.class).newInstance(parameters);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
         }
     }
 
@@ -918,7 +899,7 @@ public class FBUtilities
         }
         catch (InterruptedException e)
         {
-            throw new AssertionError(e);
+            throw new UncheckedInterruptedException(e);
         }
     }
 
@@ -1074,7 +1055,7 @@ public class FBUtilities
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new UncheckedInterruptedException(e);
         }
     }
 

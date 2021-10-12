@@ -40,6 +40,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -1329,7 +1330,7 @@ public class JsonTest extends CQLTester
         for (int i = 0; i < numRows; i++)
             execute("INSERT INTO %s (k, v) VALUES (?, ?)", "" + i, "" + i);
 
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         System.out.println("Seed " + seed);
         final Random rand = new Random(seed);
 

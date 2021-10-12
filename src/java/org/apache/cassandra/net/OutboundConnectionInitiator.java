@@ -24,6 +24,10 @@ import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,14 +49,11 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.util.concurrent.FailedFuture;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.ScheduledFuture;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.HandshakeProtocol.Initiate;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
+import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.BufferPools;
@@ -107,7 +108,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      */
     public static Future<Result<StreamingSuccess>> initiateStreaming(EventLoop eventLoop, OutboundConnectionSettings settings, int requestMessagingVersion)
     {
-        return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, settings, requestMessagingVersion, new AsyncPromise<>(eventLoop))
+        return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, settings, requestMessagingVersion, AsyncPromise.withExecutor(eventLoop))
                .initiate(eventLoop);
     }
 
@@ -133,13 +134,13 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         {
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
-            return new FailedFuture<>(eventLoop, new IOException("authentication failed to " + settings.connectToId()));
+            return ImmediateFuture.failure(new IOException("authentication failed to " + settings.connectToId()));
         }
 
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
         // and still guarantee that, if on timing out we raced with success, the successfully created channel is handled
         AtomicBoolean timedout = new AtomicBoolean();
-        Future<Void> bootstrap = createBootstrap(eventLoop)
+        io.netty.util.concurrent.Future<Void> bootstrap = createBootstrap(eventLoop)
                                  .connect()
                                  .addListener(future -> {
                                      eventLoop.execute(() -> {
@@ -187,7 +188,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             bootstrap.option(ChannelOption.SO_SNDBUF, settings.socketSendBufferSizeInBytes);
 
         InetAddressAndPort remoteAddress = settings.connectTo;
-        bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
+        bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.getAddress(), remoteAddress.getPort()));
         return bootstrap;
     }
 
@@ -201,10 +202,11 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             if (settings.withEncryption())
             {
                 // check if we should actually encrypt this connection
-                SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true, SSLFactory.SocketType.CLIENT);
+                SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true,
+                                                                         ISslContextFactory.SocketType.CLIENT);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = settings.to;
-                InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.address, address.port) : null;
+                InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                 logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst("ssl", sslHandler);

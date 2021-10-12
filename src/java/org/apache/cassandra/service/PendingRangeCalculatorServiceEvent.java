@@ -19,7 +19,9 @@
 package org.apache.cassandra.service;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.cassandra.diag.DiagnosticEvent;
 
@@ -29,7 +31,6 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 final class PendingRangeCalculatorServiceEvent extends DiagnosticEvent
 {
     private final PendingRangeCalculatorServiceEventType type;
-    private final PendingRangeCalculatorService source;
     private final int taskCount;
 
     public enum PendingRangeCalculatorServiceEventType
@@ -40,12 +41,15 @@ final class PendingRangeCalculatorServiceEvent extends DiagnosticEvent
         TASK_COUNT_CHANGED
     }
 
+    PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType type)
+    {
+        this(type, -1);
+    }
+
     PendingRangeCalculatorServiceEvent(PendingRangeCalculatorServiceEventType type,
-                                       PendingRangeCalculatorService service,
                                        int taskCount)
     {
         this.type = type;
-        this.source = service;
         this.taskCount = taskCount;
     }
 
@@ -59,9 +63,11 @@ final class PendingRangeCalculatorServiceEvent extends DiagnosticEvent
         return type;
     }
 
-    public HashMap<String, Serializable> toMap()
+    public Map<String, Serializable> toMap()
     {
         // be extra defensive against nulls and bugs
+        if (taskCount < 0)
+            return Collections.emptyMap();
         HashMap<String, Serializable> ret = new HashMap<>();
         ret.put("taskCount", taskCount);
         return ret;

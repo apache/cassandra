@@ -33,7 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -46,7 +45,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -66,8 +65,8 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Refs;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
@@ -76,6 +75,7 @@ import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -383,7 +383,7 @@ public class ActiveRepairServiceTest
         ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.reject);
         try
         {
-            Condition blocked = new SimpleCondition();
+            Condition blocked = newOneTimeCondition();
             CountDownLatch completed = new CountDownLatch(2);
 
             /*
@@ -433,8 +433,8 @@ public class ActiveRepairServiceTest
         ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.queue);
         try
         {
-            Condition allSubmitted = new SimpleCondition();
-            Condition blocked = new SimpleCondition();
+            Condition allSubmitted = newOneTimeCondition();
+            Condition blocked = newOneTimeCondition();
             CountDownLatch completed = new CountDownLatch(5);
             ExecutorService testExecutor = Executors.newSingleThreadExecutor();
             for (int i = 0; i < 5; i++)
@@ -452,12 +452,12 @@ public class ActiveRepairServiceTest
             allSubmitted.await(TASK_SECONDS + 1, TimeUnit.SECONDS);
 
             // Give the tasks we expect to execute immediately chance to be scheduled
-            Util.spinAssertEquals(2 , ((DebuggableThreadPoolExecutor) validationExecutor)::getActiveTaskCount, 1);
-            Util.spinAssertEquals(3 , ((DebuggableThreadPoolExecutor) validationExecutor)::getPendingTaskCount, 1);
+            Util.spinAssertEquals(2 , ((ExecutorPlus) validationExecutor)::getActiveTaskCount, 1);
+            Util.spinAssertEquals(3 , ((ExecutorPlus) validationExecutor)::getPendingTaskCount, 1);
 
             // verify that we've reached a steady state with 2 threads actively processing and 3 queued tasks
-            Assert.assertEquals(2, ((DebuggableThreadPoolExecutor) validationExecutor).getActiveTaskCount());
-            Assert.assertEquals(3, ((DebuggableThreadPoolExecutor) validationExecutor).getPendingTaskCount());
+            Assert.assertEquals(2, ((ExecutorPlus) validationExecutor).getActiveTaskCount());
+            Assert.assertEquals(3, ((ExecutorPlus) validationExecutor).getPendingTaskCount());
             // allow executing tests to complete
             blocked.signalAll();
             completed.await(TASK_SECONDS + 1, TimeUnit.SECONDS);
@@ -482,7 +482,7 @@ public class ActiveRepairServiceTest
 
         public void run()
         {
-            Uninterruptibles.awaitUninterruptibly(blocked, TASK_SECONDS, TimeUnit.SECONDS);
+            blocked.awaitUninterruptibly(TASK_SECONDS, TimeUnit.SECONDS);
             complete.countDown();
         }
     }

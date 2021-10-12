@@ -24,9 +24,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
+import org.apache.cassandra.concurrent.Shutdownable;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class ExecutorUtils
 {
@@ -66,8 +67,11 @@ public class ExecutorUtils
                 if (interrupt) ((ExecutorService) executor).shutdownNow();
                 else ((ExecutorService) executor).shutdown();
             }
-            else if (executor instanceof InfiniteLoopExecutor)
-                ((InfiniteLoopExecutor) executor).shutdownNow();
+            else if (executor instanceof Shutdownable)
+            {
+                if (interrupt) ((Shutdownable) executor).shutdownNow();
+                else ((Shutdownable) executor).shutdown();
+            }
             else if (executor instanceof Thread)
                 ((Thread) executor).interrupt();
             else if (executor != null)
@@ -92,7 +96,7 @@ public class ExecutorUtils
 
     public static void awaitTermination(long timeout, TimeUnit unit, Collection<?> executors) throws InterruptedException, TimeoutException
     {
-        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        long deadline = nanoTime() + unit.toNanos(timeout);
         awaitTerminationUntil(deadline, executors);
     }
 
@@ -100,15 +104,15 @@ public class ExecutorUtils
     {
         for (Object executor : executors)
         {
-            long wait = deadline - System.nanoTime();
+            long wait = deadline - nanoTime();
             if (executor instanceof ExecutorService)
             {
                 if (wait <= 0 || !((ExecutorService)executor).awaitTermination(wait, NANOSECONDS))
                     throw new TimeoutException(executor + " did not terminate on time");
             }
-            else if (executor instanceof InfiniteLoopExecutor)
+            else if (executor instanceof Shutdownable)
             {
-                if (wait <= 0 || !((InfiniteLoopExecutor)executor).awaitTermination(wait, NANOSECONDS))
+                if (wait <= 0 || !((Shutdownable)executor).awaitTermination(wait, NANOSECONDS))
                     throw new TimeoutException(executor + " did not terminate on time");
             }
             else if (executor instanceof Thread)

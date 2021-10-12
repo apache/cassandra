@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -29,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -196,7 +196,7 @@ public class HintsReaderTest
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD2));
         int numTable = 2;
-        directory = Files.createTempDirectory(null).toFile();
+        directory = new File(Files.createTempDirectory(null));
         try
         {
             generateHints(3, ks);
@@ -206,7 +206,7 @@ public class HintsReaderTest
         }
         finally
         {
-            directory.delete();
+            directory.deleteRecursive();
         }
     }
 
@@ -219,7 +219,7 @@ public class HintsReaderTest
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD2));
         int numTable = 2;
-        directory = Files.createTempDirectory(null).toFile();
+        directory = new File(Files.createTempDirectory(null));
         try
         {
             generateHints(3, ks);
@@ -227,7 +227,7 @@ public class HintsReaderTest
         }
         finally
         {
-            directory.delete();
+            directory.tryDelete();
         }
     }
 
@@ -240,7 +240,7 @@ public class HintsReaderTest
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD2));
 
-        directory = Files.createTempDirectory(null).toFile();
+        directory = new File(Files.createTempDirectory(null));
         try
         {
             generateHints(3, ks);
@@ -249,7 +249,7 @@ public class HintsReaderTest
         }
         finally
         {
-            directory.delete();
+            directory.tryDelete();
         }
     }
 }

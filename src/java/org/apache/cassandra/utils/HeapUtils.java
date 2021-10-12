@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.text.StrBuilder;
 
@@ -81,14 +85,8 @@ public final class HeapUtils
         if (javaHome == null)
             return null;
         File javaBinDirectory = new File(javaHome, "bin");
-        File[] files = javaBinDirectory.listFiles(new FilenameFilter()
-        {
-            public boolean accept(File dir, String name)
-            {
-                return name.startsWith("jcmd");
-            }
-        });
-        return ArrayUtils.isEmpty(files) ? null : files[0].getPath();
+        File[] files = javaBinDirectory.tryList((dir, name) -> name.startsWith("jcmd"));
+        return ArrayUtils.isEmpty(files) ? null : files[0].path();
     }
 
     /**

@@ -30,7 +30,6 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -45,13 +44,14 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import org.apache.cassandra.io.util.File;
 
 public class SerializationHeaderTest
 {
@@ -85,7 +85,7 @@ public class SerializationHeaderTest
         schemaWithRegular = schemaWithRegular.unbuild().recordColumnDrop(columnStatic, 0L).build();
 
         final AtomicInteger generation = new AtomicInteger();
-        File dir = Files.createTempDir();
+        File dir = new File(Files.createTempDir());
         try
         {
             BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {

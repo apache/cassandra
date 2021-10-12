@@ -28,8 +28,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URLClassLoader;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -44,24 +44,45 @@ import java.util.function.Supplier;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.LoggerContext;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Throwables;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
     final ExecutorService isolatedExecutor;
     private final String name;
-    private final ClassLoader classLoader;
-    private final Method deserializeOnInstance;
+    final ClassLoader classLoader;
+    private final DynamicFunction<Serializable> transfer;
 
-    IsolatedExecutor(String name, ClassLoader classLoader)
+    IsolatedExecutor(String name, ClassLoader classLoader, ExecutorFactory executorFactory)
+    {
+        this(name, classLoader, executorFactory.pooled("isolatedExecutor", Integer.MAX_VALUE));
+    }
+
+    IsolatedExecutor(String name, ClassLoader classLoader, ExecutorService executorService)
     {
         this.name = name;
-        this.isolatedExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("isolatedExecutor", Thread.NORM_PRIORITY, classLoader, new ThreadGroup(name)));
+        this.isolatedExecutor = executorService;
         this.classLoader = classLoader;
-        this.deserializeOnInstance = lookupDeserializeOneObject(classLoader);
+        this.transfer = transferTo(classLoader);
+    }
+
+    protected IsolatedExecutor(IsolatedExecutor from, ExecutorService executor)
+    {
+        this.name = from.name;
+        this.isolatedExecutor = executor;
+        this.classLoader = from.classLoader;
+        this.transfer = from.transfer;
+    }
+
+    public IIsolatedExecutor with(ExecutorService executor)
+    {
+        return new IsolatedExecutor(this, executor);
     }
 
     public Future<Void> shutdown()
@@ -78,7 +99,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
             t.setDaemon(true);
             return t;
         };
-        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
+        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, SECONDS,
                                                                   new LinkedBlockingQueue<>(), threadFactory);
         return shutdownExecutor.submit(() -> {
             try
@@ -90,6 +111,8 @@ public class IsolatedExecutor implements IIsolatedExecutor
                 // logging system while termination is taking place.
                 LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
                 loggerContext.stop();
+
+                FastThreadLocal.destroy();
 
                 // Close the instance class loader after shutting down the isolatedExecutor and logging
                 // in case error handling triggers loading additional classes
@@ -118,6 +141,9 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public <I1, I2> BiFunction<I1, I2, Future<?>> async(BiConsumer<I1, I2> consumer) { return (a, b) -> isolatedExecutor.submit(() -> consumer.accept(a, b)); }
     public <I1, I2> BiConsumer<I1, I2> sync(BiConsumer<I1, I2> consumer) { return (a, b) -> waitOn(async(consumer).apply(a, b)); }
 
+    public <I1, I2, I3> TriFunction<I1, I2, I3, Future<?>> async(TriConsumer<I1, I2, I3> consumer) { return (a, b, c) -> isolatedExecutor.submit(() -> consumer.accept(a, b, c)); }
+    public <I1, I2, I3> TriConsumer<I1, I2, I3> sync(TriConsumer<I1, I2, I3> consumer) { return (a, b, c) -> waitOn(async(consumer).apply(a, b, c)); }
+
     public <I, O> Function<I, Future<O>> async(Function<I, O> f) { return (a) -> isolatedExecutor.submit(() -> f.apply(a)); }
     public <I, O> Function<I, O> sync(Function<I, O> f) { return (a) -> waitOn(async(f).apply(a)); }
 
@@ -127,17 +153,42 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public <I1, I2, I3, O> TriFunction<I1, I2, I3, Future<O>> async(TriFunction<I1, I2, I3, O> f) { return (a, b, c) -> isolatedExecutor.submit(() -> f.apply(a, b, c)); }
     public <I1, I2, I3, O> TriFunction<I1, I2, I3, O> sync(TriFunction<I1, I2, I3, O> f) { return (a, b, c) -> waitOn(async(f).apply(a, b, c)); }
 
-    public <E extends Serializable> E transfer(E object)
+    public <I1, I2, I3, I4, O> QuadFunction<I1, I2, I3, I4, Future<O>> async(QuadFunction<I1, I2, I3, I4, O> f) { return (a, b, c, d) -> isolatedExecutor.submit(() -> f.apply(a, b, c, d)); }
+    public <I1, I2, I3, I4, O> QuadFunction<I1, I2, I3, I4, O> sync(QuadFunction<I1, I2, I3, I4, O> f) { return (a, b, c, d) -> waitOn(async(f).apply(a, b, c, d)); }
+
+    public <I1, I2, I3, I4, I5, O> QuintFunction<I1, I2, I3, I4, I5, Future<O>> async(QuintFunction<I1, I2, I3, I4, I5, O> f) { return (a, b, c, d, e) -> isolatedExecutor.submit(() -> f.apply(a, b, c, d, e)); }
+    public <I1, I2, I3, I4, I5, O> QuintFunction<I1, I2, I3, I4, I5, O> sync(QuintFunction<I1, I2, I3, I4, I5, O> f) { return (a, b, c, d,e ) -> waitOn(async(f).apply(a, b, c, d, e)); }
+
+    public Executor executor()
     {
-        return (E) transferOneObject(object, classLoader, deserializeOnInstance);
+        return isolatedExecutor;
     }
 
-    static <E extends Serializable> E transferAdhoc(E object, ClassLoader classLoader)
+    public <T extends Serializable> T transfer(T in)
     {
-        return transferOneObject(object, classLoader, lookupDeserializeOneObject(classLoader));
+        return transfer.apply(in);
     }
 
-    private static <E extends Serializable> E transferOneObject(E object, ClassLoader classLoader, Method deserializeOnInstance)
+    public static <T extends Serializable> T transferAdhoc(T object, ClassLoader classLoader)
+    {
+        return transferOneObjectAdhoc(object, classLoader, lookupDeserializeOneObject(classLoader));
+    }
+
+    private static final SerializableFunction<byte[], Object> DESERIALIZE_ONE_OBJECT = IsolatedExecutor::deserializeOneObject;
+
+    public static DynamicFunction<Serializable> transferTo(ClassLoader classLoader)
+    {
+        SerializableFunction<byte[], Object> deserializeOneObject = transferAdhoc(DESERIALIZE_ONE_OBJECT, classLoader);
+        return new DynamicFunction<Serializable>()
+        {
+            public <T extends Serializable> T apply(T in)
+            {
+                return (T) deserializeOneObject.apply(serializeOneObject(in));
+            }
+        };
+    }
+
+    private static <T extends Serializable> T transferOneObjectAdhoc(T object, ClassLoader classLoader, Method deserializeOnInstance)
     {
         byte[] bytes = serializeOneObject(object);
         try
@@ -146,11 +197,11 @@ public class IsolatedExecutor implements IIsolatedExecutor
             if (onInstance.getClass().getClassLoader() != classLoader)
                 throw new IllegalStateException(onInstance + " seemingly from wrong class loader: " + onInstance.getClass().getClassLoader() + ", but expected " + classLoader);
 
-            return (E) onInstance;
+            return (T) onInstance;
         }
         catch (IllegalAccessException | InvocationTargetException e)
         {
-            throw new RuntimeException("Error while transfering object to " + classLoader, e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -212,22 +263,4 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
     }
 
-    public interface ThrowingRunnable
-    {
-        public void run() throws Throwable;
-
-        public static Runnable toRunnable(ThrowingRunnable runnable)
-        {
-            return () -> {
-                try
-                {
-                    runnable.run();
-                }
-                catch (Throwable throwable)
-                {
-                    throw new RuntimeException(throwable);
-                }
-            };
-        }
-    }
 }

@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -54,6 +54,8 @@ import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class StandaloneScrubber
 {
@@ -108,7 +110,7 @@ public class StandaloneScrubber
                                                                   options.keyspaceName,
                                                                   options.cfName));
 
-            String snapshotName = "pre-scrub-" + System.currentTimeMillis();
+            String snapshotName = "pre-scrub-" + currentTimeMillis();
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
@@ -125,7 +127,7 @@ public class StandaloneScrubber
                 listResult.add(Pair.create(descriptor, components));
 
                 File snapshotDirectory = Directories.getSnapshotDirectory(descriptor, snapshotName);
-                SSTableReader.createLinks(descriptor, components, snapshotDirectory.getPath());
+                SSTableReader.createLinks(descriptor, components, snapshotDirectory.path());
             }
             System.out.println(String.format("Pre-scrub sstables snapshotted into snapshot %s", snapshotName));
 

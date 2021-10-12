@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -32,6 +31,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.io.FileUtils;
 
 import org.junit.AfterClass;
@@ -56,17 +56,12 @@ public abstract class OfflineToolUtils
 
     private static List<ThreadInfo> initialThreads;
 
-    static final String[] EXPECTED_THREADS_WITH_SCHEMA = {
-    "PerDiskMemtableFlushWriter_0:[1-9]",
-    "MemtablePostFlush:[1-9]",
-    "MemtableFlushWriter:[1-9]",
-    "MemtableReclaimMemory:[1-9]",
-    };
     static final String[] OPTIONAL_THREADS_WITH_SCHEMA = {
     "ScheduledTasks:[1-9]",
+    "ScheduledFastTasks:[1-9]",
     "OptionalTasks:[1-9]",
-    "Reference-Reaper:[1-9]",
-    "LocalPool-Cleaner:[1-9]",
+    "Reference-Reaper",
+    "LocalPool-Cleaner(-networking|-chunk-cache)",
     "CacheCleanupExecutor:[1-9]",
     "CompactionExecutor:[1-9]",
     "ValidationExecutor:[1-9]",
@@ -76,9 +71,12 @@ public abstract class OfflineToolUtils
     "Strong-Reference-Leak-Detector:[1-9]",
     "Background_Reporter:[1-9]",
     "EXPIRING-MAP-REAPER:[1-9]",
+    "ObjectCleanerThread",
+    "process reaper",  // spawned by the jvm when executing external processes
+                       // and may still be active when we check
     };
 
-    public void assertNoUnexpectedThreadsStarted(String[] expectedThreadNames, String[] optionalThreadNames)
+    public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames)
     {
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
 
@@ -92,31 +90,20 @@ public abstract class OfflineToolUtils
                                     .map(ThreadInfo::getThreadName)
                                     .collect(Collectors.toSet());
 
-        List<Pattern> expected = expectedThreadNames != null
-                                 ? Arrays.stream(expectedThreadNames).map(Pattern::compile).collect(Collectors.toList())
-                                 : Collections.emptyList();
-
         List<Pattern> optional = optionalThreadNames != null
                                  ? Arrays.stream(optionalThreadNames).map(Pattern::compile).collect(Collectors.toList())
                                  : Collections.emptyList();
 
         current.removeAll(initial);
 
-        List<Pattern> notPresent = expected.stream()
-                                           .filter(threadNamePattern -> !current.stream().anyMatch(threadName -> threadNamePattern.matcher(threadName).matches()))
-                                           .collect(Collectors.toList());
-
         Set<String> remain = current.stream()
-                                    .filter(threadName -> expected.stream().anyMatch(pattern -> pattern.matcher(threadName).matches()))
-                                    .filter(threadName -> optional.stream().anyMatch(pattern -> pattern.matcher(threadName).matches()))
+                                    .filter(threadName -> optional.stream().noneMatch(pattern -> pattern.matcher(threadName).matches()))
                                     .collect(Collectors.toSet());
 
         if (!remain.isEmpty())
             System.err.println("Unexpected thread names: " + remain);
-        if (!notPresent.isEmpty())
-            System.err.println("Mandatory thread missing: " + notPresent);
 
-        assertTrue("Wrong thread status", remain.isEmpty() && notPresent.isEmpty());
+        assertTrue("Wrong thread status, active threads unaccounted for: " + remain, remain.isEmpty());
     }
 
     public void assertSchemaNotLoaded()
@@ -207,20 +194,20 @@ public abstract class OfflineToolUtils
     public static String findOneSSTable(String ks, String cf) throws IOException
     {
         File cfDir = sstableDir(ks, cf);
-        File[] sstableFiles = cfDir.listFiles((file) -> file.isFile() && file.getName().endsWith("-Data.db"));
-        return sstableFiles[0].getAbsolutePath();
+        File[] sstableFiles = cfDir.tryList((file) -> file.isFile() && file.name().endsWith("-Data.db"));
+        return sstableFiles[0].absolutePath();
     }
 
     public static String sstableDirName(String ks, String cf) throws IOException
     {
-        return sstableDir(ks, cf).getAbsolutePath();
+        return sstableDir(ks, cf).absolutePath();
     }
 
     public static File sstableDir(String ks, String cf) throws IOException
     {
         File dataDir = copySSTables();
         File ksDir = new File(dataDir, ks);
-        File[] cfDirs = ksDir.listFiles((dir, name) -> cf.equals(name) || name.startsWith(cf + '-'));
+        File[] cfDirs = ksDir.tryList((dir, name) -> cf.equals(name) || name.startsWith(cf + '-'));
         return cfDirs[0];
     }
 
@@ -228,13 +215,13 @@ public abstract class OfflineToolUtils
     {
         File dataDir = new File("build/test/cassandra/data");
         File srcDir = new File("test/data/legacy-sstables/ma");
-        FileUtils.copyDirectory(new File(srcDir, "legacy_tables"), new File(dataDir, "legacy_sstables"));
+        FileUtils.copyDirectory(new File(srcDir, "legacy_tables").toJavaIOFile(), new File(dataDir, "legacy_sstables").toJavaIOFile());
         return dataDir;
     }
     
     protected void assertCorrectEnvPostTest()
     {
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();
     }

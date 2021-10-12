@@ -56,7 +56,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         InetSocketAddress m = cache.get(addressAndPort);
         if (m == null)
         {
-            m = NetworkTopology.addressAndPort(addressAndPort.address, addressAndPort.port);
+            m = NetworkTopology.addressAndPort(addressAndPort.getAddress(), addressAndPort.getPort());
             cache.put(addressAndPort, m);
         }
         return m;

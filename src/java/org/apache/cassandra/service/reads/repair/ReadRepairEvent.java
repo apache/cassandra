@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -90,7 +89,7 @@ final class ReadRepairEvent extends DiagnosticEvent
         ret.put("consistency", consistency.name());
         ret.put("speculativeRetry", speculativeRetry.name());
 
-        Set<String> eps = destinations.stream().map(InetAddressAndPort::toString).collect(Collectors.toSet());
+        Set<String> eps = destinations.stream().map(Object::toString).collect(Collectors.toSet());
         ret.put("endpointDestinations", new HashSet<>(eps));
 
         if (digestsByEndpoint != null)
@@ -107,7 +106,7 @@ final class ReadRepairEvent extends DiagnosticEvent
         }
         if (allEndpoints != null)
         {
-            eps = allEndpoints.stream().map(InetAddressAndPort::toString).collect(Collectors.toSet());
+            eps = allEndpoints.stream().map(Object::toString).collect(Collectors.toSet());
             ret.put("allEndpoints", new HashSet<>(eps));
         }
         return ret;

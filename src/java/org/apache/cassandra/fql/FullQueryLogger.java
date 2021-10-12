@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.fql;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +29,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +48,7 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 import org.github.jamm.MemoryLayoutSpecification;
 
@@ -161,7 +161,7 @@ public class FullQueryLogger implements QueryEvents.Listener
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new UncheckedInterruptedException(e);
         }
         finally
         {
@@ -194,7 +194,7 @@ public class FullQueryLogger implements QueryEvents.Listener
             //Then decide whether to clean the last used path, possibly configured by JMX
             if (binLog != null && binLog.path != null)
             {
-                File pathFile = binLog.path.toFile();
+                File pathFile = new File(binLog.path);
                 if (pathFile.exists())
                 {
                     pathsToClean.add(pathFile);

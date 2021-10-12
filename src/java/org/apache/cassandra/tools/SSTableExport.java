@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -26,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -135,7 +135,7 @@ public class SSTableExport
             printUsage();
             System.exit(1);
         }
-        String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
+        String ssTableFileName = new File(cmd.getArgs()[0]).absolutePath();
 
         if (!new File(ssTableFileName).exists())
         {

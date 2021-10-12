@@ -26,6 +26,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +45,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 /**
@@ -449,8 +451,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(true));
 
-            long deadline = System.nanoTime() + units.toNanos(timeout);
-            maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
+            long deadline = nanoTime() + units.toNanos(timeout);
+            maybeFail(() -> FutureCombiner.nettySuccessListener(closing).get(timeout, units),
                       () -> {
                           List<ExecutorService> inboundExecutors = new ArrayList<>();
                           inboundSockets.close(synchronizedList(inboundExecutors)::add).get();
@@ -473,8 +475,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(false));
 
-            long deadline = System.nanoTime() + units.toNanos(timeout);
-            maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
+            long deadline = nanoTime() + units.toNanos(timeout);
+            maybeFail(() -> FutureCombiner.nettySuccessListener(closing).get(timeout, units),
                       () -> {
                           if (shutdownExecutors)
                               shutdownExecutors(deadline);

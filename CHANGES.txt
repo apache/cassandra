@@ -1,4 +1,15 @@
 4.1
+ * Add broadcast_rpc_address to system.local (CASSANDRA-11181)
+ * Add support for type casting in WHERE clause components and in the values of INSERT/UPDATE statements (CASSANDRA-14337)
+ * add credentials file support to CQLSH (CASSANDRA-16983)
+ * Skip remaining bytes in the Envelope buffer when a ProtocolException is thrown to avoid double decoding (CASSANDRA-17026)
+ * Allow reverse iteration of resources during permissions checking (CASSANDRA-17016)
+ * Add feature to verify correct ownership of attached locations on disk at startup (CASSANDRA-16879)
+ * Make SSLContext creation pluggable/extensible (CASSANDRA-16666)
+ * Add soft/hard limits to local reads to protect against reading too much data in a single query (CASSANDRA-16896)
+ * Avoid token cache invalidation for removing a non-member node (CASSANDRA-15290)
+ * Allow configuration of consistency levels on auth operations (CASSANDRA-12988)
+ * Add number of sstables in a compaction to compactionstats output (CASSANDRA-16844)
  * Upgrade Caffeine to 2.9.2 (CASSANDRA-15153)
  * Allow DELETE and TRUNCATE to work on Virtual Tables if the implementation allows it (CASSANDRA-16806)
  * Include SASI components to snapshots (CASSANDRA-15134)
@@ -28,6 +39,10 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Correct the internode message timestamp if sending node has wrapped (CASSANDRA-16997)
+ * Avoid race causing us to return null in RangesAtEndpoint (CASSANDRA-16965)
+ * Avoid rewriting all sstables during cleanup when transient replication is enabled (CASSANDRA-16966)
+ * Prevent CQLSH from failure on Python 3.10 (CASSANDRA-16987)
  * Avoid trying to acquire 0 permits from the rate limiter when taking snapshot (CASSANDRA-16872)
  * Remove all the state pollution between tests in SSTableReaderTest (CASSANDRA-16888)
  * Delay auth setup until after gossip has settled to avoid unavailables on startup (CASSANDRA-16783)
@@ -35,9 +50,20 @@ Merged from 4.0:
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
 Merged from 3.11:
+ * Add key validation to ssstablescrub (CASSANDRA-16969)
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
+ * Don't take snapshots when truncating system tables (CASSANDRA-16839)
+ * Make -Dtest.methods consistently optional in all Ant test targets (CASSANDRA-17014)
+ * Immediately apply stream throughput, considering negative values as unthrottled (CASSANDRA-16959)
+ * Do not release new SSTables in offline transactions (CASSANDRA-16975)
+ * ArrayIndexOutOfBoundsException in FunctionResource#fromName (CASSANDRA-16977, CASSANDRA-16995)
+ * CVE-2015-0886 Security vulnerability in jbcrypt is addressed (CASSANDRA-9384)
+ * Avoid useless SSTable reads during single partition queries (CASSANDRA-16944)
+ * Debian init respects CASSANDRA_HEAPDUMP_DIR (CASSANDRA-13843)
+ * Catch UnsatisfiedLinkError in WindowsTimer (CASSANDRA-16085)
+ * Avoid removing batch when it's not created during view replication (CASSANDRA-16175)
  * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
 
 4.0.1

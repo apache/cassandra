@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -102,7 +103,7 @@ public abstract class MemtableAllocator
     }
 
     /** Mark the BB as unused, permitting it to be reclaimed */
-    public static final class SubAllocator
+    public static class SubAllocator
     {
         // the tracker we are owning memory from
         private final MemtablePool.SubPool parent;
@@ -182,19 +183,17 @@ public abstract class MemtableAllocator
                     allocated(size);
                     return;
                 }
-                WaitQueue.Signal signal = opGroup.isBlockingSignal(parent.hasRoom().register(parent.blockedTimerContext()));
+                WaitQueue.Signal signal = parent.hasRoom().register(parent.blockedTimerContext(), Timer.Context::stop);
+                opGroup.notifyIfBlocking(signal);
                 boolean allocated = parent.tryAllocate(size);
-                if (allocated || opGroup.isBlocking())
+                if (allocated)
                 {
                     signal.cancel();
-                    if (allocated) // if we allocated, take ownership
-                        acquired(size);
-                    else // otherwise we're blocking so we're permitted to overshoot our constraints, to just allocate without blocking
-                        allocated(size);
+                    acquired(size);
                     return;
                 }
                 else
-                    signal.awaitUninterruptibly();
+                    signal.awaitThrowUncheckedOnInterrupt();
             }
         }
 

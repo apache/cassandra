@@ -32,7 +32,6 @@ import org.github.jamm.MemoryMeter;
 public class ObjectSizes
 {
     private static final MemoryMeter meter = new MemoryMeter()
-                                             .omitSharedBufferOverhead()
                                              .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
                                              .ignoreKnownSingletons();
 
@@ -125,7 +124,7 @@ public class ObjectSizes
         // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
         // allocated, so amortized over all the allocations the overhead is negligible and better to undercount than over)
         if (buffer.capacity() > buffer.remaining())
-            return buffer.remaining();
+            return BUFFER_EMPTY_SIZE + buffer.remaining();
         return BUFFER_EMPTY_SIZE + sizeOfArray(buffer.capacity(), 1);
     }
 

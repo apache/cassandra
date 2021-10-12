@@ -33,10 +33,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -56,6 +58,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Coordinates the (active) repair of a list of non overlapping token ranges.
@@ -92,7 +95,7 @@ import org.apache.cassandra.utils.Throwables;
  * Similarly, if a job is sequential, it will handle one SymmetricSyncTask at a time, but will handle
  * all of them in parallel otherwise.
  */
-public class RepairSession extends AbstractFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
+public class RepairSession extends AsyncFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
                                                                                   IFailureDetectionEventListener,
                                                                                   LocalSessions.Listener
 {
@@ -119,7 +122,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private final ConcurrentMap<Pair<RepairJobDesc, SyncNodePair>, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
-    public final ListeningExecutorService taskExecutor;
+    public final ExecutorPlus taskExecutor;
     public final boolean optimiseStreams;
 
     private volatile boolean terminated = false;
@@ -157,12 +160,12 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
         this.optimiseStreams = optimiseStreams;
-        this.taskExecutor = MoreExecutors.listeningDecorator(createExecutor());
+        this.taskExecutor = createExecutor();
     }
 
-    protected DebuggableThreadPoolExecutor createExecutor()
+    protected ExecutorPlus createExecutor()
     {
-        return DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask");
+        return ExecutorFactory.Global.executorFactory().pooled("RepairJobTask", Integer.MAX_VALUE);
     }
 
     public UUID getId()
@@ -261,7 +264,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      *
      * @param executor Executor to run validation
      */
-    public void start(ListeningExecutorService executor)
+    public void start(ExecutorPlus executor)
     {
         String message;
         if (terminated)
@@ -279,7 +282,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         {
             logger.info("{} {}", previewKind.logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", commonRange));
             Tracing.traceRepair(message);
-            set(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), commonRange.hasSkippedReplicas));
+            trySuccess(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), commonRange.hasSkippedReplicas));
             if (!previewKind.isPreview())
             {
                 SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
@@ -295,7 +298,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 logger.error("{} {}", previewKind.logPrefix(getId()), message);
                 Exception e = new IOException(message);
-                setException(e);
+                tryFailure(e);
                 if (!previewKind.isPreview())
                 {
                     SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, e);
@@ -305,7 +308,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         // Create and submit RepairJob for each ColumnFamily
-        List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
+        List<Future<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
             RepairJob job = new RepairJob(this, cfname);
@@ -314,14 +317,14 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         // When all RepairJobs are done without error, cleanup and set the final result
-        Futures.addCallback(Futures.allAsList(jobs), new FutureCallback<List<RepairResult>>()
+        FBUtilities.allOf(jobs).addCallback(new FutureCallback<List<RepairResult>>()
         {
             public void onSuccess(List<RepairResult> results)
             {
                 // this repair session is completed
                 logger.info("{} {}", previewKind.logPrefix(getId()), "Session completed successfully");
                 Tracing.traceRepair("Completed sync of range {}", commonRange);
-                set(new RepairSessionResult(id, keyspace, commonRange.ranges, results, commonRange.hasSkippedReplicas));
+                trySuccess(new RepairSessionResult(id, keyspace, commonRange.ranges, results, commonRange.hasSkippedReplicas));
 
                 taskExecutor.shutdown();
                 // mark this session as terminated
@@ -338,7 +341,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }
-        }, MoreExecutors.directExecutor());
+        });
     }
 
     public void terminate()
@@ -355,16 +358,10 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      */
     public void forceShutdown(Throwable reason)
     {
-        setException(reason);
+        tryFailure(reason);
         taskExecutor.shutdownNow();
         terminate();
     }
-
-    public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
-    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-    public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
-    public void onAlive(InetAddressAndPort endpoint, EndpointState state) {}
-    public void onDead(InetAddressAndPort endpoint, EndpointState state) {}
 
     public void onRemove(InetAddressAndPort endpoint)
     {

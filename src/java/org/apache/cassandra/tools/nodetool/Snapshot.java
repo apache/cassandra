@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.collect.Iterables.toArray;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.StringUtils.join;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
@@ -44,7 +45,7 @@ public class Snapshot extends NodeToolCmd
     private String table = null;
 
     @Option(title = "tag", name = {"-t", "--tag"}, description = "The name of the snapshot")
-    private String snapshotName = Long.toString(System.currentTimeMillis());
+    private String snapshotName = Long.toString(currentTimeMillis());
 
     @Option(title = "ktlist", name = { "-kt", "--kt-list", "-kc", "--kc.list" }, description = "The list of Keyspace.table to take snapshot.(you must not specify only keyspace)")
     private String ktList = null;

@@ -114,7 +114,7 @@ public final class InternodeInboundTable extends AbstractVirtualTable
     {
         String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(addressAndPort);
         String rack = DatabaseDescriptor.getEndpointSnitch().getRack(addressAndPort);
-        dataSet.row(addressAndPort.address, addressAndPort.port, dc, rack)
+        dataSet.row(addressAndPort.getAddress(), addressAndPort.getPort(), dc, rack)
                .column(USING_BYTES, handlers.usingCapacity())
                .column(USING_RESERVE_BYTES, handlers.usingEndpointReserveCapacity())
                .column(CORRUPT_FRAMES_RECOVERED, handlers.corruptFramesRecovered())

@@ -52,8 +52,6 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.apache.cassandra.locator.ReplicaUtils.trans;
 
@@ -111,7 +109,7 @@ public class WriteResponseHandlerTransientTest
 
             public String getDatacenter(InetAddressAndPort endpoint)
             {
-                byte[] address = endpoint.address.getAddress();
+                byte[] address = endpoint.getAddress().getAddress();
                 if (address[1] == 1)
                     return DC1;
                 else

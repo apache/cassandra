@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.filter;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * @deprecated in favour of {@link TimeWindowCompactionStrategy}
@@ -116,11 +117,11 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
         Set<SSTableReader> expired = Collections.emptySet();
         // we only check for expired sstables every 10 minutes (by default) due to it being an expensive operation
-        if (System.currentTimeMillis() - lastExpiredCheck > options.expiredSSTableCheckFrequency)
+        if (currentTimeMillis() - lastExpiredCheck > options.expiredSSTableCheckFrequency)
         {
             // Find fully expired SSTables. Those will be included no matter what.
             expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingLiveSSTables(uncompacting), gcBefore);
-            lastExpiredCheck = System.currentTimeMillis();
+            lastExpiredCheck = currentTimeMillis();
         }
         Set<SSTableReader> candidates = Sets.newHashSet(filterSuspectSSTables(uncompacting));
 

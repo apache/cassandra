@@ -98,7 +98,7 @@ public class OfflineTokenAllocator
 
         public int nodeId()
         {
-            return fakeAddressAndPort.port;
+            return fakeAddressAndPort.getPort();
         }
 
         public int rackId()

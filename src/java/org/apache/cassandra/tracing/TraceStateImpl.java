@@ -17,12 +17,11 @@
  */
 package org.apache.cassandra.tracing;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -37,7 +36,12 @@ import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+
+import static java.util.Collections.singletonList;
+import static org.apache.cassandra.db.ConsistencyLevel.ANY;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
@@ -82,8 +86,8 @@ public class TraceStateImpl extends TraceState
                 logger.trace("Waiting for up to {} seconds for {} trace events to complete",
                              +WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS, pendingFutures.size());
 
-            CompletableFuture.allOf(pendingFutures.toArray(new CompletableFuture<?>[pendingFutures.size()]))
-                             .get(WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS, TimeUnit.SECONDS);
+            FutureCombiner.allOf(Arrays.asList(pendingFutures.toArray(new Future<?>[pendingFutures.size()])))
+                          .get(WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS, TimeUnit.SECONDS);
         }
         catch (TimeoutException ex)
         {
@@ -101,14 +105,7 @@ public class TraceStateImpl extends TraceState
 
     void executeMutation(final Mutation mutation)
     {
-        CompletableFuture<Void> fut = CompletableFuture.runAsync(new WrappedRunnable()
-        {
-            protected void runMayThrow()
-            {
-                mutateWithCatch(mutation);
-            }
-        }, Stage.TRACING.executor());
-
+        Future<Void> fut = Stage.TRACING.executor().submit(() -> mutateWithCatch(mutation), null);
         boolean ret = pendingFutures.add(fut);
         if (!ret)
             logger.warn("Failed to insert pending future, tracing synchronization may not work");
@@ -118,7 +115,7 @@ public class TraceStateImpl extends TraceState
     {
         try
         {
-            StorageProxy.mutate(Collections.singletonList(mutation), ConsistencyLevel.ANY, System.nanoTime());
+            StorageProxy.mutate(singletonList(mutation), ANY, nanoTime());
         }
         catch (OverloadedException e)
         {

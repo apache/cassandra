@@ -30,6 +30,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class PaxosState
 {
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
@@ -55,7 +57,7 @@ public class PaxosState
 
     public static PrepareResponse prepare(Commit toPrepare)
     {
-        long start = System.nanoTime();
+        long start = nanoTime();
         try
         {
             Lock lock = LOCKS.get(toPrepare.update.partitionKey());
@@ -89,14 +91,14 @@ public class PaxosState
         }
         finally
         {
-            Keyspace.open(toPrepare.update.metadata().keyspace).getColumnFamilyStore(toPrepare.update.metadata().id).metric.casPrepare.addNano(System.nanoTime() - start);
+            Keyspace.open(toPrepare.update.metadata().keyspace).getColumnFamilyStore(toPrepare.update.metadata().id).metric.casPrepare.addNano(nanoTime() - start);
         }
 
     }
 
     public static Boolean propose(Commit proposal)
     {
-        long start = System.nanoTime();
+        long start = nanoTime();
         try
         {
             Lock lock = LOCKS.get(proposal.update.partitionKey());
@@ -124,13 +126,13 @@ public class PaxosState
         }
         finally
         {
-            Keyspace.open(proposal.update.metadata().keyspace).getColumnFamilyStore(proposal.update.metadata().id).metric.casPropose.addNano(System.nanoTime() - start);
+            Keyspace.open(proposal.update.metadata().keyspace).getColumnFamilyStore(proposal.update.metadata().id).metric.casPropose.addNano(nanoTime() - start);
         }
     }
 
     public static void commit(Commit proposal)
     {
-        long start = System.nanoTime();
+        long start = nanoTime();
         try
         {
             // There is no guarantee we will see commits in the right order, because messages
@@ -155,7 +157,7 @@ public class PaxosState
         }
         finally
         {
-            Keyspace.open(proposal.update.metadata().keyspace).getColumnFamilyStore(proposal.update.metadata().id).metric.casCommit.addNano(System.nanoTime() - start);
+            Keyspace.open(proposal.update.metadata().keyspace).getColumnFamilyStore(proposal.update.metadata().id).metric.casCommit.addNano(nanoTime() - start);
         }
     }
 }

@@ -34,7 +34,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -150,7 +149,7 @@ public class StreamingTest extends TestBaseImpl
         @Override
         public void recordState(InetAddressAndPort from, StreamSession.State state)
         {
-            Queue<Integer> states = stateTransitions.get(from.address);
+            Queue<Integer> states = stateTransitions.get(from.getAddress());
             if (states.peek() == null)
                 Assert.fail("Unexpected state " + state);
 
@@ -164,7 +163,7 @@ public class StreamingTest extends TestBaseImpl
             if (message == StreamMessage.Type.KEEP_ALIVE)
                 return;
 
-            Queue<Integer> messages = messageSink.get(from.address);
+            Queue<Integer> messages = messageSink.get(from.getAddress());
             if (messages.peek() == null)
                 Assert.fail("Unexpected message " + message);
 
@@ -175,10 +174,10 @@ public class StreamingTest extends TestBaseImpl
         @Override
         public void onClose(InetAddressAndPort from)
         {
-            Queue<Integer> states = stateTransitions.get(from.address);
+            Queue<Integer> states = stateTransitions.get(from.getAddress());
             Assert.assertTrue("Missing states: " + states, states.isEmpty());
 
-            Queue<Integer> messages = messageSink.get(from.address);
+            Queue<Integer> messages = messageSink.get(from.getAddress());
             Assert.assertTrue("Missing messages: " + messages, messages.isEmpty());
         }
     }

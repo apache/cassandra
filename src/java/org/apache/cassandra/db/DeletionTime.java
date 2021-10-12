@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
 
     /**
      * A special DeletionTime that signifies that there is no top-level (row) tombstone.
