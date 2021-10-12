@@ -237,7 +237,7 @@ public class RepairJobTest extends SchemaLoader
         // SyncTasks themselves should not contain significant memory
         assertTrue(ObjectSizes.measureDeep(syncTasks) < 0.8 * singleTreeSize);
 
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transform(Futures.immediateFuture(mockTreeResponses), new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
+        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(Futures.immediateFuture(mockTreeResponses), new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> treeResponses)
             {
