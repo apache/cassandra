@@ -163,7 +163,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
          * Ensure that data is present and the response accumulator has properly published the
          * responses it has received. This may result in not signaling immediately when we receive
          * the minimum number of required results, but it guarantees at least the minimum will
-         * be accessible when we do signal. (see rdar://77320313)
+         * be accessible when we do signal. (see CASSANDRA-16883)
          */
         if (n >= blockfor && resolver.responses.size() >= blockfor && resolver.isDataPresent())
         {
