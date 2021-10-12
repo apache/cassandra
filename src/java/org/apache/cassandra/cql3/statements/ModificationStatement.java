@@ -855,9 +855,19 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private Slices toSlices(SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
     {
+        return toSlices(metadata, startBounds, endBounds);
+    }
+
+    public static Slices toSlices(TableMetadata metadata, SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
+    {
+        return toSlices(metadata.comparator, startBounds, endBounds);
+    }
+
+    public static Slices toSlices(ClusteringComparator comparator, SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
+    {
         assert startBounds.size() == endBounds.size();
 
-        Slices.Builder builder = new Slices.Builder(metadata().comparator);
+        Slices.Builder builder = new Slices.Builder(comparator);
 
         Iterator<ClusteringBound<?>> starts = startBounds.iterator();
         Iterator<ClusteringBound<?>> ends = endBounds.iterator();
@@ -865,7 +875,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         while (starts.hasNext())
         {
             Slice slice = Slice.make(starts.next(), ends.next());
-            if (!slice.isEmpty(metadata().comparator))
+            if (!slice.isEmpty(comparator))
             {
                 builder.add(slice);
             }
