@@ -539,6 +539,7 @@
             <exclusion groupId="com.google.guava" artifactId="guava"/>
           </dependency>
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.12" scope="test"/>
+          <dependency groupId="org.apache.cassandra" artifactId="harry-core" version="0.0.1" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
           <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="8.40" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
@@ -742,7 +743,7 @@
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" scope="test"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" scope="test"/>
-
+        <dependency groupId="org.apache.cassandra" artifactId="harry-core"/>
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
