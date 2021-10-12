@@ -38,6 +38,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
       to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
