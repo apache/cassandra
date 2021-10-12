@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -123,6 +124,11 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         return filter(k -> k != keyspace);
     }
 
+    public Keyspaces without(Collection<String> names)
+    {
+        return filter(k -> !names.contains(k.name));
+    }
+
     public Keyspaces withAddedOrUpdated(KeyspaceMetadata keyspace)
     {
         return builder().add(Iterables.filter(this, k -> !k.name.equals(keyspace.name)))
@@ -151,6 +157,11 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
     public String toString()
     {
         return keyspaces.values().toString();
+    }
+
+    public int size()
+    {
+        return keyspaces.size();
     }
 
     public static final class Builder
