@@ -442,7 +442,7 @@ public class TableStatsHolder implements StatsHolder
             return filter.get(keyspace) != null || ignoreMode;
         }
 
-        public void verifyKeyspaces(List<String> keyspaces)
+        public void verifyKeyspaces(Collection<String> keyspaces)
         {
             for (String ks : verifier.keySet())
                 if (!keyspaces.contains(ks))

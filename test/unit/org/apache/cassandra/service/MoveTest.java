@@ -557,7 +557,7 @@ public class MoveTest
     private void assertPendingRanges(TokenMetadata tmd, Map<Range<Token>, EndpointsForRange> pendingRanges, String keyspaceName) throws ConfigurationException
     {
         boolean keyspaceFound = false;
-        for (String nonSystemKeyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces())
+        for (String nonSystemKeyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces().names())
         {
             if(!keyspaceName.equals(nonSystemKeyspaceName))
                 continue;
@@ -626,7 +626,7 @@ public class MoveTest
         assertTrue(tmd.isMoving(hosts.get(MOVING_NODE)));
 
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces())
+        for (String keyspaceName : SchemaManager.instance.getNonLocalStrategyKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd);
             if(strategy instanceof NetworkTopologyStrategy)
