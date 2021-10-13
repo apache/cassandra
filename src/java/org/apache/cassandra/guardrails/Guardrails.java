@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -30,19 +31,18 @@ import org.apache.cassandra.utils.units.SizeUnit;
 import org.apache.cassandra.utils.units.Units;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_GUARDRAILS_FACTORY_PROPERTY;
 
 /**
  * Entry point for Guardrails, storing the defined guardrails and provided a few global methods over them.
  */
 public abstract class Guardrails
 {
-    public static final String CUSTOM_GUARDRAILS_FACTORY_PROPERTY = "cassandra.custom_guardrails_factory_class";
-
     private static final GuardrailsConfig config = DatabaseDescriptor.getGuardrailsConfig();
 
-    public static final GuardrailsFactory factory = System.getProperty(CUSTOM_GUARDRAILS_FACTORY_PROPERTY) == null
-                                                    ? new DefaultGuardrailsFactory()
-                                                    : CustomGuardrailsFactory.make(System.getProperty(CUSTOM_GUARDRAILS_FACTORY_PROPERTY));
+    public static final GuardrailsFactory factory = CUSTOM_GUARDRAILS_FACTORY_PROPERTY.isPresent()
+                                                    ? CustomGuardrailsFactory.make(CUSTOM_GUARDRAILS_FACTORY_PROPERTY.getString())
+                                                    : new DefaultGuardrailsFactory();
 
     public static final Threshold tablesLimit =
             factory.threshold("number_of_tables",
