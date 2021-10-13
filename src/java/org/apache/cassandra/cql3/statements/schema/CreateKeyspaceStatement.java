@@ -51,7 +51,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
-    private final HashSet<String> clientWarnings = new HashSet<>();
 
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
@@ -62,10 +61,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        if (ClientWarn.instance.get() == null)
-            ClientWarn.instance.captureWarnings();
-        int previousNumWarnings = ClientWarn.instance.numWarnings();
-
         attrs.validate();
 
         if (!attrs.hasOption(Option.REPLICATION))
@@ -86,10 +81,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         keyspace.params.validate(keyspaceName);
         Keyspaces keyspaces = schema.withAddedOrUpdated(keyspace);
-
-        int newNumWarnings = ClientWarn.instance.numWarnings();
-        if (newNumWarnings > previousNumWarnings)
-            clientWarnings.addAll(ClientWarn.instance.getWarnings().subList(previousNumWarnings, newNumWarnings));
 
         return keyspaces;
     }
@@ -124,6 +115,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        HashSet<String> clientWarnings = new HashSet<>();
         int keyspaceCount = SchemaManager.instance.getKeyspaces().size();
         if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
         {
