@@ -74,7 +74,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
             switch (inbound.header.type)
             {
                 case OPTIONS:
-                    logger.debug("OPTIONS received {}", inbound.header.version);
+                    logger.trace("OPTIONS received {}", inbound.header.version);
                     List<String> cqlVersions = new ArrayList<>();
                     cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
@@ -118,7 +118,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = AsyncChannelPromise.withListener(ctx, future -> {
                             if (future.isSuccess())
                             {
-                                logger.debug("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
+                                logger.trace("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
                                 configurator.configureModernPipeline(ctx, allocator, inbound.header.version, startup.options);
                                 allocator.release(inbound.header.bodySizeInBytes);
                             }
@@ -150,7 +150,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup);
                     outbound = response.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound, promise);
-                    logger.debug("Configured pipeline: {}", ctx.pipeline());
+                    logger.trace("Configured pipeline: {}", ctx.pipeline());
                     break;
 
                 default:
