@@ -1,4 +1,5 @@
 4.0.2
+ * Push initial client connection messages to trace (CASSANDRA-17038)
  * Correct the internode message timestamp if sending node has wrapped (CASSANDRA-16997)
  * Avoid race causing us to return null in RangesAtEndpoint (CASSANDRA-16965)
  * Avoid rewriting all sstables during cleanup when transient replication is enabled (CASSANDRA-16966)
