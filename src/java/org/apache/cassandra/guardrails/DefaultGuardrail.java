@@ -428,7 +428,7 @@ public abstract class DefaultGuardrail implements Guardrail
       *
       * @param <T> the type of the values that trigger the guardrail.
       */
-     private static abstract class ValuesBaseGuardrail<T> extends DefaultGuardrail
+     private static abstract class MulitpleValuesBasedGuardrail<T> extends DefaultGuardrail
      {
           /*
            * Implementation note: as mentioned in the class Javadoc and for consistency with the other Guardrail
@@ -444,7 +444,7 @@ public abstract class DefaultGuardrail implements Guardrail
           private volatile Set<T> cachedValues;
           private volatile Set<String> cachedRaw;
 
-          protected ValuesBaseGuardrail(
+          protected MulitpleValuesBasedGuardrail(
                   String name, Supplier<Set<String>> disallowedRaw, Function<String, T> parser, String what)
           {
                super(name);
@@ -531,7 +531,7 @@ public abstract class DefaultGuardrail implements Guardrail
       *
       * @param <T> the type of the values of which certain are disallowed.
       */
-     public static class DefaultDisallowedValues<T> extends ValuesBaseGuardrail<T> implements DisallowedValues<T>
+     public static class DefaultDisallowedValues<T> extends MulitpleValuesBasedGuardrail<T> implements DisallowedValues<T>
      {
           /**
            * Creates a new {@link DefaultDisallowedValues} guardrail.
@@ -643,7 +643,7 @@ public abstract class DefaultGuardrail implements Guardrail
      *
      * @param <T> the type of the values of which certain are ignored.
      */
-    public static class DefaultIgnoredValues<T> extends ValuesBaseGuardrail<T> implements IgnoredValues<T>
+    public static class DefaultIgnoredValues<T> extends MulitpleValuesBasedGuardrail<T> implements IgnoredValues<T>
     {
         /**
          * Creates a new {@link DefaultIgnoredValues} guardrail.
