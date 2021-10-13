@@ -605,8 +605,7 @@ public final class SchemaManager implements SchemaProvider
         if (needNewDiff)
             return new SchemaTransformationResult(new SharedSchema(localBefore, localVersion),
                                                   result.after,
-                                                  Keyspaces.diff(localBefore, result.after.getKeyspaces()),
-                                                  result.mutations);
+                                                  Keyspaces.diff(localBefore, result.after.getKeyspaces()));
 
         return result;
     }
