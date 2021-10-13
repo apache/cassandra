@@ -21,7 +21,6 @@ package org.apache.cassandra.schema;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -197,7 +196,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before.getKeyspaces(), afterKeyspaces);
         UUID version = SchemaKeyspace.calculateSchemaDigest();
         DistributedSchema after = new DistributedSchema(afterKeyspaces, version);
-        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff, schemaMutations);
+        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
 
         updateSchema(update, false);
         return update;
@@ -211,13 +210,13 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before.getKeyspaces(), afterKeyspaces);
 
         if (diff.isEmpty())
-            return new SchemaTransformationResult(before, before, diff, Collections.emptyList());
+            return new SchemaTransformationResult(before, before, diff);
 
         Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, transformation.fixedTimestampMicros().orElse(FBUtilities.timestampMicros()));
         SchemaKeyspace.applyChanges(mutations);
 
         DistributedSchema after = new DistributedSchema(afterKeyspaces, SchemaKeyspace.calculateSchemaDigest());
-        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff, mutations);
+        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
 
         updateSchema(update, local);
         if (!local)
@@ -247,7 +246,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         DistributedSchema before = this.schema;
         DistributedSchema after = new DistributedSchema(SchemaKeyspace.fetchNonSystemKeyspaces(), SchemaKeyspace.calculateSchemaDigest());
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before.getKeyspaces(), after.getKeyspaces());
-        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff, SchemaKeyspace.convertSchemaDiffToMutations(diff, FBUtilities.timestampMicros()));
+        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
 
         updateSchema(update, false);
         return update;

@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
-import java.util.Collection;
 import java.util.Optional;
-
-import org.apache.cassandra.db.Mutation;
 
 public interface SchemaTransformation
 {
@@ -53,14 +50,12 @@ public interface SchemaTransformation
         public final DistributedSchema before;
         public final DistributedSchema after;
         public final Keyspaces.KeyspacesDiff diff;
-        public final Collection<Mutation> mutations;
 
-        public SchemaTransformationResult(DistributedSchema before, DistributedSchema after, Keyspaces.KeyspacesDiff diff, Collection<Mutation> mutations)
+        public SchemaTransformationResult(DistributedSchema before, DistributedSchema after, Keyspaces.KeyspacesDiff diff)
         {
             this.before = before;
             this.after = after;
             this.diff = diff;
-            this.mutations = mutations;
         }
 
         @Override

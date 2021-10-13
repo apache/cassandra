@@ -19,7 +19,6 @@
 package org.apache.cassandra.schema;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -28,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Update handler which works only in memory. It does not load or save the schema anywhere. It is used in client mode
@@ -67,10 +65,10 @@ public class OfflineSchemaUpdateHandler implements SchemaUpdateHandler
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before.getKeyspaces(), afterKeyspaces);
 
         if (diff.isEmpty())
-            return new SchemaTransformationResult(before, before, diff, Collections.emptyList());
+            return new SchemaTransformationResult(before, before, diff);
 
         DistributedSchema after = new DistributedSchema(afterKeyspaces, UUID.nameUUIDFromBytes(ByteArrayUtil.bytes(afterKeyspaces.hashCode())));
-        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff, SchemaKeyspace.convertSchemaDiffToMutations(diff, transformation.fixedTimestampMicros().orElse(FBUtilities.timestampMicros())));
+        SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
         this.schema = after;
         logger.debug("Schema updated: {}", update);
         updateCallback.accept(update);
