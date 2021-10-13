@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.management.openmbean.TabularData;
 
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;

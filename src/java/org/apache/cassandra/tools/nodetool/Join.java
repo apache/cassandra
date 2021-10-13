@@ -18,7 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkState;
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 
 import java.io.IOException;
 

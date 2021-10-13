@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Command;
-
-import io.airlift.command.Option;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.TpStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.TpStatsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.*;
-
 
 @Command(name = "tpstats", description = "Print usage statistics of thread pools")
 public class TpStats extends NodeToolCmd

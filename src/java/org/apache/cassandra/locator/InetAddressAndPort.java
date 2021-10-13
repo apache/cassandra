@@ -154,7 +154,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         {
             port = hap.getPort();
         }
-        return getByAddressOverrideDefaults(InetAddress.getByName(hap.getHostText()), port);
+        return getByAddressOverrideDefaults(InetAddress.getByName(hap.getHost()), port);
     }
 
     public static InetAddressAndPort getByAddress(byte[] address) throws UnknownHostException
