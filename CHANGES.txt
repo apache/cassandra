@@ -1,4 +1,5 @@
 4.1
+ * Log time spent writing keys during compaction (CASSANDRA-17037)
  * Make nodetool compactionstats and sstable_tasks consistent (CASSANDRA-16976)
  * Add metrics and logging around index summary redistribution (CASSANDRA-17036)
  * Add configuration options for minimum allowable replication factor and default replication factor (CASSANDRA-14557)

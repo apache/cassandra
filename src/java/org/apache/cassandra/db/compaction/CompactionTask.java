@@ -163,6 +163,7 @@ public class CompactionTask extends AbstractCompactionTask
             long totalKeysWritten = 0;
             long estimatedKeys = 0;
             long inputSizeBytes;
+            long timeSpentWritingKeys;
 
             Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
             Collection<SSTableReader> newSStables;
@@ -201,10 +202,9 @@ public class CompactionTask extends AbstractCompactionTask
                         if (writer.append(ci.next()))
                             totalKeysWritten++;
 
-
                         long bytesScanned = scanners.getTotalBytesScanned();
 
-                        //Rate limit the scanners, and account for compression
+                        // Rate limit the scanners, and account for compression
                         CompactionManager.compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
 
                         lastBytesScanned = bytesScanned;
@@ -215,6 +215,7 @@ public class CompactionTask extends AbstractCompactionTask
                             lastCheckObsoletion = nanoTime();
                         }
                     }
+                    timeSpentWritingKeys = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
 
                     // point of no return
                     newSStables = writer.finish();
@@ -246,7 +247,7 @@ public class CompactionTask extends AbstractCompactionTask
 
             String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
 
-            logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+            logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}. Time spent writing keys = %,dms",
                                        taskId,
                                        transaction.originals().size(),
                                        newSSTableNames.toString(),
@@ -260,7 +261,8 @@ public class CompactionTask extends AbstractCompactionTask
                                        (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
                                        totalSourceRows,
                                        totalKeysWritten,
-                                       mergeSummary));
+                                       mergeSummary,
+                                       timeSpentWritingKeys));
             if (logger.isTraceEnabled())
             {
                 logger.trace("CF Total Bytes Compacted: {}", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize)));
