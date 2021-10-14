@@ -38,9 +38,8 @@ import org.apache.cassandra.config.EncryptionOptions;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_CERTIFICATES;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_KEY;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.KEY_PASSWORD;
-import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.TARGET_STORETYPE;
 
-public class PEMSslContextFactoryTest
+public class PEMBasedSslContextFactoryTest
 {
     private Map<String,Object> commonConfig = new HashMap<>();
 
@@ -176,7 +175,6 @@ public class PEMSslContextFactoryTest
     @Before
     public void setup()
     {
-        commonConfig.put(TARGET_STORETYPE.getKeyName(), "PKCS12");
         commonConfig.put(ENCODED_CERTIFICATES.getKeyName(), trusted_certificates);
         commonConfig.put("require_client_auth", Boolean.FALSE);
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));

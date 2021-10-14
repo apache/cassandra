@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.security;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 
@@ -156,29 +158,49 @@ public class PEMReaderTest
     "-----END CERTIFICATE-----";
 
     @Test
-    public void readEncryptedKey() throws Exception
+    public void readEncryptedKey() throws IOException, GeneralSecurityException
     {
         PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_encrypted_key, "cassandra");
         Assert.assertNotNull(privateKey);
     }
 
+    @Test(expected = GeneralSecurityException.class)
+    public void readInvalidEncryptedKey() throws IOException, GeneralSecurityException
+    {
+        // Test by injecting junk data in the given key and making it invalid
+        PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_encrypted_key.replaceAll("\\s",
+                                                                                             String.valueOf(System.nanoTime())),
+                                                            "cassandra");
+        Assert.assertNotNull(privateKey);
+    }
+
     @Test
-    public void readUnencryptedKey() throws Exception
+    public void readUnencryptedKey() throws IOException, GeneralSecurityException
     {
         PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_key);
         Assert.assertNotNull(privateKey);
     }
 
     @Test
-    public void readCertChain() throws Exception
+    public void readCertChain() throws GeneralSecurityException
     {
         Certificate[] certificates = PEMReader.extractCertificates(encoded_encrypted_key);
         Assert.assertNotNull("CertChain must not be null", certificates);
         Assert.assertTrue("CertChain must have only one certificate", certificates.length==1);
     }
 
+    @Test(expected = GeneralSecurityException.class)
+    public void readInvalidCertificate() throws GeneralSecurityException
+    {
+        // Test by injecting junk data in the given key and making it invalid
+        Certificate[] certificates = PEMReader.extractCertificates(encoded_encrypted_key.replaceAll("\\s",
+                                                                                                    String.valueOf(System.nanoTime())));
+        Assert.assertNotNull("CertChain must not be null", certificates);
+        Assert.assertTrue("CertChain must have only one certificate", certificates.length==1);
+    }
+
     @Test
-    public void readTrustedCertificates() throws Exception
+    public void readTrustedCertificates() throws GeneralSecurityException
     {
         Certificate[] certificates = PEMReader.extractCertificates(encoded_certificates);
         Assert.assertNotNull("Trusted certificate list must not be null", certificates);

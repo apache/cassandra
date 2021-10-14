@@ -19,7 +19,9 @@
 package org.apache.cassandra.security;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.security.AlgorithmParameters;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -32,7 +34,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
 import javax.crypto.SecretKeyFactory;
@@ -41,6 +42,13 @@ import javax.crypto.spec.PBEKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * This is a helper class to read private keys and X509 certifificates encoded based on <a href="https://datatracker.ietf.org/doc/html/rfc1421">PEM (RFC 1421)</a>
+ * format. It can read Password Based Encrypted (PBE henceforth) private keys as well as non-encrypred private keys
+ * along with the X509 certificates/cert-chain based on the textual encoding defined in the <a href="https://datatracker.ietf.org/doc/html/rfc7468">RFC 7468</a>
+ *
+ * It returns PKCS#8 formatted RSA private keys and X509 certificates.
+ */
 public final class PEMReader
 {
     private static final Logger logger = LoggerFactory.getLogger(PEMReader.class);
@@ -48,12 +56,28 @@ public final class PEMReader
     private static final Pattern CERT_PATTERN = Pattern.compile("-+BEGIN\\s+.*CERTIFICATE[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*CERTIFICATE[^-]*-+", 2);
     private static final Pattern KEY_PATTERN = Pattern.compile("-+BEGIN\\s+.*PRIVATE\\s+KEY[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*PRIVATE\\s+KEY[^-]*-+", 2);
 
-    public static PrivateKey extractPrivateKey(String unencryptedPEMKey) throws Exception
+    /**
+     * Extracts private key from the PEM content for the private key, assuming its not PBE.
+     * @param unencryptedPEMKey private key stored as PEM content
+     * @return {@link PrivateKey} upon successful reading of the private key
+     * @throws IOException in case PEM reading fails
+     * @throws GeneralSecurityException in case any issue encountered while reading the private key
+     */
+    public static PrivateKey extractPrivateKey(String unencryptedPEMKey) throws IOException, GeneralSecurityException
     {
         return extractPrivateKey(unencryptedPEMKey, null);
     }
 
-    public static PrivateKey extractPrivateKey(String pemKey, String keyPassword) throws Exception
+    /**
+     * Extracts private key from the Password Based Encrypted PEM content for the private key.
+     * @param pemKey PBE private key stored as PEM content
+     * @param keyPassword password to be used for the private key decryption
+     * @return {@link PrivateKey} upon successful reading of the private key
+     * @throws IOException in case PEM reading fails
+     * @throws GeneralSecurityException in case any issue encountered while reading the private key
+     */
+    public static PrivateKey extractPrivateKey(String pemKey, String keyPassword) throws IOException,
+                                                                                         GeneralSecurityException
     {
         PKCS8EncodedKeySpec keySpec;
         String base64EncodedKey = extractBase64EncodedKey(pemKey);
@@ -90,17 +114,30 @@ public final class PEMReader
        return KeyFactory.getInstance("RSA").generatePrivate(keySpec);
     }
 
-    public static Certificate[] extractCertificates(String pemCerts) throws Exception {
+    /**
+     * Extracts the certificates/cert-chain from the PEM content.
+     * @param pemCerts certificates/cert-chain stored as PEM content
+     * @return X509 certiificate list
+     * @throws GeneralSecurityException in case any issue encountered while reading the certificates
+     */
+    public static Certificate[] extractCertificates(String pemCerts) throws GeneralSecurityException {
         List<Certificate> certificateList = new ArrayList<>();
         List<String> base64EncodedCerts = extractBase64EncodedCerts(pemCerts);
         for (String base64EncodedCertificate : base64EncodedCerts)
         {
             certificateList.add(generateCertificate(base64EncodedCertificate));
         }
-        return certificateList.toArray(new Certificate[0]);
+        Certificate[] certificates = certificateList.toArray(new Certificate[0]);
+        return certificates;
     }
 
-    private static Certificate generateCertificate(String base64Certificate) throws Exception {
+    /**
+     * Generates the X509 certificate object given the base64 encoded PEM content.
+     * @param base64Certificate base64 encoded PEM content for the certificate
+     * @return X509 certificate
+     * @throws GeneralSecurityException in case any issue encountered while reading the certificate
+     */
+    private static Certificate generateCertificate(String base64Certificate) throws GeneralSecurityException {
         byte[] decodedCertificateBytes = Base64.getDecoder().decode(base64Certificate);
         CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
         X509Certificate certificate =
@@ -109,6 +146,13 @@ public final class PEMReader
         return certificate;
     }
 
+    /**
+     * Prints X509 certificate details for the debugging purpose with {@code DEBUG} level log.
+     * Namely, it prints- Subject DN, Issuer DN, Certificate serial number and the certificate expiry date which
+     * could be very valuable for debugging any certificate related issues.
+     *
+     * @param certificate
+     */
     private static void printCertificateDetails(X509Certificate certificate)
     {
         logger.debug("*********** Certificate Details *****************");
@@ -118,7 +162,14 @@ public final class PEMReader
         logger.debug("Expiry: {}", certificate.getNotAfter());
     }
 
-    private static String extractBase64EncodedKey(String pemKey) {
+    /**
+     * Parses the PEM formatted private key based on the standard pattern specified by the <a href="https://datatracker.ietf.org/doc/html/rfc7468#section-11">RFC 7468</a>.
+     * @param pemKey private key stored as PEM content
+     * @return base64 string contained within the defined encapsulation boundaries by the above RFC
+     * @throws GeneralSecurityException in case any issue encountered while parsing the key
+     */
+    private static String extractBase64EncodedKey(String pemKey) throws GeneralSecurityException
+    {
         Matcher matcher = KEY_PATTERN.matcher(pemKey);
         if (matcher.find())
         {
@@ -126,13 +177,25 @@ public final class PEMReader
         }
         else
         {
-            throw new RuntimeException("Invalid private key format");
+            throw new GeneralSecurityException("Invalid private key format");
         }
     }
 
-    private static List<String> extractBase64EncodedCerts(String pemCerts) {
+    /**
+     * Parses the PEM formatted certificate/public-key based on the standard pattern specified by the
+     * <a href="https://datatracker.ietf.org/doc/html/rfc7468#section-13">RFC 7468</a>.
+     * @param pemCerts certificate/public-key stored as PEM content
+     * @return list of base64 encoded certificates within the defined encapsulation boundaries by the above RFC
+     * @throws GeneralSecurityException in case any issue encountered parsing the certificate
+     */
+    private static List<String> extractBase64EncodedCerts(String pemCerts) throws GeneralSecurityException
+    {
         List<String> certificateList = new ArrayList<>();
         Matcher matcher = CERT_PATTERN.matcher(pemCerts);
+        if (!matcher.find())
+        {
+            throw new GeneralSecurityException("Invalid certificate format");
+        }
 
         for(int start = 0; matcher.find(start); start = matcher.end())
         {
