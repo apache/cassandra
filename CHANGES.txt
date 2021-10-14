@@ -10,6 +10,7 @@
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)
 Merged from 3.0:
+ * Log more information when a node runs out of commitlog space (CASSANDRA-11323)
  * Don't take snapshots when truncating system tables (CASSANDRA-16839)
  * Make -Dtest.methods consistently optional in all Ant test targets (CASSANDRA-17014)
  * Immediately apply stream throughput, considering negative values as unthrottled (CASSANDRA-16959)
