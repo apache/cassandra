@@ -166,9 +166,8 @@ public interface Memtable extends Comparable<Memtable>
         /**
          * Construct a list of boundaries that split the locally-owned ranges into the given number of shards,
          * splitting the owned space evenly. It is up to the memtable to use this information.
-         * The database will not notify the memtable of changes to the local ranges. If the memtable flushes normally,
-         * it is usually okay to pick these up the next time a new memtable is created. However, if the memtable
-         * does not flush often, it may be necessary to set up a regular check if this still returns the same object.
+         * Any changes in the ring structure (e.g. added or removed nodes) will invalidate the splits; in such a case
+         * the memtable will be sent a shouldSwitch(OWNED_RANGES_CHANGED)
          */
         ShardBoundaries localRangeSplits(int shardCount);
     }
@@ -409,6 +408,7 @@ public interface Memtable extends Comparable<Memtable>
      * Normally this will return true, but e.g. persistent memtables may choose not to flush. Returning false will
      * trigger further action for some reasons:
      * - SCHEMA_CHANGE will be followed by metadataUpdated().
+     * - OWNED_RANGES_CHANGE will be followed by localRangesUpdated().
      * - SNAPSHOT will be followed by performSnapshot().
      * - STREAMING/REPAIR will be followed by creating a FlushSet for the streamed/repaired ranges. This data will be
      *   used to create sstables, which will be streamed and then deleted.
@@ -421,6 +421,14 @@ public interface Memtable extends Comparable<Memtable>
      * This will not be called if shouldSwitch(SCHEMA_CHANGE) returns true, the memtable will be swapped out instead.
      */
     void metadataUpdated();
+
+    /**
+     * Called when the known ranges have been updated and owner.localRangeSplits() may return different values.
+     * This will not be called if shouldSwitch(OWNED_RANGES_CHANGE) returns true, the memtable will be swapped out
+     * instead.
+     * TODO: Implement call.
+     */
+    void localRangesUpdated();
 
     /**
      * If the memtable needs to do some special action for snapshots (e.g. because it is persistent and does not want

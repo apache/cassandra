@@ -169,13 +169,16 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static com.google.common.base.Throwables.propagate;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
+import static org.apache.cassandra.db.commitlog.CommitLog.instance;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -237,6 +240,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         STREAMS_RECEIVED,
         REPAIR,
         SCHEMA_CHANGE,
+        OWNED_RANGES_CHANGE,
         UNIT_TESTS; // explicitly requested flush needed for a test
     }
 
