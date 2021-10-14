@@ -60,6 +60,7 @@ Upgrading
       was created while the above property was set to be more than 30 otherwise they will not be able to log in.
     - Information about pending hints is now available through `nodetool listpendinghints` and `pending_hints` virtual
       table.
+    - Snappy-java was updated from 1.1.2.6 to 1.1.8.4 which supports Apple M1 devices.
 
 Deprecation
 -----------
