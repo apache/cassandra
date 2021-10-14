@@ -1556,35 +1556,43 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 workflows:
   version: 2
-  build_and_run_tests:
+  separate_tests:
     jobs:
-    - build
+    - start_build:
+        type: approval
+    - build:
+        requires:
+        - start_build
+    - start_j8_unit_tests:
+        type: approval
     - j8_unit_tests:
         requires:
+        - start_j8_unit_tests
         - build
+    - start_j8_jvm_dtests:
+        type: approval
     - j8_jvm_dtests:
         requires:
+        - start_j8_jvm_dtests
         - build
     - start_utests_long:
         type: approval
-        requires:
-        - build
     - utests_long:
         requires:
         - start_utests_long
+        - build
     - start_utests_compression:
         type: approval
-        requires:
-        - build
     - utests_compression:
         requires:
         - start_utests_compression
+        - build
     - start_j8_dtest_jars_build:
         type: approval
     - j8_dtest_jars_build:
         requires:
-        - build
         - start_j8_dtest_jars_build
+        - build
     - start_jvm_upgrade_dtest:
         type: approval
     - j8_jvm_upgrade_dtests:
@@ -1593,21 +1601,93 @@ workflows:
         - j8_dtest_jars_build
     - start_j8_dtests:
         type: approval
-        requires:
-        - build
     - j8_dtests-with-vnodes:
         requires:
         - start_j8_dtests
+        - build
     - j8_dtests-no-vnodes:
         requires:
         - start_j8_dtests
+        - build
     - start_upgrade_tests:
         type: approval
-        requires:
-        - build
     - j8_upgradetests-no-vnodes:
         requires:
         - start_upgrade_tests
+        - build
+    - start_j8_repeated_utest:
+        type: approval
+    - j8_repeated_utest:
+        requires:
+        - start_j8_repeated_utest
+        - build
+    - start_j8_repeated_dtest:
+        type: approval
+    - j8_repeated_dtest:
+        requires:
+        - start_j8_repeated_dtest
+        - build
+    - start_repeated_upgrade_dtest:
+        type: approval
+    - repeated_upgrade_dtest:
+        requires:
+        - start_repeated_upgrade_dtest
+        - build
+    - start_repeated_jvm_upgrade_dtest:
+        type: approval
+    - repeated_jvm_upgrade_dtest:
+        requires:
+        - start_repeated_jvm_upgrade_dtest
+        - j8_dtest_jars_build
+  pre-commit_tests:
+    jobs:
+    - start_pre-commit_tests:
+        type: approval
+    - build:
+        requires:
+        - start_pre-commit_tests
+    - j8_unit_tests:
+        requires:
+        - build
+    - j8_jvm_dtests:
+        requires:
+        - build
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+        - start_utests_long
+        - build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+        - start_utests_compression
+        - build
+    - start_j8_dtest_jars_build:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+        - start_j8_dtest_jars_build
+        - build
+    - start_jvm_upgrade_dtest:
+        type: approval
+    - j8_jvm_upgrade_dtests:
+        requires:
+        - start_jvm_upgrade_dtest
+        - j8_dtest_jars_build
+    - j8_dtests-with-vnodes:
+        requires:
+        - build
+    - j8_dtests-no-vnodes:
+        requires:
+        - build
+    - start_upgrade_tests:
+        type: approval
+    - j8_upgradetests-no-vnodes:
+        requires:
+        - start_upgrade_tests
+        - build
     - start_j8_repeated_utest:
         type: approval
     - j8_repeated_utest:

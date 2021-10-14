@@ -122,104 +122,183 @@ j8_seq_executor: &j8_seq_executor
   parallelism: 1 # sequential, single container tests: no parallelism benefits
 
 with_dtests_jobs: &with_dtest_jobs
-        jobs:
-            - build
-            # Java 8 unit tests will be run automatically
-            - j8_unit_tests:
-                requires:
-                  - build
-            - j8_jvm_dtests:
-                requires:
-                  - build
-            # specialized unit tests (all run on request using Java 8)
-            - start_utests_long:
-                type: approval
-                requires:
-                  - build
-            - utests_long:
-                requires:
-                  - start_utests_long
-            - start_utests_compression:
-                type: approval
-                requires:
-                  - build
-            - utests_compression:
-                requires:
-                  - start_utests_compression
-            - start_j8_dtest_jars_build:
-                type: approval
-            - j8_dtest_jars_build:
-                requires:
-                  - build
-                  - start_j8_dtest_jars_build
-            - start_jvm_upgrade_dtest:
-                type: approval
-            - j8_jvm_upgrade_dtests:
-                requires:
-                  - start_jvm_upgrade_dtest
-                  - j8_dtest_jars_build
-            # Java 8 dtests (on request)
-            - start_j8_dtests:
-                type: approval
-                requires:
-                  - build
-            - j8_dtests-with-vnodes:
-                requires:
-                  - start_j8_dtests
-            - j8_dtests-no-vnodes:
-                requires:
-                  - start_j8_dtests
-            # Java 8 upgrade tests
-            - start_upgrade_tests:
-                type: approval
-                requires:
-                  - build
-            - j8_upgradetests-no-vnodes:
-                requires:
-                  - start_upgrade_tests
-            # Java 8 repeated utest (on request)
-            - start_j8_repeated_utest:
-                type: approval
-            - j8_repeated_utest:
-                requires:
-                  - start_j8_repeated_utest
-                  - build
-            # Java 8 repeated dtest (on request)
-            - start_j8_repeated_dtest:
-                type: approval
-            - j8_repeated_dtest:
-                requires:
-                  - start_j8_repeated_dtest
-                  - build
-            # Repeated Python upgrade dtest (on request)
-            - start_repeated_upgrade_dtest:
-                type: approval
-            - repeated_upgrade_dtest:
-                requires:
-                  - start_repeated_upgrade_dtest
-                  - build
-            # Repeated JVM upgrade dtest (on request)
-            - start_repeated_jvm_upgrade_dtest:
-                type: approval
-            - repeated_jvm_upgrade_dtest:
-                requires:
-                  - start_repeated_jvm_upgrade_dtest
-                  - j8_dtest_jars_build
+  jobs:
+    - start_build:
+        type: approval
+    - build:
+        requires:
+          - start_build
+    # Java 8 unit tests
+    - start_j8_unit_tests:
+        type: approval
+    - j8_unit_tests:
+        requires:
+          - start_j8_unit_tests
+          - build
+    - start_j8_jvm_dtests:
+        type: approval
+    - j8_jvm_dtests:
+        requires:
+          - start_j8_jvm_dtests
+          - build
+    # specialized unit tests (all run using Java 8)
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+          - start_utests_long
+          - build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+          - start_utests_compression
+          - build
+    - start_j8_dtest_jars_build:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+          - start_j8_dtest_jars_build
+          - build
+    - start_jvm_upgrade_dtest:
+        type: approval
+    - j8_jvm_upgrade_dtests:
+        requires:
+          - start_jvm_upgrade_dtest
+          - j8_dtest_jars_build
+    # Java 8 dtests
+    - start_j8_dtests:
+        type: approval
+    - j8_dtests-with-vnodes:
+        requires:
+          - start_j8_dtests
+          - build
+    - j8_dtests-no-vnodes:
+        requires:
+          - start_j8_dtests
+          - build
+    # Java 8 upgrade tests
+    - start_upgrade_tests:
+        type: approval
+    - j8_upgradetests-no-vnodes:
+        requires:
+          - start_upgrade_tests
+          - build
+    # Java 8 repeated utest
+    - start_j8_repeated_utest:
+        type: approval
+    - j8_repeated_utest:
+        requires:
+          - start_j8_repeated_utest
+          - build
+    # Java 8 repeated dtest
+    - start_j8_repeated_dtest:
+        type: approval
+    - j8_repeated_dtest:
+        requires:
+          - start_j8_repeated_dtest
+          - build
+    # Repeated Python upgrade dtest
+    - start_repeated_upgrade_dtest:
+        type: approval
+    - repeated_upgrade_dtest:
+        requires:
+          - start_repeated_upgrade_dtest
+          - build
+    # Repeated JVM upgrade dtest
+    - start_repeated_jvm_upgrade_dtest:
+        type: approval
+    - repeated_jvm_upgrade_dtest:
+        requires:
+          - start_repeated_jvm_upgrade_dtest
+          - j8_dtest_jars_build
 
-with_dtest_jobs_only: &with_dtest_jobs_only
-        jobs:
-            - build
-            - j8_dtests-with-vnodes:
-                  requires:
-                      - build
-            - j8_dtests-no-vnodes:
-                  requires:
-                      - build
+pre-commit_jobs: &pre-commit_jobs
+  jobs:
+    - start_pre-commit_tests:
+        type: approval
+    - build:
+        requires:
+          - start_pre-commit_tests
+    # Java 8 unit tests will be run automatically
+    - j8_unit_tests:
+        requires:
+          - build
+    - j8_jvm_dtests:
+        requires:
+          - build
+    # specialized unit tests (all run on request using Java 8)
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+          - start_utests_long
+          - build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+          - start_utests_compression
+          - build
+    - start_j8_dtest_jars_build:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+          - start_j8_dtest_jars_build
+          - build
+    - start_jvm_upgrade_dtest:
+        type: approval
+    - j8_jvm_upgrade_dtests:
+        requires:
+          - start_jvm_upgrade_dtest
+          - j8_dtest_jars_build
+    # Java 8 dtests
+    - j8_dtests-with-vnodes:
+        requires:
+          - build
+    - j8_dtests-no-vnodes:
+        requires:
+          - build
+    # Java 8 upgrade tests (on request)
+    - start_upgrade_tests:
+        type: approval
+    - j8_upgradetests-no-vnodes:
+        requires:
+          - start_upgrade_tests
+          - build
+    # Java 8 repeated utest (on request)
+    - start_j8_repeated_utest:
+        type: approval
+    - j8_repeated_utest:
+        requires:
+          - start_j8_repeated_utest
+          - build
+    # Java 8 repeated dtest (on request)
+    - start_j8_repeated_dtest:
+        type: approval
+    - j8_repeated_dtest:
+        requires:
+          - start_j8_repeated_dtest
+          - build
+    # Repeated Python upgrade dtest (on request)
+    - start_repeated_upgrade_dtest:
+        type: approval
+    - repeated_upgrade_dtest:
+        requires:
+          - start_repeated_upgrade_dtest
+          - build
+    # Repeated JVM upgrade dtest (on request)
+    - start_repeated_jvm_upgrade_dtest:
+        type: approval
+    - repeated_jvm_upgrade_dtest:
+        requires:
+          - start_repeated_jvm_upgrade_dtest
+          - j8_dtest_jars_build
 
 workflows:
     version: 2
-    build_and_run_tests: *with_dtest_jobs
-    #build_and_run_tests: *with_dtest_jobs_only
+    separate_tests: *with_dtest_jobs
+    pre-commit_tests: *pre-commit_jobs
 
 executors:
   java8-executor:
