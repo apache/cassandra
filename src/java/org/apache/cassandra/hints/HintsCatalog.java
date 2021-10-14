@@ -64,11 +64,10 @@ final class HintsCatalog
      */
     static HintsCatalog load(File hintsDirectory, ImmutableMap<String, Object> writerParams)
     {
-        try
+        try (Stream<Path> stream = Files.list(hintsDirectory.toPath()))
         {
             Map<UUID, List<HintsDescriptor>> stores =
-                Files.list(hintsDirectory.toPath())
-                     .filter(HintsDescriptor::isHintFileName)
+                stream.filter(HintsDescriptor::isHintFileName)
                      .map(HintsDescriptor::readFromFileQuietly)
                      .filter(Optional::isPresent)
                      .map(Optional::get)
