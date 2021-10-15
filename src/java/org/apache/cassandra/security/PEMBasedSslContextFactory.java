@@ -218,6 +218,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
      * @return KeyManagerFactory built from the PEM based keystore.
      * @throws SSLException if any issues encountered during the build process
      */
+    @Override
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
         try
@@ -255,6 +256,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
      * @return TrustManagerFactory from the PEM based truststore
      * @throws SSLException if any issues encountered during the build process
      */
+    @Override
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
         try
