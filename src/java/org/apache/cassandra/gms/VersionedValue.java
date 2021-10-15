@@ -98,6 +98,12 @@ public class VersionedValue implements Comparable<VersionedValue>
         this.version = version;
     }
 
+    @VisibleForTesting
+    public static VersionedValue unsafeMakeVersionedValue(String value, int version)
+    {
+        return new VersionedValue(value, version);
+    }
+
     private VersionedValue(String value)
     {
         this(value, VersionGenerator.getNextVersion());
