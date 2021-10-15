@@ -29,7 +29,7 @@ Java
 - `Astyanax <https://github.com/Netflix/astyanax/wiki/Getting-Started>`__
 - `Casser <https://github.com/noorq/casser>`__
 - `Datastax Java driver <https://github.com/datastax/java-driver>`__
-- `Kundera <https://github.com/impetus-opensource/Kundera>`__
+- `Kundera <https://github.com/impetus/Kundera>`__
 - `PlayORM <https://github.com/deanhiller/playorm>`__
 
 Python
