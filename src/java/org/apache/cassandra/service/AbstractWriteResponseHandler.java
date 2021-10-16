@@ -133,7 +133,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
      */
     protected int totalEndpoints()
     {
-        if (consistencyLevel.isDatacenterLocal())
+        if (consistencyLevel != null && consistencyLevel.isDatacenterLocal())
             return consistencyLevel.countLocalEndpoints(Iterables.concat(naturalEndpoints, pendingEndpoints));
 
         return naturalEndpoints.size() + pendingEndpoints.size();
