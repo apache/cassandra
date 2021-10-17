@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -26,6 +27,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -141,6 +143,16 @@ public class TimeFctsTest
         assertEquals(DATE.toInstant().toEpochMilli(), SimpleDateType.instance.toTimeInMillis(output));
     }
 
+    @Test
+    public void testBigIntegerToDate()
+    {
+        long milliSeconds = DATE_TIME.toInstant().toEpochMilli();
+
+        ByteBuffer input = IntegerType.instance.fromString(Long.toString(milliSeconds));
+        ByteBuffer output = executeFunction(toDate(), input);
+        assertEquals(0, SimpleDateType.instance.toTimeInMillis(output));
+
+    }
     @Test
     public void testTimestampToDateWithEmptyInput()
     {

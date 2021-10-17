@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
@@ -161,6 +162,28 @@ public abstract class TimeFcts
            }
        };
    }
+
+    /**
+     * Creates a function that convert a value of the specified type into a <code>DATE</code>.
+     * @param type the temporal type
+     * @return a function that convert a value of the specified type into a <code>DATE</code>.
+     */
+    public static final NativeScalarFunction toDate()
+    {
+        return new NativeScalarFunction("todate", IntegerType.instance)
+        {
+            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            {
+                ByteBuffer bb = parameters.get(0);
+                if (bb == null || !bb.hasRemaining())
+                    return null;
+
+
+                return SimpleDateType.instance.fromTimeInMillis(new BigInteger(bb.array()).longValue());
+            }
+        };
+    }
+
 
    /**
     * Creates a function that convert a value of the specified type into a <code>TIMESTAMP</code>.
