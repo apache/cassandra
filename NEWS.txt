@@ -38,6 +38,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - New native functions to convert unix time values into C* native types: toDate(bigint), toTimestamp(bigint),
+      mintimeuuid(bigint) and maxtimeuuid(bigint)
     - Support for multiple permission in a single GRANT/REVOKE/LIST statement has been added. It allows to
       grant/revoke/list multiple permissions using a single statement by providing a list of comma-separated
       permissions.

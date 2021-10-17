@@ -139,7 +139,7 @@ public class LongType extends NumberType<Long>
     }
 
     @Override
-    protected long toLong(ByteBuffer value)
+    public long toLong(ByteBuffer value)
     {
         return ByteBufferUtil.toLong(value);
     }
