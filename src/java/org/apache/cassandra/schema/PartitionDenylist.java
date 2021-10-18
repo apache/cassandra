@@ -27,8 +27,6 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
@@ -50,6 +48,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -81,7 +80,7 @@ public class PartitionDenylist
     private static final Logger logger = LoggerFactory.getLogger(PartitionDenylist.class);
     public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
-    private final ExecutorService executor = new ThreadPoolExecutor(2, 2, Long.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+    private final ExecutorService executor = executorFactory().pooled("DenylistCache", 2);
 
     /** We effectively don't use our initial empty cache to denylist until the {@link #load()} call which will replace it */
     private volatile LoadingCache<TableId, DenylistEntry> denylist = buildEmptyCache();
@@ -119,7 +118,7 @@ public class PartitionDenylist
     }
 
     /**
-     * Performs initial load of the partition denylist.  Should be called at startup and only loads if the operation
+     * Performs initial load of the partition denylist. Should be called at startup and only loads if the operation
      * is expected to succeed.  If it is not possible to load at call time, a timer is set to retry.
      */
     public void initialLoad()
@@ -207,7 +206,7 @@ public class PartitionDenylist
         final long start = currentTimeMillis();
 
         final Map<TableId, DenylistEntry> allDenylists = getDenylistForAllTablesFromCQL();
-        if (allDenylists == null)
+        if (allDenylists.isEmpty())
             return false;
 
         // On initial load we have the slight overhead of GC'ing our initial empty cache
@@ -441,6 +440,7 @@ public class PartitionDenylist
      * This method relies on {@link #getDenylistForTableFromCQL(TableId, int)} to pull a limited amount of keys
      * on a per-table basis from CQL to load into the cache. We need to navigate both respecting the max cache size limit
      * as well as respecting the per-table limit.
+     * @return non-null mapping of TableId to DenylistEntry
      */
     private Map<TableId, DenylistEntry> getDenylistForAllTablesFromCQL()
     {
@@ -481,7 +481,7 @@ public class PartitionDenylist
             logger.error("Error reading full partition denylist from "
                          + SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + PARTITION_DENYLIST_TABLE +
                          ". Partition Denylisting will be compromised. Exception: " + e);
-            return null;
+            return Collections.emptyMap();
         }
     }
 

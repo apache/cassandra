@@ -268,10 +268,25 @@ public class PartitionDenylistTest
     @Test
     public void testDisabledDenylistThrowsNoExceptions()
     {
+        process(String.format("TRUNCATE TABLE %s.table2", ks_cql), ConsistencyLevel.ONE);
+        process(String.format("TRUNCATE TABLE %s.table3", ks_cql), ConsistencyLevel.ONE);
+        denyAllKeys();
         DatabaseDescriptor.setEnablePartitionDenylist(false);
         process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
         process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
         process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE);
+
+        for (int i = 0; i < 50; i++)
+        {
+            process(String.format("INSERT INTO %s.table2 (keyone, keytwo, keythree, value) VALUES ('%s', '%s', '%s', '%s')", ks_cql, i, i, i, i), ConsistencyLevel.ONE);
+            process(String.format("SELECT * FROM %s.table2 WHERE keyone='%s' and keytwo='%s'", ks_cql, i, i), ConsistencyLevel.ONE);
+        }
+
+        for (int i = 0; i < 50; i++)
+        {
+            process(String.format("INSERT INTO %s.table3 (keyone, keytwo, keythree, value) VALUES ('%s', '%s', '%s', '%s')", ks_cql, i, i, i, i), ConsistencyLevel.ONE);
+            process(String.format("SELECT * FROM %s.table3 WHERE keyone='%s' and keytwo='%s'", ks_cql, i, i), ConsistencyLevel.ONE);
+        }
     }
 
     /**
