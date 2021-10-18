@@ -53,10 +53,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SigarLibrary;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
@@ -136,8 +134,6 @@ public class StartupChecks
     {
         public void execute()
         {
-            if (FBUtilities.isWindows)
-                return;
             String jemalloc = System.getProperty("cassandra.libjemalloc");
             if (jemalloc == null)
                 logger.warn("jemalloc shared library could not be preloaded to speed up memory allocations");

@@ -26,23 +26,19 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.utils.FBUtilities;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.containsString;
 
 public class RepairOptionTest
 {
@@ -53,12 +49,8 @@ public class RepairOptionTest
         Token.TokenFactory tokenFactory = partitioner.getTokenFactory();
 
         // parse with empty options
-        RepairOption option = RepairOption.parse(new HashMap<String, String>(), partitioner);
-
-        if (FBUtilities.isWindows && (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard))
-            assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
-        else
-            assertTrue(option.getParallelism() == RepairParallelism.SEQUENTIAL);
+        RepairOption option = RepairOption.parse(new HashMap<>(), partitioner);
+        assertEquals(option.getParallelism(), RepairParallelism.SEQUENTIAL);
 
         assertFalse(option.isPrimaryRange());
         assertFalse(option.isIncremental());
@@ -73,7 +65,7 @@ public class RepairOptionTest
         options.put(RepairOption.DATACENTERS_KEY, "dc1,dc2,dc3");
 
         option = RepairOption.parse(options, partitioner);
-        assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
+        assertEquals(option.getParallelism(), RepairParallelism.PARALLEL);
         assertFalse(option.isPrimaryRange());
         assertFalse(option.isIncremental());
 
@@ -150,7 +142,7 @@ public class RepairOptionTest
     }
 
     @Test
-    public void testForceOption() throws Exception
+    public void testForceOption()
     {
         RepairOption option;
         Map<String, String> options = new HashMap<>();
@@ -179,7 +171,7 @@ public class RepairOptionTest
         }
         catch (IllegalArgumentException ex)
         {
-            assertThat(ex.getMessage(), containsString(expectedErrorMessage));
+            assertThat(ex.getMessage(), CoreMatchers.containsString(expectedErrorMessage));
         }
     }
 }

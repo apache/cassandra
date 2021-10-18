@@ -41,7 +41,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -273,10 +272,6 @@ public class MetadataSerializer implements IMetadataSerializer
             Throwables.throwIfInstanceOf(e, FileNotFoundException.class);
             throw new FSWriteError(e, filePath);
         }
-        // we cant move a file on top of another file in windows:
-        if (FBUtilities.isWindows)
-            FileUtils.delete(descriptor.filenameFor(Component.STATS));
         FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
-
     }
 }

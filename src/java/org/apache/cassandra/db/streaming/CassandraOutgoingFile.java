@@ -159,8 +159,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         {
             // Acquire lock to avoid concurrent sstable component mutation because of stats update or index summary
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
-            // file sizes. (Note: Windows doesn't support atomic replace and index summary redistribution deletes
-            // existing file first)
+            // file sizes.
             // Recreate the latest manifest and hard links for mutatable components in case they are modified.
             try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable.descriptor)))
             {

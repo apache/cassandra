@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 
 import com.google.common.io.Files;
 
+import org.apache.cassandra.db.rows.Row;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -32,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -40,7 +42,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -96,12 +97,6 @@ public class SSTableLoaderTest
         try {
             FileUtils.deleteRecursive(tmpdir);
         } catch (FSWriteError e) {
-            /*
-              Windows does not allow a mapped file to be deleted, so we probably forgot to clean the buffers somewhere.
-              We force a GC here to force buffer deallocation, and then try deleting the directory again.
-              For more information, see: http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4715154
-              If this is not the problem, the exception will be rethrown anyway.
-             */
             System.gc();
             FileUtils.deleteRecursive(tmpdir);
         }
@@ -151,9 +146,11 @@ public class SSTableLoaderTest
         assertEquals(1, partitions.size());
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assert metadata != null;
-        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                            .buffer());
+
+        Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+        assert row != null;
+
+        assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
@@ -243,9 +240,11 @@ public class SSTableLoaderTest
         assertEquals(1, partitions.size());
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assert metadata != null;
-        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                            .buffer());
+
+        Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+        assert row != null;
+
+        assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
@@ -279,9 +278,11 @@ public class SSTableLoaderTest
         assertEquals(1, partitions.size());
         assertEquals("key", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assert metadata != null;
-        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                            .buffer());
+
+        Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+        assert row != null;
+
+        assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).

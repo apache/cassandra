@@ -156,9 +156,7 @@ public class InboundConnectionInitiator
                 throw new ConfigurationException(bind + " is in use by another process.  Change listen_address:storage_port " +
                                                  "in cassandra.yaml to values that do not conflict with other services");
             }
-            // looking at the jdk source, solaris/windows bind failue messages both use the phrase "cannot assign requested address".
-            // windows message uses "Cannot" (with a capital 'C'), and solaris (a/k/a *nux) doe not. hence we search for "annot" <sigh>
-            else if (causeString.contains("annot assign requested address"))
+            else if (causeString.toLowerCase().contains("cannot assign requested address"))
             {
                 throw new ConfigurationException("Unable to bind to address " + bind
                                                  + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");

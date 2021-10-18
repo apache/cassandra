@@ -19,10 +19,7 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -38,7 +35,6 @@ import org.junit.Test;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -59,7 +55,6 @@ import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
 
 public class StorageServiceServerTest
 {
@@ -86,75 +81,6 @@ public class StorageServiceServerTest
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
         StorageService.instance.takeSnapshot(UUID.randomUUID().toString());
-    }
-
-    private void checkTempFilePresence(File f, boolean exist)
-    {
-        for (int i = 0; i < 5; i++)
-        {
-            File subdir = new File(f, Integer.toString(i));
-            subdir.mkdir();
-            for (int j = 0; j < 5; j++)
-            {
-                File subF = new File(subdir, Integer.toString(j));
-                assert(exist ? subF.exists() : !subF.exists());
-            }
-        }
-    }
-
-    @Test
-    public void testSnapshotFailureHandler() throws IOException
-    {
-        assumeTrue(FBUtilities.isWindows);
-
-        // Initial "run" of Cassandra, nothing in failed snapshot file
-        WindowsFailedSnapshotTracker.deleteOldSnapshots();
-
-        File f = new File(System.getenv("TEMP") + File.separator + Integer.toString(new Random().nextInt()));
-        f.mkdir();
-        f.deleteOnExit();
-        for (int i = 0; i < 5; i++)
-        {
-            File subdir = new File(f, Integer.toString(i));
-            subdir.mkdir();
-            for (int j = 0; j < 5; j++)
-                new File(subdir, Integer.toString(j)).createNewFile();
-        }
-
-        checkTempFilePresence(f, true);
-
-        // Confirm deletion is recursive
-        for (int i = 0; i < 5; i++)
-            WindowsFailedSnapshotTracker.handleFailedSnapshot(new File(f, Integer.toString(i)));
-
-        assertTrue(new File(WindowsFailedSnapshotTracker.TODELETEFILE).exists());
-
-        // Simulate shutdown and restart of C* node, closing out the list of failed snapshots.
-        WindowsFailedSnapshotTracker.resetForTests();
-
-        // Perform new run, mimicking behavior of C* at startup
-        WindowsFailedSnapshotTracker.deleteOldSnapshots();
-        checkTempFilePresence(f, false);
-
-        // Check to make sure we don't delete non-temp, non-datafile locations
-        WindowsFailedSnapshotTracker.resetForTests();
-        PrintWriter tempPrinter = new PrintWriter(new FileWriter(WindowsFailedSnapshotTracker.TODELETEFILE, true));
-        tempPrinter.println(".safeDir");
-        tempPrinter.close();
-
-        File protectedDir = new File(".safeDir");
-        protectedDir.mkdir();
-        File protectedFile = new File(protectedDir, ".safeFile");
-        protectedFile.createNewFile();
-
-        WindowsFailedSnapshotTracker.handleFailedSnapshot(protectedDir);
-        WindowsFailedSnapshotTracker.deleteOldSnapshots();
-
-        assertTrue(protectedDir.exists());
-        assertTrue(protectedFile.exists());
-
-        protectedFile.delete();
-        protectedDir.delete();
     }
 
     @Test

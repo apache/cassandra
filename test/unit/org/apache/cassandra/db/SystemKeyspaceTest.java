@@ -47,9 +47,6 @@ public class SystemKeyspaceTest
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
-
-        if (FBUtilities.isWindows)
-            WindowsFailedSnapshotTracker.deleteOldSnapshots();
     }
 
     @Test
@@ -92,26 +89,9 @@ public class SystemKeyspaceTest
         assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
     }
 
-    private void assertDeletedOrDeferred(int expectedCount)
+    private void assertDeleted()
     {
-        if (FBUtilities.isWindows)
-            assertEquals(expectedCount, getDeferredDeletionCount());
-        else
-            assertTrue(getSystemSnapshotFiles(SchemaConstants.SYSTEM_KEYSPACE_NAME).isEmpty());
-    }
-
-    private int getDeferredDeletionCount()
-    {
-        try
-        {
-            Class c = Class.forName("java.io.DeleteOnExitHook");
-            LinkedHashSet<String> files = (LinkedHashSet<String>)FBUtilities.getProtectedField(c, "files").get(c);
-            return files.size();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        assertTrue(getSystemSnapshotFiles(SchemaConstants.SYSTEM_KEYSPACE_NAME).isEmpty());
     }
 
     @Test
@@ -122,15 +102,13 @@ public class SystemKeyspaceTest
             cfs.clearUnsafe();
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
-        int baseline = getDeferredDeletionCount();
-
         SystemKeyspace.snapshotOnVersionChange();
-        assertDeletedOrDeferred(baseline);
+        assertDeleted();
 
         // now setup system.local as if we're upgrading from a previous version
         setupReleaseVersion(getOlderVersionString());
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
-        assertDeletedOrDeferred(baseline);
+        assertDeleted();
 
         // Compare versions again & verify that snapshots were created for all tables in the system ks
         SystemKeyspace.snapshotOnVersionChange();
@@ -147,10 +125,9 @@ public class SystemKeyspaceTest
 
         SystemKeyspace.snapshotOnVersionChange();
 
-        // snapshotOnVersionChange for upgrade case will open a SSTR when the CFS is flushed. On Windows, we won't be
-        // able to delete hard-links to that file while segments are memory-mapped, so they'll be marked for deferred deletion.
+        // snapshotOnVersionChange for upgrade case will open a SSTR when the CFS is flushed.
         // 10 files expected.
-        assertDeletedOrDeferred(baseline + 10);
+        assertDeleted();
 
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
