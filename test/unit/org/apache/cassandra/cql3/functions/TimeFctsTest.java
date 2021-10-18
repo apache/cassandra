@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -147,10 +146,11 @@ public class TimeFctsTest
     public void testBigIntegerToDate()
     {
         long milliSeconds = DATE_TIME.toInstant().toEpochMilli();
+        System.out.println(milliSeconds);
 
         ByteBuffer input = IntegerType.instance.fromString(Long.toString(milliSeconds));
-        ByteBuffer output = executeFunction(toDate(), input);
-        assertEquals(0, SimpleDateType.instance.toTimeInMillis(output));
+        ByteBuffer output = executeFunction(toDate(LongType.instance), input);
+        assertEquals(DATE.toInstant().toEpochMilli(), SimpleDateType.instance.toTimeInMillis(output));
 
     }
     @Test

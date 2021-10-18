@@ -51,6 +51,7 @@ public abstract class TimeFcts
                                 toUnixTimestamp(TimeUUIDType.instance),
                                 toUnixTimestamp(TimestampType.instance),
                                 toDate(TimestampType.instance),
+                                toDate(LongType.instance),
                                 toUnixTimestamp(SimpleDateType.instance),
                                 toTimestamp(SimpleDateType.instance));
     }
@@ -168,9 +169,9 @@ public abstract class TimeFcts
      * @param type the temporal type
      * @return a function that convert a value of the specified type into a <code>DATE</code>.
      */
-    public static final NativeScalarFunction toDate()
+    public static final NativeScalarFunction toDate(LongType type)
     {
-        return new NativeScalarFunction("todate", IntegerType.instance)
+        return new NativeScalarFunction("todate", SimpleDateType.instance, type)
         {
             public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
             {
@@ -178,8 +179,9 @@ public abstract class TimeFcts
                 if (bb == null || !bb.hasRemaining())
                     return null;
 
-
-                return SimpleDateType.instance.fromTimeInMillis(new BigInteger(bb.array()).longValue());
+                long milliseconds = new BigInteger(bb.array()).longValue();
+                System.out.println("todate integer"+ milliseconds);
+                return SimpleDateType.instance.fromTimeInMillis(milliseconds);
             }
         };
     }
