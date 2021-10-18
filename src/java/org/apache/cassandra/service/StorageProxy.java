@@ -46,6 +46,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.dht.AbstractBounds;
+
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
@@ -2128,11 +2130,13 @@ public class StorageProxy implements StorageProxyMBean
             if (denylisted > 0)
             {
                 denylistMetrics.incrementRangeReadsRejected();
+                AbstractBounds<PartitionPosition> keyRange = command.dataRange().keyRange();
+                Token.TokenFactory tokenFactory = StorageService.instance.getTokenMetadata().partitioner.getTokenFactory();
                 throw new InvalidRequestException(String.format("Unable to read range %c%s, %s%c containing %d denylisted keys in %s/%s",
-                                                                PartitionPosition.Kind.MIN_BOUND.equals(command.dataRange().keyRange().left.kind()) ? '[' : '(',
-                                                                StorageService.instance.getTokenMetadata().partitioner.getTokenFactory().toString(command.dataRange().keyRange().left.getToken()),
-                                                                StorageService.instance.getTokenMetadata().partitioner.getTokenFactory().toString(command.dataRange().keyRange().right.getToken()),
-                                                                PartitionPosition.Kind.MAX_BOUND.equals(command.dataRange().keyRange().right.kind()) ? ']' : ')',
+                                                                PartitionPosition.Kind.MIN_BOUND == keyRange.left.kind() ? '[' : '(',
+                                                                tokenFactory.toString(command.dataRange().keyRange().left.getToken()),
+                                                                tokenFactory.toString(command.dataRange().keyRange().right.getToken()),
+                                                                PartitionPosition.Kind.MAX_BOUND == keyRange.right.kind() ? ']' : ')',
                                                                 denylisted, command.metadata().keyspace, command.metadata().name));
             }
         }
@@ -2903,6 +2907,9 @@ public class StorageProxy implements StorageProxyMBean
 
     /**
      * Attempts to remove the provided pk from the ks + table deny list
+     * @param keyspace Keyspace containing the pk to remove the denylist entry for
+     * @param table Table containing the pk to remove denylist entry for
+     * @param partitionKeyAsString String representation of the PK you want to re-allow access to
      * @return true if found and removed, false if not
      */
     @Override

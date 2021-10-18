@@ -19,6 +19,7 @@
 package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -279,6 +280,8 @@ public class PartitionDenylist
         return !SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(keyspace) &&
                !SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspace) &&
                !SchemaConstants.TRACE_KEYSPACE_NAME.equals(keyspace) &&
+               !SchemaConstants.VIRTUAL_SCHEMA.equals(keyspace) &&
+               !SchemaConstants.VIRTUAL_VIEWS.equals(keyspace) &&
                !SchemaConstants.AUTH_KEYSPACE_NAME.equals(keyspace);
     }
 
@@ -347,15 +350,15 @@ public class PartitionDenylist
             // Normal case
             if (startToken.compareTo(endToken) <= 0 || endToken.isMinimum())
             {
-                NavigableSet<Token> subSet = denylistEntry.tokens.tailSet(startToken, PartitionPosition.Kind.MIN_BOUND.equals(range.left.kind()));
+                NavigableSet<Token> subSet = denylistEntry.tokens.tailSet(startToken, PartitionPosition.Kind.MIN_BOUND == range.left.kind());
                 if (!endToken.isMinimum())
-                    subSet = subSet.headSet(endToken, PartitionPosition.Kind.MAX_BOUND.equals(range.right.kind()));
+                    subSet = subSet.headSet(endToken, PartitionPosition.Kind.MAX_BOUND == range.right.kind());
                 return subSet.size();
             }
 
             // Wrap around case
-            return denylistEntry.tokens.tailSet(startToken, PartitionPosition.Kind.MIN_BOUND.equals(range.left.kind())).size()
-                   + denylistEntry.tokens.headSet(endToken, PartitionPosition.Kind.MAX_BOUND.equals(range.right.kind())).size();
+            return denylistEntry.tokens.tailSet(startToken, PartitionPosition.Kind.MIN_BOUND == range.left.kind()).size()
+                   + denylistEntry.tokens.headSet(endToken, PartitionPosition.Kind.MAX_BOUND == range.right.kind()).size();
         }
         catch (final Exception e)
         {
@@ -448,7 +451,7 @@ public class PartitionDenylist
         {
             final UntypedResultSet deniedTableResults = process(allDeniedTables, DatabaseDescriptor.getDenylistConsistencyLevel());
             if (deniedTableResults == null || deniedTableResults.isEmpty())
-                return new HashMap<>();
+                return Collections.emptyMap();
 
             int totalProcessed = 0 ;
             final Map<TableId, DenylistEntry> results = new HashMap<>();

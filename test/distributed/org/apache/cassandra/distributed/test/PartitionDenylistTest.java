@@ -115,7 +115,7 @@ public class PartitionDenylistTest extends TestBaseImpl
                             0L, StorageProxy.rangeMetrics.unavailables.getCount());
     }
 
-    // To be called inside the isntance with runOnInstance, no nodes are started/stopped
+    // To be called inside the instance with runOnInstance, no nodes are started/stopped
     // and not enough nodes are available to succeed, so it should just retry a few times
     static private void checkTimerActive()
     {

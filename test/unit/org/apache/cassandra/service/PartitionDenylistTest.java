@@ -435,7 +435,7 @@ public class PartitionDenylistTest
 
     private void confirmAllowed(String table, String keyOne, String keyTwo)
     {
-        process(String.format("SELECT * FROM " + ks_cql + "." + table + " WHERE keyone='%s' and keytwo='%s'", keyOne, keyTwo), ConsistencyLevel.ONE);
+        process(String.format("SELECT * FROM %s.%s WHERE keyone='%s' and keytwo='%s'", ks_cql, table, keyOne, keyTwo), ConsistencyLevel.ONE);
     }
 
     private void resetDenylist()
