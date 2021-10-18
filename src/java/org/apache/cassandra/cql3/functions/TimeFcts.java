@@ -179,9 +179,8 @@ public abstract class TimeFcts
                 if (bb == null || !bb.hasRemaining())
                     return null;
 
-                long milliseconds = new BigInteger(bb.array()).longValue();
-                System.out.println("todate integer"+ milliseconds);
-                return SimpleDateType.instance.fromTimeInMillis(milliseconds);
+                long milliSeconds = new BigInteger(bb.array()).longValue();
+                return SimpleDateType.instance.fromTimeInMillis(milliSeconds);
             }
         };
     }

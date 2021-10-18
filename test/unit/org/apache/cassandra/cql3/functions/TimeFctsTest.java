@@ -146,7 +146,6 @@ public class TimeFctsTest
     public void testBigIntegerToDate()
     {
         long milliSeconds = DATE_TIME.toInstant().toEpochMilli();
-        System.out.println(milliSeconds);
 
         ByteBuffer input = IntegerType.instance.fromString(Long.toString(milliSeconds));
         ByteBuffer output = executeFunction(toDate(LongType.instance), input);
