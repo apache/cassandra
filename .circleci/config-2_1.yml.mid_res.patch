@@ -1,8 +1,6 @@
-diff --git a/.circleci/config-2_1.yml b/.circleci/config-2_1.yml
-index 03e4ae9e8f..cf2b758187 100644
---- a/.circleci/config-2_1.yml
-+++ b/.circleci/config-2_1.yml
-@@ -93,24 +93,40 @@ j8_par_executor: &j8_par_executor
+--- .circleci/config-2_1.yml	2021-10-18 11:17:08.000000000 +0100
++++ .circleci/config-2_1.yml.MIDRES	2021-10-18 11:20:45.000000000 +0100
+@@ -101,45 +101,65 @@
    executor:
      name: java8-executor
      #exec_resource_class: xlarge
@@ -45,9 +43,38 @@ index 03e4ae9e8f..cf2b758187 100644
 +    exec_resource_class: medium
    parallelism: 1 # sequential, single container tests: no parallelism benefits
  
+ j8_repeated_utest_executor: &j8_repeated_utest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: medium
++  parallelism: 25
+ 
+ j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: large
++  parallelism: 25
+ 
+ j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 25
+ 
+ j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: large
++  parallelism: 25
+ 
  with_dtests_jobs: &with_dtest_jobs
-@@ -308,7 +324,7 @@ jobs:
-           target: testclasslist-compression
+   jobs:
+@@ -435,7 +455,7 @@
+           target: stress-test
  
    j8_dtests-with-vnodes:
 -    <<: *j8_par_executor
@@ -55,7 +82,7 @@ index 03e4ae9e8f..cf2b758187 100644
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -322,7 +338,7 @@ jobs:
+@@ -449,7 +469,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
  
    j8_dtests-no-vnodes:
@@ -64,7 +91,7 @@ index 03e4ae9e8f..cf2b758187 100644
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -336,7 +352,7 @@ jobs:
+@@ -463,7 +483,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
  
    j8_upgradetests-no-vnodes:

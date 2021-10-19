@@ -1,28 +1,75 @@
-17,18c17,18
-<     CCM_MAX_HEAP_SIZE: 1024M
-<     CCM_HEAP_NEWSIZE: 256M
----
->     CCM_MAX_HEAP_SIZE: 2048M
->     CCM_HEAP_NEWSIZE: 512M
-23,24c23,24
-<     #exec_resource_class: xlarge
-<   parallelism: 4
----
->     exec_resource_class: xlarge
->   parallelism: 100
-29,30c29,30
-<     #exec_resource_class: xlarge
-<   parallelism: 1
----
->     exec_resource_class: xlarge
->   parallelism: 2
-35,36c35,36
-<     #exec_resource_class: xlarge
-<   parallelism: 1
----
->     exec_resource_class: xlarge
->   parallelism: 2
-41c41
-<     #exec_resource_class: xlarge
----
->     exec_resource_class: xlarge
+--- .circleci/config-2_1.yml	2021-10-18 11:17:08.000000000 +0100
++++ .circleci/config-2_1.yml.HIGHRES	2021-10-18 11:22:50.000000000 +0100
+@@ -40,8 +40,8 @@
+     CASSANDRA_SKIP_SYNC: true
+     DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+     DTEST_BRANCH: trunk
+-    CCM_MAX_HEAP_SIZE: 1024M
+-    CCM_HEAP_NEWSIZE: 256M
++    CCM_MAX_HEAP_SIZE: 2048M
++    CCM_HEAP_NEWSIZE: 512M
+ 
+     # The Ant test target to run, for example:
+     # REPEATED_UTEST_TARGET: testsome
+@@ -100,46 +100,50 @@
+ j8_par_executor: &j8_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_small_par_executor: &j8_small_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: xlarge
++  parallelism: 2
+ 
+ j8_medium_par_executor: &j8_medium_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: xlarge
++  parallelism: 2
+ 
+ j8_seq_executor: &j8_seq_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
++    exec_resource_class: xlarge
+   parallelism: 1 # sequential, single container tests: no parallelism benefits
+ 
+ j8_repeated_utest_executor: &j8_repeated_utest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ with_dtests_jobs: &with_dtest_jobs
+   jobs:
