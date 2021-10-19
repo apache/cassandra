@@ -89,6 +89,8 @@ public final class SystemDistributedKeyspace
 
     public static final String VIEW_BUILD_STATUS = "view_build_status";
 
+    public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
+
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
                 "Repair history",
@@ -145,7 +147,7 @@ public final class SystemDistributedKeyspace
                      + "PRIMARY KEY ((keyspace_name, view_name), host_id))").build();
 
     public static final TableMetadata PartitionDenylistTable =
-    parse(PartitionDenylist.PARTITION_DENYLIST_TABLE,
+    parse(PARTITION_DENYLIST_TABLE,
           "Partition keys which have been denied access",
           "CREATE TABLE %s ("
           + "ks_name text,"

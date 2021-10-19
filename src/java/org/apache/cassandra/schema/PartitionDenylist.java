@@ -78,7 +78,6 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public class PartitionDenylist
 {
     private static final Logger logger = LoggerFactory.getLogger(PartitionDenylist.class);
-    public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
     private final ExecutorService executor = executorFactory().pooled("DenylistCache", 2);
 
@@ -339,7 +338,7 @@ public class PartitionDenylist
         try
         {
             final DenylistEntry denylistEntry = denylist.get(tid);
-            if (denylistEntry.tokens.size() == 0)
+            if (denylistEntry == null || denylistEntry.tokens.size() == 0)
                 return 0;
             final Token startToken = range.left.getToken();
             final Token endToken = range.right.getToken();
@@ -385,7 +384,7 @@ public class PartitionDenylist
         // We attempt to query just over our allowable max keys in order to check whether we have configured data beyond that limit and alert the user if so
         final String readDenylist = String.format("SELECT * FROM %s.%s WHERE ks_name='%s' AND table_name='%s' LIMIT %d",
                                                   SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                                  PARTITION_DENYLIST_TABLE,
+                                                  SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE,
                                                   tmd.keyspace,
                                                   tmd.name,
                                                   limit + 1);
@@ -444,7 +443,7 @@ public class PartitionDenylist
     {
         final String allDeniedTables = String.format("SELECT DISTINCT ks_name, table_name FROM %s.%s",
                                                      SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                                     PARTITION_DENYLIST_TABLE);
+                                                     SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE);
         try
         {
             final UntypedResultSet deniedTableResults = process(allDeniedTables, DatabaseDescriptor.getDenylistConsistencyLevel());
@@ -468,7 +467,8 @@ public class PartitionDenylist
                     // Determine whether we can get up to table max or we need a subset at edge condition of max overflow.
                     int allowedTableRecords = Math.min(DatabaseDescriptor.getDenylistMaxKeysPerTable(), DatabaseDescriptor.getDenylistMaxKeysTotal() - totalProcessed);
                     DenylistEntry tableDenylist = getDenylistForTableFromCQL(tid, allowedTableRecords);
-                    totalProcessed += tableDenylist.keys.size();
+                    if (tableDenylist != null)
+                        totalProcessed += tableDenylist.keys.size();
                     results.put(tid, tableDenylist);
                 }
             }
@@ -477,7 +477,7 @@ public class PartitionDenylist
         catch (final RequestExecutionException e)
         {
             logger.error("Error reading full partition denylist from "
-                         + SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + PARTITION_DENYLIST_TABLE +
+                         + SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE +
                          ". Partition Denylisting will be compromised. Exception: " + e);
             return Collections.emptyMap();
         }
