@@ -143,7 +143,7 @@ public class PartitionDenylistTest
     public void testReadUndenylisted()
     {
         resetDenylist();
-        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
+        process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='ccc' and keytwo='ddd'", ConsistencyLevel.ONE);
     }
 
     @Test
@@ -199,7 +199,7 @@ public class PartitionDenylistTest
     {
         assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE))
                            .isInstanceOf(InvalidRequestException.class)
-                           .hasMessageContaining("Unable to read range [, ) containing 1 denylisted keys");
+                           .hasMessageContaining("Attempted to read a range containing 1 denylisted keys");
     }
 
     @Test
@@ -207,8 +207,7 @@ public class PartitionDenylistTest
     {
         assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('aaa', 'bbb') and token (keyone, keytwo) <= token('bbb', 'ccc')", ConsistencyLevel.ONE))
                            .isInstanceOf(InvalidRequestException.class)
-                           .hasMessageContaining("Unable to read range")
-                           .hasMessageContaining("containing 1 denylisted keys");
+                           .hasMessageContaining("Attempted to read a range containing 1 denylisted keys");
     }
 
     @Test
@@ -216,8 +215,7 @@ public class PartitionDenylistTest
     {
         assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) >= token('bbb', 'ccc') and token (keyone, keytwo) <= token('ccc', 'ddd')", ConsistencyLevel.ONE))
                            .isInstanceOf(InvalidRequestException.class)
-                           .hasMessageContaining("Unable to read range")
-                           .hasMessageContaining("containing 1 denylisted keys");
+                           .hasMessageContaining("Attempted to read a range containing 1 denylisted keys");
     }
 
     @Test
@@ -225,8 +223,7 @@ public class PartitionDenylistTest
     {
         assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb') and token (keyone, keytwo) < token('ccc', 'ddd')", ConsistencyLevel.ONE))
                            .isInstanceOf(InvalidRequestException.class)
-                           .hasMessageContaining("Unable to read range")
-                           .hasMessageContaining("containing 1 denylisted keys");
+                           .hasMessageContaining("Attempted to read a range containing 1 denylisted keys");
     }
 
     @Test
@@ -234,8 +231,7 @@ public class PartitionDenylistTest
     {
         assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) > token('aaa', 'bbb')", ConsistencyLevel.ONE))
                            .isInstanceOf(InvalidRequestException.class)
-                           .hasMessageContaining("Unable to read range")
-                           .hasMessageContaining("containing 1 denylisted keys");
+                           .hasMessageContaining("Attempted to read a range containing 1 denylisted keys");
     }
 
     @Test
@@ -243,8 +239,7 @@ public class PartitionDenylistTest
     {
         assertThatThrownBy(() -> process("SELECT * FROM " + ks_cql + ".table1 WHERE token(keyone, keytwo) < token('ddd', 'eee')", ConsistencyLevel.ONE))
                            .isInstanceOf(InvalidRequestException.class)
-                           .hasMessageContaining("Unable to read range")
-                           .hasMessageContaining("containing 1 denylisted keys");
+                           .hasMessageContaining("Attempted to read a range containing 1 denylisted keys");
     }
 
     @Test

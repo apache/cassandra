@@ -1088,8 +1088,8 @@ public class StorageProxy implements StorageProxyMBean
                         // While Schema.instance.getTableMetadata() can return a null value, in this case the isKeyPermitted
                         // call above ensures that we cannot have a null associated tid at this point.
                         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-                        throw new InvalidRequestException(String.format("Unable to write to denylisted partition [0x%s] for unknown Table with id %s",
-                                                                        mutation.key().toString(), tid.toString()));
+                        throw new InvalidRequestException(String.format("Unable to write to denylisted partition [0x%s] in %s/%s",
+                                                                        mutation.key().toString(), tmd.keyspace, tmd.name));
                     }
                 }
             }
@@ -2130,14 +2130,10 @@ public class StorageProxy implements StorageProxyMBean
             if (denylisted > 0)
             {
                 denylistMetrics.incrementRangeReadsRejected();
-                AbstractBounds<PartitionPosition> keyRange = command.dataRange().keyRange();
-                Token.TokenFactory tokenFactory = StorageService.instance.getTokenMetadata().partitioner.getTokenFactory();
-                throw new InvalidRequestException(String.format("Unable to read range %c%s, %s%c containing %d denylisted keys in %s/%s",
-                                                                PartitionPosition.Kind.MIN_BOUND == keyRange.left.kind() ? '[' : '(',
-                                                                tokenFactory.toString(command.dataRange().keyRange().left.getToken()),
-                                                                tokenFactory.toString(command.dataRange().keyRange().right.getToken()),
-                                                                PartitionPosition.Kind.MAX_BOUND == keyRange.right.kind() ? ']' : ')',
-                                                                denylisted, command.metadata().keyspace, command.metadata().name));
+                String tokens = command.loggableTokens();
+                throw new InvalidRequestException(String.format("Attempted to read a range containing %d denylisted keys in %s/%s." +
+                                                                " Range read: %s", denylisted, command.metadata().keyspace, command.metadata().name,
+                                                                tokens));
             }
         }
         return RangeCommands.partitions(command, consistencyLevel, queryStartNanoTime);

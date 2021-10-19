@@ -206,8 +206,6 @@ public class PartitionDenylist
         final long start = currentTimeMillis();
 
         final Map<TableId, DenylistEntry> allDenylists = getDenylistForAllTablesFromCQL();
-        if (allDenylists.isEmpty())
-            return false;
 
         // On initial load we have the slight overhead of GC'ing our initial empty cache
         LoadingCache<TableId, DenylistEntry> newDenylist = buildEmptyCache();
