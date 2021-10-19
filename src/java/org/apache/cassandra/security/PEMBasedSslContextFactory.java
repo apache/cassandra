@@ -41,9 +41,9 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * SslContextFactory for the <a href="">PEM standard</a> encoded private keys and certificates/public-keys.
+ * SslContextFactory for the <a href="">PEM standard</a> encoded PKCS#8 private keys and X509 certificates/public-keys.
  * It parses the key material based on the standard defined in the <a href="https://datatracker.ietf.org/doc/html/rfc7468">RFC 7468</a>.
- * It creates <a href="https://datatracker.ietf.org/doc/html/rfc5208">PKCS# 8</a> based RSA private key and X509 certificate(s)
+ * It creates <a href="https://datatracker.ietf.org/doc/html/rfc5208">PKCS# 8</a> based private key and X509 certificate(s)
  * for the public key to build the required keystore and the truststore managers that are used for the SSL context creation.
  * Internally it builds Java {@link KeyStore} with <a href="https://datatracker.ietf.org/doc/html/rfc7292">PKCS# 12</a> <a href="https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html#keystore-types">store type</a>
  * to be used for keystore and the truststore managers.

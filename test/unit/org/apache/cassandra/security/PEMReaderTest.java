@@ -157,10 +157,79 @@ public class PEMReaderTest
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
 
+    private static String encoded_encrypted_dsa_key =
+    "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" +
+    "MIICkTAbBgkqhkiG9w0BBQMwDgQIL1GiUDca2x0CAggABIICcCrSiNBy5kZNC7RK\n" +
+    "fVF3IZ9Ecl00OYIjvBhlWGkaiNt9ZAeWPpYx57HSQAygzJ8ba+3jtz1dV8Bhz5D5\n" +
+    "4kggzolC820I/QLPxClH5R6ZPzDHGu/JFuNNZWASq2JHZfolEP+itdnz0F6VvQx9\n" +
+    "imngOGIJMkRWIzvwuCnq8xpNSEJHJcs8kyLBP/3qT+kUiEwJ5KrmJ8DQsHluwpyo\n" +
+    "GoiGEtiA+MNUSzc/DkuLxhC45k7K4afe4QzpWl9eR/z91F9Q06jdc5mnUWke8qCg\n" +
+    "ZopBVWbSI6fMZVlqLxKeSFljDZ+moW+2/Lh8cjEvNMccVTwWQE7JH9RLnVogqixV\n" +
+    "HIpN58wrlHd4uMVH47wD18A11AGEbghO1MEShX4SCEJIdZsr67bNx8mIkhSWjqAx\n" +
+    "BT9OmITzdbnR9sHi4CyEWhGMAMDp7YBySwpt+U7Y6DvRwWJbXUaF8zYJUlrp2IbH\n" +
+    "qdSE+oJPKxGB1s2B5KGrJUA0JkElkBUYm6ghXZlTI32w8HoV9fDOhjx1ATu7SdZY\n" +
+    "8DX0mwVVdc88Msr5RPxdeB3V4yN2iFJs4i3usicPkB0N+29LJ/lKQlm/pia0yl9j\n" +
+    "yDNN3R0RiCJdYHme4t1PqRqeTfjMauz05ObennQmkzMxD8mlBZ0zhaKL5I4TuQod\n" +
+    "PITFgYihTR9OYfa8lryvHQNCIi5iZ6M9myLUxbjPoeVBdp8pSlMAjmekEHo47vn3\n" +
+    "7IGF7AfnKVNymc/1Kim3WQx8D7nryCb8EUyb7BuNA7izGKq+NW51l39J8RGVcFSx\n" +
+    "sVkpFUbqGXusUgLWWwi21EJHCJceFnOWJRgsoeqNeCt5VCUSag==\n" +
+    "-----END ENCRYPTED PRIVATE KEY-----\n" +
+    "-----BEGIN CERTIFICATE-----\n" +
+    "MIIEeDCCBB4CCQD9UojL1A7cmzAJBgcqhkjOOAQDME0xCzAJBgNVBAYTAlVTMQsw\n" +
+    "CQYDVQQIDAJDQTERMA8GA1UEBwwIU2FuIEpvc2UxETAPBgNVBAoMCFBlcnNvbmFs\n" +
+    "MQswCQYDVQQLDAJJVDAeFw0yMTEwMTgyMzU0MjRaFw0yMjEwMTgyMzU0MjRaME0x\n" +
+    "CzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTERMA8GA1UEBwwIU2FuIEpvc2UxETAP\n" +
+    "BgNVBAoMCFBlcnNvbmFsMQswCQYDVQQLDAJJVDCCA0YwggI5BgcqhkjOOAQBMIIC\n" +
+    "LAKCAQEAzxMsktQYQ06q71pwqWAa9YvDIkF34RJgQT5tqCZdzwtP7HXyrwaZBgLK\n" +
+    "oC4grIPKyUlPmIbm+oucucbTzDCYCx2d09VMVR471vqJi7vRCYnBIqMTTOSvbTGw\n" +
+    "8VuwA2prSt4TiqFYeqYM0Afv/KrI2MLNTP+z8RFfiLkijZIxZ9CzyHmTOEqHxOft\n" +
+    "Ln145NNcuPy3U7Bmh5k7i+RR+5jYweuLzOfTK4bTUnG111mjAhAeo+ST14ydfiuQ\n" +
+    "2e85UwLucVheh4REqm+n7g0k0B/+nG+9Os1nxfQVRVKHP4/iTrNLpf35EoPeh9XT\n" +
+    "D0BtV9lqQuttCB1aPLH66TKl9v4FowIhAMXhJ3LooBT7ypUWMtN07FvpPpoLERBr\n" +
+    "Pk9MeGwQnBPFAoIBAAcVYJ+RH1i8JFyD8MUwwOKgkmVzbRvc28B5F17oek76R6fi\n" +
+    "yyqyhHrkxmjwxktXuwRlWQBJqCTqpmMstLplqsVjcETHo7KRaHgDpT9tHf14PZvP\n" +
+    "qpoxYNpa5z4wPpOFhZ3K6VVaFUSlqSSHhaS1HqVzZC0FefFFd3TDKu0EWHDDkLM8\n" +
+    "luOxDUMydKpRtrVba+iF4kx9NcCyXjSMhFAOw3cWhGvoq6R3h4UkRJO67pzYtqK4\n" +
+    "yAETPsQKT0c8NUM+VUiPAHL/+f1EqaVtzatk9G0OHWZXgDxuhx2CAM6QfELew+ys\n" +
+    "D/QUUT0tXHQRxRCKmYE+uacwyQx5G0DeCHN0c9gDggEFAAKCAQBFGXF7flzfRH/8\n" +
+    "r/qDuNC+9y3fRtDWXaados+XQkzujizBBK9dkkAd/j/pgP5p7/bRvoeR507Oyrge\n" +
+    "6xBbfE7SlRu0cx08Ihlw7a6mCowMnP0psFBwW7npKJRYPXxRDpu9oUuuJHi1WYp7\n" +
+    "8/Ekg6hG21zAYO0JLGyU6aH5Rvuls754R+rxqveVqLiig5NTnfw7ymLb2kF1z8g7\n" +
+    "fDvX6OS242ceQIQHvq97cGnysEVSlavuHfbh3PKXklh91ip/BYuzanQjiEb97YIU\n" +
+    "DhMQyPGvk+iDdhD0PwgwOZB0P0mL7Xszw6p+lfzUc+g8jETjrnzksnVEg8On6q3Q\n" +
+    "RDJG9VnuMAkGByqGSM44BAMDSQAwRgIhAIay5hyZrwHslGXmTAx498903l7CQsdi\n" +
+    "fUrmGkxbPiZXAiEAitS8+gyG64c0jV7V/u8Z1NEL8MI47K2P9Jbn3cqzz3k=\n" +
+    "-----END CERTIFICATE-----";
+
+    private static final String encoded_unencrypted_ec_private_key =
+    "-----BEGIN PRIVATE KEY-----\n" +
+    "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgMLP6H2Wdl28J5PHU\n" +
+    "gMLApCsjONhbyMd5br0byJaQpXShRANCAASmX26IPehdE1wdLW2fVndT9QbjURro\n" +
+    "h74aMnzlmq8GIBWnRzpd+JVJlHgeWLZIDwapthGCYUGivtH27wiO3g7d\n" +
+    "-----END PRIVATE KEY-----\n" +
+    "-----BEGIN CERTIFICATE-----\n" +
+    "MIIBizCCATACCQCtgEKhNta70DAKBggqhkjOPQQDAjBNMQswCQYDVQQGEwJVUzEL\n" +
+    "MAkGA1UECAwCQ0ExETAPBgNVBAcMCFNhbiBKb3NlMREwDwYDVQQKDAhQZXJzb25h\n" +
+    "bDELMAkGA1UECwwCSVQwHhcNMjExMDE5MDAzMDU4WhcNMjIxMDE0MDAzMDU4WjBN\n" +
+    "MQswCQYDVQQGEwJVUzELMAkGA1UECAwCQ0ExETAPBgNVBAcMCFNhbiBKb3NlMREw\n" +
+    "DwYDVQQKDAhQZXJzb25hbDELMAkGA1UECwwCSVQwWTATBgcqhkjOPQIBBggqhkjO\n" +
+    "PQMBBwNCAASmX26IPehdE1wdLW2fVndT9QbjURroh74aMnzlmq8GIBWnRzpd+JVJ\n" +
+    "lHgeWLZIDwapthGCYUGivtH27wiO3g7dMAoGCCqGSM49BAMCA0kAMEYCIQDsNMGL\n" +
+    "b4+BEhgNXaXyHWkezUO/3hCmLDw2gUdwMXG+JQIhAIAm8wALKbb9jJDgFQTHyqGJ\n" +
+    "AVAkzYOwmRMYC9BHKjNs\n" +
+    "-----END CERTIFICATE-----";
+
     @Test
     public void readEncryptedKey() throws IOException, GeneralSecurityException
     {
         PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_encrypted_key, "cassandra");
+        Assert.assertNotNull(privateKey);
+    }
+
+    @Test
+    public void readEncryptedDSAKey() throws IOException, GeneralSecurityException
+    {
+        PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_encrypted_dsa_key, "mytest");
         Assert.assertNotNull(privateKey);
     }
 
@@ -178,6 +247,13 @@ public class PEMReaderTest
     public void readUnencryptedKey() throws IOException, GeneralSecurityException
     {
         PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_key);
+        Assert.assertNotNull(privateKey);
+    }
+
+    @Test
+    public void readUnencryptedECKey() throws IOException, GeneralSecurityException
+    {
+        PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_unencrypted_ec_private_key);
         Assert.assertNotNull(privateKey);
     }
 
