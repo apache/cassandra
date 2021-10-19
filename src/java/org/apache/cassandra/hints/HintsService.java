@@ -21,6 +21,7 @@ import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -187,7 +188,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public void flushAndFsyncBlockingly(Iterable<UUID> hostIds)
     {
-        Iterable<HintsStore> stores = transform(hostIds, catalog::get);
+        Iterable<HintsStore> stores = filter(transform(hostIds, catalog::getNullable), Objects::nonNull);
         writeExecutor.flushBufferPool(bufferPool, stores);
         writeExecutor.fsyncWritersBlockingly(stores);
     }
