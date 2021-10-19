@@ -121,6 +121,26 @@ j8_seq_executor: &j8_seq_executor
     #exec_resource_class: xlarge
   parallelism: 1 # sequential, single container tests: no parallelism benefits
 
+j8_repeated_utest_executor: &j8_repeated_utest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
 with_dtests_jobs: &with_dtest_jobs
   jobs:
     - start_build:
@@ -440,7 +460,7 @@ jobs:
           pytest_extra_args: '--execute-upgrade-tests'
 
   j8_repeated_utest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -453,7 +473,7 @@ jobs:
           stop_on_failure: ${REPEATED_UTEST_STOP_ON_FAILURE}
 
   j8_repeated_dtest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -467,7 +487,7 @@ jobs:
           stop_on_failure: ${REPEATED_DTEST_STOP_ON_FAILURE}
 
   repeated_jvm_upgrade_dtest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_jvm_upgrade_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -480,7 +500,7 @@ jobs:
           stop_on_failure: ${REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE}
 
   repeated_upgrade_dtest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_upgrade_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
