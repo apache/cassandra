@@ -1,4 +1,6 @@
-@@ -19,14 +19,14 @@ default_env_vars: &default_env_vars
+--- .circleci/config-2_1.yml	2021-10-18 11:48:35.000000000 +0100
++++ .circleci/config-2_1.yml.HIGHRES	2021-10-18 12:03:47.000000000 +0100
+@@ -101,14 +101,14 @@
  j8_par_executor: &j8_par_executor
    executor:
      name: java8-executor
@@ -17,7 +19,7 @@
  
  j8_small_executor: &j8_small_executor
    executor:
-@@ -37,32 +37,32 @@ j8_small_executor: &j8_small_executor
+@@ -119,62 +119,68 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
@@ -57,6 +59,48 @@
 -  parallelism: 1
 +    exec_resource_class: xlarge
 +  parallelism: 2
+ 
+ j8_repeated_utest_executor: &j8_repeated_utest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j11_repeated_utest_executor: &j11_repeated_utest_executor
+   executor:
+     name: java11-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j11_repeated_dtest_executor: &j11_repeated_dtest_executor
+   executor:
+     name: java11-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
  
  j8_with_dtests_jobs: &j8_with_dtests_jobs
    jobs:
