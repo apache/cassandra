@@ -147,7 +147,7 @@ public class TimeFctsTest
     {
         long milliSeconds = DATE_TIME.toInstant().toEpochMilli();
 
-        ByteBuffer input = IntegerType.instance.fromString(Long.toString(milliSeconds));
+        ByteBuffer input = LongType.instance.decompose(milliSeconds);
         ByteBuffer output = executeFunction(toDate(LongType.instance), input);
         assertEquals(DATE.toInstant().toEpochMilli(), SimpleDateType.instance.toTimeInMillis(output));
 

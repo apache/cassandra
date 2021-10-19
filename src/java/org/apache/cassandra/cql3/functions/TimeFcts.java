@@ -179,7 +179,7 @@ public abstract class TimeFcts
                 if (bb == null || !bb.hasRemaining())
                     return null;
 
-                long milliSeconds = new BigInteger(bb.array()).longValue();
+                long milliSeconds = ByteBufferUtil.toLong(bb);
                 return SimpleDateType.instance.fromTimeInMillis(milliSeconds);
             }
         };
