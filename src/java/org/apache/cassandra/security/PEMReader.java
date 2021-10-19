@@ -124,6 +124,13 @@ public final class PEMReader
         }
 
         PrivateKey privateKey = null;
+
+        /*
+         * Ideally we can inspect the OID (Object Identifier) from the private key with ASN.1 parser and identify the
+         * actual algorithm of the private key. For doing that, we have to use some special library like BouncyCastle.
+         * However in the absence of that, below brute-force approach can work- that is to try out all the supported
+         * private key algorithms given that there are only three major algorithms to verify against.
+         */
         for(int i=0;i<SUPPORTED_PRIVATE_KEY_ALGORITHMS.length;i++)
         {
             try
