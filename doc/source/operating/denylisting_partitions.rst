@@ -23,7 +23,7 @@ Cassandra supports "denylisting" these problematic partitions so that when clien
 
 How to denylist a partition key
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The ``system_distributed.denylisted_partitions`` table can be used to denylist partitions. There are a couple of ways to interact with and mutate this data. First: diractly via CQL by inserting a record with the following details:
+The ``system_distributed.denylisted_partitions`` table can be used to denylist partitions. There are a couple of ways to interact with and mutate this data. First: directly via CQL by inserting a record with the following details:
 
 - Keyspace name (ks_name)
 - Table name (table_name)
