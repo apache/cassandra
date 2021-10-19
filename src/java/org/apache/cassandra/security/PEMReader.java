@@ -47,7 +47,9 @@ import org.slf4j.LoggerFactory;
  * format. It can read Password Based Encrypted (PBE henceforth) private keys as well as non-encrypred private keys
  * along with the X509 certificates/cert-chain based on the textual encoding defined in the <a href="https://datatracker.ietf.org/doc/html/rfc7468">RFC 7468</a>
  *
- * It returns PKCS#8 formatted RSA private keys and X509 certificates.
+ * The input private key must be in PKCS#8 format.
+ *
+ * It returns PKCS#8 formatted private key and X509 certificates.
  */
 public final class PEMReader
 {
@@ -55,6 +57,16 @@ public final class PEMReader
 
     private static final Pattern CERT_PATTERN = Pattern.compile("-+BEGIN\\s+.*CERTIFICATE[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*CERTIFICATE[^-]*-+", 2);
     private static final Pattern KEY_PATTERN = Pattern.compile("-+BEGIN\\s+.*PRIVATE\\s+KEY[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*PRIVATE\\s+KEY[^-]*-+", 2);
+
+    /**
+     * The private key can be with any of these algorithms in order for this read to successfully parse it.
+     * Currently supported algorithms are,
+     * <pre>
+     *     RSA, DSA or EC
+     * </pre>
+     * The first one to be evaluated is RSA, being the most common for private keys.
+     */
+    public static final String[] SUPPORTED_PRIVATE_KEY_ALGORITHMS = new String[]{"RSA", "DSA", "EC"};
 
     /**
      * Extracts private key from the PEM content for the private key, assuming its not PBE.
@@ -111,7 +123,30 @@ public final class PEMReader
             keySpec = new PKCS8EncodedKeySpec(derKeyBytes);
         }
 
-       return KeyFactory.getInstance("RSA").generatePrivate(keySpec);
+        PrivateKey privateKey = null;
+        for(int i=0;i<SUPPORTED_PRIVATE_KEY_ALGORITHMS.length;i++)
+        {
+            try
+            {
+                privateKey = KeyFactory.getInstance(SUPPORTED_PRIVATE_KEY_ALGORITHMS[i]).generatePrivate(keySpec);
+                logger.info("Parsing for the private key finished with {} algorithm.",
+                            SUPPORTED_PRIVATE_KEY_ALGORITHMS[i]);
+                return privateKey;
+            }
+            catch(Exception e)
+            {
+                logger.debug("Failed to parse the private key with {} algorithm. Will try the other supported " +
+                             "algorithms.", SUPPORTED_PRIVATE_KEY_ALGORITHMS[i]);
+            }
+        }
+
+       if(privateKey==null)
+       {
+           throw new GeneralSecurityException("The given private key could not be parsed with any of the supported " +
+                                              "algorithms. Please see PEMReader#SUPPORTED_PRIVATE_KEY_ALGORITHMS.");
+       }
+       // Must never come here
+       return null;
     }
 
     /**
