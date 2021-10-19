@@ -67,15 +67,15 @@ public class GrantAndRevokeTest extends CQLTester
                                 formatQuery(KEYSPACE_PER_TEST, "UPDATE %s SET val = 1 WHERE pk = 1 AND ck = 1"));
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "DELETE FROM %s WHERE pk = 1 AND ck = 2"));
-        assertUnauthorizedQuery("User user has no SELECT permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "SELECT * FROM %s WHERE pk = 1 AND ck = 1"));
-        assertUnauthorizedQuery("User user has no SELECT permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 "SELECT * FROM " + mv + " WHERE val = 1 AND pk = 1 AND ck = 1");
-        assertUnauthorizedQuery("User user has no MODIFY permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "TRUNCATE TABLE %s"));
-        assertUnauthorizedQuery("User user has no ALTER permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no ALTER permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "ALTER TABLE %s ADD val_3 int"));
-        assertUnauthorizedQuery("User user has no DROP permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no DROP permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "DROP TABLE %s"));
         assertUnauthorizedQuery("User user has no ALTER permission on <all tables in " + KEYSPACE_PER_TEST + "> or any of its parents",
                                 "ALTER TYPE " + type + " ADD c bigint");
@@ -153,7 +153,7 @@ public class GrantAndRevokeTest extends CQLTester
                                 "DELETE FROM " + table + " WHERE pk = 1 AND ck = 2");
         assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 "SELECT * FROM " + table + " WHERE pk = 1 AND ck = 1");
-        assertUnauthorizedQuery("User user has no SELECT permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 "SELECT * FROM " + mv + " WHERE val = 1 AND pk = 1 AND ck = 1");
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 "TRUNCATE TABLE " + table);
@@ -194,15 +194,15 @@ public class GrantAndRevokeTest extends CQLTester
                                 formatQuery(KEYSPACE_PER_TEST, "UPDATE %s SET val = 1 WHERE pk = 1 AND ck = 1"));
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "DELETE FROM %s WHERE pk = 1 AND ck = 2"));
-        assertUnauthorizedQuery("User user has no SELECT permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "SELECT * FROM %s WHERE pk = 1 AND ck = 1"));
-        assertUnauthorizedQuery("User user has no SELECT permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 "SELECT * FROM " + mv + " WHERE val = 1 AND pk = 1 AND ck = 1");
-        assertUnauthorizedQuery("User user has no MODIFY permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "TRUNCATE TABLE %s"));
-        assertUnauthorizedQuery("User user has no ALTER permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no ALTER permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "ALTER TABLE %s ADD val_3 int"));
-        assertUnauthorizedQuery("User user has no DROP permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no DROP permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "DROP TABLE %s"));
         assertUnauthorizedQuery("User user has no ALTER permission on <all tables in " + KEYSPACE_PER_TEST + "> or any of its parents",
                                 "ALTER TYPE " + type + " ADD c bigint");
@@ -282,7 +282,7 @@ public class GrantAndRevokeTest extends CQLTester
                                 "DELETE FROM " + table + " WHERE pk = 1 AND ck = 2");
         assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 "SELECT * FROM " + table + " WHERE pk = 1 AND ck = 1");
-        assertUnauthorizedQuery("User user has no SELECT permission on <table " +  table + "> or any of its parents",
+        assertUnauthorizedQuery("User user has no SELECT permission on <table " + table + "> or any of its parents",
                                 "SELECT * FROM " + mv + " WHERE val = 1 AND pk = 1 AND ck = 1");
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 "TRUNCATE TABLE " + table);
