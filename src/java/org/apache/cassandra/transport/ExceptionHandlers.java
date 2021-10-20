@@ -32,6 +32,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.unix.Errors;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -97,6 +98,11 @@ public class ExceptionHandlers
                     // to avoid spamming the logs once a bad client shows up
                     NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
                 }
+            }
+            else if (Throwables.anyCauseMatches(cause, t -> t instanceof Errors.NativeIoException))
+            {
+                ClientMetrics.instance.markUnknownException();
+                logger.trace("Native exception in client networking", cause);
             }
             else
             {
