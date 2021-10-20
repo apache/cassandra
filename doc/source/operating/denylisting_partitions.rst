@@ -43,17 +43,17 @@ In the case of composite column partition keys (Key1, Key2):
 
 Special considerations
 ^^^^^^^^^^^^^^^^^^^^^^
-The denylist has the property in that you want to ensure your cache (see below) and CQL data on a replica set match. In order to enforce this, the workflow for a denylist change (addition or deletion) should `always be as follows`:
+The denylist has the property in that you want to keep your cache (see below) and CQL data on a replica set as close together as possible so you don't have different nodes in your cluster denying or allowing different keys. To best achieve this, the workflow for a denylist change (addition or deletion) should `always be as follows`:
 
 1. Mutate the denylisted partition list in CQL
 2. Trigger a reload of the denylist cache on each node (see below)
+3. Check for warnings about lack of availability for a denylist refresh. In the event nodes are down, recover them, then go to 2.
 
-A denylist cache reload `requires all nodes in the replica set to be up`, effectively making this a `CP
-<https://en.wikipedia.org/wiki/CAP_theorem>`_. operation. We require this to ensure the cache and CQL table data remains in sync for all nodes participating in denial of access.
+By default, the denylist will load without warning if a quorum of nodes holding the denylist data are available on initial load start and when prompted via JMX by a user. The denylist `will not`, however, refresh on cache timeout if the desired consistency level of nodes available are not up.
 
 Denylisted Partitions Cache
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Cassandra internally maintains an on-heap cache of denylisted partitions loaded from ``system_distributed.denylisted_partitions``. The values for a table will be automatically repopulated every ``denylist_refresh_seconds`` as specified in the `conf/cassandra.yaml` file, defaulting to 86,400 seconds, or 1 day. Invalid records (unknown keyspaces, tables, or keys) will be ignored and not cached on load.
+Cassandra internally maintains an on-heap cache of denylisted partitions loaded from ``system_distributed.denylisted_partitions``. The values for a table will be automatically repopulated every ``denylist_refresh_seconds`` as specified in the `conf/cassandra.yaml` file, defaulting to 600 seconds, or 10 minutes. Invalid records (unknown keyspaces, tables, or keys) will be ignored and not cached on load.
 
 The cache can be refreshed in the following ways:
 
@@ -97,4 +97,6 @@ JMX Interface
 | setDenylistMaxKeysPerTable(int value)                                      | Limits count of allowed keys per table in the denylist                          |
 +----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
 | setDenylistMaxKeysTotal(int value)                                         | Limits the total count of allowable denylisted keys in the system               |
++----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
+| isKeyDenylisted(String keyspace, String table, String partitionKeyAsString)| Indicates whether the keyspace.table has the input partition key denied         |
 +----------------------------------------------------------------------------+---------------------------------------------------------------------------------+

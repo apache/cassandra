@@ -2921,4 +2921,20 @@ public class StorageProxy implements StorageProxyMBean
         final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
         return partitionDenylist.removeKeyFromDenylist(keyspace, table, bytes);
     }
+
+    /**
+     * A simple check for operators to determine what the denylisted value for a pk is on a node
+     */
+    public boolean isKeyDenylisted(String keyspace, String table, String partitionKeyAsString)
+    {
+        if (!Schema.instance.getKeyspaces().contains(keyspace))
+            return false;
+
+        final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        if (cfs == null)
+            return false;
+
+        final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
+        return partitionDenylist.isKeyPermitted(keyspace, table, bytes);
+    }
 }

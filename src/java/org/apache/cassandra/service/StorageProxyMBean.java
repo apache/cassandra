@@ -75,6 +75,7 @@ public interface StorageProxyMBean
     public boolean removeDenylistKey(String keyspace, String table, String partitionKeyAsString);
     public void setDenylistMaxKeysPerTable(int value);
     public void setDenylistMaxKeysTotal(int value);
+    public boolean isKeyDenylisted(String keyspace, String table, String partitionKeyAsString);
 
     @Deprecated
     public void setOtcBacklogExpirationInterval(int intervalInMillis);

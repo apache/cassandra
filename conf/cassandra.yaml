@@ -1037,7 +1037,7 @@ slow_query_log_timeout_in_ms: 500
 # The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
 # Note: this serves only as a fail-safe, as the usage pattern is expected to be "mutate state, refresh cache" on any
 # changes to the underlying denylist entries. See documentation for details.
-# denylist_refresh_seconds = 86400;
+# denylist_refresh_seconds = 600;
 
 # In the event of errors on attempting to load the denylist cache, retry on this interval.
 # denylist_initial_load_retry_seconds = 5;

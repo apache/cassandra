@@ -47,6 +47,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.cql3.QueryProcessor.process;
@@ -65,6 +66,19 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * Concurrency of the cache is provided by the concurrency semantics of the guava LoadingCache. All values (DenylistEntry) are
  * immutable collections of keys/tokens which are replaced in whole when the cache refreshes from disk.
  *
+ * The intersection of the denylist and the configurable (though not conveniently exposed) ConsistencyLevel is subtle; essentially
+ * we prioritize operator flexibility in the face of degraded cluster state over the consistency of the denylist cache across
+ * the cluster. What this means in effect is that we warn when we have a degraded availability scenario rather than freezing
+ * the state of the denylist or, worse, presenting an empty denylist for the owned ks/table set.
+ *
+ * For example, in a scenario where you have RF=3 with 2 nodes down, a CL.QUORUM required CL for your denylist would mean
+ * you could effectively not change the denylist configuration for your only available node until you recovered one of the
+ * other nodes in this replica set owning the denylist data. Rather than forcing operators to change the CL of their denylist
+ * table, revise the denylist, reload the cache, then revert the CL, we instead allow all non-timer instigated reloads to proceed.
+ *
+ * On a cache refresh in which the cache entry for a denylist entry expires we do not continue with the reload of the
+ * cache value and instead use the expired value, warning to the user that their cache state is likely stale.
+ *
  * Notably, in the current design it's possible for a table *cache expiration instigated* reload to end up violating the
  * contract on total denylisted keys allowed in the case where it initially loads with a value less than the DBD
  * allowable max per table limit due to global constraint enforcement on initial load. Our load and reload function
@@ -78,6 +92,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public class PartitionDenylist
 {
     private static final Logger logger = LoggerFactory.getLogger(PartitionDenylist.class);
+    private static final NoSpamLogger AVAILABILITY_LOGGER = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     private final ExecutorService executor = executorFactory().pooled("DenylistCache", 2);
 
@@ -136,10 +151,9 @@ public class PartitionDenylist
         String retryReason = "Insufficient nodes";
         try
         {
-            if (readAllHasSufficientNodes() && load())
-            {
+            checkDenylistNodeAvailability();
+            if (load())
                 return;
-            }
         }
         catch (Throwable tr)
         {
@@ -154,10 +168,16 @@ public class PartitionDenylist
         ScheduledExecutors.optionalTasks.schedule(this::initialLoad, retryInSeconds, TimeUnit.SECONDS);
     }
 
-    private boolean readAllHasSufficientNodes()
+    private boolean checkDenylistNodeAvailability()
     {
-        return RangeCommands.sufficientLiveNodesForSelectStar(SystemDistributedKeyspace.PartitionDenylistTable,
+        boolean sufficientNodes = RangeCommands.sufficientLiveNodesForSelectStar(SystemDistributedKeyspace.PartitionDenylistTable,
                                                               DatabaseDescriptor.getDenylistConsistencyLevel());
+        if (!sufficientNodes)
+        {
+            AVAILABILITY_LOGGER.warn("Attempting to load denylist and not enough nodes are available for a {} refresh. Reload the denylist when unavailable nodes are recovered to ensure your denylist remains in sync.",
+                                     DatabaseDescriptor.getDenylistConsistencyLevel());
+        }
+        return sufficientNodes;
     }
 
     /** Helper method as we need to both build cache on initial init but also on reload of cache contents and params */
@@ -171,8 +191,12 @@ public class PartitionDenylist
                        .build(new CacheLoader<TableId, DenylistEntry>()
                        {
                            @Override
-                           public DenylistEntry load(final TableId tid) throws Exception
+                           public DenylistEntry load(final TableId tid)
                            {
+                               // On initial load, we load whether or not the CL required count are available as the alternative
+                               // is an empty denylist. This allows operators to intervene in the event they need to deny or
+                               // undeny a specific partition key around a node recovery.
+                               checkDenylistNodeAvailability();
                                return getDenylistForTableFromCQL(tid);
                            }
 
@@ -180,14 +204,13 @@ public class PartitionDenylist
                            @Override
                            public DenylistEntry reload(final TableId tid, final DenylistEntry oldValue)
                            {
-                               /* We accept DenylistEntry data in the following precedence:
-                                    1) new data pulled from CQL if we got it correctly,
-                                    2) the old value from the cache if there was some error querying,
-                                    3) an empty record otherwise.
-                               */
-                               final DenylistEntry newEntry = getDenylistForTableFromCQL(tid);
-                               if (newEntry != null)
-                                   return newEntry;
+                               // Only process when we can hit the user specified CL for the denylist consistency on a timer prompted reload
+                               if (checkDenylistNodeAvailability())
+                               {
+                                   final DenylistEntry newEntry = getDenylistForTableFromCQL(tid);
+                                   if (newEntry != null)
+                                       return newEntry;
+                               }
                                if (oldValue != null)
                                    return oldValue;
                                return new DenylistEntry();
@@ -441,6 +464,9 @@ public class PartitionDenylist
      */
     private Map<TableId, DenylistEntry> getDenylistForAllTablesFromCQL()
     {
+        // While we warn the user in this case, we continue with the reload anyway.
+        checkDenylistNodeAvailability();
+
         final String allDeniedTables = String.format("SELECT DISTINCT ks_name, table_name FROM %s.%s",
                                                      SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                                      SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE);
