@@ -742,7 +742,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
         catch (IOException e)
         {
-            logger.trace("Cannot save SSTable Summary: ", e);
+            logger.error("Cannot save SSTable Summary: ", e);
 
             // corrupted hence delete it and let it load it now.
             if (summariesFile.exists())

@@ -825,6 +825,12 @@ public class DatabaseDescriptor
         }
 
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
+
+        if (conf.default_keyspace_rf < conf.minimum_keyspace_rf)
+        {
+            throw new ConfigurationException(String.format("default_keyspace_rf (%d) cannot be less than minimum_keyspace_rf (%d)",
+                                                           conf.default_keyspace_rf, conf.minimum_keyspace_rf));
+        }
     }
 
     @VisibleForTesting
@@ -3538,5 +3544,39 @@ public class DatabaseDescriptor
     public static void setRowIndexSizeAbortThresholdKb(int value)
     {
         conf.track_warnings.row_index_size.setAbortThresholdKb(value);
+    }
+
+    public static int getDefaultKeyspaceRF() { return conf.default_keyspace_rf; }
+
+    public static void setDefaultKeyspaceRF(int value) throws ConfigurationException
+    {
+        if (value < 1)
+        {
+            throw new ConfigurationException("default_keyspace_rf cannot be less than 1");
+        }
+
+        if (value < getMinimumKeyspaceRF())
+        {
+            throw new ConfigurationException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_keyspace_rf (%d)", value, getMinimumKeyspaceRF()));
+        }
+
+        conf.default_keyspace_rf = value;
+    }
+
+    public static int getMinimumKeyspaceRF() { return conf.minimum_keyspace_rf; }
+
+    public static void setMinimumKeyspaceRF(int value) throws ConfigurationException
+    {
+        if (value < 0)
+        {
+            throw new ConfigurationException("minimum_keyspace_rf cannot be negative");
+        }
+
+        if (value > getDefaultKeyspaceRF())
+        {
+            throw new ConfigurationException(String.format("minimum_keyspace_rf to be set (%d) cannot be greater than default_keyspace_rf (%d)", value, getDefaultKeyspaceRF()));
+        }
+
+        conf.minimum_keyspace_rf = value;
     }
 }

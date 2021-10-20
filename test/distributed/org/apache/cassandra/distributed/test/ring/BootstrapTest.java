@@ -77,6 +77,31 @@ public class BootstrapTest extends TestBaseImpl
     }
 
     @Test
+    public void readWriteDuringBootstrapTest() throws Throwable
+    {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", false,
+                         () -> newInstance.startup(cluster));
+
+            cluster.forEach(statusToBootstrap(newInstance));
+
+            populate(cluster,0, 100);
+
+            Assert.assertEquals(100, newInstance.executeInternal("SELECT *FROM " + KEYSPACE + ".tbl").length);
+        }
+    }
+
+    @Test
     public void autoBootstrapTest() throws Throwable
     {
         int originalNodeCount = 2;

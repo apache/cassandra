@@ -21,11 +21,13 @@ from __future__ import division, unicode_literals, print_function
 import cmd
 import codecs
 import csv
+import errno
 import getpass
 import optparse
 import os
 import platform
 import re
+import stat
 import sys
 import traceback
 import warnings
@@ -209,8 +211,9 @@ parser.add_option('--debug', action='store_true',
 parser.add_option('--coverage', action='store_true',
                   help='Collect coverage data')
 parser.add_option("--encoding", help="Specify a non-default encoding for output."
-                  + " (Default: %s)" % (UTF8,))
+                  " (Default: %s)" % (UTF8,))
 parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
+parser.add_option("--credentials", help="Specify an alternative credentials file location.")
 parser.add_option('--cqlversion', default=None,
                   help='Specify a particular CQL version, '
                        'by default the highest version supported by the server will be used.'
@@ -225,6 +228,13 @@ parser.add_option("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, 
                   help='Specify the default request timeout in seconds (default: %default seconds).')
 parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
+
+# This is a hidden option to suppress the warning when the -p/--password command line option is used.
+# Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
+# Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
+# The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
+parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
+                  help=optparse.SUPPRESS_HELP)
 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
@@ -251,9 +261,9 @@ OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 if os.path.exists(OLD_CONFIG_FILE):
     if os.path.exists(CONFIG_FILE):
         print('\nWarning: cqlshrc config files were found at both the old location ({0})'
-              + ' and the new location ({1}), the old config file will not be migrated to the new'
-              + ' location, and the new location will be used for now.  You should manually'
-              + ' consolidate the config files at the new location and remove the old file.'
+              ' and the new location ({1}), the old config file will not be migrated to the new'
+              ' location, and the new location will be used for now.  You should manually'
+              ' consolidate the config files at the new location and remove the old file.'
               .format(OLD_CONFIG_FILE, CONFIG_FILE))
     else:
         os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
@@ -2107,6 +2117,26 @@ def should_use_color():
     return True
 
 
+def is_file_secure(filename):
+    if is_win:
+        # We simply cannot tell whether the file is seucre on Windows,
+        # because os.stat().st_uid is always 0 and os.stat().st_mode is meaningless
+        return True
+
+    try:
+        st = os.stat(filename)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
+        return True  # the file doesn't exists, the security of it is irrelevant
+
+    uid = os.getuid()
+
+    # Skip enforcing the file owner and UID matching for the root user (uid == 0).
+    # This is to allow "sudo cqlsh" to work with user owned credentials file.
+    return (uid == 0 or st.st_uid == uid) and stat.S_IMODE(st.st_mode) & (stat.S_IRGRP | stat.S_IROTH) == 0
+
+
 def read_options(cmdlineargs, environment):
     configs = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
     configs.read(CONFIG_FILE)
@@ -2114,9 +2144,20 @@ def read_options(cmdlineargs, environment):
     rawconfigs = configparser.RawConfigParser()
     rawconfigs.read(CONFIG_FILE)
 
+    username_from_cqlshrc = option_with_default(configs.get, 'authentication', 'username')
+    password_from_cqlshrc = option_with_default(rawconfigs.get, 'authentication', 'password')
+    if username_from_cqlshrc or password_from_cqlshrc:
+        if password_from_cqlshrc and not is_file_secure(CONFIG_FILE):
+            print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
+                  end='', file=sys.stderr)
+        print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
+              "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
+
     optvalues = optparse.Values()
-    optvalues.username = option_with_default(configs.get, 'authentication', 'username')
-    optvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
+    optvalues.username = None
+    optvalues.password = None
+    optvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
+                                                                   os.path.join(HISTORY_DIR, 'credentials')))
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
@@ -2153,8 +2194,38 @@ def read_options(cmdlineargs, environment):
     optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     optvalues.execute = None
+    optvalues.insecure_password_without_warning = False
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
+
+    if not is_file_secure(options.credentials):
+        print("\nWarning: Credentials file '{0}' exists but is not used, because:"
+              "\n  a. the file owner is not the current user; or"
+              "\n  b. the file is readable by group or other."
+              "\nPlease ensure the file is owned by the current user and is not readable by group or other."
+              "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
+              "\n  chown YOUR_USERNAME credentials"
+              "\n  chmod 600 credentials\n".format(options.credentials),
+              file=sys.stderr)
+        options.credentials = ''  # ConfigParser.read() will ignore unreadable files
+
+    if not options.username:
+        credentials = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
+        credentials.read(options.credentials)
+
+        # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
+        options.username = option_with_default(credentials.get, 'plain_text_auth', 'username', username_from_cqlshrc)
+
+    if not options.password:
+        rawcredentials = configparser.RawConfigParser()
+        rawcredentials.read(options.credentials)
+
+        # handling password in the same way as username, priority cli > credentials > cqlshrc
+        options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
+    elif not options.insecure_password_without_warning:
+        print("\nWarning: Using a password on the command line interface can be insecure."
+              "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
+
     # Make sure some user values read from the command line are in unicode
     options.execute = maybe_ensure_text(options.execute)
     options.username = maybe_ensure_text(options.username)
@@ -2295,9 +2366,9 @@ def main(options, hostname, port):
             # does contain a TZ part) was specified
             if options.time_format != DEFAULT_TIMESTAMP_FORMAT:
                 sys.stderr.write("Warning: custom timestamp format specified in cqlshrc, "
-                                 + "but local timezone could not be detected.\n"
-                                 + "Either install Python 'tzlocal' module for auto-detection "
-                                 + "or specify client timezone in your cqlshrc.\n\n")
+                                 "but local timezone could not be detected.\n"
+                                 "Either install Python 'tzlocal' module for auto-detection "
+                                 "or specify client timezone in your cqlshrc.\n\n")
 
     try:
         shell = Shell(hostname,

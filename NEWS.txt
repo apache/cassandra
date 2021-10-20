@@ -38,6 +38,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
       to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
@@ -55,6 +56,8 @@ Upgrading
       confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
       for further details. You also need to regenerate passwords for users for who the password
       was created while the above property was set to be more than 30 otherwise they will not be able to log in.
+    - Information about pending hints is now available through `nodetool listpendinghints` and `pending_hints` virtual
+      table.
 
 Deprecation
 -----------

@@ -23,6 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -100,6 +103,26 @@ final class HintsStore
     InetAddressAndPort address()
     {
         return StorageService.instance.getEndpointForHostId(hostId);
+    }
+
+    @Nullable
+    PendingHintsInfo getPendingHintsInfo()
+    {
+        Iterator<HintsDescriptor> descriptors = dispatchDequeue.iterator();
+        int queueSize = 0;
+        long minTimestamp = Long.MAX_VALUE;
+        long maxTimestamp = Long.MIN_VALUE;
+        while (descriptors.hasNext())
+        {
+            HintsDescriptor descriptor = descriptors.next();
+            minTimestamp = Math.min(minTimestamp, descriptor.timestamp);
+            maxTimestamp = Math.max(maxTimestamp, descriptor.timestamp);
+            queueSize++;
+        }
+
+        if (queueSize == 0)
+            return null;
+        return new PendingHintsInfo(hostId, queueSize, minTimestamp, maxTimestamp);
     }
 
     boolean isLive()

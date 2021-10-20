@@ -146,17 +146,63 @@ j11_small_executor: &j11_small_executor
     #exec_resource_class: medium
   parallelism: 1
 
+j8_repeated_utest_executor: &j8_repeated_utest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j11_repeated_utest_executor: &j11_repeated_utest_executor
+  executor:
+    name: java11-executor
+  parallelism: 4
+
+j11_repeated_dtest_executor: &j11_repeated_dtest_executor
+  executor:
+    name: java11-executor
+  parallelism: 4
+
 j8_with_dtests_jobs: &j8_with_dtests_jobs
   jobs:
-    - j8_build
-    # Java 8 unit tests will be run automatically
+    - start_j8_build:
+        type: approval
+    - j8_build:
+        requires:
+          - start_j8_build
+    # Java 8 unit tests
+    - start_j8_unit_tests:
+        type: approval
     - j8_unit_tests:
         requires:
+          - start_j8_unit_tests
           - j8_build
+    - start_j8_jvm_dtests:
+        type: approval
     - j8_jvm_dtests:
         requires:
+          - start_j8_jvm_dtests
           - j8_build
-    # Java 11 unit tests (on request, currently not working)
+    - start_j8_cqlshlib_tests:
+        type: approval
+    - j8_cqlshlib_tests:
+        requires:
+          - start_j8_cqlshlib_tests
+          - j8_build
+    # Java 11 unit tests
     - start_j11_unit_tests:
         type: approval
     - j11_unit_tests:
@@ -164,9 +210,6 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
           - start_j11_unit_tests
           - j8_build
     # specialized unit tests (all run on request using Java 8)
-    - j8_cqlshlib_tests:
-        requires:
-          - j8_build
     - start_utests_long:
         type: approval
     - utests_long:
@@ -209,7 +252,7 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_jvm_upgrade_dtest
           - j8_dtest_jars_build
-    # Java 8 dtests (on request)
+    # Java 8 dtests
     - start_j8_dtests:
         type: approval
     - j8_dtests-with-vnodes:
@@ -220,7 +263,7 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_j8_dtests
           - j8_build
-    # Java 11 dtests (on request)
+    # Java 11 dtests
     - start_j11_dtests:
         type: approval
     - j11_dtests-with-vnodes:
@@ -238,61 +281,225 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_upgrade_tests
           - j8_build
-    - start_j8_cqlsh_tests-with-vnodes:
+    # Java 8 cqlsh dtests
+    - start_j8_cqlsh_tests:
         type: approval
     - j8_cqlsh-dtests-py2-with-vnodes:
         requires:
-        - start_j8_cqlsh_tests-with-vnodes
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
-        - start_j8_cqlsh_tests-with-vnodes
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh-dtests-py38-with-vnodes:
         requires:
-        - start_j8_cqlsh_tests-with-vnodes
+        - start_j8_cqlsh_tests
         - j8_build
-    - start_j8_cqlsh_tests-no-vnodes:
-        type: approval
     - j8_cqlsh-dtests-py2-no-vnodes:
         requires:
-        - start_j8_cqlsh_tests-no-vnodes
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh-dtests-py3-no-vnodes:
         requires:
-        - start_j8_cqlsh_tests-no-vnodes
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh-dtests-py38-no-vnodes:
         requires:
-          - start_j8_cqlsh_tests-no-vnodes
+          - start_j8_cqlsh_tests
           - j8_build
-    - start_j11_cqlsh_tests-with-vnodes:
+    # Java 11 cqlsh dtests
+    - start_j11_cqlsh_tests:
         type: approval
     - j11_cqlsh-dtests-py2-with-vnodes:
         requires:
-        - start_j11_cqlsh_tests-with-vnodes
+        - start_j11_cqlsh_tests
         - j8_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
-        - start_j11_cqlsh_tests-with-vnodes
+        - start_j11_cqlsh_tests
         - j8_build
     - j11_cqlsh-dtests-py38-with-vnodes:
         requires:
-          - start_j11_cqlsh_tests-with-vnodes
+          - start_j11_cqlsh_tests
           - j8_build
-    - start_j11_cqlsh_tests-no-vnodes:
-        type: approval
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
-        - start_j11_cqlsh_tests-no-vnodes
-        - j8_build
+          - start_j11_cqlsh_tests
+          - j8_build
     - j11_cqlsh-dtests-py3-no-vnodes:
         requires:
-        - start_j11_cqlsh_tests-no-vnodes
-        - j8_build
+          - start_j11_cqlsh_tests
+          - j8_build
     - j11_cqlsh-dtests-py38-no-vnodes:
         requires:
-          - start_j11_cqlsh_tests-no-vnodes
+          - start_j11_cqlsh_tests
+          - j8_build
+    # Java 8 repeated utest
+    - start_j8_repeated_utest:
+        type: approval
+    - j8_repeated_utest:
+        requires:
+          - start_j8_repeated_utest
+          - j8_build
+    # Java 11 repeated utest
+    - start_j11_repeated_utest:
+        type: approval
+    - j11_repeated_utest:
+        requires:
+          - start_j11_repeated_utest
+          - j8_build
+    # Java 8 repeated dtest
+    - start_j8_repeated_dtest:
+        type: approval
+    - j8_repeated_dtest:
+        requires:
+          - start_j8_repeated_dtest
+          - j8_build
+    # Java 11 repeated dtest
+    - start_j11_repeated_dtest:
+        type: approval
+    - j11_repeated_dtest:
+        requires:
+          - start_j11_repeated_dtest
+          - j8_build
+    # Repeated Python upgrade dtest
+    - start_repeated_upgrade_dtest:
+        type: approval
+    - repeated_upgrade_dtest:
+        requires:
+            - start_repeated_upgrade_dtest
+            - j8_build
+    # Repeated JVM upgrade dtest
+    - start_repeated_jvm_upgrade_dtest:
+        type: approval
+    - repeated_jvm_upgrade_dtest:
+        requires:
+          - start_repeated_jvm_upgrade_dtest
+          - j8_dtest_jars_build
+
+j8_pre-commit_jobs: &j8_pre-commit_jobs
+  jobs:
+    - start_pre-commit_tests:
+        type: approval
+    - j8_build:
+        requires:
+          - start_pre-commit_tests
+    # Java 8 unit tests
+    - j8_unit_tests:
+        requires:
+          - j8_build
+    - j8_jvm_dtests:
+        requires:
+          - j8_build
+    - j8_cqlshlib_tests:
+        requires:
+          - j8_build
+    # Java 11 unit tests
+    - j11_unit_tests:
+        requires:
+          - j8_build
+    # specialized unit tests (all run on request using Java 8)
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+          - start_utests_long
+          - j8_build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+          - start_utests_compression
+          - j8_build
+    - start_utests_stress:
+        type: approval
+    - utests_stress:
+        requires:
+          - start_utests_stress
+          - j8_build
+    - start_utests_fqltool:
+        type: approval
+    - utests_fqltool:
+        requires:
+          - start_utests_fqltool
+          - j8_build
+    - start_utests_system_keyspace_directory:
+        type: approval
+    - utests_system_keyspace_directory:
+        requires:
+          - start_utests_system_keyspace_directory
+          - j8_build
+    - start_j8_dtest_jars_build:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+          - j8_build
+          - start_j8_dtest_jars_build
+    - start_jvm_upgrade_dtest:
+        type: approval
+    - j8_jvm_upgrade_dtests:
+        requires:
+          - start_jvm_upgrade_dtest
+          - j8_dtest_jars_build
+    # Java 8 dtests
+    - j8_dtests-with-vnodes:
+        requires:
+          - j8_build
+    - j8_dtests-no-vnodes:
+        requires:
+          - j8_build
+    # Java 11 dtests
+    - j11_dtests-with-vnodes:
+        requires:
+          - j8_build
+    - j11_dtests-no-vnodes:
+        requires:
+          - j8_build
+    # Java 8 upgrade tests (on request)
+    - start_upgrade_tests:
+        type: approval
+    - j8_upgradetests-no-vnodes:
+        requires:
+          - j8_build
+          - start_upgrade_tests
+    # Java 8 cqlsh dtests
+    - j8_cqlsh-dtests-py2-with-vnodes:
+        requires:
+          - j8_build
+    - j8_cqlsh-dtests-py3-with-vnodes:
+        requires:
+          - j8_build
+    - j8_cqlsh-dtests-py38-with-vnodes:
+        requires:
+          - j8_build
+    - j8_cqlsh-dtests-py2-no-vnodes:
+        requires:
+          - j8_build
+    - j8_cqlsh-dtests-py3-no-vnodes:
+        requires:
+          - j8_build
+    - j8_cqlsh-dtests-py38-no-vnodes:
+        requires:
+          - j8_build
+    # Java 11 cqlsh dtests
+    - j11_cqlsh-dtests-py2-with-vnodes:
+        requires:
+          - j8_build
+    - j11_cqlsh-dtests-py3-with-vnodes:
+        requires:
+          - j8_build
+    - j11_cqlsh-dtests-py38-with-vnodes:
+        requires:
+          - j8_build
+    - j11_cqlsh-dtests-py2-no-vnodes:
+        requires:
+          - j8_build
+    - j11_cqlsh-dtests-py3-no-vnodes:
+        requires:
+          - j8_build
+    - j11_cqlsh-dtests-py38-no-vnodes:
+        requires:
           - j8_build
     # Java 8 repeated utest (on request)
     - start_j8_repeated_utest:
@@ -327,8 +534,8 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         type: approval
     - repeated_upgrade_dtest:
         requires:
-            - start_repeated_upgrade_dtest
-            - j8_build
+          - start_repeated_upgrade_dtest
+          - j8_build
     # Repeated JVM upgrade dtest (on request)
     - start_repeated_jvm_upgrade_dtest:
         type: approval
@@ -339,18 +546,31 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
 
 j11_with_dtests_jobs: &j11_with_dtests_jobs
   jobs:
-    - j11_build
+    - start_j11_build:
+        type: approval
+    - j11_build:
+        requires:
+          - start_j11_build
     # Java 11 unit tests
+    - start_j11_unit_tests:
+        type: approval
     - j11_unit_tests:
         requires:
+          - start_j11_unit_tests
           - j11_build
+    - start_j11_jvm_dtests:
+        type: approval
     - j11_jvm_dtests:
         requires:
+          - start_j11_jvm_dtests
           - j11_build
+    - start_j11_cqlshlib_tests:
+        type: approval
     - j11_cqlshlib_tests:
         requires:
+          - start_j11_cqlshlib_tests
           - j11_build
-    # Java 11 dtests (on request)
+    # Java 11 dtests
     - start_j11_dtests:
         type: approval
     - j11_dtests-with-vnodes:
@@ -361,33 +581,92 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
         requires:
           - start_j11_dtests
           - j11_build
-    - start_j11_cqlsh_tests-with-vnodes:
+    - start_j11_cqlsh_tests:
         type: approval
     - j11_cqlsh-dtests-py2-with-vnodes:
         requires:
-        - start_j11_cqlsh_tests-with-vnodes
-        - j11_build
+          - start_j11_cqlsh_tests
+          - j11_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
-        - start_j11_cqlsh_tests-with-vnodes
-        - j11_build
+          - start_j11_cqlsh_tests
+          - j11_build
     - j11_cqlsh-dtests-py38-with-vnodes:
         requires:
-          - start_j11_cqlsh_tests-with-vnodes
+          - start_j11_cqlsh_tests
           - j11_build
-    - start_j11_cqlsh_tests-no-vnodes:
-        type: approval
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
-        - start_j11_cqlsh_tests-no-vnodes
-        - j11_build
+          - start_j11_cqlsh_tests
+          - j11_build
     - j11_cqlsh-dtests-py3-no-vnodes:
         requires:
-        - start_j11_cqlsh_tests-no-vnodes
-        - j11_build
+          - start_j11_cqlsh_tests
+          - j11_build
     - j11_cqlsh-dtests-py38-no-vnodes:
         requires:
-          - start_j11_cqlsh_tests-no-vnodes
+          - start_j11_cqlsh_tests
+          - j11_build
+    # Java 11 repeated utest
+    - start_j11_repeated_utest:
+        type: approval
+    - j11_repeated_utest:
+        requires:
+          - start_j11_repeated_utest
+          - j11_build
+    # Java 11 repeated dtest
+    - start_j11_repeated_dtest:
+        type: approval
+    - j11_repeated_dtest:
+        requires:
+          - start_j11_repeated_dtest
+          - j11_build
+
+j11_pre-commit_jobs: &j11_pre-commit_jobs
+  jobs:
+    - start_pre-commit_tests:
+        type: approval
+    - j11_build:
+        requires:
+          - start_pre-commit_tests
+    - j11_unit_tests:
+        requires:
+          - j11_build
+    - j11_jvm_dtests:
+        requires:
+          - j11_build
+    - j11_cqlshlib_tests:
+        requires:
+          - j11_build
+    - j11_jvm_dtests:
+        requires:
+          - j11_build
+    - j11_cqlshlib_tests:
+        requires:
+          - j11_build
+    - j11_dtests-with-vnodes:
+        requires:
+          - j11_build
+    - j11_dtests-no-vnodes:
+        requires:
+          - j11_build
+    - j11_cqlsh-dtests-py2-with-vnodes:
+        requires:
+          - j11_build
+    - j11_cqlsh-dtests-py3-with-vnodes:
+        requires:
+          - j11_build
+    - j11_cqlsh-dtests-py38-with-vnodes:
+        requires:
+          - j11_build
+    - j11_cqlsh-dtests-py2-no-vnodes:
+        requires:
+          - j11_build
+    - j11_cqlsh-dtests-py3-no-vnodes:
+        requires:
+          - j11_build
+    - j11_cqlsh-dtests-py38-no-vnodes:
+        requires:
           - j11_build
     # Java 11 repeated utest (on request)
     - start_j11_repeated_utest:
@@ -404,32 +683,12 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
           - start_j11_repeated_dtest
           - j11_build
 
-j8_with_dtest_jobs_only: &j8_with_dtest_jobs_only
-  jobs:
-    - j8_build
-    - j8_dtests-with-vnodes:
-        requires:
-          - j8_build
-    - j8_dtests-no-vnodes:
-        requires:
-          - j8_build
-
-j11_with_dtest_jobs_only: &j11_with_dtest_jobs_only
-  jobs:
-    - build
-    - j11-with-vnodes:
-        requires:
-          - j11_build
-    - j11_dtests-no-vnodes:
-        requires:
-          - j11_build
-
 workflows:
     version: 2
-    java8_build_and_run_tests: *j8_with_dtests_jobs
-#    java8_build_and_run_tests: *j8_with_dtest_jobs_only
-    java11_build_and_run_tests: *j11_with_dtests_jobs
-#    java11_build_and_run_tests: *j11_with_dtest_jobs_only
+    java8_separate_tests: *j8_with_dtests_jobs
+    java8_pre-commit_tests: *j8_pre-commit_jobs
+    java11_separate_tests: *j11_with_dtests_jobs
+    java11_pre-commit_tests: *j11_pre-commit_jobs
 
 executors:
   java8-executor:
@@ -877,7 +1136,7 @@ jobs:
           python_version: '3.8'
 
   j8_repeated_utest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -890,7 +1149,7 @@ jobs:
           stop_on_failure: ${REPEATED_UTEST_STOP_ON_FAILURE}
 
   j11_repeated_utest:
-    <<: *j11_par_executor
+    <<: *j11_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -903,7 +1162,7 @@ jobs:
           stop_on_failure: ${REPEATED_UTEST_STOP_ON_FAILURE}
 
   j8_repeated_dtest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -917,7 +1176,7 @@ jobs:
           stop_on_failure: ${REPEATED_DTEST_STOP_ON_FAILURE}
 
   j11_repeated_dtest:
-    <<: *j11_par_executor
+    <<: *j11_repeated_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -932,7 +1191,7 @@ jobs:
           stop_on_failure: ${REPEATED_DTEST_STOP_ON_FAILURE}
 
   repeated_jvm_upgrade_dtest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_jvm_upgrade_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -945,7 +1204,7 @@ jobs:
           stop_on_failure: ${REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE}
 
   repeated_upgrade_dtest:
-    <<: *j8_par_executor
+    <<: *j8_repeated_upgrade_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
