@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
@@ -43,11 +42,14 @@ public abstract class TimeFcts
                                 now("currentdate", SimpleDateType.instance),
                                 now("currenttime", TimeType.instance),
                                 minTimeuuidFct,
+                                minTimeuuidFct(LongType.instance),
                                 maxTimeuuidFct,
+                                maxTimeuuidFct(LongType.instance),
                                 dateOfFct,
                                 unixTimestampOfFct,
                                 toDate(TimeUUIDType.instance),
                                 toTimestamp(TimeUUIDType.instance),
+                                toTimestamp(LongType.instance),
                                 toUnixTimestamp(TimeUUIDType.instance),
                                 toUnixTimestamp(TimestampType.instance),
                                 toDate(TimestampType.instance),
@@ -66,7 +68,7 @@ public abstract class TimeFcts
                 return type.now();
             }
         };
-    };
+    }
 
     public static final Function minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
@@ -80,6 +82,21 @@ public abstract class TimeFcts
         }
     };
 
+    public static final NativeScalarFunction minTimeuuidFct(final LongType type)
+    {
+        return new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, type)
+        {
+            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            {
+                ByteBuffer bb = parameters.get(0);
+                if (bb == null)
+                    return null;
+
+                return UUIDGen.toByteBuffer(UUIDGen.minTimeUUID(LongType.instance.toLong(bb)));
+            }
+        };
+    }
+
     public static final Function maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
@@ -91,6 +108,21 @@ public abstract class TimeFcts
             return UUIDGen.toByteBuffer(UUIDGen.maxTimeUUID(TimestampType.instance.compose(bb).getTime()));
         }
     };
+
+    public static NativeScalarFunction maxTimeuuidFct(final LongType type)
+    {
+        return new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, type)
+        {
+            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            {
+                ByteBuffer bb = parameters.get(0);
+                if (bb == null)
+                    return null;
+
+                return UUIDGen.toByteBuffer(UUIDGen.maxTimeUUID(LongType.instance.toLong(bb)));
+            }
+        };
+    }
 
     /**
      * Function that convert a value of <code>TIMEUUID</code> into a value of type <code>TIMESTAMP</code>.
@@ -165,11 +197,11 @@ public abstract class TimeFcts
    }
 
     /**
-     * Creates a function that convert a value of the specified type into a <code>DATE</code>.
+     * Creates a function that convert a value of CQL(bigint) into a <code>DATE</code>.
      * @param type the temporal type
-     * @return a function that convert a value of the specified type into a <code>DATE</code>.
+     * @return a function that convert CQL(bigint) into a <code>DATE</code>.
      */
-    public static final NativeScalarFunction toDate(LongType type)
+    public static NativeScalarFunction toDate(final LongType type)
     {
         return new NativeScalarFunction("todate", SimpleDateType.instance, type)
         {
@@ -179,8 +211,8 @@ public abstract class TimeFcts
                 if (bb == null || !bb.hasRemaining())
                     return null;
 
-                long milliSeconds = ByteBufferUtil.toLong(bb);
-                return SimpleDateType.instance.fromTimeInMillis(milliSeconds);
+                long millis = LongType.instance.toLong(bb);
+                return SimpleDateType.instance.fromTimeInMillis(millis);
             }
         };
     }
@@ -206,6 +238,27 @@ public abstract class TimeFcts
            }
        };
    }
+
+    /**
+     * Creates a function that convert a value of the specified type into a <code>TIMESTAMP</code>.
+     * @param type the temporal type
+     * @return a function that convert a value of the specified type into a <code>TIMESTAMP</code>.
+     */
+    public static NativeScalarFunction toTimestamp(final LongType type)
+    {
+        return new NativeScalarFunction("totimestamp", TimestampType.instance, type)
+        {
+            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            {
+                ByteBuffer bb = parameters.get(0);
+                if (bb == null || !bb.hasRemaining())
+                    return null;
+
+                long millis = LongType.instance.toLong(bb);
+                return TimestampType.instance.fromTimeInMillis(millis);
+            }
+        };
+    }
 
     /**
      * Creates a function that convert a value of the specified type into an UNIX timestamp.

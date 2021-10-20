@@ -61,11 +61,29 @@ public class TimeFctsTest
     }
 
     @Test
+    public void testMinTimeUuidFromBigInt()
+    {
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
+        ByteBuffer input = LongType.instance.decompose(timeInMillis);
+        ByteBuffer output = executeFunction(TimeFcts.minTimeuuidFct(LongType.instance), input);
+        assertEquals(UUIDGen.minTimeUUID(timeInMillis), TimeUUIDType.instance.compose(output));
+    }
+
+    @Test
     public void testMaxTimeUuid()
     {
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = TimestampType.instance.fromString(DATE_TIME_STRING + "+00");
         ByteBuffer output = executeFunction(TimeFcts.maxTimeuuidFct, input);
+        assertEquals(UUIDGen.maxTimeUUID(timeInMillis), TimeUUIDType.instance.compose(output));
+    }
+
+    @Test
+    public void testMaxTimeUuidFromBigInt()
+    {
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
+        ByteBuffer input = LongType.instance.decompose(timeInMillis);
+        ByteBuffer output = executeFunction(TimeFcts.maxTimeuuidFct(LongType.instance), input);
         assertEquals(UUIDGen.maxTimeUUID(timeInMillis), TimeUUIDType.instance.compose(output));
     }
 
@@ -145,13 +163,13 @@ public class TimeFctsTest
     @Test
     public void testBigIntegerToDate()
     {
-        long milliSeconds = DATE_TIME.toInstant().toEpochMilli();
+        long millis = DATE.toInstant().toEpochMilli();
 
-        ByteBuffer input = LongType.instance.decompose(milliSeconds);
+        ByteBuffer input = LongType.instance.decompose(millis);
         ByteBuffer output = executeFunction(toDate(LongType.instance), input);
         assertEquals(DATE.toInstant().toEpochMilli(), SimpleDateType.instance.toTimeInMillis(output));
-
     }
+
     @Test
     public void testTimestampToDateWithEmptyInput()
     {
@@ -164,6 +182,16 @@ public class TimeFctsTest
     {
         ByteBuffer input = TimestampType.instance.decompose(Date.from(DATE_TIME.toInstant()));
         ByteBuffer output = executeFunction(toUnixTimestamp(TimestampType.instance), input);
+        assertEquals(DATE_TIME.toInstant().toEpochMilli(), LongType.instance.compose(output).longValue());
+    }
+
+    @Test
+    public void testBigIntegerToTimestamp()
+    {
+        long millis = DATE_TIME.toInstant().toEpochMilli();
+
+        ByteBuffer input = LongType.instance.decompose(millis);
+        ByteBuffer output = executeFunction(toTimestamp(LongType.instance), input);
         assertEquals(DATE_TIME.toInstant().toEpochMilli(), LongType.instance.compose(output).longValue());
     }
 
