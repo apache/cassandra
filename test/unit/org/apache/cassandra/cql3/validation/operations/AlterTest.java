@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3.validation.operations;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -29,7 +29,7 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -376,7 +376,7 @@ public class AlterTest extends CQLTester
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspace.TABLES),
+                                  SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
@@ -385,7 +385,7 @@ public class AlterTest extends CQLTester
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspace.TABLES),
+                                  SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
@@ -394,7 +394,7 @@ public class AlterTest extends CQLTester
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspace.TABLES),
+                                  SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
@@ -403,7 +403,7 @@ public class AlterTest extends CQLTester
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspace.TABLES),
+                                  SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("enabled", "false")));
@@ -413,7 +413,7 @@ public class AlterTest extends CQLTester
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspace.TABLES),
+                                  SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("enabled", "false")));
