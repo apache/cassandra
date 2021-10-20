@@ -2935,6 +2935,6 @@ public class StorageProxy implements StorageProxyMBean
             return false;
 
         final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
-        return partitionDenylist.isKeyPermitted(keyspace, table, bytes);
+        return !partitionDenylist.isKeyPermitted(keyspace, table, bytes);
     }
 }
