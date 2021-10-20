@@ -265,7 +265,7 @@ public class MigrationManager
 
         SchemaMigrationDiagnostics.resetLocalSchema();
 
-        SchemaKeyspace.truncate();
+        Schema.instance.truncateSchemaKeyspace();
 
         logger.debug("Clearing local schema keyspace definitions...");
 
