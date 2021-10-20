@@ -159,6 +159,11 @@ public enum CassandraRelevantProperties
      */
     REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
 
+    /**
+     * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
+     */
+    ENABLE_NODELOCAL_QUERIES("cassandra.enable_nodelocal_queries", "false"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**
