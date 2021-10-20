@@ -56,6 +56,7 @@ import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -1692,7 +1693,7 @@ public class ViewTest extends CQLTester
         // Test the where clause stored in system_schema.views
         String schemaQuery = String.format("SELECT where_clause FROM %s.%s WHERE keyspace_name = ? AND view_name = ?",
                                            SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                           SchemaKeyspace.VIEWS);
+                                           SchemaKeyspaceTables.VIEWS);
         assertRows(execute(schemaQuery, keyspace(), viewName), row(expectedSchemaWhereClause));
 
         for (String insert : insertQueries)

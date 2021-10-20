@@ -452,7 +452,7 @@ public class Keyspace
 
     /**
      * If apply is blocking, apply must not be deferred
-     * Otherwise there is a race condition where ALL mutation workers are beeing blocked ending
+     * Otherwise there is a race condition where ALL mutation workers are being blocked ending
      * in a complete deadlock of the mutation stage. See CASSANDRA-12689.
      *
      * @param mutation       the row to write.  Must not be modified after calling apply, since commitlog append
