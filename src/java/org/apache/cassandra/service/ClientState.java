@@ -27,7 +27,15 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CassandraAuthorizer;
+import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -40,11 +48,11 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.CassandraVersion;
 
 /**
  * State related to a client connection.
@@ -64,7 +72,7 @@ public class ClientState
         for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.PEERS))
             READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
 
-        SchemaKeyspace.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
+        SchemaKeyspaceTables.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
 
         // neither clients nor tools need authentication/authorization
         if (DatabaseDescriptor.isDaemonInitialized())
