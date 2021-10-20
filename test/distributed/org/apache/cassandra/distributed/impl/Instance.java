@@ -630,7 +630,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static Config loadConfig(IInstanceConfig overrides)
     {
-        Map<String,Object> params = ((InstanceConfig) overrides).getParams();
+        Map<String,Object> params;
+        try
+        {
+            params = (Map<String, Object>)overrides.getClass().getMethod("getParams").invoke(overrides);
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
         boolean check = true;
         if (overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK) != null)
             check = (boolean) overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK);
