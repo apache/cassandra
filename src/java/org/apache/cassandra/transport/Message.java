@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
+import io.netty.channel.unix.Errors;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 
@@ -778,6 +779,11 @@ public abstract class Message
                     // to avoid spamming the logs once a bad client shows up
                     NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
                 }
+            }
+            else if (Throwables.anyCauseMatches(cause, t -> t instanceof Errors.NativeIoException))
+            {
+                ClientMetrics.instance.markUnknownException();
+                logger.trace("Native exception in client networking,", cause);
             }
             else
             {
