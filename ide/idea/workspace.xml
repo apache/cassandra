@@ -176,6 +176,7 @@
       <option name="TEST_SEARCH_SCOPE">
         <value defaultName="singleModule" />
       </option>
+      <fork_mode value="class" />
       <envs />
       <patterns />
       <method>
