@@ -81,10 +81,37 @@ public class Dispatcher
         requestExecutor.submit(() -> processRequest(channel, request, forFlusher, backpressure));
     }
 
+    static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure)
+    {
+        try
+        {
+            return processRequest((ServerConnection) request.connection(), request, backpressure);
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+
+            if (request.isTrackable())
+                CoordinatorWarnings.done();
+
+            Predicate<Throwable> handler = ExceptionHandlers.getUnexpectedExceptionHandler(channel, true);
+            ErrorMessage error = ErrorMessage.fromException(t, handler);
+            error.setStreamId(request.getStreamId());
+            error.setWarnings(ClientWarn.instance.getWarnings());
+            return error;
+        }
+        finally
+        {
+            CoordinatorWarnings.reset();
+            ClientWarn.instance.resetWarnings();
+        }
+    }
+
     /**
-     * Note: this method may be executed on the netty event loop, during initial protocol negotiation
+     * Note: this method may be executed on the netty event loop, during initial protocol negotiation; cleanup of
+     * global state is required by the caller.
      */
-    static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
+    private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
     {
         long queryStartNanoTime = nanoTime();
         if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
@@ -133,36 +160,9 @@ public class Dispatcher
      */
     void processRequest(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
-        final Message.Response response;
-        final ServerConnection connection;
-        FlushItem<?> toFlush;
-        try
-        {
-            assert request.connection() instanceof ServerConnection;
-            connection = (ServerConnection) request.connection();
-            response = processRequest(connection, request, backpressure);
-            toFlush = forFlusher.toFlushItem(channel, request, response);
-            Message.logger.trace("Responding: {}, v={}", response, connection.getVersion());
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            
-            if (request.isTrackable())
-                CoordinatorWarnings.done();
-            
-            Predicate<Throwable> handler = ExceptionHandlers.getUnexpectedExceptionHandler(channel, true);
-            ErrorMessage error = ErrorMessage.fromException(t, handler);
-            error.setStreamId(request.getStreamId());
-            error.setWarnings(ClientWarn.instance.getWarnings());
-            toFlush = forFlusher.toFlushItem(channel, request, error);
-        }
-        finally
-        {
-            CoordinatorWarnings.reset();
-            ClientWarn.instance.resetWarnings();
-        }
-        flush(toFlush);
+        Message.Response response = processRequest(channel, request, backpressure);
+        Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
+        flush(forFlusher.toFlushItem(channel, request, response));
     }
 
     private void flush(FlushItem<?> item)
