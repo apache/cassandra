@@ -20,32 +20,23 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.Futures;
 import org.junit.Test;
 
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.api.LogResult;
-import org.apache.cassandra.service.ClientWarn;
 import org.assertj.core.api.Assertions;
 
 public class NativeMixedVersionTest extends TestBaseImpl
 {
     @Test
-    public void test() throws IOException, ExecutionException, InterruptedException
+    public void v5NoLongerLeavesClientWarnings() throws IOException
     {
         System.setProperty("io.netty.eventLoopThreads", "1");
         try (Cluster cluster = Cluster.build(1)
