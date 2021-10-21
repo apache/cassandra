@@ -68,10 +68,10 @@ public class ColumnFilter
                          PartitionColumns queried,
                          SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections)
     {
-        assert !isFetchAll || fetched != null;
+        assert fetched != null;
         assert isFetchAll || queried != null;
         this.isFetchAll = isFetchAll;
-        this.fetched = isFetchAll ? fetched : queried;
+        this.fetched = fetched;
         this.queried = queried;
         this.subSelections = subSelections;
     }
@@ -93,7 +93,7 @@ public class ColumnFilter
      */
     public static ColumnFilter selection(PartitionColumns columns)
     {
-        return new ColumnFilter(false, null, columns, null);
+        return new ColumnFilter(false, columns, columns, null);
     }
 
 	/**
@@ -392,6 +392,12 @@ public class ColumnFilter
             PartitionColumns fetched = null;
             PartitionColumns selection = null;
 
+            // Due to schema change propagation delays, it is possible that the replica receiving the query has more
+            // columns than the coordinator. Those columns need to be ignored when returning the results as it will
+            // otherwise trigger some errors on the coordinator side that is not aware of them.
+            boolean hasNoExtraStaticColumns = true;
+            boolean hasNoExtraRegularColumns = true;
+
             if (isFetchAll)
             {
                 if (version >= MessagingService.VERSION_3014)
@@ -399,6 +405,8 @@ public class ColumnFilter
                     Columns statics = Columns.serializer.deserialize(in, metadata);
                     Columns regulars = Columns.serializer.deserialize(in, metadata);
                     fetched = new PartitionColumns(statics, regulars);
+                    hasNoExtraStaticColumns = statics.containsAll(metadata.partitionColumns().statics);
+                    hasNoExtraRegularColumns = regulars.containsAll(metadata.partitionColumns().regulars);
                 }
                 else
                 {
@@ -425,7 +433,10 @@ public class ColumnFilter
                 }
             }
 
-            return new ColumnFilter(isFetchAll, fetched, selection, subSelections);
+            if (hasNoExtraStaticColumns && hasNoExtraRegularColumns)
+                return new ColumnFilter(isFetchAll, isFetchAll ? fetched : selection, selection, subSelections);
+
+            return new ColumnFilter(false, fetched, selection == null ? fetched : selection, subSelections);
         }
 
         public long serializedSize(ColumnFilter selection, int version)
