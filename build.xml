@@ -375,8 +375,8 @@
           <dependency groupId="net.bytebuddy" artifactId="byte-buddy" version="${bytebuddy.version}" />
           <dependency groupId="net.bytebuddy" artifactId="byte-buddy-agent" version="${bytebuddy.version}" />
 
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.1.1" scope="test"/>
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.1.1" scope="test"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21" scope="test"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21" scope="test"/>
 
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <!--dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" scope="provided"/-->

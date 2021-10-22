@@ -1,4 +1,5 @@
 3.0.26:
+ * Fix slow keycache load which blocks startup for tables with many sstables (CASSANDRA-14898)
  * Fix rare NPE caused by batchlog replay / node decomission races (CASSANDRA-17049)
  * Allow users to view permissions of the roles they created (CASSANDRA-16902)
  * Fix failure handling in inter-node communication (CASSANDRA-16334)
