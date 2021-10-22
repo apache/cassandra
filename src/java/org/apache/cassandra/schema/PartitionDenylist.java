@@ -151,9 +151,11 @@ public class PartitionDenylist
         String retryReason = "Insufficient nodes";
         try
         {
-            checkDenylistNodeAvailability();
-            if (load())
+            if (checkDenylistNodeAvailability())
+            {
+                load();
                 return;
+            }
         }
         catch (Throwable tr)
         {
@@ -223,7 +225,7 @@ public class PartitionDenylist
      * the max allowable size in the list. We do not serve queries out of this denylist until it is populated
      * so as not to introduce a window of having a partially filled cache allow denylisted entries.
      */
-    public boolean load()
+    public void load()
     {
         final long start = currentTimeMillis();
 
@@ -239,7 +241,6 @@ public class PartitionDenylist
         }
         denylist = newDenylist;
         logger.info("Loaded partition denylist cache in {}ms", currentTimeMillis() - start);
-        return true;
     }
 
     /**
