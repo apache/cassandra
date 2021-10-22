@@ -36,7 +36,7 @@ import org.assertj.core.api.Assertions;
 public class NativeMixedVersionTest extends TestBaseImpl
 {
     @Test
-    public void v5NoLongerLeavesClientWarnings() throws IOException
+    public void v4ConnectionCleansUpThreadLocalState() throws IOException
     {
         System.setProperty("io.netty.eventLoopThreads", "1");
         try (Cluster cluster = Cluster.build(1)
