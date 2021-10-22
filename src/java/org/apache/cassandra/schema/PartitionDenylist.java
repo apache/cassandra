@@ -66,18 +66,10 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * Concurrency of the cache is provided by the concurrency semantics of the guava LoadingCache. All values (DenylistEntry) are
  * immutable collections of keys/tokens which are replaced in whole when the cache refreshes from disk.
  *
- * The intersection of the denylist and the configurable (though not conveniently exposed) ConsistencyLevel is subtle; essentially
- * we prioritize operator flexibility in the face of degraded cluster state over the consistency of the denylist cache across
- * the cluster. What this means in effect is that we warn when we have a degraded availability scenario rather than freezing
- * the state of the denylist or, worse, presenting an empty denylist for the owned ks/table set.
- *
- * For example, in a scenario where you have RF=3 with 2 nodes down, a CL.QUORUM required CL for your denylist would mean
- * you could effectively not change the denylist configuration for your only available node until you recovered one of the
- * other nodes in this replica set owning the denylist data. Rather than forcing operators to change the CL of their denylist
- * table, revise the denylist, reload the cache, then revert the CL, we instead allow all non-timer instigated reloads to proceed.
- *
- * On a cache refresh in which the cache entry for a denylist entry expires we do not continue with the reload of the
- * cache value and instead use the expired value, warning to the user that their cache state is likely stale.
+ * The CL for the denylist is used on initial node load as well as on timer instigated cache refreshes. A JMX call by the
+ * operator to load the denylist cache will warn on CL unavailability but go through with the denylist load. This is to
+ * allow operators flexibility in the face of degraded cluster state and still grant them the ability to mutate the denylist
+ * cache and bring it up if there are things they need to block on startup.
  *
  * Notably, in the current design it's possible for a table *cache expiration instigated* reload to end up violating the
  * contract on total denylisted keys allowed in the case where it initially loads with a value less than the DBD
