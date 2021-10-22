@@ -1191,6 +1191,19 @@ public class ReadCommandTest
                                                            ReplicaUtils.full(addr, token)));
     }
 
+    @Test
+    public void testToCQLString()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
+        DecoratedKey key = Util.dk("key");
+
+        ReadCommand readCommand = Util.cmd(cfs, key).build();
+
+        String result = readCommand.toCQLString();
+
+        assertEquals(result, String.format("SELECT * FROM \"ReadCommandTest\".\"Standard2\" WHERE key = 0x%s ALLOW FILTERING", ByteBufferUtil.bytesToHex(key.getKey())));
+    }
+
     private void testRepairedDataTracking(ColumnFamilyStore cfs, ReadCommand readCommand)
     {
         cfs.truncateBlocking();
