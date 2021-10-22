@@ -331,7 +331,6 @@ public abstract class Message
                 if (warnings != null)
                 {
                     // if cassandra populates warnings for <= v3 protocol, this is a bug
-                    // rather than failing the request and yelling at the user, fix this bug and yell into the logs
                     if (version.isSmallerThan(ProtocolVersion.V4))
                     {
                         logger.warn("Warnings present in message with version less than v4 (it is {}); warnings={}", version, warnings);
