@@ -108,8 +108,8 @@ public class Dispatcher
     }
 
     /**
-     * Note: this method may be executed on the netty event loop, during initial protocol negotiation; cleanup of
-     * global state is required by the caller.
+     * Note: this method may be executed on the netty event loop, during initial protocol negotiation; the caller is
+     * responsible for cleaning up any global or thread-local state. (ex. tracing, client warnings, etc.).
      */
     private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
     {
