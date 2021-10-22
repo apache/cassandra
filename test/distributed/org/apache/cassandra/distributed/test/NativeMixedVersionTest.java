@@ -38,6 +38,8 @@ public class NativeMixedVersionTest extends TestBaseImpl
     @Test
     public void v4ConnectionCleansUpThreadLocalState() throws IOException
     {
+        // make sure to limit the netty thread pool to size 1, this will make the test determanistic as all work
+        // will happen on the single thread.
         System.setProperty("io.netty.eventLoopThreads", "1");
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c ->
