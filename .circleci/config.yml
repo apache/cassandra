@@ -1243,7 +1243,7 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 10
+    parallelism: 26
     resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
@@ -1680,7 +1680,7 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 20
+    parallelism: 35
     resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
@@ -2986,7 +2986,7 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 14
+    parallelism: 26
     resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
@@ -3126,7 +3126,7 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 2
+    parallelism: 12
     resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
