@@ -315,7 +315,7 @@ public class PartitionDenylist
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
 
         // We have a few quick state checks to get out of the way first; this is hot path so we want to do these first if possible.
-        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !canDenylistKeyspace(tmd.keyspace))
+        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || tmd == null || !canDenylistKeyspace(tmd.keyspace))
             return true;
 
         try
@@ -329,15 +329,16 @@ public class PartitionDenylist
         catch (final Exception e)
         {
             // In the event of an error accessing or populating the cache, assume it's not denylisted
-            logAccessFailure(tmd, e);
+            logAccessFailure(tid, e);
             return true;
         }
     }
 
-    private void logAccessFailure(final TableMetadata tmd, Throwable e)
+    private void logAccessFailure(final TableId tid, Throwable e)
     {
+        final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
         if (tmd == null)
-            logger.debug("Failed to access partition denylist cache for unknown table id {}", tmd.id, e);
+            logger.debug("Failed to access partition denylist cache for unknown table id {}", tid.toString(), e);
         else
             logger.debug("Failed to access partition denylist cache for {}/{}", tmd.keyspace, tmd.name, e);
     }
@@ -356,7 +357,7 @@ public class PartitionDenylist
     public int getDeniedKeysInRangeCount(final TableId tid, final AbstractBounds<PartitionPosition> range)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || !canDenylistKeyspace(tmd.keyspace))
+        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || tmd == null || !canDenylistKeyspace(tmd.keyspace))
             return 0;
 
         try
@@ -382,7 +383,7 @@ public class PartitionDenylist
         }
         catch (final Exception e)
         {
-            logAccessFailure(tmd, e);
+            logAccessFailure(tid, e);
             return 0;
         }
     }
