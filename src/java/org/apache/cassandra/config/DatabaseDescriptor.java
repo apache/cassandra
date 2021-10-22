@@ -2903,6 +2903,17 @@ public class DatabaseDescriptor
         conf.counter_cache_save_period = counterCacheSavePeriod;
     }
 
+    public static int getCacheLoadTimeout()
+    {
+        return conf.cache_load_timeout_seconds;
+    }
+
+    @VisibleForTesting
+    public static void setCacheLoadTimeout(int seconds)
+    {
+        conf.cache_load_timeout_seconds = seconds;
+    }
+
     public static int getCounterCacheKeysToSave()
     {
         return conf.counter_cache_keys_to_save;
