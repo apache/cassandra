@@ -49,7 +49,7 @@ The denylist has the property in that you want to keep your cache (see below) an
 2. Trigger a reload of the denylist cache on each node (see below)
 3. Check for warnings about lack of availability for a denylist refresh. In the event nodes are down, recover them, then go to 2.
 
-By default, the denylist will load without warning if a quorum of nodes holding the denylist data are available on initial load start and when prompted via JMX by a user. The denylist `will not`, however, refresh on cache timeout if the desired consistency level of nodes available are not up.
+Due to conditions on known unavailable range slices leading to alert storming on startup, the denylist cache won't load on node start unless it can achieve the configured consistency level in cassandra.yaml, `denylist_consistency_level`. The JMX call to `loadPartitionDenylist` will, however, load the cache regardless of the number of nodes available. This leaves the control for denylisting or not denylisting during degraded cluster states in the hands of the operator.
 
 Denylisted Partitions Cache
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
