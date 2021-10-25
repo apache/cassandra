@@ -81,6 +81,57 @@ public class Dispatcher
         requestExecutor.submit(() -> processRequest(channel, request, forFlusher, backpressure));
     }
 
+    /**
+     * Note: this method may be executed on the netty event loop, during initial protocol negotiation; the caller is
+     * responsible for cleaning up any global or thread-local state. (ex. tracing, client warnings, etc.).
+     */
+    private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
+    {
+        long queryStartNanoTime = nanoTime();
+        if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
+            ClientWarn.instance.captureWarnings();
+
+        // even if ClientWarn is disabled, still setup CoordinatorTrackWarnings, as this will populate metrics and
+        // emit logs on the server; the warnings will just be ignored and not sent to the client
+        if (request.isTrackable())
+            CoordinatorWarnings.init();
+
+        if (backpressure == Overload.REQUESTS)
+        {
+            String message = String.format("Request breached global limit of %d requests/second and triggered backpressure.",
+                                           ClientResourceLimits.getNativeTransportMaxRequestsPerSecond());
+
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, message);
+            ClientWarn.instance.warn(message);
+        }
+        else if (backpressure == Overload.BYTES_IN_FLIGHT)
+        {
+            String message = String.format("Request breached limit(s) on bytes in flight (Endpoint: %d, Global: %d) and triggered backpressure.",
+                                           ClientResourceLimits.getEndpointLimit(), ClientResourceLimits.getGlobalLimit());
+
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, message);
+            ClientWarn.instance.warn(message);
+        }
+
+        QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
+
+        Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
+        connection.requests.inc();
+        Message.Response response = request.execute(qstate, queryStartNanoTime);
+
+        if (request.isTrackable())
+            CoordinatorWarnings.done();
+
+        response.setStreamId(request.getStreamId());
+        response.setWarnings(ClientWarn.instance.getWarnings());
+        response.attach(connection);
+        connection.applyStateTransition(request.type, response.type);
+        return response;
+    }
+
+    /**
+     * Note: this method may be executed on the netty event loop.
+     */
     static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure)
     {
         try
@@ -105,54 +156,6 @@ public class Dispatcher
             CoordinatorWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
-    }
-
-    /**
-     * Note: this method may be executed on the netty event loop, during initial protocol negotiation; the caller is
-     * responsible for cleaning up any global or thread-local state. (ex. tracing, client warnings, etc.).
-     */
-    private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
-    {
-        long queryStartNanoTime = nanoTime();
-        if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
-            ClientWarn.instance.captureWarnings();
-
-        // even if ClientWarn is disabled, still setup CoordinatorTrackWarnings, as this will populate metrics and
-        // emit logs on the server; the warnings will just be ignored and not sent to the client
-        if (request.isTrackable())
-            CoordinatorWarnings.init();
-
-        if (backpressure == Overload.REQUESTS)
-        {
-            String message = String.format("Request breached global limit of %d requests/second and triggered backpressure.",
-                                           ClientResourceLimits.getNativeTransportMaxRequestsPerSecond());
-            
-            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, message);
-            ClientWarn.instance.warn(message);
-        }
-        else if (backpressure == Overload.BYTES_IN_FLIGHT)
-        {
-            String message = String.format("Request breached limit(s) on bytes in flight (Endpoint: %d, Global: %d) and triggered backpressure.",
-                                           ClientResourceLimits.getEndpointLimit(), ClientResourceLimits.getGlobalLimit());
-            
-            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, message);
-            ClientWarn.instance.warn(message);
-        }
-
-        QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
-
-        Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
-        connection.requests.inc();
-        Message.Response response = request.execute(qstate, queryStartNanoTime);
-
-        if (request.isTrackable())
-            CoordinatorWarnings.done();
-
-        response.setStreamId(request.getStreamId());
-        response.setWarnings(ClientWarn.instance.getWarnings());
-        response.attach(connection);
-        connection.applyStateTransition(request.type, response.type);
-        return response;
     }
 
     /**
