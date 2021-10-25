@@ -187,8 +187,8 @@ public class PartitionDenylist
                            @Override
                            public DenylistEntry load(final TableId tid)
                            {
-                               // On initial load, we load whether or not the CL required count are available as the alternative
-                               // is an empty denylist. This allows operators to intervene in the event they need to deny or
+                               // We load whether or not the CL required count are available as the alternative is an
+                               // empty denylist. This allows operators to intervene in the event they need to deny or
                                // undeny a specific partition key around a node recovery.
                                checkDenylistNodeAvailability();
                                return getDenylistForTableFromCQL(tid);
