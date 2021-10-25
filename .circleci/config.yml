@@ -4498,9 +4498,6 @@ workflows:
     - j8_cqlshlib_tests:
         requires:
         - j8_build
-    - j11_unit_tests:
-        requires:
-        - j8_build
     - start_utests_long:
         type: approval
     - utests_long:
@@ -4540,12 +4537,6 @@ workflows:
     - j8_dtests-no-vnodes:
         requires:
         - j8_build
-    - j11_dtests-with-vnodes:
-        requires:
-        - j8_build
-    - j11_dtests-no-vnodes:
-        requires:
-        - j8_build
     - j8_upgradetests-no-vnodes:
         requires:
         - j8_build
@@ -4565,24 +4556,6 @@ workflows:
         requires:
         - j8_build
     - j8_cqlsh-dtests-py38-no-vnodes:
-        requires:
-        - j8_build
-    - j11_cqlsh-dtests-py2-with-vnodes:
-        requires:
-        - j8_build
-    - j11_cqlsh-dtests-py3-with-vnodes:
-        requires:
-        - j8_build
-    - j11_cqlsh-dtests-py38-with-vnodes:
-        requires:
-        - j8_build
-    - j11_cqlsh-dtests-py2-no-vnodes:
-        requires:
-        - j8_build
-    - j11_cqlsh-dtests-py3-no-vnodes:
-        requires:
-        - j8_build
-    - j11_cqlsh-dtests-py38-no-vnodes:
         requires:
         - j8_build
   version: 2
