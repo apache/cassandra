@@ -161,8 +161,9 @@ public class Dispatcher
     void processRequest(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
         Message.Response response = processRequest(channel, request, backpressure);
+        FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
         Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
-        flush(forFlusher.toFlushItem(channel, request, response));
+        flush(toFlush);
     }
 
     private void flush(FlushItem<?> item)
