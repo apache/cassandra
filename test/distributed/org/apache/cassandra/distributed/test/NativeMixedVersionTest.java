@@ -55,7 +55,7 @@ public class NativeMixedVersionTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck1 int, value blob, PRIMARY KEY (pk, ck1))"));
             IInvokableInstance node = cluster.get(1);
 
-            ByteBuffer blob = ByteBuffer.wrap("This is just some large string to get a some number of bytes".getBytes(StandardCharsets.UTF_8));
+            ByteBuffer blob = ByteBuffer.wrap("This is just some large string to get some number of bytes".getBytes(StandardCharsets.UTF_8));
 
             for (int i = 0; i < 100; i++)
                 node.executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck1, value) VALUES (?, ?, ?)"), 0, i, blob);
