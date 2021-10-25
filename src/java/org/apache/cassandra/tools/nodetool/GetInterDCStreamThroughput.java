@@ -26,15 +26,16 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class GetInterDCStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-esst", "--print-entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput")
-    private boolean printEntireSSTableThroughput;
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput")
+    private boolean entireSSTableThroughput;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        if (printEntireSSTableThroughput)
-            probe.output().out.println("Current entire SSTable inter-datacenter stream throughput: " + probe.getEntireSSTableInterDCStreamThroughput() + " Mb/s");
-        else
-            probe.output().out.println("Current inter-datacenter stream throughput: " + probe.getInterDCStreamThroughput() + " Mb/s");
+        int throughput = entireSSTableThroughput ? probe.getEntireSSTableInterDCStreamThroughput() : probe.getInterDCStreamThroughput();
+
+        probe.output().out.printf("Current %sinter-datacenter stream throughput: %s%n",
+                                  entireSSTableThroughput ? "entire SSTable " : "",
+                                  throughput > 0 ? throughput + " Mb/s" : "unlimited");
     }
 }

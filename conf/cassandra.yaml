@@ -906,6 +906,17 @@ sstable_preemptive_open_interval_in_mb: 50
 # disabled if internode encryption is enabled.
 # stream_entire_sstables: true
 
+# Throttles entire SSTable outbound streaming file transfers on
+# this node to the given total throughput in Mbps.
+# Setting this value to 0 it disables throttling.
+# When unset, the default is 200 Mbps or 25 MB/s.
+# entire_sstable_stream_throughput_outbound_megabits_per_sec: 200
+
+# Throttles entire SSTable file streaming between datacenters.
+# Setting this value to 0 disables throttling for entire SSTable inter-DC file streaming.
+# When unset, the default is 200 Mbps or 25 MB/s.
+# entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec: 200
+
 # Throttles all outbound streaming file transfers on this node to the
 # given total throughput in Mbps. This is necessary because Cassandra does
 # mostly sequential IO when streaming data during bootstrap or repair, which
@@ -919,17 +930,6 @@ sstable_preemptive_open_interval_in_mb: 50
 # stream_throughput_outbound_megabits_per_sec
 # When unset, the default is 200 Mbps or 25 MB/s.
 # inter_dc_stream_throughput_outbound_megabits_per_sec: 200
-
-# Throttles entire SSTable outbound streaming file transfers on
-# this node to the given total throughput in Mbps.
-# Setting this value to 0 it disables throttling.
-# When unset, the default is 200 Mbps or 25 MB/s.
-# entire_sstable_stream_throughput_outbound_megabits_per_sec: 200
-
-# Throttles entire SSTable file streaming between datacenters.
-# Setting this value to 0 disables throttling for entire SSTable inter-DC file streaming.
-# When unset, the default is 200 Mbps or 25 MB/s.
-# entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec: 200
 
 # Server side timeouts for requests. The server will return a timeout exception
 # to the client if it can't complete an operation within the corresponding

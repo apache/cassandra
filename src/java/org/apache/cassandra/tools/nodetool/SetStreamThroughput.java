@@ -31,7 +31,7 @@ public class SetStreamThroughput extends NodeToolCmd
     private int streamThroughput;
 
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-esst", "--set-entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput")
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput")
     private boolean setEntireSSTableThroughput;
 
     @Override

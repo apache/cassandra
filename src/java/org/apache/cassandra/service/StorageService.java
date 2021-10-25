@@ -1509,7 +1509,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValue = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateThroughput();
-        logger.info("setstreamthroughput: throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
+        logger.info("setstreamthroughput: throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
     public int getStreamThroughputMbPerSec()
@@ -1522,7 +1522,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValue = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
-        logger.info("setstreamthroughput (entire SSTable): throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
+        logger.info("setstreamthroughput (entire SSTable): throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
     public int getEntireSSTableStreamThroughputMbPerSec()
@@ -1535,7 +1535,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValue = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateInterDCThroughput();
-        logger.info("setinterdcstreamthroughput: throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
+        logger.info("setinterdcstreamthroughput: throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
     public int getInterDCStreamThroughputMbPerSec()
@@ -1548,7 +1548,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValue = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
-        logger.info("setinterdcstreamthroughput (entire SSTable): throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
+        logger.info("setinterdcstreamthroughput (entire SSTable): throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
     public int getEntireSSTableInterDCStreamThroughputMbPerSec()

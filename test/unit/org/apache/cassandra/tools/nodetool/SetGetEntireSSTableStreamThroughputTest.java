@@ -79,7 +79,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
 
     private static void assertSetGetValidThroughput(int throughput)
     {
-        ToolResult tool = invokeNodetool("setstreamthroughput", "-esst", String.valueOf(throughput));
+        ToolResult tool = invokeNodetool("setstreamthroughput", "-e", String.valueOf(throughput));
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEmpty();
 
@@ -95,17 +95,20 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
 
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
     {
-        ToolResult tool = throughput == null ? invokeNodetool("setstreamthroughput", "-esst")
-                                             : invokeNodetool("setstreamthroughput", "-esst", throughput);
+        ToolResult tool = throughput == null ? invokeNodetool("setstreamthroughput", "-e")
+                                             : invokeNodetool("setstreamthroughput", "-e", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
     private static void assertGetThroughput(int expected)
     {
-        ToolResult tool = invokeNodetool("getstreamthroughput", "-esst");
+        ToolResult tool = invokeNodetool("getstreamthroughput", "-e");
         tool.assertOnCleanExit();
 
-        assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: " + expected + " Mb/s");
+        if (expected > 0)
+            assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: " + expected + " Mb/s");
+        else
+            assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: unlimited");
     }
 }

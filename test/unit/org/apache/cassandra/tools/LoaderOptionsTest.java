@@ -81,7 +81,7 @@ public class LoaderOptionsTest
     {
         // Default Cassandra config
         File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
-        String[] args = { "-esst", "350", "-esstidct", "600", "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
+        String[] args = { "-e", "350", "-eidct", "600", "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
         assertNotNull(options.entireSSTableThrottle);
         assertEquals(350, options.entireSSTableThrottle);

@@ -645,8 +645,8 @@ public class LoaderOptions
         options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001)");
         options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
         options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
-        options.addOption("esst", ENTIRE_SSTABLE_THROTTLE_MBITS, "entire-sstable-throttle", "entire SSTable throttle speed in Mbits (default unlimited)");
-        options.addOption("esstidct", ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS, "entire-sstable-inter-dc-throttle", "entire SSTable inter-datacenter throttle speed in Mbits (default unlimited)");
+        options.addOption("e", ENTIRE_SSTABLE_THROTTLE_MBITS, "entire-sstable-throttle", "entire SSTable throttle speed in Mbits (default unlimited)");
+        options.addOption("eidct", ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS, "entire-sstable-inter-dc-throttle", "entire SSTable inter-datacenter throttle speed in Mbits (default unlimited)");
         options.addOption("u", USER_OPTION, "username", "username for cassandra authentication");
         options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
         options.addOption("ap", AUTH_PROVIDER_OPTION, "auth provider", "custom AuthProvider class name for cassandra authentication");

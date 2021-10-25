@@ -100,6 +100,10 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     {
         ToolResult tool = invokeNodetool("getinterdcstreamthroughput");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " Mb/s");
+
+        if (expected > 0)
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " Mb/s");
+        else
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
     }
 }
