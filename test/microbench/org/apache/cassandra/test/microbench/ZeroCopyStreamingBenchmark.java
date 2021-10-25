@@ -80,8 +80,8 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * Please ensure that this benchmark is run with stream_throughput_outbound_megabits_per_sec set to a
- * really high value otherwise, throttling will kick in and the results will not be meaningful.
+ * Please ensure that this benchmark is run with entire_sstable_stream_throughput_outbound_megabits_per_sec
+ * set to a really high value otherwise, throttling will kick in and the results will not be meaningful.
  */
 @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)

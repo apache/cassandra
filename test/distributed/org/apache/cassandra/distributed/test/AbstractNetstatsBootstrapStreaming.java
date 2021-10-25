@@ -36,11 +36,21 @@ public abstract class AbstractNetstatsBootstrapStreaming extends AbstractNetstat
     protected void executeTest(final boolean streamEntireSSTables,
                                final boolean compressionEnabled) throws Exception
     {
+        executeTest(streamEntireSSTables, compressionEnabled, 1);
+    }
+
+    protected void executeTest(final boolean streamEntireSSTables,
+                               final boolean compressionEnabled,
+                               final int throughput) throws Exception
+    {
         final Cluster.Builder builder = builder().withNodes(1)
                                                  .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2))
                                                  .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
                                                  .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
-                                                                             .set("stream_throughput_outbound_megabits_per_sec", 1)
+                                                                             .set(streamEntireSSTables
+                                                                                  ? "entire_sstable_stream_throughput_outbound_megabits_per_sec"
+                                                                                  : "stream_throughput_outbound_megabits_per_sec",
+                                                                                  throughput)
                                                                              .set("compaction_throughput_mb_per_sec", 1)
                                                                              .set("stream_entire_sstables", streamEntireSSTables));
 
@@ -52,14 +62,7 @@ public abstract class AbstractNetstatsBootstrapStreaming extends AbstractNetstat
 
             cluster.get(1).nodetoolResult("disableautocompaction", "netstats_test").asserts().success();
 
-            if (compressionEnabled)
-            {
-                populateData(true);
-            }
-            else
-            {
-                populateData(false);
-            }
+            populateData(compressionEnabled);
 
             cluster.get(1).flush("netstats_test");
 

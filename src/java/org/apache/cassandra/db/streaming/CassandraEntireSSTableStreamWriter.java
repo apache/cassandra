@@ -53,7 +53,7 @@ public class CassandraEntireSSTableStreamWriter
         this.sstable = sstable;
         this.context = context;
         this.manifest = context.manifest();
-        this.limiter = StreamManager.getRateLimiter(session.peer);
+        this.limiter = StreamManager.getEntireSSTableRateLimiter(session.peer);
     }
 
     /**

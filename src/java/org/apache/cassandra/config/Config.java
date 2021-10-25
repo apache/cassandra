@@ -241,6 +241,9 @@ public class Config
     public volatile int stream_throughput_outbound_megabits_per_sec = 200;
     public volatile int inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
 
+    public volatile int entire_sstable_stream_throughput_outbound_megabits_per_sec = 200;
+    public volatile int entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
+
     public String[] data_file_directories = new String[0];
 
     /**
