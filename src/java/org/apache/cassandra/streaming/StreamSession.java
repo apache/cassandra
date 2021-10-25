@@ -813,7 +813,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                                  "The time taken ({} ms) for processing the incoming stream message ({})" +
                                  " exceeded internode streaming TCP user timeout ({} ms).\n" +
                                  "The streaming connection might be closed due to tcp user timeout.\n" +
-                                 "Try to increase the internode_streaming_tcp_user_timeout_in_ms" +
+                                 "Try to increase the internode_streaming_tcp_user_timeout" +
                                  " or set it to 0 to use system defaults.",
                                  latencyMs, message, timeout);
         }

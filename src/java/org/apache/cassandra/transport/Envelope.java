@@ -189,7 +189,7 @@ public class Envelope
 
     public static class Decoder extends ByteToMessageDecoder
     {
-        private static final int MAX_TOTAL_LENGTH = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+        private static final int MAX_TOTAL_LENGTH = DatabaseDescriptor.getMaxNativeTransportFrameSize();
 
         private boolean discardingTooLongMessage;
         private long tooLongTotalLength;
