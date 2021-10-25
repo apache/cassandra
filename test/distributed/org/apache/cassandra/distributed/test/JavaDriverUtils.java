@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import com.datastax.driver.core.ProtocolVersion;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -29,6 +30,11 @@ public final class JavaDriverUtils
     }
 
     public static com.datastax.driver.core.Cluster create(ICluster<? extends IInstance> dtest)
+    {
+        return create(dtest, null);
+    }
+
+    public static com.datastax.driver.core.Cluster create(ICluster<? extends IInstance> dtest, ProtocolVersion version)
     {
         if (dtest.size() == 0)
             throw new IllegalArgumentException("Attempted to open java driver for empty cluster");
@@ -44,6 +50,9 @@ public final class JavaDriverUtils
         //TODO support port
         //TODO support auth
         dtest.stream().forEach(i -> builder.addContactPoint(i.broadcastAddress().getAddress().getHostAddress()));
+
+        if (version != null)
+            builder.withProtocolVersion(version);
 
         return builder.build();
     }

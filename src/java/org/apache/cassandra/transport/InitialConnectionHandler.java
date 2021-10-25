@@ -148,7 +148,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup, Overload.NONE);
+                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE);
                     outbound = response.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound, promise);
                     logger.trace("Configured pipeline: {}", ctx.pipeline());
