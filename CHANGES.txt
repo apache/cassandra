@@ -1,4 +1,5 @@
 4.1
+ * v4+ protocol did not clean up client warnings, which caused leaking the state (CASSANDRA-17054)
  * Remove duplicate toCQLString in ReadCommand (CASSANDRA-17023)
  * Ensure hint window is persistent across restarts of a node (CASSANDRA-14309)
  * Allow to GRANT or REVOKE multiple permissions in a single statement (CASSANDRA-17030)
