@@ -71,9 +71,9 @@ public class ParseAndConvertUnitsTest
         assertEquals(Duration.inMinutes(60), config.index_summary_resize_interval);
 
         //Confirm space parameters were successfully parsed with the default values in cassandra.yaml
-        assertEquals(null, config.memtable_heap_space);
-        assertEquals(null, config.memtable_offheap_space);
-        assertEquals(null, config.repair_session_space); //null everywhere so should be correct, let's check whether it will bomb
+        assertNull(config.memtable_heap_space);
+        assertNull(config.memtable_offheap_space);
+        assertNull(config.repair_session_space); //null everywhere so should be correct, let's check whether it will bomb
         assertEquals(new DataStorage("4194304B"), config.internode_application_send_queue_capacity);
         assertEquals(new DataStorage("134217728B"), config.internode_application_send_queue_reserve_endpoint_capacity);
         assertEquals(new DataStorage("536870912B"), config.internode_application_send_queue_reserve_global_capacity);
@@ -108,7 +108,7 @@ public class ParseAndConvertUnitsTest
         assertEquals(BitRate.inMegabitsPerSecond(200000000), config.stream_throughput_outbound);
         assertEquals(BitRate.inMegabitsPerSecond(200), config.inter_dc_stream_throughput_outbound);
     }
-};
+}
 
 
 
