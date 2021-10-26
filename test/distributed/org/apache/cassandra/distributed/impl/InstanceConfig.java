@@ -234,8 +234,6 @@ public class InstanceConfig implements IInstanceConfig
         return params;
     }
 
-    public Map<String, Object> getParams() { return params; }
-
     public static InstanceConfig generate(int nodeNum,
                                           INodeProvisionStrategy provisionStrategy,
                                           NetworkTopology networkTopology,

@@ -166,17 +166,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static void isConfigFileValid()
     {
-        if (isBlank("commitlog_sync_period") || isBlank("commitlog_sync_period"))
-        {
+        if (isBlank("commitlog_sync_period"))
             throw new IllegalArgumentException("You should provide a value for commitlog_sync_period or comment it in " +
                                                "order to get a default one");
-        }
 
-        if (isBlank("commitlog_sync_group_window") || isBlank("commitlog_sync_group_window"))
-        {
+        if (isBlank("commitlog_sync_group_window"))
             throw new IllegalArgumentException("You should provide a value for commitlog_sync_group_window or comment it in " +
                                                "order to get a default one");
-        }
     }
 
     private static boolean isBlank(String property)
@@ -216,7 +212,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     }
 
     @VisibleForTesting
-    public static class CustomConstructor extends CustomClassLoaderConstructor
+    static class CustomConstructor extends CustomClassLoaderConstructor
     {
         CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
@@ -259,7 +255,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * are not set to null.
      */
     @VisibleForTesting
-    public static class PropertiesChecker extends PropertyUtils
+    private static class PropertiesChecker extends PropertyUtils
     {
         private final Set<String> missingProperties = new HashSet<>();
 
@@ -267,7 +263,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private final Map<Class<?>, Map<String, Replacement>> replacements;
 
-        public PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
+        PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
         {
             this.replacements = Objects.requireNonNull(replacements, "Replacements should not be null");
             setSkipMissingProperties(true);
@@ -316,11 +312,14 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                         return null;
                     }
                 };
+<<<<<<< HEAD
 
                 if(replacement.deprecated)
                 {
                     logger.warn("{} parameter has been deprecated. It has a new name; For more information, please refer to NEWS.txt", name);
                 }
+=======
+>>>>>>> Cleanup
 
                 if(replacement.deprecated)
                 {
@@ -390,11 +389,16 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
+<<<<<<< HEAD
     /**
      * @param klass to get replacements for
      * @return map of old names and replacements needed.
      */
     private static Map<Class<? extends Object>, Map<String, Replacement>> getReplacements(Class<? extends Object> klass)
+=======
+    @VisibleForTesting
+    static Map<Class<?>, Map<String, Replacement>> getReplacements(Class<?> klass)
+>>>>>>> Cleanup
     {
         List<Replacement> replacements = getReplacementsRecursive(klass);
         Map<Class<?>, Map<String, Replacement>> objectOldNames = new HashMap<>();
@@ -484,10 +488,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         });
 
         boolean deprecated = r.deprecated();
-        if (r.deprecated())
-            deprecated = true;
-        else
-            deprecated = false;
+        deprecated = r.deprecated();
 
         Class<?> oldType = converter.getInputType();
         if (oldType == null)
@@ -534,7 +535,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             this.newName = Objects.requireNonNull(newName);
             this.converter = Objects.requireNonNull(converter);
             // by default deprecated is false
-
             this.deprecated = deprecated;
         }
     }

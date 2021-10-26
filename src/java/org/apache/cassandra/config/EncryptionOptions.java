@@ -579,7 +579,7 @@ public class EncryptionOptions
         }
 
         public final InternodeEncryption internode_encryption;
-        @Replaces(oldName = "enable_legacy_ssl_storage_port", scheduledRemoveBy = "5.0")
+        @Replaces(oldName = "enable_legacy_ssl_storage_port", deprecated = true)
         public final boolean legacy_ssl_storage_port_enabled;
 
         public ServerEncryptionOptions()
