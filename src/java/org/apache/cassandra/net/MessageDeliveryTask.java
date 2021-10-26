@@ -18,11 +18,14 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.EnumSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.Gossiper;
@@ -33,10 +36,10 @@ public class MessageDeliveryTask implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MessageDeliveryTask.class);
 
-    private final MessageIn message;
+    private final MessageIn<?> message;
     private final int id;
 
-    public MessageDeliveryTask(MessageIn message, int id)
+    public MessageDeliveryTask(MessageIn<?> message, int id)
     {
         assert message != null;
         this.message = message;
@@ -105,7 +108,17 @@ public class MessageDeliveryTask implements Runnable
                 }
             }
 
-            MessagingService.instance().sendReply(response, id, message.from);
+            InetAddress from;
+            byte[] fromBytes = message.parameters.get(Mutation.FORWARD_FROM);
+            try
+            {
+                from = fromBytes != null ? InetAddress.getByAddress(fromBytes) : message.from;
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+            MessagingService.instance().sendReply(response, id, from);
         }
     }
 

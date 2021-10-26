@@ -87,7 +87,8 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
             int size = in.readInt();
 
             // tell the recipients who to send their ack to
-            MessageOut<Mutation> message = new MessageOut<>(verb, mutation, Mutation.serializer).withParameter(Mutation.FORWARD_FROM, from.getAddress());
+            MessageOut<Mutation> message = new MessageOut<>(verb, mutation, Mutation.serializer).withParameter(Mutation.FORWARD_FROM, from.getAddress())
+                                                                                                .withParameter(MessagingService.FAILURE_CALLBACK_PARAM, MessagingService.ONE_BYTE);
             // Send a message to each of the addresses on our Forward List
             for (int i = 0; i < size; i++)
             {
