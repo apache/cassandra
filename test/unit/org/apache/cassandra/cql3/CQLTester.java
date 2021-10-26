@@ -1523,6 +1523,11 @@ public abstract class CQLTester
         assertInvalidThrowMessage(errorMessage, null, query, values);
     }
 
+    protected void assertInvalidMessageNet(String errorMessage, String query, Object... values) throws Throwable
+    {
+        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT), errorMessage, null, query, values);
+    }
+
     protected void assertInvalidThrow(Class<? extends Throwable> exception, String query, Object... values) throws Throwable
     {
         assertInvalidThrowMessage(null, exception, query, values);

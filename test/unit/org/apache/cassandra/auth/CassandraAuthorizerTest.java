@@ -18,80 +18,76 @@
 
 package org.apache.cassandra.auth;
 
-import java.util.Collections;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.statements.CreateRoleStatement;
-import org.apache.cassandra.cql3.statements.ListPermissionsStatement;
-import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.auth.AuthenticatedUser.SYSTEM_USER;
+import static java.lang.String.format;
 
 public class CassandraAuthorizerTest extends CQLTester
 {
-    private static final RoleResource PARENT_ROLE = RoleResource.role("parent");
-    private static final RoleResource CHILD_ROLE = RoleResource.role("child");
-    private static final RoleResource OTHER_ROLE = RoleResource.role("other");
+    private static final String PARENT = "parent";
+    private static final String CHILD = "child";
+    private static final String OTHER = "other";
+    private static final String PASSWORD = "secret";
 
     @BeforeClass
     public static void setupClass()
     {
         CQLTester.setUpClass();
-        SchemaLoader.setupAuth(new AuthTestUtils.LocalCassandraRoleManager(),
-                               new AuthTestUtils.LocalPasswordAuthenticator(),
-                               new AuthTestUtils.LocalCassandraAuthorizer(),
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+        requireAuthentication();
+        requireNetwork();
     }
 
     @Test
-    public void testListPermissionsOfChildByParent()
+    public void testListPermissionsOfChildByParent() throws Throwable
     {
-        // create parent role by system user
-        DatabaseDescriptor.getRoleManager()
-                          .createRole(SYSTEM_USER, PARENT_ROLE, AuthTestUtils.getLoginRoleOptions());
+        useSuperUser();
+
+        // create parent role by super user
+        executeNet(format("CREATE ROLE %s WITH login=true AND password='%s'", PARENT, PASSWORD));
+        executeNet(format("GRANT CREATE ON ALL ROLES TO %s", PARENT));
+        assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", PARENT)),
+                      row(PARENT, PARENT, "<all roles>", "CREATE"));
+
+        // create other role by super user
+        executeNet(format("CREATE ROLE %s WITH login=true AND password='%s'", OTHER, PASSWORD));
+        assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", OTHER)));
+
+        useUser(PARENT, PASSWORD);
 
         // create child role by parent
-        String createRoleQuery = String.format("CREATE ROLE %s", CHILD_ROLE.getRoleName());
-        CreateRoleStatement createRoleStatement = (CreateRoleStatement) QueryProcessor.parseStatement(createRoleQuery)
-                                                                                      .prepare(ClientState.forInternalCalls());
-        createRoleStatement.execute(getClientState(PARENT_ROLE.getRoleName()));
+        executeNet(format("CREATE ROLE %s WITH login = true AND password='%s'", CHILD, PASSWORD));
 
-        // grant SELECT permission on ALL KEYSPACES to child
-        DatabaseDescriptor.getAuthorizer()
-                          .grant(SYSTEM_USER,
-                                 Collections.singleton(Permission.SELECT),
-                                 DataResource.root(),
-                                 CHILD_ROLE);
+        // list permissions by parent
+        assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", PARENT)),
+                      row(PARENT, PARENT, "<all roles>", "CREATE"),
+                      row(PARENT, PARENT, "<role child>", "ALTER"),
+                      row(PARENT, PARENT, "<role child>", "DROP"),
+                      row(PARENT, PARENT, "<role child>", "AUTHORIZE"),
+                      row(PARENT, PARENT, "<role child>", "DESCRIBE"));
+        assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", CHILD)));
+        assertInvalidMessageNet(format("You are not authorized to view %s's permissions", OTHER),
+                                format("LIST ALL PERMISSIONS OF %s", OTHER));
 
-        // list child permissions by parent
-        String listPermissionsQuery = String.format("LIST ALL PERMISSIONS OF %s", CHILD_ROLE.getRoleName());
-        ListPermissionsStatement listPermissionsStatement = (ListPermissionsStatement) QueryProcessor.parseStatement(listPermissionsQuery)
-                                                                                                     .prepare(ClientState.forInternalCalls());
-        ResultMessage message = listPermissionsStatement.execute(getClientState(PARENT_ROLE.getRoleName()));
-        assertRows(UntypedResultSet.create(((ResultMessage.Rows) message).result),
-                   row("child", "child", "<all keyspaces>", "SELECT"));
+        useUser(CHILD, PASSWORD);
 
-        // list child permissions by other user that is not their parent
-        DatabaseDescriptor.getRoleManager().createRole(SYSTEM_USER, OTHER_ROLE, AuthTestUtils.getLoginRoleOptions());
-        Assertions.assertThatThrownBy(() -> listPermissionsStatement.execute(getClientState(OTHER_ROLE.getRoleName())))
-                  .isInstanceOf(UnauthorizedException.class)
-                  .hasMessage("You are not authorized to view child's permissions");
-    }
+        // list permissions by child
+        assertInvalidMessageNet(format("You are not authorized to view %s's permissions", PARENT),
+                                format("LIST ALL PERMISSIONS OF %s", PARENT));
+        assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", CHILD)));
+        assertInvalidMessageNet(format("You are not authorized to view %s's permissions", OTHER),
+                                format("LIST ALL PERMISSIONS OF %s", OTHER));
 
-    private static ClientState getClientState(String username)
-    {
-        ClientState state = ClientState.forInternalCalls();
-        state.login(new AuthenticatedUser(username));
-        return state;
+        // try to create role by child
+        assertInvalidMessageNet(format("User %s does not have sufficient privileges to perform the requested operation", CHILD),
+                                format("CREATE ROLE %s WITH login=true AND password='%s'", "nope", PASSWORD));
+
+        useUser(PARENT, PASSWORD);
+
+        // alter child's role by parent
+        executeNet(format("ALTER ROLE %s WITH login = false", CHILD));
+        executeNet(format("DROP ROLE %s", CHILD));
     }
 }
