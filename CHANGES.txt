@@ -1,4 +1,5 @@
 3.0.26:
+ * Fix failure handling in inter-node communication (CASSANDRA-16334)
  * Log more information when a node runs out of commitlog space (CASSANDRA-11323)
  * Don't take snapshots when truncating system tables (CASSANDRA-16839)
  * Make -Dtest.methods consistently optional in all Ant test targets (CASSANDRA-17014)
