@@ -83,6 +83,37 @@ public final class Schema implements SchemaProvider
     }
 
     /**
+     * Add entries to system_schema.* for the hardcoded system keyspaces
+     * 
+     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     */
+    public synchronized void saveSystemKeyspace()
+    {
+        SchemaKeyspace.saveSystemKeyspacesSchema();
+    }
+
+    /**
+     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     */
+    public synchronized void truncateSchemaKeyspace()
+    {
+        SchemaKeyspace.truncate();
+    }
+
+    /**
+     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     */
+    public synchronized Collection<Mutation> schemaKeyspaceAsMutations()
+    {
+        return SchemaKeyspace.convertSchemaToMutations();
+    }
+
+    public static KeyspaceMetadata getSystemKeyspaceMetadata()
+    {
+        return SchemaKeyspace.metadata();
+    }
+
+    /**
      * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
      * Schema version may be updated as the result.
      */
@@ -531,8 +562,10 @@ public final class Schema implements SchemaProvider
     /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
+     * 
+     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
      */
-    public void updateVersion()
+    public synchronized void updateVersion()
     {
         version = SchemaKeyspace.calculateSchemaDigest();
         SystemKeyspace.updateSchemaVersion(version);
@@ -594,6 +627,9 @@ public final class Schema implements SchemaProvider
         updateVersionAndAnnounce();
     }
 
+    /**
+     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     */
     public synchronized TransformationResult transform(SchemaTransformation transformation, boolean locally, long now) throws UnknownHostException
     {
         KeyspacesDiff diff;
@@ -648,6 +684,9 @@ public final class Schema implements SchemaProvider
         }
     }
 
+    /**
+     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     */
     synchronized void merge(Collection<Mutation> mutations)
     {
         // only compare the keyspaces affected by this set of schema mutations
