@@ -30,7 +30,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -66,7 +66,7 @@ public class PstmtPersistenceTest extends CQLTester
         String statement1 = "SELECT * FROM %s WHERE pk = ?";
         String statement2 = "SELECT * FROM %s WHERE key = ?";
         String statement3 = "SELECT * FROM %S WHERE key = ?";
-        stmtIds.add(prepareStatement(statement0, SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES, clientState));
+        stmtIds.add(prepareStatement(statement0, SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.TABLES, clientState));
         stmtIds.add(prepareStatement(statement1, clientState));
         stmtIds.add(prepareStatement(statement2, "foo", "bar", clientState));
         clientState.setKeyspace("foo");
