@@ -52,7 +52,7 @@ public final class DataStorage
 
         if (!matcher.find())
         {
-            throw new IllegalArgumentException("Invalid data storage size: " + value);
+            throw new IllegalArgumentException("Invalid data storage: " + value);
         }
 
         quantity = Long.parseLong(matcher.group(1));

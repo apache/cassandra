@@ -43,7 +43,7 @@ public class DurationTest
         assertThatThrownBy(() -> new Duration("-10s")).isInstanceOf(IllegalArgumentException.class)
                                                       .hasMessageContaining("Invalid duration: -10s");
         assertThatThrownBy(() -> new Duration("10xd")).isInstanceOf(IllegalArgumentException.class)
-                                                      .hasMessageContaining("Unsupported time unit: xd. Supported units are: ns, us, ms, s, m, h, d");
+                                                      .hasMessageContaining("Invalid duration: 10xd");
     }
 
     @Test

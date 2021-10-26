@@ -767,9 +767,11 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("enable_legacy_ssl_storage_port is true (enabled) with internode encryption disabled (none). Enable encryption or disable the legacy ssl storage port.");
             }
         }
-        Integer maxMessageSize = conf.internode_max_message_size.toBytesAsInt();
-        if (maxMessageSize != null)
+
+        if (conf.internode_max_message_size != null)
         {
+            long maxMessageSize = conf.internode_max_message_size.toBytes();
+
             if (maxMessageSize > conf.internode_application_receive_queue_reserve_endpoint_capacity.toBytes())
                 throw new ConfigurationException("internode_max_message_size must no exceed internode_application_receive_queue_reserve_endpoint_capacity", false);
 

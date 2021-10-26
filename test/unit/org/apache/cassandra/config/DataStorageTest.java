@@ -38,11 +38,11 @@ public class DataStorageTest
     public void testInvalidInputs()
     {
         assertThatThrownBy(() -> new DataStorage("10")).isInstanceOf(IllegalArgumentException.class)
-                                                    .hasMessageContaining("Invalid data storage size: 10");
+                                                    .hasMessageContaining("Invalid data storage: 10");
         assertThatThrownBy(() -> new DataStorage("-10bps")).isInstanceOf(IllegalArgumentException.class)
-                                                      .hasMessageContaining("Invalid data storage size: -10bps");
+                                                      .hasMessageContaining("Invalid data storage: -10bps");
         assertThatThrownBy(() -> new DataStorage("10HG")).isInstanceOf(IllegalArgumentException.class)
-                                                      .hasMessageContaining("Unsupported data storage unit: HG. Supported units are: B, KB, MB, GB");
+                                                      .hasMessageContaining("Invalid data storage: 10HG");
     }
 
     @Test
