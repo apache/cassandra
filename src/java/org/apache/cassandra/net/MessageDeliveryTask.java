@@ -18,11 +18,14 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.EnumSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.index.IndexNotAvailableException;
@@ -31,12 +34,12 @@ public class MessageDeliveryTask implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MessageDeliveryTask.class);
 
-    private final MessageIn message;
+    private final MessageIn<?> message;
     private final int id;
     private final long constructionTime;
     private final boolean isCrossNodeTimestamp;
 
-    public MessageDeliveryTask(MessageIn message, int id, long timestamp, boolean isCrossNodeTimestamp)
+    public MessageDeliveryTask(MessageIn<?> message, int id, long timestamp, boolean isCrossNodeTimestamp)
     {
         assert message != null;
         this.message = message;
@@ -90,9 +93,20 @@ public class MessageDeliveryTask implements Runnable
     {
         if (message.doCallbackOnFailure())
         {
-            MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
+            MessageOut<?> response = new MessageOut<>(MessagingService.Verb.INTERNAL_RESPONSE)
                                                 .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
-            MessagingService.instance().sendReply(response, id, message.from);
+
+            InetAddress from;
+            byte[] fromBytes = message.parameters.get(Mutation.FORWARD_FROM);
+            try
+            {
+                from = fromBytes != null ? InetAddress.getByAddress(fromBytes) : message.from;
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+            MessagingService.instance().sendReply(response, id, from);
         }
     }
 
