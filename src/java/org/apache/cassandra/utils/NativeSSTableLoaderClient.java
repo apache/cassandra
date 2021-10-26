@@ -36,10 +36,6 @@ import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.schema.TableMetadata;
 
-import org.apache.cassandra.schema.CQLTypeParser;
-import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.schema.Types;
-
 public class NativeSSTableLoaderClient extends SSTableLoader.Client
 {
     protected final Map<String, TableMetadataRef> tables;
@@ -121,7 +117,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     private static Types fetchTypes(String keyspace, Session session)
     {
-        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TYPES);
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.TYPES);
 
         Types.RawBuilder types = Types.rawBuilder(keyspace);
         for (Row row : session.execute(query, keyspace))
@@ -146,7 +142,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     private static Map<String, TableMetadataRef> fetchTables(String keyspace, Session session, IPartitioner partitioner, Types types)
     {
         Map<String, TableMetadataRef> tables = new HashMap<>();
-        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES);
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.TABLES);
 
         for (Row row : session.execute(query, keyspace))
         {
@@ -160,7 +156,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     private static Map<String, TableMetadataRef> fetchViews(String keyspace, Session session, IPartitioner partitioner, Types types)
     {
         Map<String, TableMetadataRef> tables = new HashMap<>();
-        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.VIEWS);
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.VIEWS);
 
         for (Row row : session.execute(query, keyspace))
         {
@@ -187,14 +183,14 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
         String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                             SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                            SchemaKeyspace.COLUMNS);
+                                            SchemaKeyspaceTables.COLUMNS);
 
         for (Row colRow : session.execute(columnsQuery, keyspace, name))
             builder.addColumn(createDefinitionFromRow(colRow, keyspace, name, types));
 
         String droppedColumnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                                    SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                                   SchemaKeyspace.DROPPED_COLUMNS);
+                                                   SchemaKeyspaceTables.DROPPED_COLUMNS);
         Map<ByteBuffer, DroppedColumn> droppedColumns = new HashMap<>();
         for (Row colRow : session.execute(droppedColumnsQuery, keyspace, name))
         {

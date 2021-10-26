@@ -22,15 +22,22 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -44,11 +51,14 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.FBUtilities;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(BMUnitRunner.class)
 public class SchemaKeyspaceTest
 {
     private static final String KEYSPACE1 = "CFMetaDataTest1";
@@ -63,15 +73,75 @@ public class SchemaKeyspaceTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 
-    /** See CASSANDRA-16856. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     *
-     * @throws Exception
-     */
+    /** See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes */
     @Test
-    public void testSchemaPullSynchoricity() throws Exception
+    public void testSchemaPullSynchronicity() throws Exception
     {
-        Method method = SchemaKeyspace.class.getDeclaredMethod("convertSchemaToMutations");
+        for (String methodName : Arrays.asList("schemaKeyspaceAsMutations",
+                                               "truncateSchemaKeyspace",
+                                               "saveSystemKeyspace",
+                                               "updateVersion"))
+        {
+            Method method = Schema.class.getDeclaredMethod(methodName);
+            assertTrue(Modifier.isSynchronized(method.getModifiers()));
+        }
+
+        Method method = Schema.class.getDeclaredMethod("merge", Collection.class);
         assertTrue(Modifier.isSynchronized(method.getModifiers()));
+        method = Schema.class.getDeclaredMethod("transform", SchemaTransformation.class, boolean.class, long.class);
+        assertTrue(Modifier.isSynchronized(method.getModifiers()));
+    }
+
+    /** See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes */
+    @Test
+    @BMRule(name = "delay partition updates to schema tables",
+            targetClass = "CassandraTableWriteHandler",
+            targetMethod = "write",
+            action = "Thread.sleep(1000);",
+            targetLocation = "AT EXIT")
+    public void testNoVisiblePartialSchemaUpdates() throws Exception
+    {
+        String keyspace = "sandbox";
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+
+        Schema.instance.truncateSchemaKeyspace();; // Make sure there's nothing but the create we're about to do
+        CyclicBarrier barrier = new CyclicBarrier(2);
+
+        Future<Void> creation = pool.submit(() -> {
+            barrier.await();
+            createTable(keyspace, "CREATE TABLE test (a text primary key, b int, c int)");
+            return null;
+        });
+
+        Future<Collection<Mutation>> mutationsFromThread = pool.submit(() -> {
+            barrier.await();
+
+            Collection<Mutation> mutations = Schema.instance.schemaKeyspaceAsMutations();
+            // Make sure we actually have a mutation to check for partial modification.
+            while (mutations.size() == 0)
+                mutations = Schema.instance.schemaKeyspaceAsMutations();
+
+            return mutations;
+        });
+
+        creation.get(); // make sure the creation is finished
+
+        Collection<Mutation> mutationsFromConcurrentAccess = mutationsFromThread.get();
+        Collection<Mutation> settledMutations = Schema.instance.schemaKeyspaceAsMutations();
+
+        // If the worker thread picked up the creation at all, it should have the same modifications.
+        // In other words, we should see all modifications or none.
+        if (mutationsFromConcurrentAccess.size() == settledMutations.size())
+        {
+            assertEquals(1, settledMutations.size());
+            Mutation mutationFromConcurrentAccess = mutationsFromConcurrentAccess.iterator().next();
+            Mutation settledMutation = settledMutations.iterator().next();
+
+            assertEquals("Read partial schema change!",
+                         settledMutation.getTableIds(), mutationFromConcurrentAccess.getTableIds());
+        }
+
+        pool.shutdownNow();
     }
 
     @Test
@@ -142,15 +212,15 @@ public class SchemaKeyspaceTest
 
         // Test schema conversion
         Mutation rm = SchemaKeyspace.makeCreateTableMutation(keyspace, metadata, FBUtilities.timestampMicros()).build();
-        PartitionUpdate serializedCf = rm.getPartitionUpdate(Schema.instance.getTableMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES));
-        PartitionUpdate serializedCD = rm.getPartitionUpdate(Schema.instance.getTableMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS));
+        PartitionUpdate serializedCf = rm.getPartitionUpdate(Schema.instance.getTableMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.TABLES));
+        PartitionUpdate serializedCD = rm.getPartitionUpdate(Schema.instance.getTableMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.COLUMNS));
 
-        UntypedResultSet.Row tableRow = QueryProcessor.resultify(String.format("SELECT * FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES),
+        UntypedResultSet.Row tableRow = QueryProcessor.resultify(String.format("SELECT * FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.TABLES),
                                                                  UnfilteredRowIterators.filter(serializedCf.unfilteredIterator(), FBUtilities.nowInSeconds()))
                                                       .one();
         TableParams params = SchemaKeyspace.createTableParamsFromRow(tableRow);
 
-        UntypedResultSet columnsRows = QueryProcessor.resultify(String.format("SELECT * FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS),
+        UntypedResultSet columnsRows = QueryProcessor.resultify(String.format("SELECT * FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.COLUMNS),
                                                                 UnfilteredRowIterators.filter(serializedCD.unfilteredIterator(), FBUtilities.nowInSeconds()));
         Set<ColumnMetadata> columns = new HashSet<>();
         for (UntypedResultSet.Row row : columnsRows)
@@ -169,7 +239,7 @@ public class SchemaKeyspaceTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(testKS, testTable));
         // Delete partition column in the schema
-        String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=? and column_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS);
+        String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=? and column_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.COLUMNS);
         executeOnceInternal(query, testKS, testTable, "key");
         SchemaKeyspace.fetchNonSystemKeyspaces();
     }
@@ -183,7 +253,7 @@ public class SchemaKeyspaceTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(testKS, testTable));
         // Delete all colmns in the schema
-        String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS);
+        String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.COLUMNS);
         executeOnceInternal(query, testKS, testTable);
         SchemaKeyspace.fetchNonSystemKeyspaces();
     }

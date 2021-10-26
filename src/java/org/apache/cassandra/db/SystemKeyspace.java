@@ -462,7 +462,7 @@ public final class SystemKeyspace
 
     public static void finishStartup()
     {
-        SchemaKeyspace.saveSystemKeyspacesSchema();
+        Schema.instance.saveSystemKeyspace();
     }
 
     public static void persistLocalMetadata()
