@@ -65,6 +65,7 @@ Merged from 3.11:
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
+ * Fix failure handling in inter-node communication (CASSANDRA-16334)
  * Log more information when a node runs out of commitlog space (CASSANDRA-11323)
  * Don't take snapshots when truncating system tables (CASSANDRA-16839)
  * Make -Dtest.methods consistently optional in all Ant test targets (CASSANDRA-17014)
