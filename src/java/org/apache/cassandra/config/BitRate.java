@@ -33,7 +33,7 @@ public final class BitRate
     /**
      * The Regexp used to parse the rate provided as String.
      */
-    private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|KiB/s|B/s)$");
+    private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|mib/s|MiB/S|KiB/s|kib/s|KiB/S|B/s|b/s|B/S)$");
 
     private final long quantity;
 
@@ -46,7 +46,7 @@ public final class BitRate
 
         if (!matcher.find())
         {
-            throw new IllegalArgumentException("Invalid bit rate: " + value);
+            throw new IllegalArgumentException("Invalid bit rate: " + value + " Accepted units: MiB/s, KiB/s, B/s.");
         }
 
         quantity = Long.parseLong(matcher.group(1));
@@ -295,9 +295,9 @@ public final class BitRate
         /**
          * The unit symbol
          */
-        private String symbol;
+        private final String symbol;
 
-        private BitRateUnit(String symbol)
+        BitRateUnit(String symbol)
         {
             this.symbol = symbol;
         }
