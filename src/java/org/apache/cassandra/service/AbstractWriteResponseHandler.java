@@ -45,7 +45,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
+import static org.apache.cassandra.locator.Replicas.countInOurDc;
 
 public abstract class AbstractWriteResponseHandler<T> implements RequestCallback<T>
 {
@@ -203,11 +203,14 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     /**
      * TODO: this method is brittle for its purpose of deciding when we should fail a query;
-     *       this needs to be CL aware, and of which nodes are live/down
-     * @return the total number of endpoints the request can been sent to.
+     *       this needs to be aware of which nodes are live/down
+     * @return the total number of endpoints the request can send to.
      */
     protected int candidateReplicaCount()
     {
+        if (replicaPlan.consistencyLevel().isDatacenterLocal())
+            return countInOurDc(replicaPlan.liveAndDown()).allReplicas();
+
         return replicaPlan.liveAndDown().size();
     }
 
