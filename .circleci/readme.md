@@ -58,8 +58,8 @@ dtest repo and branch with MIDRES config you can run:
 
 ```
 generate.sh -m \
-  -e DTEST_REPO=git://github.com/adelapena/cassandra-dtest.git \
-  -e DTEST_BRANCH=CASSANDRA-8272 
+  -e DTEST_REPO=git://github.com/ekaterinadimitrova2/cassandra-dtest.git \
+  -e DTEST_BRANCH=CASSANDRA-15234-new
 ```
 
 Or you can set the test multiplexer for repeating a specific test with HIGHRES:
