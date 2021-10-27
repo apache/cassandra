@@ -441,5 +441,10 @@ public class BigTableScanner implements ISSTableScanner
         {
             return null;
         }
+
+        public int getMinLocalDeletionTime()
+        {
+            return DeletionTime.LIVE.localDeletionTime();
+        }
     }
 }

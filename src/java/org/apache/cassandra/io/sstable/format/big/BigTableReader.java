@@ -78,7 +78,7 @@ public class BigTableReader extends SSTableReader
     }
 
     @Override
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
+    public ISSTableScanner partitionIterator(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
     {
         return BigTableScanner.getScanner(this, columns, dataRange, listener);
     }

@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.AtomicBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -49,6 +51,7 @@ import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -165,6 +168,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
         long[] pair = previous.addAllWithSizeDelta(update, opGroup, indexer);
         updateMin(minTimestamp, update.stats().minTimestamp);
+        updateMin(minLocalDeletionTime, update.stats().minLocalDeletionTime);
         liveDataSize.addAndGet(initialSize + pair[0]);
         columnsCollector.update(update.columns());
         statsCollector.update(update.stats());
@@ -177,8 +181,9 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         return partitions.size();
     }
 
-    public MemtableUnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter,
-                                                                     final DataRange dataRange)
+    public MemtableUnfilteredPartitionIterator partitionIterator(final ColumnFilter columnFilter,
+                                                                 final DataRange dataRange,
+                                                                 SSTableReadsListener readsListener)
     {
         AbstractBounds<PartitionPosition> keyRange = dataRange.keyRange();
 
@@ -194,6 +199,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
                                                                                   includeRight);
 
         return new MemtableUnfilteredPartitionIterator(metadata.get(), subMap, columnFilter, dataRange);
+        // readsListener is ignored as it only accepts sstable signals
     }
 
     private Map<PartitionPosition, AtomicBTreePartition> getPartitionsSubMap(PartitionPosition left,
@@ -225,6 +231,21 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     public Partition getPartition(DecoratedKey key)
     {
         return partitions.get(key);
+    }
+
+    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
+    {
+        Partition p = getPartition(key);
+        if (p == null)
+            return null;
+        else
+            return p.unfilteredIterator(selectedColumns, slices, reversed);
+    }
+
+    public UnfilteredRowIterator iterator(DecoratedKey key)
+    {
+        Partition p = getPartition(key);
+        return p != null ? p.unfilteredIterator() : null;
     }
 
     private static int estimateRowOverhead(final int count)
@@ -315,7 +336,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     }
 
 
-    public static class MemtableUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator implements Memtable.MemtableUnfilteredPartitionIterator
+    public static class MemtableUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator implements UnfilteredPartitionIterator
     {
         private final TableMetadata metadata;
         private final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter;
@@ -330,15 +351,6 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             this.iter = map.entrySet().iterator();
             this.columnFilter = columnFilter;
             this.dataRange = dataRange;
-        }
-
-        public int getMinLocalDeletionTime()
-        {
-            int minLocalDeletionTime = Integer.MAX_VALUE;
-            for (AtomicBTreePartition partition : source.values())
-                minLocalDeletionTime = Math.min(minLocalDeletionTime, partition.stats().minLocalDeletionTime);
-
-            return minLocalDeletionTime;
         }
 
         public TableMetadata metadata()

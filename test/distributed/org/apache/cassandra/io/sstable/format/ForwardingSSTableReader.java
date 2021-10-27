@@ -35,6 +35,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -385,9 +386,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
+    public UnfilteredPartitionIterator partitionIterator(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
     {
-        return delegate.getScanner(columns, dataRange, listener);
+        return delegate.partitionIterator(columns, dataRange, listener);
     }
 
     @Override

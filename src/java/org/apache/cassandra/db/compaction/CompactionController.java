@@ -264,10 +264,9 @@ public class CompactionController extends AbstractCompactionController
 
         for (Memtable memtable : memtables)
         {
-            Partition partition = memtable.getPartition(key);
-            if (partition != null)
+            if (memtable.iterator(key) != null)
             {
-                minTimestampSeen = Math.min(minTimestampSeen, partition.stats().minTimestamp);
+                minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
                 hasTimestamp = true;
             }
         }

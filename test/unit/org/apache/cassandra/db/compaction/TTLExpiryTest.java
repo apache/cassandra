@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -241,9 +242,9 @@ public class TTLExpiryTest
         cfs.enableAutoCompaction(true);
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(cfs.metadata()),
-                                                     DataRange.allData(cfs.getPartitioner()),
-                                                     SSTableReadsListener.NOOP_LISTENER);
+        UnfilteredPartitionIterator scanner = sstable.partitionIterator(ColumnFilter.all(cfs.metadata()),
+                                                                        DataRange.allData(cfs.getPartitioner()),
+                                                                        SSTableReadsListener.NOOP_LISTENER);
         assertTrue(scanner.hasNext());
         while(scanner.hasNext())
         {

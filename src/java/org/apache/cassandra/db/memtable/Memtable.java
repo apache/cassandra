@@ -21,16 +21,13 @@ package org.apache.cassandra.db.memtable;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -52,7 +49,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * - lifecycle management, i.e. operations that prepare and execute switch to a different memtable, together
  *   with ways of tracking the affected commit log spans
  */
-public interface Memtable extends Comparable<Memtable>
+public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 {
     // Construction
 
@@ -189,29 +186,7 @@ public interface Memtable extends Comparable<Memtable>
      */
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup);
 
-    /**
-     * Get the partition for the specified key. Returns null if no such partition is present.
-     */
-    Partition getPartition(DecoratedKey key);
-
-    /**
-     * Returns a partition iterator for the given data range.
-     *
-     * @param columnFilter filter to apply to all returned partitions
-     * @param dataRange the partition and clustering range queried
-     */
-    MemtableUnfilteredPartitionIterator makePartitionIterator(ColumnFilter columnFilter,
-                                                              DataRange dataRange);
-
-    interface MemtableUnfilteredPartitionIterator extends UnfilteredPartitionIterator
-    {
-        /**
-         * Returns the minimum local deletion time for all partitions in the range.
-         * Required for the efficiency of partition range read commands.
-         */
-        int getMinLocalDeletionTime();
-    }
-
+    // Read operations are provided by the UnfilteredSource interface.
 
     // Statistics
 
@@ -226,9 +201,6 @@ public interface Memtable extends Comparable<Memtable>
      * executed.
      */
     long getOperations();
-
-    /** Minimum timestamp of all stored data */
-    long getMinTimestamp();
 
     /**
      * The table's definition metadata.

@@ -661,19 +661,19 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         InputCollector<UnfilteredRowIterator> inputCollector = iteratorsForPartition(view, controller);
         try
         {
+            SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
+
             for (Memtable memtable : view.memtables)
             {
-                Partition partition = memtable.getPartition(partitionKey());
-                if (partition == null)
+                @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
+                UnfilteredRowIterator iter = memtable.iterator(partitionKey(), filter.getSlices(metadata()), columnFilter(), filter.isReversed(), metricsCollector);
+                if (iter == null)
                     continue;
 
                 minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
 
-                @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-                UnfilteredRowIterator iter = filter.getUnfilteredRowIterator(columnFilter(), partition);
-
                 // Memtable data is always considered unrepaired
-                controller.updateMinOldestUnrepairedTombstone(partition.stats().minLocalDeletionTime);
+                controller.updateMinOldestUnrepairedTombstone(memtable.getMinLocalDeletionTime());
                 inputCollector.addMemtableIterator(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false));
 
                 mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
@@ -695,8 +695,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             view.sstables.sort(SSTableReader.maxTimestampDescending);
             int nonIntersectingSSTables = 0;
             int includedDueToTombstones = 0;
-
-            SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
 
             if (controller.isTrackingRepairedStatus())
                 Tracing.trace("Collecting data from sstables and tracking repaired status");
@@ -860,17 +858,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
         ImmutableBTreePartition result = null;
+        SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
 
         Tracing.trace("Merging memtable contents");
         for (Memtable memtable : view.memtables)
         {
-            Partition partition = memtable.getPartition(partitionKey());
-            if (partition == null)
-                continue;
-
-            try (UnfilteredRowIterator iter = filter.getUnfilteredRowIterator(columnFilter(), partition))
+            try (UnfilteredRowIterator iter = memtable.iterator(partitionKey, filter.getSlices(metadata()), columnFilter(), isReversed(), metricsCollector))
             {
-                if (iter.isEmpty())
+                if (iter == null)
                     continue;
 
                 result = add(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false),
@@ -884,7 +879,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         /* add the SSTables on disk */
         view.sstables.sort(SSTableReader.maxTimestampDescending);
         // read sorted sstables
-        SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
         for (SSTableReader sstable : view.sstables)
         {
             // if we've already seen a partition tombstone with a timestamp greater

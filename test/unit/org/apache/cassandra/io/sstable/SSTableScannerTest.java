@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -182,9 +183,9 @@ public class SSTableScannerTest
         assert boundaries.length % 2 == 0;
         for (DataRange range : dataRanges(sstable.metadata(), scanStart, scanEnd))
         {
-            try(ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(sstable.metadata()),
-                                                             range,
-                                                             SSTableReadsListener.NOOP_LISTENER))
+            try(UnfilteredPartitionIterator scanner = sstable.partitionIterator(ColumnFilter.all(sstable.metadata()),
+                                                                                range,
+                                                                                SSTableReadsListener.NOOP_LISTENER))
             {
                 for (int b = 0; b < boundaries.length; b += 2)
                     for (int i = boundaries[b]; i <= boundaries[b + 1]; i++)

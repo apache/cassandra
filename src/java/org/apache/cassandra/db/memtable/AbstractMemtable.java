@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,6 +42,10 @@ public abstract class AbstractMemtable implements Memtable
     protected final StatsCollector statsCollector = new StatsCollector();
     // The smallest timestamp for all partitions stored in this memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
+    // The smallest local deletion time for all partitions in this memtable
+    protected AtomicInteger minLocalDeletionTime = new AtomicInteger(Integer.MAX_VALUE);
+    // TODO: understand why statsCollector's value cannot be used instead of these
+
     private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     protected TableMetadataRef metadata;
 
@@ -65,14 +70,31 @@ public abstract class AbstractMemtable implements Memtable
         return minTimestamp.get();
     }
 
+    public int getMinLocalDeletionTime()
+    {
+        return minLocalDeletionTime.get();
+    }
+
     protected void updateMin(AtomicLong minTracker, long newValue)
     {
         while (true)
         {
-            long memtableMinTimestamp = minTracker.get();
-            if (memtableMinTimestamp <= newValue)
+            long existing = minTracker.get();
+            if (existing <= newValue)
                 break;
-            if (minTracker.compareAndSet(memtableMinTimestamp, newValue))
+            if (minTracker.compareAndSet(existing, newValue))
+                break;
+        }
+    }
+
+    protected void updateMin(AtomicInteger minTracker, int newValue)
+    {
+        while (true)
+        {
+            int existing = minTracker.get();
+            if (existing <= newValue)
+                break;
+            if (minTracker.compareAndSet(existing, newValue))
                 break;
         }
     }
