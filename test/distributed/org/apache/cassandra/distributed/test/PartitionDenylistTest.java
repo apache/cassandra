@@ -111,8 +111,6 @@ public class PartitionDenylistTest extends TestBaseImpl
 
         Assert.assertTrue("Partition denylist must have loaded before checking unavailables",
                           StorageProxy.instance.getPartitionDenylistLoadSuccesses() > 0);
-        Assert.assertEquals("Initial load of partition denylist should not trigger unavailables",
-                            0L, StorageProxy.rangeMetrics.unavailables.getCount());
     }
 
     // To be called inside the instance with runOnInstance, no nodes are started/stopped

@@ -165,7 +165,7 @@ public class PartitionDenylist
     private boolean checkDenylistNodeAvailability()
     {
         boolean sufficientNodes = RangeCommands.sufficientLiveNodesForSelectStar(SystemDistributedKeyspace.PartitionDenylistTable,
-                                                              DatabaseDescriptor.getDenylistConsistencyLevel());
+                                                                                 DatabaseDescriptor.getDenylistConsistencyLevel());
         if (!sufficientNodes)
         {
             AVAILABILITY_LOGGER.warn("Attempting to load denylist and not enough nodes are available for a {} refresh. Reload the denylist when unavailable nodes are recovered to ensure your denylist remains in sync.",
@@ -251,7 +251,7 @@ public class PartitionDenylist
         try
         {
             process(insert, DatabaseDescriptor.getDenylistConsistencyLevel());
-            return true;
+            return refreshTableDenylist(keyspace, table);
         }
         catch (final RequestExecutionException e)
         {
@@ -274,7 +274,7 @@ public class PartitionDenylist
         try
         {
             process(delete, DatabaseDescriptor.getDenylistConsistencyLevel());
-            return true;
+            return refreshTableDenylist(keyspace, table);
         }
         catch (final RequestExecutionException e)
         {
@@ -420,7 +420,9 @@ public class PartitionDenylist
                 boolean globalLimit = limit != DatabaseDescriptor.getDenylistMaxKeysPerTable();
                 String violationType = globalLimit ? "global" : "per-table";
                 int errorLimit = globalLimit ? DatabaseDescriptor.getDenylistMaxKeysTotal() : limit;
-                logger.error("Partition denylist for {}.{} has exceeded the {} allowance of ({}). Remaining keys were ignored; please reduce the total number of keys denied or increase the size of denylist key cache to avoid inconsistency in denied partitions across nodes.",
+                logger.error("Partition denylist for {}/{} has exceeded the {} allowance of ({}). Remaining keys were ignored; " +
+                             "please reduce the total number of keys denied or increase the denylist_max_keys_per_table param in " +
+                             "cassandra.yaml to avoid inconsistency in denied partitions across nodes.",
                              tmd.keyspace,
                              tmd.name,
                              violationType,
@@ -479,7 +481,12 @@ public class PartitionDenylist
                 final TableId tid = getTableId(ks, table);
                 if (DatabaseDescriptor.getDenylistMaxKeysTotal() - totalProcessed <= 0)
                 {
-                    logger.error("Hit limit on allowable denylisted keys in total. Processed {} total entries. Not adding entries to denylist for {}.{}", totalProcessed, ks, table);
+                    logger.error("Hit limit on allowable denylisted keys in total. Processed {} total entries. Not adding all entries to denylist for {}/{}." +
+                                 " Remove denylist entries in system_distributed.{} or increase your denylist_max_keys_total param in cassandra.yaml.",
+                                 totalProcessed,
+                                 ks,
+                                 table,
+                                 SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE);
                     results.put(tid, new DenylistEntry());
                 }
                 else
@@ -501,6 +508,21 @@ public class PartitionDenylist
                          ". Partition Denylisting will be compromised. Exception: " + e);
             return Collections.emptyMap();
         }
+    }
+
+    private boolean refreshTableDenylist(String keyspace, String table)
+    {
+        checkDenylistNodeAvailability();
+        final TableId tid = getTableId(keyspace, table);
+        if (tid == null)
+        {
+            logger.warn("Got denylist mutation for unknown ks/cf: {}/{}. Skipping refresh.", keyspace, table);
+            return false;
+        }
+
+        DenylistEntry newEntry = getDenylistForTableFromCQL(tid);
+        denylist.put(tid, newEntry);
+        return true;
     }
 
     private TableId getTableId(final String keyspace, final String table)

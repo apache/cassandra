@@ -146,13 +146,13 @@ public class PartitionDenylistTest
         resetDenylist();
         Assert.assertFalse(StorageProxy.instance.isKeyDenylisted(ks_cql, "table1", "bbb:ccc"));
 
-        // Confirm an add doesn't mutate cache state
+        // Confirm an add mutates cache state
         denylist("table1", "bbb:ccc");
-        Assert.assertFalse(StorageProxy.instance.isKeyDenylisted(ks_cql, "table1", "bbb:ccc"));
-
-        // Confirm reload will reflect in API
-        refreshList();
         Assert.assertTrue(StorageProxy.instance.isKeyDenylisted(ks_cql, "table1", "bbb:ccc"));
+
+        // Confirm removal then mutates cache w/out explicit reload
+        StorageProxy.instance.removeDenylistKey(ks_cql, "table1", "bbb:ccc");
+        Assert.assertFalse(StorageProxy.instance.isKeyDenylisted(ks_cql, "table1", "bbb:ccc"));
     }
 
     @Test
