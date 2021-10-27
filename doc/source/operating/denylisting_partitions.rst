@@ -45,8 +45,16 @@ Special considerations
 ^^^^^^^^^^^^^^^^^^^^^^
 The denylist has the property in that you want to keep your cache (see below) and CQL data on a replica set as close together as possible so you don't have different nodes in your cluster denying or allowing different keys. To best achieve this, the workflow for a denylist change (addition or deletion) should `always be as follows`:
 
-1. Mutate the denylisted partition list in CQL
-2. Trigger a reload of the denylist cache on each node (see below)
+JMX PATH (preferred for single changes):
+
+1. Call the JMX hook for ``denylistKey()`` with the desired key
+2. Double check the cache reloaded with ``isKeyDenylisted()``
+3. Check for warnings about unrecognized keyspace/table combinations, limits, or consistency level. If you get a message about nodes being down and not hitting CL for denylist, recover the downed nodes and then trigger a reload of the cache on each node with ``loadPartitionDenylist()``
+
+CQL PATH (preferred for bulk changes):
+
+1. Mutate the denylisted partition lists via CQL
+2. Trigger a reload of the denylist cache on each node via JMX ``loadPartitionDenylist()`` (see below)
 3. Check for warnings about lack of availability for a denylist refresh. In the event nodes are down, recover them, then go to 2.
 
 Due to conditions on known unavailable range slices leading to alert storming on startup, the denylist cache won't load on node start unless it can achieve the configured consistency level in cassandra.yaml, `denylist_consistency_level`. The JMX call to `loadPartitionDenylist` will, however, load the cache regardless of the number of nodes available. This leaves the control for denylisting or not denylisting during degraded cluster states in the hands of the operator.
