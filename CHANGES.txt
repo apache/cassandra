@@ -1,4 +1,9 @@
 4.1
+ * v4+ protocol did not clean up client warnings, which caused leaking the state (CASSANDRA-17054)
+ * Remove duplicate toCQLString in ReadCommand (CASSANDRA-17023)
+ * Ensure hint window is persistent across restarts of a node (CASSANDRA-14309)
+ * Allow to GRANT or REVOKE multiple permissions in a single statement (CASSANDRA-17030)
+ * Allow to grant permission for all tables in a keyspace (CASSANDRA-17027)
  * Log time spent writing keys during compaction (CASSANDRA-17037)
  * Make nodetool compactionstats and sstable_tasks consistent (CASSANDRA-16976)
  * Add metrics and logging around index summary redistribution (CASSANDRA-17036)
@@ -44,6 +49,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Push initial client connection messages to trace (CASSANDRA-17038)
  * Correct the internode message timestamp if sending node has wrapped (CASSANDRA-16997)
  * Avoid race causing us to return null in RangesAtEndpoint (CASSANDRA-16965)
  * Avoid rewriting all sstables during cleanup when transient replication is enabled (CASSANDRA-16966)
@@ -59,6 +65,8 @@ Merged from 3.11:
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
+ * Allow users to view permissions of the roles they created (CASSANDRA-16902)
+ * Fix failure handling in inter-node communication (CASSANDRA-16334)
  * Log more information when a node runs out of commitlog space (CASSANDRA-11323)
  * Don't take snapshots when truncating system tables (CASSANDRA-16839)
  * Make -Dtest.methods consistently optional in all Ant test targets (CASSANDRA-17014)

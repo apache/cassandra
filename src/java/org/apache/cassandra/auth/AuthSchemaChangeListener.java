@@ -31,6 +31,7 @@ public class AuthSchemaChangeListener extends SchemaChangeListener
     public void onDropKeyspace(String ksName)
     {
         DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.keyspace(ksName));
+        DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.allTables(ksName));
         DatabaseDescriptor.getAuthorizer().revokeAllOn(FunctionResource.keyspace(ksName));
     }
 

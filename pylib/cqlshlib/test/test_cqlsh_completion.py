@@ -826,3 +826,67 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER KEYSPACE system_trac', "es WITH replication = {'class': '")
         self.trycompletions("ALTER KEYSPACE system_traces WITH replication = {'class': '", '',
                             choices=['NetworkTopologyStrategy', 'SimpleStrategy'])
+
+    def test_complete_in_grant(self):
+        self.trycompletions("GR",
+                            immediate='ANT ')
+        self.trycompletions("GRANT ",
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
+                            other_choices_ok=True)
+        self.trycompletions("GRANT MODIFY ",
+                            choices=[',', 'ON', 'PERMISSION'])
+        self.trycompletions("GRANT MODIFY P",
+                            immediate='ERMISSION ')
+        self.trycompletions("GRANT MODIFY PERMISSION ",
+                            choices=[',', 'ON'])
+        self.trycompletions("GRANT MODIFY PERMISSION, ",
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT'])
+        self.trycompletions("GRANT MODIFY PERMISSION, D",
+                            choices=['DESCRIBE', 'DROP'])
+        self.trycompletions("GRANT MODIFY PERMISSION, DR",
+                            immediate='OP ')
+        self.trycompletions("GRANT MODIFY PERMISSION, DROP O",
+                            immediate='N ')
+        self.trycompletions("GRANT MODIFY, DROP ON ",
+                            choices=['ALL', 'KEYSPACE', 'MBEANS', 'ROLE', 'FUNCTION', 'MBEAN', 'TABLE'],
+                            other_choices_ok=True)
+        self.trycompletions("GRANT MODIFY, DROP ON ALL ",
+                            choices=['KEYSPACES', 'TABLES'],
+                            other_choices_ok=True)
+        self.trycompletions("GRANT MODIFY PERMISSION ON KEY",
+                            immediate='SPACE ')
+        self.trycompletions("GRANT MODIFY PERMISSION ON KEYSPACE system_tr",
+                            immediate='aces TO ')
+
+    def test_complete_in_revoke(self):
+        self.trycompletions("RE",
+                            immediate='VOKE ')
+        self.trycompletions("REVOKE ",
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
+                            other_choices_ok=True)
+        self.trycompletions("REVOKE MODIFY ",
+                            choices=[',', 'ON', 'PERMISSION'])
+        self.trycompletions("REVOKE MODIFY P",
+                            immediate='ERMISSION ')
+        self.trycompletions("REVOKE MODIFY PERMISSION ",
+                            choices=[',', 'ON'])
+        self.trycompletions("REVOKE MODIFY PERMISSION, ",
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT'])
+        self.trycompletions("REVOKE MODIFY PERMISSION, D",
+                            choices=['DESCRIBE', 'DROP'])
+        self.trycompletions("REVOKE MODIFY PERMISSION, DR",
+                            immediate='OP ')
+        self.trycompletions("REVOKE MODIFY PERMISSION, DROP ",
+                            choices=[',', 'ON', 'PERMISSION'])
+        self.trycompletions("REVOKE MODIFY PERMISSION, DROP O",
+                            immediate='N ')
+        self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON ",
+                            choices=['ALL', 'KEYSPACE', 'MBEANS', 'ROLE', 'FUNCTION', 'MBEAN', 'TABLE'],
+                            other_choices_ok=True)
+        self.trycompletions("REVOKE MODIFY, DROP ON ALL ",
+                            choices=['KEYSPACES', 'TABLES'],
+                            other_choices_ok=True)
+        self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON KEY",
+                            immediate='SPACE ')
+        self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON KEYSPACE system_tr",
+                            immediate='aces FROM ')

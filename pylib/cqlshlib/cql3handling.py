@@ -1512,7 +1512,7 @@ syntax_rules += r'''
                | "EXECUTE"
                ;
 
-<permissionExpr> ::= ( <permission> "PERMISSION"? )
+<permissionExpr> ::= ( [newpermission]=<permission> "PERMISSION"? ( "," [newpermission]=<permission> "PERMISSION"? )* )
                    | ( "ALL" "PERMISSIONS"? )
                    ;
 
@@ -1524,6 +1524,7 @@ syntax_rules += r'''
 
 <dataResource> ::= ( "ALL" "KEYSPACES" )
                  | ( "KEYSPACE" <keyspaceName> )
+                 | ( "ALL" "TABLES" "IN" "KEYSPACE" <keyspaceName> )
                  | ( "TABLE"? <columnFamilyName> )
                  ;
 
@@ -1544,6 +1545,16 @@ syntax_rules += r'''
                 ;
 
 '''
+
+
+@completer_for('permissionExpr', 'newpermission')
+def permission_completer(ctxt, _):
+    new_permissions = set([permission.upper() for permission in ctxt.get_binding('newpermission')])
+    all_permissions = set([permission.arg for permission in ctxt.ruleset['permission'].arg])
+    suggestions = all_permissions - new_permissions
+    if len(suggestions) == 0:
+        return [Hint('No more permissions here.')]
+    return suggestions
 
 
 @completer_for('username', 'name')

@@ -44,6 +44,8 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import org.slf4j.Logger;
@@ -2192,6 +2194,11 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(Replica replica)
     {
+        return shouldHint(replica, true);
+    }
+
+    public static boolean shouldHint(Replica replica, boolean tryEnablePersistentWindow)
+    {
         if (!DatabaseDescriptor.hintedHandoffEnabled())
             return false;
         if (replica.isTransient() || replica.isSelf())
@@ -2207,12 +2214,31 @@ public class StorageProxy implements StorageProxyMBean
                 return false;
             }
         }
-        boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(replica.endpoint()) > DatabaseDescriptor.getMaxHintWindow();
-        if (hintWindowExpired)
+
+        InetAddressAndPort endpoint = replica.endpoint();
+        int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
+        long endpointDowntime = Gossiper.instance.getEndpointDowntime(endpoint);
+        boolean hintWindowExpired = endpointDowntime > maxHintWindow;
+
+        if (tryEnablePersistentWindow && !hintWindowExpired && DatabaseDescriptor.hintWindowPersistentEnabled())
         {
-            HintsService.instance.metrics.incrPastWindow(replica.endpoint());
-            Tracing.trace("Not hinting {} which has been down {} ms", replica, Gossiper.instance.getEndpointDowntime(replica.endpoint()));
+            UUID hostIdForEndpoint = StorageService.instance.getHostIdForEndpoint(endpoint);
+            if (hostIdForEndpoint != null)
+            {
+                long earliestHint = HintsService.instance.getEarliestHintForHost(hostIdForEndpoint);
+                hintWindowExpired = Clock.Global.currentTimeMillis() - maxHintWindow > earliestHint;
+                if (hintWindowExpired)
+                    Tracing.trace("Not hinting {} for which there is the earliest hint stored at {}", replica, earliestHint);
+            }
         }
+        else if (hintWindowExpired)
+        {
+            Tracing.trace("Not hinting {} which has been down {} ms", replica, endpointDowntime);
+        }
+
+        if (hintWindowExpired)
+            HintsService.instance.metrics.incrPastWindow(replica.endpoint());
+
         return !hintWindowExpired;
     }
 

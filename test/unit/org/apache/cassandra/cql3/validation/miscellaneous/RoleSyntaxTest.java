@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
+import java.util.Arrays;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -25,8 +27,9 @@ import org.apache.cassandra.cql3.CQLTester;
 
 public class RoleSyntaxTest extends CQLTester
 {
-    private final String NO_QUOTED_USERNAME = "Quoted strings are are not supported for user names " +
-                                              "and USER is deprecated, please use ROLE";
+    private static final String NO_QUOTED_USERNAME = "Quoted strings are are not supported for user names " +
+                                                     "and USER is deprecated, please use ROLE";
+
     @Test
     public void standardOptionsSyntaxTest() throws Throwable
     {
@@ -107,49 +110,63 @@ public class RoleSyntaxTest extends CQLTester
     @Test
     public void grantRevokePermissionsSyntaxTest() throws Throwable
     {
-        // grant/revoke on RoleResource
-        assertValidSyntax("GRANT ALTER ON ROLE r1 TO r2");
-        assertValidSyntax("GRANT ALTER ON ROLE 'r1' TO \"r2\"");
-        assertValidSyntax("GRANT ALTER ON ROLE \"r1\" TO 'r2'");
-        assertValidSyntax("GRANT ALTER ON ROLE $$r1$$ TO $$ r '2' $$");
-        assertValidSyntax("REVOKE ALTER ON ROLE r1 FROM r2");
-        assertValidSyntax("REVOKE ALTER ON ROLE 'r1' FROM \"r2\"");
-        assertValidSyntax("REVOKE ALTER ON ROLE \"r1\" FROM 'r2'");
-        assertValidSyntax("REVOKE ALTER ON ROLE $$r1$$ FROM $$ r '2' $$");
+        for (String r1 : Arrays.asList("r1", "'r1'", "\"r1\"", "$$r1$$"))
+        {
+            for (String r2 : Arrays.asList("r2", "\"r2\"", "'r2'", "$$ r '2' $$"))
+            {
+                // grant/revoke on RoleResource
+                assertValidSyntax(String.format("GRANT ALTER ON ROLE %s TO %s", r1, r2));
+                assertValidSyntax(String.format("GRANT ALTER PERMISSION ON ROLE %s TO %s", r1, r2));
+                assertValidSyntax(String.format("REVOKE ALTER ON ROLE %s FROM %s", r1, r2));
+                assertValidSyntax(String.format("REVOKE ALTER PERMISSION ON ROLE %s FROM %s", r1, r2));
 
-        // grant/revoke on DataResource
-        assertValidSyntax("GRANT SELECT ON KEYSPACE ks TO r1");
-        assertValidSyntax("GRANT SELECT ON KEYSPACE ks TO 'r1'");
-        assertValidSyntax("GRANT SELECT ON KEYSPACE ks TO \"r1\"");
-        assertValidSyntax("GRANT SELECT ON KEYSPACE ks TO $$ r '1' $$");
-        assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM r1");
-        assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM 'r1'");
-        assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM \"r1\"");
-        assertValidSyntax("REVOKE SELECT ON KEYSPACE ks FROM $$ r '1' $$");
+                // grant/revoke multiple permissions in a single statement
+                assertValidSyntax(String.format("GRANT CREATE, ALTER ON ROLE %s TO %s", r1, r2));
+                assertValidSyntax(String.format("GRANT CREATE PERMISSION, ALTER PERMISSION ON ROLE %s TO %s", r1, r2));
+                assertValidSyntax(String.format("REVOKE CREATE, ALTER ON ROLE %s FROM %s", r1, r2));
+                assertValidSyntax(String.format("REVOKE CREATE PERMISSION, ALTER PERMISSION ON ROLE %s FROM %s", r1, r2));
+            }
+        }
+
+        for (String r1 : Arrays.asList("r1", "'r1'", "\"r1\"", "$$r1$$", "$$ r '1' $$"))
+        {
+            // grant/revoke on DataResource
+            assertValidSyntax(String.format("GRANT SELECT ON KEYSPACE ks TO %s", r1));
+            assertValidSyntax(String.format("GRANT SELECT PERMISSION ON KEYSPACE ks TO %s", r1));
+            assertValidSyntax(String.format("REVOKE SELECT ON KEYSPACE ks FROM %s", r1));
+            assertValidSyntax(String.format("REVOKE SELECT PERMISSION ON KEYSPACE ks FROM %s", r1));
+
+            // grant/revoke multiple permissions in a single statement
+            assertValidSyntax(String.format("GRANT MODIFY, SELECT ON KEYSPACE ks TO %s", r1));
+            assertValidSyntax(String.format("GRANT MODIFY PERMISSION, SELECT PERMISSION ON KEYSPACE ks TO %s", r1));
+            assertValidSyntax(String.format("GRANT MODIFY, SELECT ON ALL KEYSPACES TO %s", r1));
+            assertValidSyntax(String.format("GRANT MODIFY PERMISSION, SELECT PERMISSION ON ALL KEYSPACES TO %s", r1));
+            assertValidSyntax(String.format("REVOKE MODIFY, SELECT ON KEYSPACE ks FROM %s", r1));
+            assertValidSyntax(String.format("REVOKE MODIFY PERMISSION, SELECT PERMISSION ON KEYSPACE ks FROM %s", r1));
+            assertValidSyntax(String.format("REVOKE MODIFY, SELECT ON ALL KEYSPACES FROM %s", r1));
+            assertValidSyntax(String.format("REVOKE MODIFY PERMISSION, SELECT PERMISSION ON ALL KEYSPACES FROM %s", r1));
+        }
     }
 
     @Test
     public void listPermissionsSyntaxTest() throws Throwable
     {
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL ROLES OF r1");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL ROLES OF 'r1'");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL ROLES OF \"r1\"");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL ROLES OF $$ r '1' $$");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ROLE 'r1' OF r2");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ROLE \"r1\" OF r2");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ROLE $$ r '1' $$ OF r2");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ROLE 'r1' OF 'r2'");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ROLE \"r1\" OF \"r2\"");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ROLE $$r1$$ OF $$ r '2' $$");
+        for (String r1 : Arrays.asList("r1", "'r1'", "\"r1\"", "$$r1$$", "$$ r '1' $$"))
+        {
+            assertValidSyntax(String.format("LIST ALL PERMISSIONS ON ALL ROLES OF %s", r1));
+            assertValidSyntax(String.format("LIST ALL PERMISSIONS ON ALL KEYSPACES OF %s", r1));
+            assertValidSyntax(String.format("LIST ALL PERMISSIONS OF %s", r1));
+            assertValidSyntax(String.format("LIST MODIFY PERMISSION ON KEYSPACE ks OF %s", r1));
+            assertValidSyntax(String.format("LIST MODIFY, SELECT OF %s", r1));
+            assertValidSyntax(String.format("LIST MODIFY, SELECT PERMISSION ON KEYSPACE ks OF %s", r1));
 
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL KEYSPACES OF r1");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL KEYSPACES OF 'r1'");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL KEYSPACES OF \"r1\"");
-        assertValidSyntax("LIST ALL PERMISSIONS ON ALL KEYSPACES OF $$ r '1' $$");
-        assertValidSyntax("LIST ALL PERMISSIONS OF r1");
-        assertValidSyntax("LIST ALL PERMISSIONS OF 'r1'");
-        assertValidSyntax("LIST ALL PERMISSIONS OF \"r1\"");
-        assertValidSyntax("LIST ALL PERMISSIONS OF $$ r '1' $$");
+            for (String r2 : Arrays.asList("r2", "\"r2\"", "'r2'", "$$ r '2' $$"))
+            {
+                assertValidSyntax(String.format("LIST ALL PERMISSIONS ON ROLE %s OF %s", r1, r2));
+                assertValidSyntax(String.format("LIST ALTER PERMISSION ON ROLE %s OF %s", r1, r2));
+                assertValidSyntax(String.format("LIST ALTER, DROP PERMISSION ON ROLE %s OF %s", r1, r2));
+            }
+        }
     }
 
     @Test
