@@ -23,10 +23,12 @@ import java.util.concurrent.Callable;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -55,19 +57,58 @@ public class RoleTestUtils
      */
     public static class LocalCassandraRoleManager extends CassandraRoleManager
     {
+        @Override
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
+        @Override
         UntypedResultSet process(String query, ConsistencyLevel consistencyLevel)
         {
             return QueryProcessor.executeInternal(query);
         }
 
+        @Override
         protected void scheduleSetupTask(final Callable<Void> setupTask)
         {
             // skip data migration or setting up default role for tests
+        }
+    }
+
+    public static class LocalCassandraAuthorizer extends CassandraAuthorizer
+    {
+        @Override
+        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        @Override
+        UntypedResultSet process(String query) throws RequestExecutionException
+        {
+            return QueryProcessor.executeInternal(query);
+        }
+
+        @Override
+        void processBatch(BatchStatement statement)
+        {
+            statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
+        }
+    }
+
+    public static class LocalCassandraNetworkAuthorizer extends CassandraNetworkAuthorizer
+    {
+        @Override
+        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        @Override
+        void process(String query)
+        {
+            QueryProcessor.executeInternal(query);
         }
     }
 
@@ -81,5 +122,14 @@ public class RoleTestUtils
     {
         ColumnFamilyStore rolesTable = Keyspace.open(SchemaConstants.AUTH_KEYSPACE_NAME).getColumnFamilyStore(AuthKeyspace.ROLES);
         return rolesTable.metric.readLatency.latency.getCount();
+    }
+
+    public static RoleOptions getLoginRoleOptions()
+    {
+        RoleOptions roleOptions = new RoleOptions();
+        roleOptions.setOption(IRoleManager.Option.SUPERUSER, false);
+        roleOptions.setOption(IRoleManager.Option.LOGIN, true);
+        roleOptions.setOption(IRoleManager.Option.PASSWORD, "ignored");
+        return roleOptions;
     }
 }
