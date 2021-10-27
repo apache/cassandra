@@ -340,17 +340,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             LocalSessions.registerListener(session);
 
         // remove session at completion
-        session.addListener(new Runnable()
-        {
-            /**
-             * When repair finished, do clean up
-             */
-            public void run()
-            {
-                sessions.remove(session.getId());
-                LocalSessions.unregisterListener(session);
-            }
-        }, MoreExecutors.directExecutor());
+        session.addListener(() -> {
+            sessions.remove(session.getId());
+            LocalSessions.unregisterListener(session);
+        });
         session.start(executor);
         return session;
     }

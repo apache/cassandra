@@ -25,6 +25,7 @@ import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.UUIDGen;
@@ -44,12 +45,12 @@ public class HintedHandoffMetrics
 
     /** Total number of hints which are not stored, This is not a cache. */
     private final LoadingCache<InetAddressAndPort, DifferencingCounter> notStored = Caffeine.newBuilder()
-                                                                                            .executor(MoreExecutors.directExecutor())
+                                                                                            .executor(ImmediateExecutor.INSTANCE)
                                                                                             .build(DifferencingCounter::new);
 
     /** Total number of hints that have been created, This is not a cache. */
     private final LoadingCache<InetAddressAndPort, Counter> createdHintCounts = Caffeine.newBuilder()
-                                                                                        .executor(MoreExecutors.directExecutor())
+                                                                                        .executor(ImmediateExecutor.INSTANCE)
                                                                                         .build(address -> Metrics.counter(factory.createMetricName("Hints_created-" + address.toString().replace(':', '.'))));
 
     public void incrCreatedHints(InetAddressAndPort address)

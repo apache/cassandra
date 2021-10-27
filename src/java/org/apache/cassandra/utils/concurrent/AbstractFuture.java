@@ -280,7 +280,14 @@ public abstract class AbstractFuture<V> implements Future<V>
     @Override
     public AbstractFuture<V> addCallback(BiConsumer<? super V, Throwable> callback)
     {
-        appendListener(new CallbackBiConsumerListener<>(this, callback));
+        appendListener(new CallbackBiConsumerListener<>(this, callback, null));
+        return this;
+    }
+
+    @Override
+    public Future<V> addCallback(BiConsumer<? super V, Throwable> callback, Executor executor)
+    {
+        appendListener(new CallbackBiConsumerListener<>(this, callback, executor));
         return this;
     }
 
@@ -305,19 +312,42 @@ public abstract class AbstractFuture<V> implements Future<V>
     @Override
     public AbstractFuture<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure)
     {
-        appendListener(new CallbackLambdaListener<>(this, onSuccess, onFailure));
+        appendListener(new CallbackLambdaListener<>(this, onSuccess, onFailure, null));
         return this;
     }
 
     /**
-     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     * Support more fluid version of {@link com.google.common.util.concurrent.Futures#addCallback}
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen)
+    public AbstractFuture<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure, Executor executor)
     {
-        return andThenAsync(andThen, null);
+        appendListener(new CallbackLambdaListener<>(this, onSuccess, onFailure, executor));
+        return this;
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    protected <T> Future<T> map(AbstractFuture<T> result, Function<? super V, ? extends T> andThen, @Nullable Executor executor)
+    {
+        addListener(() -> {
+            try
+            {
+                if (isSuccess()) result.trySet(andThen.apply(getNow()));
+                else result.tryFailure(cause());
+            }
+            catch (Throwable t)
+            {
+                result.tryFailure(t);
+                throw t;
+            }
+        }, executor);
+        return result;
     }
 
     /**
@@ -325,7 +355,7 @@ public abstract class AbstractFuture<V> implements Future<V>
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
-    protected <T> Future<T> andThenAsync(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    protected <T> Future<T> flatMap(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
     {
         addListener(() -> {
             try

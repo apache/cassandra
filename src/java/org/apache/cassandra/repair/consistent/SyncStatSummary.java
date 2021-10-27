@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.google.common.collect.Lists;
 
@@ -179,11 +180,11 @@ public class SyncStatSummary
         summaries.get(cf).consumeStats(result.stats);
     }
 
-    public void consumeSessionResults(List<RepairSessionResult> results)
+    public void consumeSessionResults(Optional<List<RepairSessionResult>> results)
     {
-        if (results != null)
+        if (results.isPresent())
         {
-            filter(results, Objects::nonNull).forEach(r -> filter(r.repairJobResults, Objects::nonNull).forEach(this::consumeRepairResult));
+            filter(results.get(), Objects::nonNull).forEach(r -> filter(r.repairJobResults, Objects::nonNull).forEach(this::consumeRepairResult));
         }
     }
 
