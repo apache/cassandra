@@ -57,16 +57,19 @@ public class AuthTestUtils
      */
     public static class LocalCassandraRoleManager extends CassandraRoleManager
     {
+        @Override
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
+        @Override
         UntypedResultSet process(String query, ConsistencyLevel consistencyLevel)
         {
             return QueryProcessor.executeInternal(query);
         }
 
+        @Override
         protected void scheduleSetupTask(final Callable<Void> setupTask)
         {
             // skip data migration or setting up default role for tests
@@ -75,11 +78,13 @@ public class AuthTestUtils
 
     public static class LocalCassandraAuthorizer extends CassandraAuthorizer
     {
+        @Override
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
+        @Override
         UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
         {
             return QueryProcessor.executeInternal(query);
@@ -94,11 +99,13 @@ public class AuthTestUtils
 
     public static class LocalCassandraNetworkAuthorizer extends CassandraNetworkAuthorizer
     {
+        @Override
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
+        @Override
         void process(String query)
         {
             QueryProcessor.executeInternal(query);
@@ -107,6 +114,7 @@ public class AuthTestUtils
 
     public static class LocalPasswordAuthenticator extends PasswordAuthenticator
     {
+        @Override
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
             return statement.executeLocally(QueryState.forInternalCalls(), options);
