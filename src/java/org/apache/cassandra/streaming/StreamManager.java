@@ -49,7 +49,7 @@ public class StreamManager implements StreamManagerMBean
 
     /**
      * Gets streaming rate limiter.
-     * When stream_throughput_outbound_megabits_per_sec is 0, this returns rate limiter
+     * When stream_throughput_outbound is 0, this returns rate limiter
      * with the rate of Double.MAX_VALUE bytes per second.
      * Rate unit is bytes per sec.
      *

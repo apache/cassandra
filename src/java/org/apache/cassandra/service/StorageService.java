@@ -948,7 +948,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     //only go into hibernate state if replacing the same address (CASSANDRA-8523)
                     logger.warn("Writes will not be forwarded to this node during replacement because it has the same address as " +
-                                "the node to be replaced ({}). If the previous node has been down for longer than max_hint_window_in_ms, " +
+                                "the node to be replaced ({}). If the previous node has been down for longer than max_hint_window, " +
                                 "repair must be run after the replacement process in order to make this node consistent.",
                                 DatabaseDescriptor.getReplaceAddress());
                     appStates.put(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true));
@@ -5869,7 +5869,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setColumnIndexCacheSize(int cacheSizeInKB)
     {
         DatabaseDescriptor.setColumnIndexCacheSize(cacheSizeInKB);
-        logger.info("Updated column_index_cache_size_in_kb to {}", cacheSizeInKB);
+        logger.info("Updated column_index_cache_size to {}", cacheSizeInKB);
     }
 
     public int getBatchSizeFailureThreshold()
@@ -5880,7 +5880,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setBatchSizeFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
-        logger.info("updated batch_size_fail_threshold_in_kb to {}", threshold);
+        logger.info("updated batch_size_fail_threshold to {}", threshold);
     }
 
     public int getBatchSizeWarnThreshold()
@@ -5891,7 +5891,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setBatchSizeWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeWarnThresholdInKB(threshold);
-        logger.info("Updated batch_size_warn_threshold_in_kb to {}", threshold);
+        logger.info("Updated batch_size_warn_threshold to {}", threshold);
     }
 
     public int getInitialRangeTombstoneListAllocationSize()
@@ -5932,7 +5932,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
-        logger.info("updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
+        logger.info("updated hinted_handoff_throttle to {}", throttleInKB);
     }
 
     @Override

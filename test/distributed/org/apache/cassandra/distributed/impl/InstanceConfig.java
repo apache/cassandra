@@ -93,7 +93,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("concurrent_reads", 2)
                 .set("memtable_flush_writers", 1)
                 .set("concurrent_compactors", 1)
-                .set("memtable_heap_space_in_mb", 10)
+                .set("memtable_heap_space", "10mb")
                 .set("commitlog_sync", "batch")
                 .set("storage_port", storage_port)
                 .set("native_transport_port", native_transport_port)
@@ -104,11 +104,9 @@ public class InstanceConfig implements IInstanceConfig
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
                 // capacities that are based on `totalMemory` that should be fixed size
-                .set("index_summary_capacity_in_mb", 50l)
-                .set("counter_cache_size_in_mb", 50l)
-                .set("key_cache_size_in_mb", 50l)
-                // legacy parameters
-                .forceSet("commitlog_sync_batch_window_in_ms", 1.0);
+                .set("index_summary_capacity", "50mb")
+                .set("counter_cache_size", "50mb")
+                .set("key_cache_size", "50mb");
         this.featureFlags = EnumSet.noneOf(Feature.class);
     }
 

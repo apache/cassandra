@@ -349,9 +349,9 @@ public class BatchStatement implements CQLStatement
             if (size > failThreshold)
             {
                 Tracing.trace(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
-                              FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
+                              FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold)");
                 logger.error(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
-                             FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
+                             FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold)");
                 throw new InvalidRequestException("Batch too large");
             }
             else if (logger.isWarnEnabled())

@@ -27,7 +27,7 @@ import org.apache.cassandra.dht.Datacenters;
  * Returned from IAuthenticator#authenticate(), represents an authenticated user everywhere internally.
  *
  * Holds the name of the user and the roles that have been granted to the user. The roles will be cached
- * for roles_validity_in_ms.
+ * for roles_validity.
  */
 public class AuthenticatedUser
 {

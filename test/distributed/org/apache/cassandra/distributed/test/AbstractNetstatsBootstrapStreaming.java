@@ -51,7 +51,7 @@ public abstract class AbstractNetstatsBootstrapStreaming extends AbstractNetstat
                                                                                   ? "entire_sstable_stream_throughput_outbound_megabits_per_sec"
                                                                                   : "stream_throughput_outbound_megabits_per_sec",
                                                                                   throughput)
-                                                                             .set("compaction_throughput_mb_per_sec", 1)
+                                                                             .set("compaction_throughput", "1mib/s")
                                                                              .set("stream_entire_sstables", streamEntireSSTables));
 
         try (final Cluster cluster = builder.withNodes(1).start())

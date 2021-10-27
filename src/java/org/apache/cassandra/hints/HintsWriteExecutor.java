@@ -242,7 +242,7 @@ final class HintsWriteExecutor
                 we are removing it specifically after we closed the store above in try block
                 so hints are persisted on disk before.
 
-                There is a periodic flushing of a buffer driven by hints_flush_period_in_ms and clearing
+                There is a periodic flushing of a buffer driven by hints_flush_period and clearing
                 this entry upon every flush would remove the information what is the earliest hint in the buffer
                 for a respective node prematurely.
 

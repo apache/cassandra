@@ -50,8 +50,8 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
         config.put("authenticator", "org.apache.cassandra.auth.PasswordAuthenticator");
         config.put("authorizer", "org.apache.cassandra.auth.CassandraAuthorizer");
         config.put("role_manager", "org.apache.cassandra.auth.CassandraRoleManager");
-        config.put("permissions_validity_in_ms", 0);
-        config.put("roles_validity_in_ms", 0);
+        config.put("permissions_validity", "0ms");
+        config.put("roles_validity", "0ms");
 
         int originalNodeCount = 1;
         int expandedNodeCount = originalNodeCount + 2;

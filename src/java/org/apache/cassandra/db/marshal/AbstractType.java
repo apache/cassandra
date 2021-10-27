@@ -514,7 +514,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
             if (l > maxValueSize)
                 throw new IOException(String.format("Corrupt value length %d encountered, as it exceeds the maximum of %d, " +
-                                                    "which is set via max_value_size_in_mb in cassandra.yaml",
+                                                    "which is set via max_value_size in cassandra.yaml",
                                                     l, maxValueSize));
 
             return accessor.read(in, l);

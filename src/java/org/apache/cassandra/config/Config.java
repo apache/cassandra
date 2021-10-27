@@ -102,6 +102,7 @@ public class Config
     /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
     public Integer allocate_tokens_for_local_replication_factor = null;
 
+    @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
     public volatile Duration native_transport_idle_timeout = new Duration("0ms");
 
     @Replaces(oldName = "request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
@@ -438,9 +439,9 @@ public class Config
     public Duration gc_warn_threshold = new Duration("1s");
 
     // TTL for different types of trace events.
-    @Replaces(oldName = "tracetype_query_ttl", converter = Converter.SecondsDurationConverter.class, deprecated = true)
+    @Replaces(oldName = "tracetype_query_ttl", converter = Converter.SecondsDurationConverter.class)
     public Duration tracetype_query_ttl = new Duration("86400s");
-    @Replaces(oldName = "tracetype_repair_ttl", converter = Converter.SecondsDurationConverter.class, deprecated = true)
+    @Replaces(oldName = "tracetype_repair_ttl", converter = Converter.SecondsDurationConverter.class)
     public Duration tracetype_repair_ttl = new Duration("604800s");
 
     /**
@@ -485,7 +486,9 @@ public class Config
      * When you disable async UDF execution, users MUST pay attention to read-timeouts since these may indicate
      * UDFs that run too long or forever - and this can destabilize the cluster.
      */
-    @Replaces(oldName = "user_defined_functions_threads_enabled", deprecated = true)
+    // Below parameter is not presented in cassandra.yaml but to be on the safe side that no one was directly using it
+    // I still added backward compatibility
+    @Replaces(oldName = "enable_user_defined_functions_threads", deprecated = true)
     public boolean user_defined_functions_threads_enabled = true;
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.

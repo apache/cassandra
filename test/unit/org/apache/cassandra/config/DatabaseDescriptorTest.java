@@ -283,7 +283,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(-1);
-            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = -1");
+            fail("Should have received a ConfigurationException column_index_cache_size = -1");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
@@ -291,7 +291,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = 2GiB");
+            fail("Should have received a ConfigurationException column_index_cache_size = 2GiB");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
@@ -299,7 +299,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexSize(-1);
-            fail("Should have received a ConfigurationException column_index_size_in_kb = -1");
+            fail("Should have received a ConfigurationException column_index_size = -1");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
@@ -307,7 +307,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexSize(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException column_index_size_in_kb = 2GiB");
+            fail("Should have received a ConfigurationException column_index_size = 2GiB");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
@@ -315,7 +315,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setBatchSizeWarnThresholdInKB(-1);
-            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = -1");
+            fail("Should have received a ConfigurationException batch_size_warn_threshold = -1");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
@@ -323,7 +323,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setBatchSizeWarnThresholdInKB(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = 2GiB");
+            fail("Should have received a ConfigurationException batch_size_warn_threshold = 2GiB");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());

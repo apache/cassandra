@@ -35,7 +35,7 @@ public class GroupCommitLogService extends AbstractCommitLogService
     {
         // wait until record has been safely persisted to disk
         pending.incrementAndGet();
-        // wait for commitlog_sync_group_window_in_ms
+        // wait for commitlog_sync_group_window
         alloc.awaitDiskSync(commitLog.metrics.waitingOnCommit);
         pending.decrementAndGet();
     }

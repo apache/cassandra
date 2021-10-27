@@ -458,7 +458,7 @@ public class DatabaseDescriptor
 
         if (conf.repair_session_max_tree_depth != null)
         {
-            logger.warn("repair_session_max_tree_depth has been deprecated and should be removed from cassandra.yaml. Use repair_session_space_in_mb instead");
+            logger.warn("repair_session_max_tree_depth has been deprecated and should be removed from cassandra.yaml. Use repair_session_space instead");
             if (conf.repair_session_max_tree_depth < 10)
                 throw new ConfigurationException("repair_session_max_tree_depth should not be < 10, but was " + conf.repair_session_max_tree_depth);
             if (conf.repair_session_max_tree_depth > 20)
@@ -666,7 +666,7 @@ public class DatabaseDescriptor
 
         try
         {
-            // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
+            // if key_cache_size option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
             keyCacheSizeInMB = (conf.key_cache_size == null)
                                ? Math.min(Math.max(1, (long) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024)), 100)
                                : conf.key_cache_size.toMegabytes();
@@ -682,7 +682,7 @@ public class DatabaseDescriptor
 
         try
         {
-            // if counter_cache_size_in_mb option was set to "auto" then size of the cache should be "min(2.5% of Heap (in MB), 50MB)
+            // if counter_cache_size option was set to "auto" then size of the cache should be "min(2.5% of Heap (in MB), 50MB)
             counterCacheSizeInMB = (conf.counter_cache_size == null)
                                    ? Math.min(Math.max(1, (long) (Runtime.getRuntime().totalMemory() * 0.025 / 1024 / 1024)), 50)
                                    : conf.counter_cache_size.toMegabytes();
@@ -1439,7 +1439,7 @@ public class DatabaseDescriptor
     public static void setColumnIndexSize(int val)
     {
         DataStorage memory = DataStorage.inKilobytes(val);
-        checkValidForByteConversion(memory, "column_index_size_in_kb");
+        checkValidForByteConversion(memory, "column_index_size");
         conf.column_index_size = memory;
     }
 
@@ -1456,7 +1456,7 @@ public class DatabaseDescriptor
     public static void setColumnIndexCacheSize(int val)
     {
         DataStorage memory = DataStorage.inKilobytes(val);
-        checkValidForByteConversion(memory, "column_index_cache_size_in_kb");
+        checkValidForByteConversion(memory, "column_index_cache_size");
         conf.column_index_cache_size = memory;
     }
 
