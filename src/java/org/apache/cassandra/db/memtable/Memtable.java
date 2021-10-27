@@ -167,7 +167,8 @@ public interface Memtable extends Comparable<Memtable>
          * Construct a list of boundaries that split the locally-owned ranges into the given number of shards,
          * splitting the owned space evenly. It is up to the memtable to use this information.
          * Any changes in the ring structure (e.g. added or removed nodes) will invalidate the splits; in such a case
-         * the memtable will be sent a shouldSwitch(OWNED_RANGES_CHANGED)
+         * the memtable will be sent a shouldSwitch(OWNED_RANGES_CHANGE) and, should that return false, a
+         * localRangesChanged() call.
          */
         ShardBoundaries localRangeSplits(int shardCount);
     }

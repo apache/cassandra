@@ -355,6 +355,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setGossipTokens(localTokens);
         tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddressAndPort());
         setMode(Mode.NORMAL, false);
+        invalidateLocalRanges();
     }
 
     public void setGossipTokens(Collection<Token> tokens)
@@ -1866,7 +1867,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // Force disk boundary invalidation now that local tokens are set
-        invalidateDiskBoundaries();
+        invalidateLocalRanges();
         repairPaxosForTopologyChange("bootstrap");
 
         Future<StreamState> bootstrapStream = startBootstrap(tokens);
@@ -1900,7 +1901,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
     }
 
-    private void invalidateDiskBoundaries()
+    private void invalidateLocalRanges()
     {
         for (Keyspace keyspace : Keyspace.all())
         {
@@ -1908,7 +1909,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 for (final ColumnFamilyStore store : cfs.concatWithIndexes())
                 {
-                    store.invalidateDiskBoundaries();
+                    store.invalidateLocalRanges();
                 }
             }
         }
@@ -2834,6 +2835,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         if (!tokensToUpdateInSystemKeyspace.isEmpty())
             SystemKeyspace.updateTokens(endpoint, tokensToUpdateInSystemKeyspace);
+
+        // Tokens changed, the local range ownership probably changed too.
+        invalidateLocalRanges();
     }
 
     @VisibleForTesting
@@ -2954,6 +2958,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (isMoving || operationMode == Mode.MOVING)
         {
             tokenMetadata.removeFromMoving(endpoint);
+            // The above may change the local ownership.
+            invalidateLocalRanges();
             notifyMoved(endpoint);
         }
         else if (!isMember) // prior to this, the node was not a member

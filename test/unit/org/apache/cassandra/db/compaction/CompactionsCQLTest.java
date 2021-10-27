@@ -214,7 +214,7 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
         // Invalidate disk boundaries to ensure that boundary invalidation will not cause the old strategy to be reloaded
-        getCurrentColumnFamilyStore().invalidateDiskBoundaries();
+        getCurrentColumnFamilyStore().invalidateLocalRanges();
         // altering something non-compaction related
         execute("ALTER TABLE %s WITH gc_grace_seconds = 1000");
         // should keep the local compaction strat

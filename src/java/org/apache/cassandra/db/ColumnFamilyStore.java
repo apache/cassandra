@@ -44,6 +44,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -169,16 +170,13 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static com.google.common.base.Throwables.propagate;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
-import static org.apache.cassandra.db.commitlog.CommitLog.instance;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -385,11 +383,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         indexManager.reload();
 
         memtableFactory = metadata().params.memtable.factory;
-        Memtable currentMemtable = data.getView().getCurrentMemtable();
-        if (currentMemtable.shouldSwitch(FlushReason.SCHEMA_CHANGE))
-            switchMemtableIfCurrent(currentMemtable, FlushReason.SCHEMA_CHANGE);
-        else
-            currentMemtable.metadataUpdated();
+        switchMemtableOrNotify(FlushReason.SCHEMA_CHANGE, Memtable::metadataUpdated);
     }
 
     public static Runnable getBackgroundCompactionTaskSubmitter()
@@ -951,6 +945,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                   format);
         assert !newDescriptor.fileFor(Component.DATA).exists();
         return newDescriptor;
+    }
+
+    /**
+     * Checks with the memtable if it should be switched for the given reason, and if not, calls the specified
+     * notification method.
+     */
+    private void switchMemtableOrNotify(FlushReason reason, Consumer<Memtable> elseNotify)
+    {
+        Memtable currentMemtable = data.getView().getCurrentMemtable();
+        if (currentMemtable.shouldSwitch(reason))
+            switchMemtableIfCurrent(currentMemtable, reason);
+        else
+            elseNotify.accept(currentMemtable);
     }
 
     /**
@@ -3148,9 +3155,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return diskBoundaryManager.getDiskBoundaries(this);
     }
 
-    public void invalidateDiskBoundaries()
+    public void invalidateLocalRanges()
     {
         diskBoundaryManager.invalidate();
+
+        switchMemtableOrNotify(FlushReason.OWNED_RANGES_CHANGE, Memtable::localRangesUpdated);
     }
 
     @Override
