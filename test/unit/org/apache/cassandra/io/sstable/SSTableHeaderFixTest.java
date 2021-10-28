@@ -33,6 +33,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.io.util.File;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -733,6 +734,20 @@ public class SSTableHeaderFixTest
             SerializationHeader.Component header = readHeader(sstable);
             assertFrozenUdt(header, true, true);
         }
+    }
+
+    @Test
+    public void ignoresStaleFilesTest() throws Exception
+    {
+        File dir = temporaryFolder;
+        IntStream.range(1, 2).forEach(g -> generateFakeSSTable(dir, g));
+
+        File newFile = new File(dir.toAbsolute(), "something_something-something.something");
+        Assert.assertTrue(newFile.createFileIfNotExists());
+
+        SSTableHeaderFix headerFix = builder().withPath(dir.toPath())
+                                              .build();
+        headerFix.execute();
     }
 
     private static final Pattern p = Pattern.compile(".* Column '([^']+)' needs to be updated from type .*");
