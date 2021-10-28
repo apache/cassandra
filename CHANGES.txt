@@ -1,4 +1,5 @@
 4.1
+ * Make nodes more resilient to local unrelated files during startup (CASSANDRA-17082)
  * repair prepare message would produce a wrong error message if network timeout happened rather than reply wait timeout (CASSANDRA-16992)
  * Log queries that fail on timeout or unavailable errors up to once per minute by default (CASSANDRA-17159)
  * Refactor normal/preview/IR repair to standardize repair cleanup and error handling of failed RepairJobs (CASSANDRA-17069)

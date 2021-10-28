@@ -298,7 +298,17 @@ public abstract class SSTableHeaderFix
     {
         Stream.of(path)
               .flatMap(SSTableHeaderFix::maybeExpandDirectory)
-              .filter(p -> Descriptor.fromFilenameWithComponent(new File(p)).right.type == Component.Type.DATA)
+              .filter(p -> {
+                  try
+                  {
+                      return Descriptor.fromFilenameWithComponent(new File(p.toFile())).right.type == Component.Type.DATA;
+                  }
+                  catch (IllegalArgumentException t)
+                  {
+                      logger.info("Couldn't parse filename {}, ignoring", p);
+                      return false;
+                  }
+              })
               .map(Path::toString)
               .map(Descriptor::fromFilename)
               .forEach(descriptors::add);
