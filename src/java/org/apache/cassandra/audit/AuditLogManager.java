@@ -22,12 +22,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,12 +36,14 @@ import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
@@ -120,6 +123,11 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     private void log(AuditLogEntry logEntry, Exception e)
     {
+        log(logEntry, e, null);
+    }
+
+    private void log(AuditLogEntry logEntry, Exception e, List<String> queries)
+    {
         AuditLogEntry.Builder builder = new AuditLogEntry.Builder(logEntry);
 
         if (e instanceof UnauthorizedException)
@@ -135,7 +143,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             builder.setType(AuditLogEntryType.REQUEST_FAILURE);
         }
 
-        builder.appendToOperation(QueryEvents.instance.getObfuscator().obfuscate(e.getMessage()));
+        builder.appendToOperation(obfuscatePasswordInformation(e, queries));
 
         log(builder.build());
     }
@@ -206,7 +214,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
                                                               .setOptions(options)
                                                               .build();
-        log(entry, cause);
+        log(entry, cause, query == null ? null : ImmutableList.of(query));
     }
 
     public void executeSuccess(CQLStatement statement, String query, QueryOptions options, QueryState state, long queryTime, Message.Response response)
@@ -240,7 +248,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                                                                   .build();
         }
         if (entry != null)
-            log(entry, cause);
+            log(entry, cause, query == null ? null : ImmutableList.of(query));
     }
 
     public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
@@ -259,7 +267,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                                                               .setOptions(options)
                                                               .setType(AuditLogEntryType.BATCH)
                                                               .build();
-        log(entry, cause);
+        log(entry, cause, queries);
     }
 
     private static List<AuditLogEntry> buildEntriesForBatch(List<? extends CQLStatement> statements, List<String> queries, QueryState state, QueryOptions options, long queryStartTimeMillis)
@@ -327,5 +335,20 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                                                               .setType(AuditLogEntryType.LOGIN_ERROR)
                                                               .build();
         log(entry, cause);
+    }
+
+    private String obfuscatePasswordInformation(Exception e, List<String> queries)
+    {
+        // A syntax error may reveal the password in the form of 'line 1:33 mismatched input 'secret_password''
+        if (e instanceof SyntaxException && queries != null && !queries.isEmpty())
+        {
+            for (String query : queries)
+            {
+                if (query.toLowerCase().contains(PasswordObfuscator.PASSWORD_TOKEN))
+                    return "Syntax Exception. Obscured for security reasons.";
+            }
+        }
+
+        return PasswordObfuscator.obfuscate(e.getMessage());
     }
 }

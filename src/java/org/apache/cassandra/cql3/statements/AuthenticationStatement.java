@@ -63,5 +63,10 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
                                                           state.getUser().getName()));
         }
     }
+
+    public String obfuscatePassword(String query)
+    {
+        return query;
+    }
 }
 

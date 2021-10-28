@@ -37,6 +37,11 @@ using the provided 'sstableupgrade' tool.
 4.0.2
 =====
 
+New features
+------------
+    - Full support for Java 11, it is not experimental anymore.
+    - DCL statements in audit logs will now obscure only the password if they don't fail to parse.
+
 Upgrading
 ---------
     - Before you upgrade, if you are using `cassandra.auth_bcrypt_gensalt_log2_rounds` property,
@@ -49,10 +54,6 @@ Upgrading
       currently both old and new names should work. Cassandra 4.0.0 and Cassandra 4.0.1 work ONLY with the new names
       (They weren't updated in cassandra.yaml though).
 
-New Features
-------------
-    - Full support for Java 11, it is not experimental anymore.
-      
 4.0
 ===
 
