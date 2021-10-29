@@ -176,7 +176,7 @@ j11_repeated_dtest_executor: &j11_repeated_dtest_executor
     name: java11-executor
   parallelism: 4
 
-j8_with_dtests_jobs: &j8_with_dtests_jobs
+j8_separate_jobs: &j8_separate_jobs
   jobs:
     - start_j8_build:
         type: approval
@@ -588,7 +588,7 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - start_repeated_jvm_upgrade_dtest
           - j8_dtest_jars_build
 
-j11_with_dtests_jobs: &j11_with_dtests_jobs
+j11_separate_jobs: &j11_separate_jobs
   jobs:
     - start_j11_build:
         type: approval
@@ -743,9 +743,9 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
 
 workflows:
     version: 2
-    java8_separate_tests: *j8_with_dtests_jobs
+    java8_separate_tests: *j8_separate_jobs
     java8_pre-commit_tests: *j8_pre-commit_jobs
-    java11_separate_tests: *j11_with_dtests_jobs
+    java11_separate_tests: *j11_separate_jobs
     java11_pre-commit_tests: *j11_pre-commit_jobs
 
 executors:
