@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -36,6 +39,8 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.CDCState;
 import org.apache.cassandra.exceptions.CDCWriteException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -106,7 +111,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             Assert.assertTrue("Expected files to be moved to overflow.", getCDCRawCount() > 0);
 
             // Simulate a CDC consumer reading files then deleting them
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
                 FileUtils.deleteWithConfirm(f);
 
             // Update size tracker to reflect deleted files. Should flip flag on current allocatingFrom to allow.
@@ -148,14 +153,14 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
             cdcMgr.awaitManagementTasksCompletion();
             // Delete all files in cdc_raw
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
-                f.delete();
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
+                f.tryDelete();
             cdcMgr.updateCDCTotalSize();
             // Confirm cdc update process changes flag on active segment
             expectCurrentCDCState(CDCState.PERMITTED);
 
             // Clear out archived CDC files
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles()) {
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList()) {
                 FileUtils.deleteWithConfirm(f);
             }
         }
@@ -239,7 +244,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
 
         // Confirm that, with no CDC data present, we've hard-linked but have no index file
-        Path linked = new File(DatabaseDescriptor.getCDCLogLocation(), currentSegment.logFile.getName()).toPath();
+        Path linked = new File(DatabaseDescriptor.getCDCLogLocation(), currentSegment.logFile.name()).toPath();
         File cdcIndexFile = currentSegment.getCDCIndexFile();
         Assert.assertTrue("File does not exist: " + linked, Files.exists(linked));
         Assert.assertFalse("Expected index file to not be created but found: " + cdcIndexFile, cdcIndexFile.exists());
@@ -267,7 +272,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
             .build().apply();
 
-        Path linked = new File(DatabaseDescriptor.getCDCLogLocation(), currentSegment.logFile.getName()).toPath();
+        Path linked = new File(DatabaseDescriptor.getCDCLogLocation(), currentSegment.logFile.name()).toPath();
         // Confirm that, with CDC data present but not yet flushed, we've hard-linked but have no index file
         Assert.assertTrue("File does not exist: " + linked, Files.exists(linked));
 
@@ -315,13 +320,13 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
         // Build up a list of expected index files after replay and then clear out cdc_raw
         List<CDCIndexData> oldData = parseCDCIndexData();
-        for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
-            FileUtils.deleteWithConfirm(f.getAbsolutePath());
+        for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
+            FileUtils.deleteWithConfirm(f.absolutePath());
 
         try
         {
             Assert.assertEquals("Expected 0 files in CDC folder after deletion. ",
-                                0, new File(DatabaseDescriptor.getCDCLogLocation()).listFiles().length);
+                                0, new File(DatabaseDescriptor.getCDCLogLocation()).tryList().length);
         }
         finally
         {
@@ -336,7 +341,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
         // Rough sanity check -> should be files there now.
         Assert.assertTrue("Expected non-zero number of files in CDC folder after restart.",
-                          new File(DatabaseDescriptor.getCDCLogLocation()).listFiles().length > 0);
+                          new File(DatabaseDescriptor.getCDCLogLocation()).tryList().length > 0);
 
         // Confirm all the old indexes in old are present and >= the original offset, as we flag the entire segment
         // as cdc written on a replay.
@@ -382,9 +387,9 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         List<CDCIndexData> results = new ArrayList<>();
         try
         {
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
             {
-                if (f.getName().contains("_cdc.idx"))
+                if (f.name().contains("_cdc.idx"))
                     results.add(new CDCIndexData(f));
             }
         }
@@ -403,7 +408,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         CDCIndexData(File f) throws IOException
         {
             String line = "";
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(f))))
+            try (BufferedReader br = new BufferedReader(new FileReader(f)))
             {
                 line = br.readLine();
             }
@@ -411,7 +416,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             {
                 throw e;
             }
-            fileName = f.getName();
+            fileName = f.name();
             offset = Integer.parseInt(line);
         }
 
@@ -438,7 +443,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private int getCDCRawCount()
     {
-        return new File(DatabaseDescriptor.getCDCLogLocation()).listFiles().length;
+        return new File(DatabaseDescriptor.getCDCLogLocation()).tryList().length;
     }
 
     private void expectCurrentCDCState(CDCState expectedState)

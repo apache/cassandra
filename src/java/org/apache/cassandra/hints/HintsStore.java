@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.SyncUtil;
@@ -129,13 +129,13 @@ final class HintsStore
     void delete(HintsDescriptor descriptor)
     {
         File hintsFile = new File(hintsDirectory, descriptor.fileName());
-        if (hintsFile.delete())
+        if (hintsFile.tryDelete())
             logger.info("Deleted hint file {}", descriptor.fileName());
         else
             logger.error("Failed to delete hint file {}", descriptor.fileName());
 
         //noinspection ResultOfMethodCallIgnored
-        new File(hintsDirectory, descriptor.checksumFileName()).delete();
+        new File(hintsDirectory, descriptor.checksumFileName()).tryDelete();
     }
 
     boolean hasFiles()

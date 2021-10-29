@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.IOException;
 import java.io.Closeable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -31,6 +29,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 
@@ -91,18 +90,15 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     {
         while (true)
         {
-            try (Stream<Path> existingPaths = Files.list(directory.toPath()))
-            {
-                Stream<SSTableId> existingIds = existingPaths.map(Path::toFile)
-                                                             .map(SSTable::tryDescriptorFromFilename)
-                                                             .filter(d -> d != null && d.cfname.equals(columnFamily))
-                                                             .map(d -> d.id);
+            Stream<File> existingPaths = Arrays.stream(directory.tryList());
+            Stream<SSTableId> existingIds = existingPaths.map(SSTable::tryDescriptorFromFilename)
+                                                         .filter(d -> d != null && d.cfname.equals(columnFamily))
+                                                         .map(d -> d.id);
 
-                SSTableId lastId = id.get();
-                SSTableId newId = SSTableIdFactory.instance.defaultBuilder().generator(Stream.concat(existingIds, Stream.of(lastId))).get();
-                if (id.compareAndSet(lastId, newId))
-                    return newId;
-            }
+            SSTableId lastId = id.get();
+            SSTableId newId = SSTableIdFactory.instance.defaultBuilder().generator(Stream.concat(existingIds, Stream.of(lastId))).get();
+            if (id.compareAndSet(lastId, newId))
+                return newId;
         }
     }
 

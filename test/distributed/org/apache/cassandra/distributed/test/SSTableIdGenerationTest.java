@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -51,6 +50,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.TimeUUID;
@@ -268,7 +268,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     @Test
     public void testSnapshot() throws Exception
     {
-        File tmpDir = Files.createTempDirectory("test").toFile();
+        File tmpDir = new File(Files.createTempDirectory("test"));
         Set<String> seqOnlyBackupDirs;
         Set<String> seqAndUUIDBackupDirs;
         Set<String> uuidOnlyBackupDirs;
@@ -355,8 +355,8 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             {
                 File src = new File(dir);
                 File dest = relativizePath(tmpDir, src, 3);
-                Files.createDirectories(dest.getParentFile().toPath());
-                FileUtils.moveDirectory(src, dest);
+                Files.createDirectories(dest.parent().toPath());
+                FileUtils.moveDirectory(src.toJavaIOFile(), dest.toJavaIOFile());
             }
         }
 
@@ -403,7 +403,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         Set<String> snapshotDirs = instance.callOnInstance(() -> ColumnFamilyStore.getIfExists(ks, tableName)
                                                                                   .snapshot(SNAPSHOT_TAG)
                                                                                   .stream()
-                                                                                  .map(s -> Directories.getSnapshotDirectory(s.descriptor, SNAPSHOT_TAG).getAbsoluteFile())
+                                                                                  .map(s -> Directories.getSnapshotDirectory(s.descriptor, SNAPSHOT_TAG).toAbsolute())
                                                                                   .filter(dir -> !Directories.isSecondaryIndexFolder(dir))
                                                                                   .map(File::toString)
                                                                                   .collect(Collectors.toSet()));

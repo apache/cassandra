@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -32,14 +31,15 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
 import net.openhft.chronicle.core.io.IORuntimeException;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.binlog.BinLog;
 
 /**
@@ -76,7 +76,7 @@ public class AuditLogViewer
         Pauser pauser = Pauser.millis(100);
         List<ExcerptTailer> tailers = pathList.stream()
                                               .distinct()
-                                              .map(path -> SingleChronicleQueueBuilder.single(new File(path)).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build())
+                                              .map(path -> SingleChronicleQueueBuilder.single(new File(path).toJavaIOFile()).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build())
                                               .map(SingleChronicleQueue::createTailer)
                                               .collect(Collectors.toList());
         boolean hadWork = true;

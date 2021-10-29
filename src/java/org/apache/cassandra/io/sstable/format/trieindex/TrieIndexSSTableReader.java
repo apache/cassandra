@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format.trieindex;
 import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -83,6 +82,7 @@ import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -947,9 +947,6 @@ public class TrieIndexSSTableReader extends SSTableReader
     /**
      * Load the bloom filter from Filter.db file, if it exists and if the FP chance has not changed.
      * Otherwise recreate the bloom filter using the current FP chance.
-     *
-     * @param sstableMetadata the sstable metadata, for extracting and changing the FP chance
-     * @param fpChance        the current FP chance taken from the table metadata
      */
     @VisibleForTesting
     static @Nonnull IFilter getBloomFilter(Descriptor descriptor, Set<Component> components, ValidationMetadata validationMetadata, boolean isOffline, TableMetadata metadata, long estimatedKeysCount)

@@ -25,11 +25,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.util.HashMap;
 import java.util.Map;
@@ -82,9 +81,9 @@ public class ComponentContext implements AutoCloseable
      */
     public FileChannel channel(Descriptor descriptor, Component component, long size) throws IOException
     {
-        String toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component).getPath() : descriptor.filenameFor(component);
+        String toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component).path() : descriptor.filenameFor(component);
         @SuppressWarnings("resource") // file channel will be closed by Caller
-        FileChannel channel = new RandomAccessFile(toTransfer, "r").getChannel();
+        FileChannel channel = new File(toTransfer).newReadChannel();
 
         assert size == channel.size() : String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
                                                       component, size, channel.size());

@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +37,7 @@ import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 
 import static org.junit.Assert.assertFalse;
@@ -70,7 +70,7 @@ public class DropTableTest extends SAITester
         {
             File file = sstable.descriptor.fileFor(component);
             if (file.exists())
-                files.add(file.getPath());
+                files.add(file.path());
         }
 
         Injection failUnregisterComponents = Injections.newCustom("fail_unregister_components")

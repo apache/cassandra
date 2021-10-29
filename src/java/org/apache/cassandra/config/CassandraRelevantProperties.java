@@ -177,6 +177,8 @@ public enum CassandraRelevantProperties
      */
     ENABLE_NODELOCAL_QUERIES("cassandra.enable_nodelocal_queries", "false"),
 
+    CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

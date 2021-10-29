@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sasi.conf;
 
-import java.io.File;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -29,6 +28,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
@@ -181,7 +181,7 @@ public class DataTracker
             }
             catch (Throwable t)
             {
-                logger.error("Can't open index file at " + indexFile.getAbsolutePath() + ", skipping.", t);
+                logger.error("Can't open index file at " + indexFile.absolutePath() + ", skipping.", t);
                 if (index != null)
                     index.release();
             }

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format.trieindex;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,6 +49,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.io.sstable.format.trieindex.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.tries.Walker;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -59,7 +59,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -200,7 +199,7 @@ public class RowIndexTest
     {
         complete();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(file.getPath())
+        try (FileHandle.Builder builder = new FileHandle.Builder(file.path())
                                           .mmapped(accessMode == Config.DiskAccessMode.mmap))
         {
             fh = builder.complete();

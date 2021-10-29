@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 

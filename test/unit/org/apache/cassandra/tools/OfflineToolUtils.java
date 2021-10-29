@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -35,6 +34,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.junit.BeforeClass;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.util.File;
 
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
 import static org.junit.Assert.assertFalse;
@@ -204,20 +205,20 @@ public abstract class OfflineToolUtils
     public static String findOneSSTable(String ks, String cf) throws IOException
     {
         File cfDir = sstableDir(ks, cf);
-        File[] sstableFiles = cfDir.listFiles((file) -> file.isFile() && file.getName().endsWith("-Data.db"));
-        return sstableFiles[0].getAbsolutePath();
+        File[] sstableFiles = cfDir.tryList((file) -> file.isFile() && file.name().endsWith("-Data.db"));
+        return sstableFiles[0].absolutePath();
     }
 
     public static String sstableDirName(String ks, String cf) throws IOException
     {
-        return sstableDir(ks, cf).getAbsolutePath();
+        return sstableDir(ks, cf).absolutePath();
     }
 
     public static File sstableDir(String ks, String cf) throws IOException
     {
         File dataDir = copySSTables();
         File ksDir = new File(dataDir, ks);
-        File[] cfDirs = ksDir.listFiles((dir, name) -> cf.equals(name) || name.startsWith(cf + '-'));
+        File[] cfDirs = ksDir.tryList((dir, name) -> cf.equals(name) || name.startsWith(cf + '-'));
         return cfDirs[0];
     }
 
@@ -225,7 +226,7 @@ public abstract class OfflineToolUtils
     {
         File dataDir = new File("build/test/cassandra/data");
         File srcDir = new File("test/data/legacy-sstables/ma");
-        FileUtils.copyDirectory(new File(srcDir, "legacy_tables"), new File(dataDir, "legacy_sstables"));
+        FileUtils.copyDirectory(new File(srcDir, "legacy_tables").toJavaIOFile(), new File(dataDir, "legacy_sstables").toJavaIOFile());
         return dataDir;
     }
     

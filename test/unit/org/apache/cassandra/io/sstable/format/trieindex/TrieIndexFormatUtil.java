@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format.trieindex;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
@@ -31,6 +30,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader.OpenReason;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -47,7 +47,7 @@ public class TrieIndexFormatUtil
         {
             File f = FileUtils.createTempFile("empty-index", "db");
             try (SequentialWriter writer = new SequentialWriter(f);
-                 FileHandle.Builder fhBuilder = new FileHandle.Builder(f.getPath());
+                 FileHandle.Builder fhBuilder = new FileHandle.Builder(f.path());
                  PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder))
             {
                 builder.complete();

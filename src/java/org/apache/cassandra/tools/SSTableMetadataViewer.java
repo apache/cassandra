@@ -17,14 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
-import static org.apache.cassandra.tools.Util.BLUE;
-import static org.apache.cassandra.tools.Util.CYAN;
-import static org.apache.cassandra.tools.Util.RESET;
-import static org.apache.cassandra.tools.Util.WHITE;
-import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
-
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -36,6 +29,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.MinMaxPriorityQueue;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -59,20 +61,18 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tools.Util.TermHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
 
-import com.google.common.collect.MinMaxPriorityQueue;
+import static org.apache.cassandra.tools.Util.BLUE;
+import static org.apache.cassandra.tools.Util.CYAN;
+import static org.apache.cassandra.tools.Util.RESET;
+import static org.apache.cassandra.tools.Util.WHITE;
+import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
 /**
  * Shows the contents of sstable metadata
@@ -533,7 +533,7 @@ public class SSTableMetadataViewer
             File sstable = new File(fname);
             if (sstable.exists())
             {
-                metawriter.printSStableMetadata(sstable.getAbsolutePath(), fullScan);
+                metawriter.printSStableMetadata(sstable.absolutePath(), fullScan);
             }
             else
             {

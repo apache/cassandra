@@ -18,7 +18,6 @@
 package org.apache.cassandra.diag;
 
 import java.io.Serializable;
-import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -27,8 +26,6 @@ import java.util.SortedMap;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;

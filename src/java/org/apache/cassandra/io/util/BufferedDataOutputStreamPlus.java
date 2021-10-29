@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.WritableByteChannel;
@@ -29,7 +27,6 @@ import com.google.common.base.Preconditions;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * An implementation of the DataOutputStreamPlus interface using a ByteBuffer to stage writes
@@ -42,26 +39,6 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     private static final int DEFAULT_BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + "nio_data_output_stream_plus_buffer_size", 1024 * 32);
 
     protected ByteBuffer buffer;
-
-    public BufferedDataOutputStreamPlus(RandomAccessFile ras)
-    {
-        this(ras.getChannel());
-    }
-
-    public BufferedDataOutputStreamPlus(RandomAccessFile ras, int bufferSize)
-    {
-        this(ras.getChannel(), bufferSize);
-    }
-
-    public BufferedDataOutputStreamPlus(FileOutputStream fos)
-    {
-        this(fos.getChannel());
-    }
-
-    public BufferedDataOutputStreamPlus(FileOutputStream fos, int bufferSize)
-    {
-        this(fos.getChannel(), bufferSize);
-    }
 
     public BufferedDataOutputStreamPlus(WritableByteChannel wbc)
     {

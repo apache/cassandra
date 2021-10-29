@@ -17,16 +17,12 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.Random;
 import java.util.function.BiFunction;
-
 import javax.crypto.Cipher;
 
 import org.junit.Assert;
@@ -42,13 +38,15 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.security.CipherFactory;
-import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SegmentReaderTest
@@ -103,7 +101,7 @@ public class SegmentReaderTest
 
         File compressedFile = FileUtils.createTempFile("compressed-segment-", ".log");
         compressedFile.deleteOnExit();
-        FileOutputStream fos = new FileOutputStream(compressedFile);
+        FileOutputStreamPlus fos = new FileOutputStreamPlus(compressedFile);
         fos.getChannel().write(compBuffer);
         fos.close();
 
@@ -190,7 +188,7 @@ public class SegmentReaderTest
         Cipher cipher = cipherFactory.getEncryptor(context.getTransparentDataEncryptionOptions().cipher, context.getTransparentDataEncryptionOptions().key_alias);
         File encryptedFile = FileUtils.createTempFile("encrypted-segment-", ".log");
         encryptedFile.deleteOnExit();
-        FileChannel channel = new RandomAccessFile(encryptedFile, "rw").getChannel();
+        FileChannel channel = encryptedFile.newReadWriteChannel();
         channel.write(ByteBufferUtil.bytes(plainTextLength));
         EncryptionUtils.encryptAndWrite(compressedBuffer, channel, true, cipher);
         channel.close();

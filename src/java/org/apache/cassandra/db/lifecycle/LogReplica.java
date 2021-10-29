@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,18 +54,18 @@ final class LogReplica implements AutoCloseable
 
     static LogReplica create(File directory, String fileName)
     {
-        int folderFD = NativeLibrary.tryOpenDirectory(directory.getPath());
+        int folderFD = NativeLibrary.tryOpenDirectory(directory.path());
         if (folderFD == -1 && !FBUtilities.isWindows)
-            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", directory.getPath())), directory.getPath());
+            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", directory.path())), directory.path());
 
         return new LogReplica(new File(fileName), folderFD);
     }
 
     static LogReplica open(File file)
     {
-        int folderFD = NativeLibrary.tryOpenDirectory(file.getParentFile().getPath());
+        int folderFD = NativeLibrary.tryOpenDirectory(file.parent().path());
         if (folderFD == -1 && !FBUtilities.isWindows)
-            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.getParentFile().getPath())), file.getParentFile().getPath());
+            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.parent().path())), file.parent().path());
 
         return new LogReplica(file, folderFD);
     }
@@ -88,12 +88,12 @@ final class LogReplica implements AutoCloseable
 
     String getFileName()
     {
-        return file.getName();
+        return file.name();
     }
 
     String getDirectory()
     {
-        return file.getParent();
+        return file.parentPath();
     }
 
     void append(LogRecord record)
@@ -162,7 +162,7 @@ final class LogReplica implements AutoCloseable
 
     void printContentsWithAnyErrors(StringBuilder str)
     {
-        str.append(file.getPath());
+        str.append(file.path());
         str.append(System.lineSeparator());
         FileUtils.readLines(file).forEach(line -> printLineWithAnyError(str, line));
     }

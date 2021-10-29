@@ -18,8 +18,6 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -27,16 +25,13 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import com.google.common.collect.Iterators;
-import com.googlecode.concurrenttrees.common.Iterables;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -50,12 +45,17 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import static junit.framework.Assert.assertNotNull;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
@@ -499,7 +499,7 @@ public class ColumnFamilyStoreTest
         String baseTableFile = (String) files.get(0);
         String indexTableFile = (String) files.get(1);
         assertThat(baseTableFile).isNotEqualTo(indexTableFile);
-        assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile())).isTrue();
+        assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).parent())).isTrue();
 
         Set<String> originalFiles = new HashSet<>();
         Iterables.toList(cfs.concatWithIndexes()).stream()
@@ -542,7 +542,7 @@ public class ColumnFamilyStoreTest
 
         String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
         String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
-        new File(dataFileName).renameTo(new File(tmpDataFileName));
+        new File(dataFileName).tryMove(new File(tmpDataFileName));
 
         ssTable.selfRef().release();
 

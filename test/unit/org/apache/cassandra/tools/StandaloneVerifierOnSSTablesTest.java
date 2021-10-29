@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.io.RandomAccessFile;
 
 import org.apache.commons.io.FileUtils;
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -101,7 +101,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
             File testDataDir = new File("test/data/legacy-sstables/ma/legacy_tables/legacy_ma_simple");
             for (File cfsDir : cfs.getDirectories().getCFDirectories())
             {
-                FileUtils.copyDirectory(testDataDir, cfsDir);
+                FileUtils.copyDirectory(testDataDir.toJavaIOFile(), cfsDir.toJavaIOFile());
             }
         });
 

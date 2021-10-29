@@ -18,22 +18,25 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.junit.Test;
 
-import org.apache.cassandra.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.fail;
@@ -65,7 +68,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
             writer.setMaxDataAge(1000).openEarly(s -> {
                 assert s != null;
-                assertFileCounts(dir.list());
+                assertFileCounts(dir.tryListNames());
                 for (int i = 10000; i < 20000; i++)
                 {
                     UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
@@ -75,13 +78,13 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 }
                 writer.setMaxDataAge(1000).openEarly(s2 -> {
                     assertTrue(s.last.compareTo(s2.last) < 0);
-                    assertFileCounts(dir.list());
+                    assertFileCounts(dir.tryListNames());
                     s2.selfRef().release();
                     s.selfRef().release();
                 });
             });
 
-            int datafiles = assertFileCounts(dir.list());
+            int datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 1);
 
             // These checks don't work on Windows because the writer has the channel still
@@ -89,12 +92,12 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.list());
+                assertFileCounts(dir.tryListNames());
             }
             writer.abort();
             txn.abort();
             LifecycleTransaction.waitForDeletions();
-            datafiles = assertFileCounts(dir.list());
+            datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 0);
             validateCFS(cfs);
         }
@@ -120,7 +123,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 writer.append(builder.build().unfilteredIterator());
             }
 
-            assertFileCounts(dir.list());
+            assertFileCounts(dir.tryListNames());
             for (int i = 10000; i < 20000; i++)
             {
                 UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
@@ -129,7 +132,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 writer.append(builder.build().unfilteredIterator());
             }
             SSTableReader sstable = writer.finish(true);
-            int datafiles = assertFileCounts(dir.list());
+            int datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 1);
 
             sstable.selfRef().release();
@@ -138,12 +141,12 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.list());
+                assertFileCounts(dir.tryListNames());
             }
 
             txn.abort();
             LifecycleTransaction.waitForDeletions();
-            datafiles = assertFileCounts(dir.list());
+            datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 0);
             validateCFS(cfs);
         }
@@ -171,7 +174,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 writer1.append(builder.build().unfilteredIterator());
             }
 
-            assertFileCounts(dir.list());
+            assertFileCounts(dir.tryListNames());
             for (int i = 10000; i < 20000; i++)
             {
                 UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
@@ -182,9 +185,9 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             SSTableReader sstable = writer1.finish(true);
             txn.update(sstable, false);
 
-            assertFileCounts(dir.list());
+            assertFileCounts(dir.tryListNames());
 
-            int datafiles = assertFileCounts(dir.list());
+            int datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 2);
 
             // These checks don't work on Windows because the writer has the channel still
@@ -192,11 +195,11 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.list());
+                assertFileCounts(dir.tryListNames());
             }
             txn.abort();
             LifecycleTransaction.waitForDeletions();
-            datafiles = assertFileCounts(dir.list());
+            datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 0);
             validateCFS(cfs);
         }

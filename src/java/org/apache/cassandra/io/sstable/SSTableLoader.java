@@ -17,27 +17,43 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.streaming.DefaultConnectionFactory;
+import org.apache.cassandra.streaming.OutgoingStream;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.StreamConnectionFactory;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
-
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -64,7 +80,7 @@ public class SSTableLoader implements StreamEventHandler
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler, int connectionsPerHost, String targetKeyspace)
     {
         this.directory = directory;
-        this.keyspace = targetKeyspace != null ? targetKeyspace : directory.getParentFile().getName();
+        this.keyspace = targetKeyspace != null ? targetKeyspace : directory.parent().name();
         this.client = client;
         this.outputHandler = outputHandler;
         this.connectionsPerHost = connectionsPerHost;
@@ -78,8 +94,8 @@ public class SSTableLoader implements StreamEventHandler
         LifecycleTransaction.getFiles(directory.toPath(),
                                       (file, type) ->
                                       {
-                                          File dir = file.getParentFile();
-                                          String name = file.getName();
+                                          File dir = file.parent();
+                                          String name = file.name();
 
                                           if (type != Directories.FileType.FINAL)
                                           {
@@ -95,15 +111,15 @@ public class SSTableLoader implements StreamEventHandler
                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
 
                                           if (metadata == null && // we did not find metadata
-                                              directory.getName().equals(Directories.BACKUPS_SUBDIR)) // and it's likely we hit CASSANDRA-16235
+                                              directory.name().equals(Directories.BACKUPS_SUBDIR)) // and it's likely we hit CASSANDRA-16235
                                           {
-                                              File parentDirectory = directory.getParentFile();
-                                              File parentParentDirectory = parentDirectory != null ? parentDirectory.getParentFile() : null;
+                                              File parentDirectory = directory.parent();
+                                              File parentParentDirectory = parentDirectory != null ? parentDirectory.parent() : null;
                                               // check that descriptor's cfname and ksname are 1 directory closer to root than they should be
                                               if (parentDirectory != null &&
                                                   parentParentDirectory != null &&
-                                                  desc.cfname.equals(parentDirectory.getName()) &&
-                                                  desc.ksname.equals(parentParentDirectory.getName()))
+                                                  desc.cfname.equals(parentDirectory.name()) &&
+                                                  desc.ksname.equals(parentParentDirectory.name()))
                                               {
                                                   Descriptor newDesc = new Descriptor(desc.directory,
                                                                                       desc.ksname,

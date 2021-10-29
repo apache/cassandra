@@ -52,7 +52,7 @@ public class HintedHandOffMetricsTest
     @Test
     public void testHintsMetrics() throws Exception
     {
-        DatabaseDescriptor.getHintsDirectory().mkdirs();
+        DatabaseDescriptor.getHintsDirectory().tryCreateDirectories();
 
         for (int i = 0; i < 99; i++)
             HintsService.instance.metrics.incrPastWindow(InetAddressAndPort.getLocalHost());

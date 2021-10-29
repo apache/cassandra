@@ -21,15 +21,24 @@ package org.apache.cassandra.db.commitlog;
  *
  */
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -39,18 +48,23 @@ import org.junit.runners.Parameterized.Parameters;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
@@ -101,7 +115,7 @@ public abstract class CommitLogStressTest
     @BeforeClass
     static public void initialize() throws IOException
     {
-        try (FileInputStream fis = new FileInputStream("CHANGES.txt"))
+        try (FileInputStreamPlus fis = new FileInputStreamPlus("CHANGES.txt"))
         {
             dataSource = ByteBuffer.allocateDirect((int) fis.getChannel().size());
             while (dataSource.hasRemaining())
@@ -123,15 +137,15 @@ public abstract class CommitLogStressTest
         File dir = new File(location);
         if (dir.isDirectory())
         {
-            File[] files = dir.listFiles();
+            File[] files = dir.tryList();
 
             for (File f : files)
-                if (!f.delete())
+                if (!f.tryDelete())
                     Assert.fail("Failed to delete " + f);
         }
         else
         {
-            dir.mkdir();
+            dir.tryCreateDirectory();
         }
     }
 
@@ -245,13 +259,13 @@ public abstract class CommitLogStressTest
         System.out.println("Stopped. Replaying... ");
         System.out.flush();
         Reader reader = new Reader();
-        File[] files = new File(location).listFiles();
+        File[] files = new File(location).tryList();
 
         DummyHandler handler = new DummyHandler();
         reader.readAllFiles(handler, files);
 
         for (File f : files)
-            if (!f.delete())
+            if (!f.tryDelete())
                 Assert.fail("Failed to delete " + f);
 
         if (hash == reader.hash && cells == reader.cells)
@@ -278,7 +292,7 @@ public abstract class CommitLogStressTest
         commitLog.segmentManager.awaitManagementTasksCompletion();
 
         long combinedSize = 0;
-        for (File f : new File(commitLog.segmentManager.storageDirectory).listFiles())
+        for (File f : new File(commitLog.segmentManager.storageDirectory).tryList())
             combinedSize += f.length();
         Assert.assertEquals(combinedSize, commitLog.getActiveOnDiskSize());
 

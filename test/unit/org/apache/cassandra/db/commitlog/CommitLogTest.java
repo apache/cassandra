@@ -21,8 +21,6 @@ package org.apache.cassandra.db.commitlog;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
@@ -49,6 +47,7 @@ import com.google.common.io.Files;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -85,6 +84,8 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -223,7 +224,9 @@ public abstract class CommitLogTest
     @Test
     public void testHeaderOnlyFileFiltering() throws Exception
     {
-        File directory = Files.createTempDir();
+        Assume.assumeTrue(!DatabaseDescriptor.getEncryptionContext().isEnabled());
+
+        File directory = new File(Files.createTempDir());
 
         CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, DatabaseDescriptor.getEncryptionContext());
         CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 2, null, DatabaseDescriptor.getEncryptionContext());
@@ -240,7 +243,7 @@ public abstract class CommitLogTest
         buffer.putInt(5);
         buffer.putInt(6);
 
-        try (OutputStream lout = new FileOutputStream(file1))
+        try (OutputStream lout = new FileOutputStreamPlus(file1))
         {
             lout.write(buffer.array());
         }
@@ -249,7 +252,7 @@ public abstract class CommitLogTest
         File file2 = new File(directory, desc2.fileName());
         buffer = ByteBuffer.allocate(1024);
         CommitLogDescriptor.writeHeader(buffer, desc2);
-        try (OutputStream lout = new FileOutputStream(file2))
+        try (OutputStream lout = new FileOutputStreamPlus(file2))
         {
             lout.write(buffer.array());
         }
@@ -606,7 +609,7 @@ public abstract class CommitLogTest
 
         File logFile = new File(DatabaseDescriptor.getCommitLogLocation(), desc.fileName());
 
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(buf.array(), 0, buf.limit());
         }
@@ -635,11 +638,11 @@ public abstract class CommitLogTest
     protected Void testRecovery(byte[] logData, int version) throws Exception
     {
         File logFile = tmpFile(version);
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(logData);
             //statics make it annoying to test things correctly
-            CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+            CommitLog.instance.recover(logFile.path()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
         }
         return null;
     }
@@ -647,7 +650,7 @@ public abstract class CommitLogTest
     protected Void testRecovery(CommitLogDescriptor desc, byte[] logData, int dataLength, boolean tolerateTruncation) throws Exception
     {
         File logFile = tmpFile(desc.version);
-        CommitLogDescriptor fromFile = CommitLogDescriptor.fromFileName(logFile.getName());
+        CommitLogDescriptor fromFile = CommitLogDescriptor.fromFileName(logFile.name());
         // Change id to match file.
         desc = new CommitLogDescriptor(desc.version, fromFile.id, desc.compression, desc.getEncryptionContext());
 
@@ -663,12 +666,12 @@ public abstract class CommitLogTest
         // Add data to byte buffer
         buf.put(logData);
 
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(buf.array(), 0, buf.position());
 
             //statics make it annoying to test things correctly
-            CommitLog.instance.recoverPath(logFile.getPath(), tolerateTruncation); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
+            CommitLog.instance.recoverPath(logFile.path(), tolerateTruncation); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
         }
         return null;
     }
@@ -680,12 +683,12 @@ public abstract class CommitLogTest
         File logFile = tmpFile(desc.version);
         ByteBuffer buf = ByteBuffer.allocate(1024);
         CommitLogDescriptor.writeHeader(buf, desc);
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(buf.array(), 0, buf.position());
 
             runExpecting(() -> {
-                CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+                CommitLog.instance.recover(logFile.path()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
                 return null;
             }, CommitLogReplayException.class);
         }
@@ -818,7 +821,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
+        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);
@@ -855,7 +858,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
+        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);
