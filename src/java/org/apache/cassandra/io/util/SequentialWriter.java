@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -118,7 +117,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
                 FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 try
                 {
-                    SyncUtil.trySyncDir(file.getParentFile());
+                    SyncUtil.trySyncDir(file.parent());
                 }
                 catch (Throwable t)
                 {
@@ -167,7 +166,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this.strictFlushing = strictFlushing;
         this.fchannel = (FileChannel)channel;
 
-        this.filePath = file.getAbsolutePath();
+        this.filePath = file.absolutePath();
 
         this.option = option;
     }

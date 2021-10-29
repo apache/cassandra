@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,8 +35,8 @@ import com.google.common.collect.Sets;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,30 +45,34 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Rows;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -103,7 +112,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             writer.finish();
         }
         LifecycleTransaction.waitForDeletions();
-        assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.list()));
+        assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.tryListNames()));
 
         validateCFS(cfs);
         truncate(cfs);
@@ -135,7 +144,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             writer.finish();
         }
         LifecycleTransaction.waitForDeletions();
-        assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.list()));
+        assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.tryListNames()));
 
         validateCFS(cfs);
     }
@@ -190,7 +199,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             writer.finish();
         }
         LifecycleTransaction.waitForDeletions();
-        assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.list()));
+        assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.tryListNames()));
 
         validateCFS(cfs);
         truncate(cfs);
@@ -248,7 +257,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         // tmplink and tmp files should be gone:
         assertEquals(sum, cfs.metric.totalDiskSpaceUsed.getCount());
-        assertFileCounts(s.descriptor.directory.list());
+        assertFileCounts(s.descriptor.directory.tryListNames());
         validateCFS(cfs);
     }
 
@@ -291,7 +300,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         assertEquals(files, cfs.getLiveSSTables().size());
         LifecycleTransaction.waitForDeletions();
 
-        assertFileCounts(s.descriptor.directory.list());
+        assertFileCounts(s.descriptor.directory.tryListNames());
         validateCFS(cfs);
     }
 
@@ -430,7 +439,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         assertEquals(startSize, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(1, cfs.getLiveSSTables().size());
-        assertFileCounts(s.descriptor.directory.list());
+        assertFileCounts(s.descriptor.directory.tryListNames());
         assertEquals(cfs.getLiveSSTables().iterator().next().first, origFirst);
         assertEquals(cfs.getLiveSSTables().iterator().next().last, origLast);
         validateCFS(cfs);
@@ -477,7 +486,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         LifecycleTransaction.waitForDeletions();
 
         assertEquals(files - 1, cfs.getLiveSSTables().size()); // we never wrote anything to the last file
-        assertFileCounts(s.descriptor.directory.list());
+        assertFileCounts(s.descriptor.directory.tryListNames());
         validateCFS(cfs);
     }
 
@@ -517,7 +526,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
 
         LifecycleTransaction.waitForDeletions();
-        assertFileCounts(s.descriptor.directory.list());
+        assertFileCounts(s.descriptor.directory.tryListNames());
         validateCFS(cfs);
     }
 
@@ -558,7 +567,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
         LifecycleTransaction.waitForDeletions();
-        assertFileCounts(s.descriptor.directory.list());
+        assertFileCounts(s.descriptor.directory.tryListNames());
 
         validateCFS(cfs);
     }
@@ -576,10 +585,10 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             SSTableSplitter splitter = new SSTableSplitter(cfs, txn, 10);
             splitter.split();
 
-            assertFileCounts(s.descriptor.directory.list());
+            assertFileCounts(s.descriptor.directory.tryListNames());
             LifecycleTransaction.waitForDeletions();
 
-            for (File f : s.descriptor.directory.listFiles())
+            for (File f : s.descriptor.directory.tryList())
             {
                 // we need to clear out the data dir, otherwise tests running after this breaks
                 FileUtils.deleteRecursive(f);
@@ -655,7 +664,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         LifecycleTransaction.waitForDeletions();
 
-        int filecount = assertFileCounts(s.descriptor.directory.list());
+        int filecount = assertFileCounts(s.descriptor.directory.tryListNames());
         assertEquals(filecount, 1);
         if (!offline)
         {
@@ -668,16 +677,16 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             assertEquals(0, cfs.getLiveSSTables().size());
             cfs.truncateBlocking();
         }
-        filecount = assertFileCounts(s.descriptor.directory.list());
+        filecount = assertFileCounts(s.descriptor.directory.tryListNames());
         if (offline)
         {
             // the file is not added to the CFS, therefore not truncated away above
             assertEquals(1, filecount);
-            for (File f : s.descriptor.directory.listFiles())
+            for (File f : s.descriptor.directory.tryList())
             {
                 FileUtils.deleteRecursive(f);
             }
-            filecount = assertFileCounts(s.descriptor.directory.list());
+            filecount = assertFileCounts(s.descriptor.directory.tryListNames());
         }
 
         assertEquals(0, filecount);

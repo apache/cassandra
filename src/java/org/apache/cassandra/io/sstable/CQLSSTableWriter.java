@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -51,6 +50,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -381,7 +381,7 @@ public class CQLSSTableWriter implements Closeable
         {
             if (!directory.exists())
                 throw new IllegalArgumentException(directory + " doesn't exists");
-            if (!directory.canWrite())
+            if (!directory.isWritable())
                 throw new IllegalArgumentException(directory + " exists but is not writable");
 
             this.directory = directory;

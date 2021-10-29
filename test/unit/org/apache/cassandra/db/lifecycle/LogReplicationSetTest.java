@@ -16,11 +16,11 @@
 
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.util.ArrayList;
 
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;

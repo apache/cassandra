@@ -20,11 +20,12 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
+
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 
 public class CompressorPerformance
 {
@@ -114,7 +115,7 @@ public class CompressorPerformance
 
     public static void main(String[] args) throws IOException
     {
-        try (FileInputStream fis = new FileInputStream("CHANGES.txt"))
+        try (FileInputStreamPlus fis = new FileInputStreamPlus("CHANGES.txt"))
         {
             int len = (int)fis.getChannel().size();
             dataSource = ByteBuffer.allocateDirect(len);

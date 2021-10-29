@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +35,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SchemaManager;
@@ -79,9 +79,9 @@ public class LongStreamingTest
         String KS = useSstableCompression ? "sstable_compression_ks" : "stream_compression_ks";
         String TABLE = "table1";
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
+        File tempdir = new File(Files.createTempDir());
+        File dataDir = new File(tempdir.absolutePath() + File.pathSeparator() + KS + File.pathSeparator() + TABLE);
+        assert dataDir.tryCreateDirectories();
 
         String schema = "CREATE TABLE " + KS + '.'  + TABLE + "  ("
                         + "  k int PRIMARY KEY,"
@@ -107,11 +107,11 @@ public class LongStreamingTest
         writer.close();
         System.err.println(String.format("Writer finished after %d seconds....", TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start)));
 
-        File[] dataFiles = dataDir.listFiles((dir, name) -> name.endsWith("-Data.db"));
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.endsWith("-Data.db"));
         long dataSize = 0l;
         for (File file : dataFiles)
         {
-            System.err.println("File : "+file.getAbsolutePath());
+            System.err.println("File : "+file.absolutePath());
             dataSize += file.length();
         }
 

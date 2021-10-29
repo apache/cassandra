@@ -19,21 +19,20 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.SchemaManager;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-
-import org.apache.cassandra.Util;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.SchemaManager;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.junit.Assert.assertEquals;
@@ -74,14 +73,14 @@ public class SSTableUtils
     public static File tempSSTableFile(String keyspaceName, String cfname, SSTableUniqueIdentifier generation) throws IOException
     {
         File tempdir = FileUtils.createTempFile(keyspaceName, cfname);
-        if(!tempdir.delete() || !tempdir.mkdir())
+        if(!tempdir.tryDelete() || !tempdir.tryCreateDirectory())
             throw new IOException("Temporary directory creation failed.");
         tempdir.deleteOnExit();
-        File cfDir = new File(tempdir, keyspaceName + File.separator + cfname);
-        cfDir.mkdirs();
+        File cfDir = new File(tempdir, keyspaceName + File.pathSeparator() + cfname);
+        cfDir.tryCreateDirectories();
         cfDir.deleteOnExit();
         File datafile = new File(new Descriptor(cfDir, keyspaceName, cfname, generation, SSTableFormat.Type.BIG).filenameFor(Component.DATA));
-        if (!datafile.createNewFile())
+        if (!datafile.createFileIfNotExists())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
         return datafile;
@@ -220,7 +219,7 @@ public class SSTableUtils
             TableMetadata metadata = SchemaManager.instance.getTableMetadata(ksname, cfname);
             ColumnFamilyStore cfs = SchemaManager.instance.getColumnFamilyStoreInstance(metadata.id);
             SerializationHeader header = appender.header();
-            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFilename(datafile.getAbsolutePath()), expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, 0, header);
+            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFilename(datafile.absolutePath()), expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, 0, header);
             while (appender.append(writer)) { /* pass */ }
             Collection<SSTableReader> readers = writer.finish(true);
 

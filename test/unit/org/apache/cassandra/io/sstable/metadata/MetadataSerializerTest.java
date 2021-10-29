@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,8 +42,9 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -71,7 +70,7 @@ public class MetadataSerializerTest
         MetadataSerializer serializer = new MetadataSerializer();
         File statsFile = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getLatestVersion());
 
-        Descriptor desc = new Descriptor(statsFile.getParentFile(), "", "", new SequenceBasedSSTableUniqueIdentifier(0), SSTableFormat.Type.current());
+        Descriptor desc = new Descriptor(statsFile.parent(), "", "", new SequenceBasedSSTableUniqueIdentifier(0), SSTableFormat.Type.current());
         try (RandomAccessReader in = RandomAccessReader.open(statsFile))
         {
             Map<MetadataType, MetadataComponent> deserialized = serializer.deserialize(desc, in, EnumSet.allOf(MetadataType.class));
@@ -98,7 +97,7 @@ public class MetadataSerializerTest
         // Serialize w/ overflowed histograms:
         MetadataSerializer serializer = new MetadataSerializer();
         File statsFile = serialize(originalMetadata, serializer, BigFormat.latestVersion);
-        Descriptor desc = new Descriptor(statsFile.getParentFile(), "", "", new SequenceBasedSSTableUniqueIdentifier(0), SSTableFormat.Type.BIG);
+        Descriptor desc = new Descriptor(statsFile.parent(), "", "", new SequenceBasedSSTableUniqueIdentifier(0), SSTableFormat.Type.BIG);
 
         try (RandomAccessReader in = RandomAccessReader.open(statsFile))
         {
@@ -115,7 +114,7 @@ public class MetadataSerializerTest
     {
         // Serialize to tmp file
         File statsFile = FileUtils.createTempFile(Component.STATS.name, null);
-        try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(statsFile)))
+        try (DataOutputStreamPlus out = new FileOutputStreamPlus(statsFile))
         {
             serializer.serialize(metadata, out, version);
         }
@@ -206,7 +205,7 @@ public class MetadataSerializerTest
         File statsFileLa = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getVersion(oldV));
         // Reading both as earlier version should yield identical results.
         SSTableFormat.Type stype = SSTableFormat.Type.current();
-        Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.getParentFile(), "", "", new SequenceBasedSSTableUniqueIdentifier(0), stype);
+        Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.parent(), "", "", new SequenceBasedSSTableUniqueIdentifier(0), stype);
         try (RandomAccessReader inLb = RandomAccessReader.open(statsFileLb);
              RandomAccessReader inLa = RandomAccessReader.open(statsFileLa))
         {

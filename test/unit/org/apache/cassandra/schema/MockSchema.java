@@ -18,10 +18,12 @@
 */
 package org.apache.cassandra.schema;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,7 +34,11 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
@@ -49,6 +55,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
@@ -141,13 +148,7 @@ public class MockSchema
         for (Component component : components)
         {
             File file = new File(descriptor.filenameFor(component));
-            try
-            {
-                file.createNewFile();
-            }
-            catch (IOException e)
-            {
-            }
+            file.createFileIfNotExists();
         }
         // .complete() with size to make sstable.onDiskLength work
         try (FileHandle.Builder builder = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size);
@@ -158,7 +159,7 @@ public class MockSchema
                 try
                 {
                     File file = new File(descriptor.filenameFor(Component.DATA));
-                    try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
+                    try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
                     {
                         raf.setLength(size);
                     }
@@ -255,7 +256,7 @@ public class MockSchema
             File dir = new File(dirName);
             if (!dir.exists())
                 continue;
-            String[] children = dir.list();
+            String[] children = dir.tryListNames();
             for (String child : children)
                 FileUtils.deleteRecursive(new File(dir, child));
         }

@@ -17,12 +17,16 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -30,20 +34,23 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.Assert;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.MockSchema;
@@ -134,9 +141,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
             void assertInProgress() throws Exception
             {
-                assertFiles(dataFolder.getPath(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
-                                                                                   sstableOld.getAllFilePaths(),
-                                                                                   txnLogs.logFilePaths())));
+                assertFiles(dataFolder.path(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
+                                                                                sstableOld.getAllFilePaths(),
+                                                                                txnLogs.logFilePaths())));
             }
 
             void assertPrepared() throws Exception
@@ -145,12 +152,12 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
             void assertAborted() throws Exception
             {
-                assertFiles(dataFolder.getPath(), new HashSet<>(sstableOld.getAllFilePaths()));
+                assertFiles(dataFolder.path(), new HashSet<>(sstableOld.getAllFilePaths()));
             }
 
             void assertCommitted() throws Exception
             {
-                assertFiles(dataFolder.getPath(), new HashSet<>(sstableNew.getAllFilePaths()));
+                assertFiles(dataFolder.path(), new HashSet<>(sstableNew.getAllFilePaths()));
             }
         }
 
@@ -218,7 +225,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Thread.sleep(1);
         LogTransaction.waitForDeletions();
 
-        assertFiles(dataFolder.getPath(), Collections.<String>emptySet());
+        assertFiles(dataFolder.path(), Collections.<String>emptySet());
     }
 
     @Test
@@ -247,7 +254,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         sstableOld1.selfRef().release();
         sstableOld2.selfRef().release();
 
-        assertFiles(dataFolder.getPath(), new HashSet<>(sstableNew.getAllFilePaths()));
+        assertFiles(dataFolder.path(), new HashSet<>(sstableNew.getAllFilePaths()));
 
         sstableNew.selfRef().release();
     }
@@ -265,7 +272,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         log.trackNew(sstable);
         log.finish();
 
-        assertFiles(dataFolder.getPath(), new HashSet<>(sstable.getAllFilePaths()));
+        assertFiles(dataFolder.path(), new HashSet<>(sstable.getAllFilePaths()));
 
         sstable.selfRef().release();
     }
@@ -287,7 +294,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         sstable.markObsolete(tidier);
         sstable.selfRef().release();
 
-        assertFiles(dataFolder.getPath(), new HashSet<>());
+        assertFiles(dataFolder.path(), new HashSet<>());
     }
 
     @Test
@@ -323,8 +330,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Arrays.stream(sstables).forEach(s -> s.selfRef().release());
         LogTransaction.waitForDeletions();
 
-        assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[1].getAllFilePaths()));
-        assertFiles(dataFolder2.getPath(), new HashSet<>(sstables[3].getAllFilePaths()));
+        assertFiles(dataFolder1.path(), new HashSet<>(sstables[1].getAllFilePaths()));
+        assertFiles(dataFolder2.path(), new HashSet<>(sstables[3].getAllFilePaths()));
     }
 
     @Test
@@ -342,7 +349,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         sstable.selfRef().release();
 
-        assertFiles(dataFolder.getPath(), new HashSet<>());
+        assertFiles(dataFolder.path(), new HashSet<>());
     }
 
     @Test
@@ -363,7 +370,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         sstable.selfRef().release();
 
-        assertFiles(dataFolder.getPath(), new HashSet<>(sstable.getAllFilePaths()));
+        assertFiles(dataFolder.path(), new HashSet<>(sstable.getAllFilePaths()));
     }
 
     @Test
@@ -397,8 +404,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Arrays.stream(sstables).forEach(s -> s.selfRef().release());
         LogTransaction.waitForDeletions();
 
-        assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[0].getAllFilePaths()));
-        assertFiles(dataFolder2.getPath(), new HashSet<>(sstables[2].getAllFilePaths()));
+        assertFiles(dataFolder1.path(), new HashSet<>(sstables[0].getAllFilePaths()));
+        assertFiles(dataFolder2.path(), new HashSet<>(sstables[2].getAllFilePaths()));
     }
 
 
@@ -432,7 +439,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Map<Descriptor, Set<Component>> sstables = directories.sstableLister(Directories.OnTxnErr.THROW).list();
         assertEquals(1, sstables.size());
 
-        assertFiles(dataFolder.getPath(), new HashSet<>(sstableOld.getAllFilePaths()));
+        assertFiles(dataFolder.path(), new HashSet<>(sstableOld.getAllFilePaths()));
 
         // complete the transaction before releasing files
         tidier.run();
@@ -472,7 +479,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Map<Descriptor, Set<Component>> sstables = directories.sstableLister(Directories.OnTxnErr.THROW).list();
         assertEquals(1, sstables.size());
 
-        assertFiles(dataFolder.getPath(), new HashSet<>(sstableNew.getAllFilePaths()));
+        assertFiles(dataFolder.path(), new HashSet<>(sstableNew.getAllFilePaths()));
 
         // complete the transaction to avoid LEAK errors
         tidier.run();
@@ -522,8 +529,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
         assertTrue(LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
 
         // new tables should be only table left
-        assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[1].getAllFilePaths()));
-        assertFiles(dataFolder2.getPath(), new HashSet<>(sstables[3].getAllFilePaths()));
+        assertFiles(dataFolder1.path(), new HashSet<>(sstables[1].getAllFilePaths()));
+        assertFiles(dataFolder2.path(), new HashSet<>(sstables[3].getAllFilePaths()));
 
         // complete the transaction to avoid LEAK errors
         Arrays.stream(tidiers).forEach(LogTransaction.SSTableTidier::run);
@@ -573,8 +580,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
         assertTrue(LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
 
         // old tables should be only table left
-        assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[0].getAllFilePaths()));
-        assertFiles(dataFolder2.getPath(), new HashSet<>(sstables[2].getAllFilePaths()));
+        assertFiles(dataFolder1.path(), new HashSet<>(sstables[0].getAllFilePaths()));
+        assertFiles(dataFolder2.path(), new HashSet<>(sstables[2].getAllFilePaths()));
 
         // complete the transaction to avoid LEAK errors
         Arrays.stream(tidiers).forEach(LogTransaction.SSTableTidier::run);
@@ -742,18 +749,18 @@ public class LogTransactionTest extends AbstractTransactionalTest
         if (shouldCommit)
         {
             // only new sstables should still be there
-            assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[1].getAllFilePaths()));
-            assertFiles(dataFolder2.getPath(), new HashSet<>(sstables[3].getAllFilePaths()));
+            assertFiles(dataFolder1.path(), new HashSet<>(sstables[1].getAllFilePaths()));
+            assertFiles(dataFolder2.path(), new HashSet<>(sstables[3].getAllFilePaths()));
         }
         else
         {
             // all files should still be there
-            assertFiles(dataFolder1.getPath(), Sets.newHashSet(Iterables.concat(sstables[0].getAllFilePaths(),
-                                                                                sstables[1].getAllFilePaths(),
-                                                                                Collections.singleton(log.logFilePaths().get(0)))));
-            assertFiles(dataFolder2.getPath(), Sets.newHashSet(Iterables.concat(sstables[2].getAllFilePaths(),
-                                                                                sstables[3].getAllFilePaths(),
-                                                                                Collections.singleton(log.logFilePaths().get(1)))));
+            assertFiles(dataFolder1.path(), Sets.newHashSet(Iterables.concat(sstables[0].getAllFilePaths(),
+                                                                             sstables[1].getAllFilePaths(),
+                                                                             Collections.singleton(log.logFilePaths().get(0)))));
+            assertFiles(dataFolder2.path(), Sets.newHashSet(Iterables.concat(sstables[2].getAllFilePaths(),
+                                                                             sstables[3].getAllFilePaths(),
+                                                                             Collections.singleton(log.logFilePaths().get(1)))));
         }
 
 
@@ -778,7 +785,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         {
             Directories directories = new Directories(cfs.metadata());
 
-            File[] beforeSecondSSTable = dataFolder.listFiles(pathname -> !pathname.isDirectory());
+            File[] beforeSecondSSTable = dataFolder.tryList(pathname -> !pathname.isDirectory());
 
             SSTableReader sstable2 = sstable(dataFolder, cfs, 1, 128);
             log.trackNew(sstable2);
@@ -787,7 +794,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             assertEquals(2, sstables.size());
 
             // this should contain sstable1, sstable2 and the transaction log file
-            File[] afterSecondSSTable = dataFolder.listFiles(pathname -> !pathname.isDirectory());
+            File[] afterSecondSSTable = dataFolder.tryList(pathname -> !pathname.isDirectory());
 
             int numNewFiles = afterSecondSSTable.length - beforeSecondSSTable.length;
             assertEquals(numNewFiles - 1, sstable2.getAllFilePaths().size()); // new files except for transaction log file
@@ -1032,7 +1039,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             LogTransaction.removeUnfinishedLeftovers(cfs.metadata());
 
             // make sure to exclude the old files that were deleted by the modifier
-            assertFiles(dataFolder.getPath(), oldFiles);
+            assertFiles(dataFolder.path(), oldFiles);
         }
         else
         { // if an intermediate line was also modified, it should ignore the tx log file
@@ -1040,9 +1047,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
             //This should not remove any files
             LogTransaction.removeUnfinishedLeftovers(cfs.metadata());
 
-            assertFiles(dataFolder.getPath(), Sets.newHashSet(Iterables.concat(newFiles,
-                                                                               oldFiles,
-                                                                               log.logFilePaths())));
+            assertFiles(dataFolder.path(), Sets.newHashSet(Iterables.concat(newFiles,
+                                                                            oldFiles,
+                                                                            log.logFilePaths())));
         }
 
         // make sure to run the tidier to avoid any leaks in the logs
@@ -1058,7 +1065,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                       for (String filePath : sstable.getAllFilePaths())
                                       {
                                           if (filePath.endsWith("Data.db"))
-                                              assertTrue(new File(filePath).setLastModified(System.currentTimeMillis() + 60000)); //one minute later
+                                              assertTrue(new File(filePath).trySetLastModified(System.currentTimeMillis() + 60000)); //one minute later
                                       }
                                   });
     }
@@ -1086,7 +1093,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         //This should not remove the old files
         LogTransaction.removeUnfinishedLeftovers(cfs.metadata());
 
-        assertFiles(dataFolder.getPath(), Sets.newHashSet(Iterables.concat(
+        assertFiles(dataFolder.path(), Sets.newHashSet(Iterables.concat(
                                                                           sstableNew.getAllFilePaths(),
                                                                           sstableOld.getAllFilePaths(),
                                                                           log.logFilePaths())));
@@ -1097,9 +1104,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
         // complete the transaction to avoid LEAK errors
         assertNull(log.complete(null));
 
-        assertFiles(dataFolder.getPath(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
-                                                                           sstableOld.getAllFilePaths(),
-                                                                           log.logFilePaths())));
+        assertFiles(dataFolder.path(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
+                                                                        sstableOld.getAllFilePaths(),
+                                                                        log.logFilePaths())));
 
         // make sure to run the tidier to avoid any leaks in the logs
         tidier.run();
@@ -1118,7 +1125,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                       {
                                           File f = new File(filePath);
                                           long lastModified = f.lastModified();
-                                          f.setLastModified(lastModified - (lastModified % 1000));
+                                          f.trySetLastModified(lastModified - (lastModified % 1000));
                                       }
                                   });
     }
@@ -1146,13 +1153,13 @@ public class LogTransactionTest extends AbstractTransactionalTest
         LogTransaction.removeUnfinishedLeftovers(cfs.metadata());
 
         // only the new files should be there
-        assertFiles(dataFolder.getPath(), Sets.newHashSet(sstableNew.getAllFilePaths()));
+        assertFiles(dataFolder.path(), Sets.newHashSet(sstableNew.getAllFilePaths()));
         sstableNew.selfRef().release();
 
         // complete the transaction to avoid LEAK errors
         assertNull(log.complete(null));
 
-        assertFiles(dataFolder.getPath(), Sets.newHashSet(sstableNew.getAllFilePaths()));
+        assertFiles(dataFolder.path(), Sets.newHashSet(sstableNew.getAllFilePaths()));
 
         // make sure to run the tidier to avoid any leaks in the logs
         tidier.run();
@@ -1224,8 +1231,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
         {
             File file = new File(descriptor.filenameFor(component));
             if (!file.exists())
-                assertTrue(file.createNewFile());
-            try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
+                assertTrue(file.createFileIfNotExists());
+
+            try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
             {
                 raf.setLength(size);
             }
@@ -1262,8 +1270,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         LogTransaction.waitForDeletions();
 
-        File dir = new File(dirPath).getCanonicalFile();
-        File[] files = dir.listFiles();
+        File dir = new File(dirPath).toCanonical();
+        File[] files = dir.tryList();
         if (files != null)
         {
             for (File file : files)
@@ -1271,7 +1279,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                 if (file.isDirectory())
                     continue;
 
-                String filePath = file.getPath();
+                String filePath = file.path();
                 assertTrue(String.format("%s not in [%s]", filePath, expectedFiles), expectedFiles.contains(filePath));
                 expectedFiles.remove(filePath);
             }
@@ -1328,16 +1336,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                       (file, type) -> match.contains(type),
                                       Directories.OnTxnErr.IGNORE).list()
                        .stream()
-                       .map(f -> {
-                           try
-                           {
-                               return f.getCanonicalFile();
-                           }
-                           catch (IOException e)
-                           {
-                               throw new IOError(e);
-                           }
-                       })
+                       .map(File::toCanonical)
                        .collect(Collectors.toSet());
     }
 }

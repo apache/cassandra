@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -28,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32;
 
 import com.google.common.collect.Iterables;
-
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -36,6 +34,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaManager;
@@ -63,7 +62,7 @@ public class HintsWriteThenReadTest
 
         HintsDescriptor descriptor = new HintsDescriptor(UUID.randomUUID(), System.currentTimeMillis());
 
-        File directory = Files.createTempDirectory(null).toFile();
+        File directory = new File(Files.createTempDirectory(null));
         try
         {
             testWriteReadCycle(directory, descriptor);

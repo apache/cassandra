@@ -36,6 +36,7 @@ import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
@@ -69,7 +70,7 @@ public class NdiRandomizedTest extends RandomizedTest
     public IndexComponents newIndexComponents() throws IOException
     {
         return indexComponentsLeakDetector.newIndexComponents(randomSimpleString(7, 29),
-                                                              new Descriptor(temporaryFolder.newFolder(),
+                                                              new Descriptor(new File(temporaryFolder.newFolder()),
                                                                              randomSimpleString(5, 13),
                                                                              randomSimpleString(3, 17),
                                                                              new SequenceBasedSSTableUniqueIdentifier(randomIntBetween(0, 128))),

@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.io.sstable.format;
 
-import java.io.BufferedInputStream;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,7 +41,9 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -119,7 +119,7 @@ public abstract class SSTableReaderBuilder
         if (!summariesFile.exists())
         {
             if (logger.isDebugEnabled())
-                logger.debug("SSTable Summary File {} does not exist", summariesFile.getAbsolutePath());
+                logger.debug("SSTable Summary File {} does not exist", summariesFile.absolutePath());
             return;
         }
 
@@ -138,7 +138,7 @@ public abstract class SSTableReaderBuilder
         {
             if (summary != null)
                 summary.close();
-            logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.getPath(), e.getMessage());
+            logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.path(), e.getMessage());
             // corrupted; delete it and fall back to creating a new summary
             FileUtils.closeQuietly(iStream);
             // delete it and fall back to creating a new summary
@@ -222,7 +222,7 @@ public abstract class SSTableReaderBuilder
         {
             logger.debug("Loading bloom filter from {}", path);
             IFilter filter = null;
-            try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(path))))
+            try (FileInputStreamPlus stream = new File(path).newInputStream())
             {
                 filter = BloomFilter.serializer.deserialize(stream, oldFormat);
                 return filter;

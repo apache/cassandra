@@ -17,17 +17,16 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
+import java.util.function.BiPredicate;
 
 import com.google.common.io.Files;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
@@ -39,7 +38,7 @@ public class CQLSSTableWriterClientTest
     @Before
     public void setUp()
     {
-        this.testDirectory = Files.createTempDir();
+        this.testDirectory = new File(Files.createTempDir());
     }
 
     @Test
@@ -72,16 +71,9 @@ public class CQLSSTableWriterClientTest
         writer.close();
         writer2.close();
 
-        FilenameFilter filter = new FilenameFilter()
-        {
-            @Override
-            public boolean accept(File dir, String name)
-            {
-                return name.endsWith("-Data.db");
-            }
-        };
+        BiPredicate<File, String> filter = (dir, name) -> name.endsWith("-Data.db");
 
-        File[] dataFiles = this.testDirectory.listFiles(filter);
+        File[] dataFiles = this.testDirectory.tryList(filter);
         assertEquals(2, dataFiles.length);
     }
 

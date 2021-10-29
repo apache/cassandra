@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.stream.Stream;
@@ -31,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -39,7 +39,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DiskBoundaryManagerTest extends CQLTester

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sai.disk.v1;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -32,6 +31,7 @@ import org.junit.rules.ExpectedException;
 import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
@@ -101,12 +101,12 @@ public class MetadataTest extends NdiRandomizedTest
         final File indexFile = new File(output.getPath());
         final long length = indexFile.length();
         assertTrue(length > 0);
-        final File renamed = temporaryFolder.newFile();
+        final File renamed = new File(temporaryFolder.newFile());
         FileUtils.renameWithConfirm(indexFile, renamed);
         assertFalse(new File(output.getPath()).exists());
 
         try (FileOutputStream outputStream = new FileOutputStream(output.getPath());
-             RandomAccessFile input = new RandomAccessFile(renamed, "r"))
+             RandomAccessFile input = new RandomAccessFile(renamed.toJavaIOFile(), "r"))
         {
             // skip last byte when copying
             FileUtils.copyTo(input, outputStream, Math.toIntExact(length - 1));
@@ -126,12 +126,12 @@ public class MetadataTest extends NdiRandomizedTest
         final File indexFile = new File(output.getPath());
         final long length = indexFile.length();
         assertTrue(length > 0);
-        final File renamed = temporaryFolder.newFile();
+        final File renamed = new File(temporaryFolder.newFile());
         FileUtils.renameWithConfirm(indexFile, renamed);
         assertFalse(new File(output.getPath()).exists());
 
         try (FileOutputStream outputStream = new FileOutputStream(output.getPath());
-             RandomAccessFile file = new RandomAccessFile(renamed, "r"))
+             RandomAccessFile file = new RandomAccessFile(renamed.toJavaIOFile(), "r"))
         {
             // copy most of the file untouched
             final byte[] buffer = new byte[Math.toIntExact(length - 1 - CodecUtil.footerLength())];

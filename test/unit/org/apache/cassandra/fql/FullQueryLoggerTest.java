@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.fql;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -27,39 +26,34 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.fql.FullQueryLogger.Query;
-import org.apache.cassandra.fql.FullQueryLogger.Batch;
 import org.apache.cassandra.cql3.statements.BatchStatement.Type;
+import org.apache.cassandra.fql.FullQueryLogger.Batch;
+import org.apache.cassandra.fql.FullQueryLogger.Query;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
 import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
@@ -74,6 +68,9 @@ import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
 import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
 import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class FullQueryLoggerTest extends CQLTester
 {
@@ -133,42 +130,42 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = IllegalArgumentException.class)
     public void testCanRead() throws Exception
     {
-        tempDir.toFile().setReadable(false);
+        new File(tempDir).trySetReadable(false);
         try
         {
             configureFQL();
         }
         finally
         {
-            tempDir.toFile().setReadable(true);
+            new File(tempDir).trySetReadable(true);
         }
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testCanWrite() throws Exception
     {
-        tempDir.toFile().setWritable(false);
+        new File(tempDir).trySetWritable(false);
         try
         {
             configureFQL();
         }
         finally
         {
-            tempDir.toFile().setWritable(true);
+            new File(tempDir).trySetWritable(true);
         }
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testCanExecute() throws Exception
     {
-        tempDir.toFile().setExecutable(false);
+        new File(tempDir).trySetExecutable(false);
         try
         {
             configureFQL();
         }
         finally
         {
-            tempDir.toFile().setExecutable(true);
+            new File(tempDir).trySetExecutable(true);
         }
     }
 
@@ -193,10 +190,10 @@ public class FullQueryLoggerTest extends CQLTester
     public void testResetCleansPaths() throws Exception
     {
         configureFQL();
-        File tempA = File.createTempFile("foo", "bar", tempDir.toFile());
+        File tempA = FileUtils.createTempFile("foo", "bar", new File(tempDir));
         assertTrue(tempA.exists());
-        File tempB = File.createTempFile("foo", "bar", BinLogTest.tempDir().toFile());
-        FullQueryLogger.instance.reset(tempB.getParent());
+        File tempB = FileUtils.createTempFile("foo", "bar", new File(BinLogTest.tempDir()));
+        FullQueryLogger.instance.reset(tempB.parentPath());
         assertFalse(tempA.exists());
         assertFalse(tempB.exists());
     }
@@ -208,9 +205,9 @@ public class FullQueryLoggerTest extends CQLTester
     public void testResetSamePath() throws Exception
     {
         configureFQL();
-        File tempA = File.createTempFile("foo", "bar", tempDir.toFile());
+        File tempA = FileUtils.createTempFile("foo", "bar", new File(tempDir));
         assertTrue(tempA.exists());
-        FullQueryLogger.instance.reset(tempA.getParent());
+        FullQueryLogger.instance.reset(tempA.parentPath());
         assertFalse(tempA.exists());
     }
 
@@ -224,10 +221,10 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testCleansDirectory() throws Exception
     {
-        assertTrue(new File(tempDir.toFile(), "foobar").createNewFile());
+        assertTrue(new File(tempDir, "foobar").createFileIfNotExists());
         configureFQL();
-        assertEquals(tempDir.toFile().listFiles().length, 1);
-        assertEquals("metadata.cq4t", tempDir.toFile().listFiles()[0].getName());
+        assertEquals(new File(tempDir).tryList().length, 1);
+        assertEquals("metadata.cq4t", new File(tempDir).tryList()[0].name());
     }
 
     @Test

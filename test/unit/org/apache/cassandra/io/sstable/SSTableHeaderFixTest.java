@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,11 +58,12 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -89,8 +89,8 @@ public class SSTableHeaderFixTest
     public void setup()
     {
         File f = FileUtils.createTempFile("SSTableUDTFixTest", "");
-        f.delete();
-        f.mkdirs();
+        f.tryDelete();
+        f.tryCreateDirectories();
         temporaryFolder = f;
     }
 
@@ -794,7 +794,7 @@ public class SSTableHeaderFixTest
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)
-                assertTrue(new File(desc.filenameFor(component)).createNewFile());
+                assertTrue(new File(desc.filenameFor(component)).createFileIfNotExists());
 
             AbstractType<?> partitionKey = headerMetadata.partitionKeyType;
             List<AbstractType<?>> clusteringKey = headerMetadata.clusteringColumns()

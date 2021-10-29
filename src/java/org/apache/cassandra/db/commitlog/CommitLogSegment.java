@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -31,6 +29,8 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileWriter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import com.codahale.metrics.Timer;
@@ -73,10 +73,10 @@ public abstract class CommitLogSegment
     static
     {
         long maxId = Long.MIN_VALUE;
-        for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
+        for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).tryList())
         {
-            if (CommitLogDescriptor.isValid(file.getName()))
-                maxId = Math.max(CommitLogDescriptor.fromFileName(file.getName()).id, maxId);
+            if (CommitLogDescriptor.isValid(file.name()))
+                maxId = Math.max(CommitLogDescriptor.fromFileName(file.name()).id, maxId);
         }
         replayLimitId = idBase = Math.max(System.currentTimeMillis(), maxId + 1);
     }
@@ -457,7 +457,7 @@ public abstract class CommitLogSegment
      */
     public String getPath()
     {
-        return logFile.getPath();
+        return logFile.path();
     }
 
     /**
@@ -465,7 +465,7 @@ public abstract class CommitLogSegment
      */
     public String getName()
     {
-        return logFile.getName();
+        return logFile.name();
     }
 
     /**
@@ -473,7 +473,7 @@ public abstract class CommitLogSegment
      */
     public File getCDCFile()
     {
-        return new File(DatabaseDescriptor.getCDCLogLocation(), logFile.getName());
+        return new File(DatabaseDescriptor.getCDCLogLocation(), logFile.name());
     }
 
     /**
@@ -673,8 +673,8 @@ public abstract class CommitLogSegment
     {
         public int compare(File f, File f2)
         {
-            CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(f.getName());
-            CommitLogDescriptor desc2 = CommitLogDescriptor.fromFileName(f2.getName());
+            CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(f.name());
+            CommitLogDescriptor desc2 = CommitLogDescriptor.fromFileName(f2.name());
             return Long.compare(desc.id, desc2.id);
         }
     }

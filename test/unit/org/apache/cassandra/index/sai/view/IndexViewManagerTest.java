@@ -30,7 +30,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -47,8 +46,8 @@ import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -157,7 +156,7 @@ public class IndexViewManagerTest extends SAITester
         getCurrentColumnFamilyStore().getLiveSSTables().stream().map(t -> t.descriptor).forEach(descriptors::add);
 
         List<SSTableReader> sstables = descriptors.stream()
-                                                  .map(desc -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, desc.generation))
+                                                  .map(desc -> new Descriptor(new File(tmpDir), KEYSPACE, tableName, desc.generation))
                                                   .map(desc -> desc.getFormat().getReaderFactory().open(desc))
                                                   .collect(Collectors.toList());
         assertThat(sstables).hasSize(4);

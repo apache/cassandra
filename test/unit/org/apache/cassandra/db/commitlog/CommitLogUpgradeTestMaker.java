@@ -21,7 +21,7 @@ package org.apache.cassandra.db.commitlog;
  *
  */
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,14 +36,17 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.junit.Assert;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.*;
@@ -82,7 +85,7 @@ public class CommitLogUpgradeTestMaker
 
     static public void initialize() throws IOException, ConfigurationException
     {
-        try (FileInputStream fis = new FileInputStream("CHANGES.txt"))
+        try (FileInputStreamPlus fis = new FileInputStreamPlus("CHANGES.txt"))
         {
             dataSource = ByteBuffer.allocateDirect((int) fis.getChannel().size());
             while (dataSource.hasRemaining())
@@ -128,15 +131,15 @@ public class CommitLogUpgradeTestMaker
         if (dataDir.exists())
             FileUtils.deleteRecursive(dataDir);
 
-        dataDir.mkdirs();
-        for (File f : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
-            FileUtils.createHardLink(f, new File(dataDir, f.getName()));
+        dataDir.tryCreateDirectories();
+        for (File f : new File(DatabaseDescriptor.getCommitLogLocation()).tryList())
+            FileUtils.createHardLink(f, new File(dataDir, f.name()));
 
         Properties prop = new Properties();
         prop.setProperty(CFID_PROPERTY, SchemaManager.instance.getTableMetadata(KEYSPACE, TABLE).id.toString());
         prop.setProperty(CELLS_PROPERTY, Integer.toString(cells));
         prop.setProperty(HASH_PROPERTY, Integer.toString(hash));
-        prop.store(new FileOutputStream(new File(dataDir, PROPERTIES_FILE)),
+        prop.store(new FileOutputStreamPlus(new File(dataDir, PROPERTIES_FILE)),
                    "CommitLog upgrade test, version " + FBUtilities.getReleaseVersionString());
         System.out.println("Done");
     }

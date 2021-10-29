@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -32,6 +31,7 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +106,7 @@ final class LogAwareFileLister
         try
         {
             return StreamSupport.stream(stream.spliterator(), false)
-                                .map(Path::toFile)
+                                .map(File::new)
                                 .filter((f) -> !f.isDirectory())
                                 .collect(Collectors.toList());
         }

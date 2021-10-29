@@ -159,6 +159,8 @@ public enum CassandraRelevantProperties
      */
     REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
 
+    CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

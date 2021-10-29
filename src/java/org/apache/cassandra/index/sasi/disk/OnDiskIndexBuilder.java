@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sasi.disk;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -32,6 +31,7 @@ import org.apache.cassandra.index.sasi.sa.SuffixSA;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -247,15 +247,7 @@ public class OnDiskIndexBuilder
         // no terms means there is nothing to build
         if (terms.isEmpty())
         {
-            try
-            {
-                file.createNewFile();
-            }
-            catch (IOException e)
-            {
-                throw new FSWriteError(e, file);
-            }
-
+            file.createFileIfNotExists();
             return false;
         }
 

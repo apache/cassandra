@@ -18,11 +18,9 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -31,6 +29,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 
@@ -89,8 +88,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
 
     private static SSTableUniqueIdentifier getNextGeneration(File directory, final String columnFamily) throws IOException
     {
-        try (Stream<SSTableUniqueIdentifier> existingIds = Files.list(directory.toPath())
-                                                                .map(Path::toFile)
+        try (Stream<SSTableUniqueIdentifier> existingIds = Arrays.stream(directory.tryList())
                                                                 .map(SSTable::tryDescriptorFromFilename)
                                                                 .filter(d -> d != null && d.cfname.equals(columnFamily))
                                                                 .map(d -> d.generation))

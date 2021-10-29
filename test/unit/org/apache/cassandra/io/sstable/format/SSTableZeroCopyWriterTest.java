@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Set;
@@ -27,7 +26,6 @@ import java.util.function.Function;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +45,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.CachingParams;

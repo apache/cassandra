@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -30,33 +29,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.schema.TableMetadata;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static org.apache.cassandra.db.rows.RangeTombstoneBoundMarker.exclusiveClose;
 import static org.apache.cassandra.db.rows.RangeTombstoneBoundMarker.exclusiveOpen;
@@ -287,10 +295,10 @@ public class SSTableFlushObserverTest
         FlushObserver observer = new FlushObserver();
 
         String sstableDirectory = DatabaseDescriptor.getAllDataFileLocations()[0];
-        File directory = new File(sstableDirectory, metadata.keyspace + File.separator + metadata.name);
+        File directory = new File(sstableDirectory, metadata.keyspace + File.pathSeparator() + metadata.name);
         directory.deleteOnExit();
 
-        if (!directory.exists() && !directory.mkdirs())
+        if (!directory.exists() && !directory.tryCreateDirectories())
             throw new FSWriteError(new IOException("failed to create tmp directory"), directory);
 
         SSTableFormat format = type.info;

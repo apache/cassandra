@@ -37,6 +37,7 @@ import org.apache.cassandra.index.sai.utils.ArrayPostingList;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableUniqueIdentifierFactory;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.store.IndexInput;
@@ -98,7 +99,7 @@ public abstract class AbstractOnDiskBenchmark
         DatabaseDescriptor.daemonInitialization(); // required to use ChunkCache
         assert ChunkCache.instance != null;
 
-        descriptor = new Descriptor(Files.createTempDirectory("jmh").toFile(), "ks", this.getClass().getSimpleName(), SSTableUniqueIdentifierFactory.instance.defaultBuilder().generator(Stream.empty()).get());
+        descriptor = new Descriptor(new File(Files.createTempDirectory("jmh")), "ks", this.getClass().getSimpleName(), SSTableUniqueIdentifierFactory.instance.defaultBuilder().generator(Stream.empty()).get());
         groupComponents = IndexComponents.perSSTable(descriptor, null);
         indexComponents = IndexComponents.create("col", descriptor, null);
 

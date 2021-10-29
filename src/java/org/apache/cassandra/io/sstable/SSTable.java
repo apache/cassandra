@@ -17,38 +17,47 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Sets;
-import com.google.common.io.Files;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.Tracker;
-import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
+import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -237,7 +246,7 @@ public abstract class SSTable
             {
                 return readTOC(desc);
             }
-            catch (FileNotFoundException e)
+            catch (FileNotFoundException | NoSuchFileException e)
             {
                 Set<Component> components = discoverComponentsFor(desc);
                 if (components.isEmpty())
@@ -325,7 +334,7 @@ public abstract class SSTable
     protected static Set<Component> readTOC(Descriptor descriptor, boolean skipMissing) throws IOException
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        List<String> componentNames = Files.readLines(tocFile, Charset.defaultCharset());
+        List<String> componentNames = Files.readAllLines(tocFile.toPath());
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
         for (String componentName : componentNames)
         {
@@ -344,7 +353,7 @@ public abstract class SSTable
     private static void rewriteTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = descriptor.fileFor(Component.TOC);
-        if (!tocFile.delete())
+        if (!tocFile.tryDelete())
             logger.error("Failed to delete TOC component for " + descriptor);
         appendTOC(descriptor, components);
     }
@@ -355,7 +364,7 @@ public abstract class SSTable
     protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        try (PrintWriter w = new PrintWriter(new FileWriter(tocFile, true)))
+        try (PrintWriter w = new PrintWriter(tocFile.newWriter(APPEND)))
         {
             for (Component component : components)
                 w.println(component.name);

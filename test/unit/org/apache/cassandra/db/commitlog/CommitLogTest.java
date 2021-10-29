@@ -18,10 +18,21 @@
 */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
@@ -33,29 +44,37 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
-
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.memtable.SkipListMemtable;
-import org.apache.cassandra.io.compress.ZstdCompressor;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.MemtableParams;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.config.Config.DiskFailurePolicy;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.MutationExceededMaxSizeException;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -63,9 +82,16 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.service.StorageService;
@@ -76,21 +102,12 @@ import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import org.junit.After;
-
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.SYNC_MARKER_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-
-import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 
 @Ignore
 @RunWith(Parameterized.class)
@@ -206,7 +223,9 @@ public abstract class CommitLogTest
     @Test
     public void testHeaderOnlyFileFiltering() throws Exception
     {
-        File directory = Files.createTempDir();
+        Assume.assumeTrue(!DatabaseDescriptor.getEncryptionContext().isEnabled());
+        
+        File directory = new File(Files.createTempDir());
 
         CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, DatabaseDescriptor.getEncryptionContext());
         CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 2, null, DatabaseDescriptor.getEncryptionContext());
@@ -223,7 +242,7 @@ public abstract class CommitLogTest
         buffer.putInt(5);
         buffer.putInt(6);
 
-        try (OutputStream lout = new FileOutputStream(file1))
+        try (OutputStream lout = new FileOutputStreamPlus(file1))
         {
             lout.write(buffer.array());
         }
@@ -232,7 +251,7 @@ public abstract class CommitLogTest
         File file2 = new File(directory, desc2.fileName());
         buffer = ByteBuffer.allocate(1024);
         CommitLogDescriptor.writeHeader(buffer, desc2);
-        try (OutputStream lout = new FileOutputStream(file2))
+        try (OutputStream lout = new FileOutputStreamPlus(file2))
         {
             lout.write(buffer.array());
         }
@@ -589,7 +608,7 @@ public abstract class CommitLogTest
 
         File logFile = new File(DatabaseDescriptor.getCommitLogLocation(), desc.fileName());
 
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(buf.array(), 0, buf.limit());
         }
@@ -618,11 +637,11 @@ public abstract class CommitLogTest
     protected Void testRecovery(byte[] logData, int version) throws Exception
     {
         File logFile = tmpFile(version);
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(logData);
             //statics make it annoying to test things correctly
-            CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+            CommitLog.instance.recover(logFile.path()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
         }
         return null;
     }
@@ -630,7 +649,7 @@ public abstract class CommitLogTest
     protected Void testRecovery(CommitLogDescriptor desc, byte[] logData, int dataLength, boolean tolerateTruncation) throws Exception
     {
         File logFile = tmpFile(desc.version);
-        CommitLogDescriptor fromFile = CommitLogDescriptor.fromFileName(logFile.getName());
+        CommitLogDescriptor fromFile = CommitLogDescriptor.fromFileName(logFile.name());
         // Change id to match file.
         desc = new CommitLogDescriptor(desc.version, fromFile.id, desc.compression, desc.getEncryptionContext());
 
@@ -646,12 +665,12 @@ public abstract class CommitLogTest
         // Add data to byte buffer
         buf.put(logData);
         
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(buf.array(), 0, buf.position());
 
             //statics make it annoying to test things correctly
-            CommitLog.instance.recoverPath(logFile.getPath(), tolerateTruncation); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
+            CommitLog.instance.recoverPath(logFile.path(), tolerateTruncation); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
         }
         return null;
     }
@@ -663,12 +682,12 @@ public abstract class CommitLogTest
         File logFile = tmpFile(desc.version);
         ByteBuffer buf = ByteBuffer.allocate(1024);
         CommitLogDescriptor.writeHeader(buf, desc);
-        try (OutputStream lout = new FileOutputStream(logFile))
+        try (OutputStream lout = new FileOutputStreamPlus(logFile))
         {
             lout.write(buf.array(), 0, buf.position());
 
             runExpecting(() -> {
-                CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+                CommitLog.instance.recover(logFile.path()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
                 return null;
             }, CommitLogReplayException.class);
         }
@@ -801,7 +820,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
+        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);
@@ -838,7 +857,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
+        File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);

@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -27,6 +28,7 @@ import java.util.List;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.File;
 
 /**
  * Set repairedAt status on a given set of sstables.
