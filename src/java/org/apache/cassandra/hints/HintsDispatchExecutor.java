@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -35,6 +34,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 

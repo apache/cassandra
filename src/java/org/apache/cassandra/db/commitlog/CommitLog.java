@@ -17,10 +17,9 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,9 +27,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.zip.CRC32;
 
@@ -42,14 +41,15 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
@@ -76,7 +76,7 @@ public class CommitLog implements CommitLogMBean
 
     public static final CommitLog instance = CommitLog.construct();
 
-    private static final FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+    private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
     final public AbstractCommitLogSegmentManager segmentManager;
 
@@ -170,7 +170,7 @@ public class CommitLog implements CommitLogMBean
 
     private File[] getUnmanagedFiles()
     {
-        File[] files = new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter);
+        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
         if (files == null)
             return new File[0];
         return files;
@@ -189,8 +189,8 @@ public class CommitLog implements CommitLogMBean
         // archiving pass, which we should not treat as serious.
         for (File file : getUnmanagedFiles())
         {
-            archiver.maybeArchive(file.getPath(), file.getName());
-            archiver.maybeWaitForArchiving(file.getName());
+            archiver.maybeArchive(file.path(), file.name());
+            archiver.maybeWaitForArchiving(file.name());
         }
 
         assert archiver.archivePending.isEmpty() : "Not all commit log archive tasks were completed before restore";
@@ -510,7 +510,7 @@ public class CommitLog implements CommitLogMBean
         segmentManager.stopUnsafe(deleteSegments);
         CommitLogSegment.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
                 FileUtils.deleteWithConfirm(f);
     }
 
@@ -526,7 +526,7 @@ public class CommitLog implements CommitLogMBean
 
     public static long freeDiskSpace()
     {
-        return FileUtils.getFreeSpace(new File(DatabaseDescriptor.getCommitLogLocation()));
+        return PathUtils.tryGetSpace(new File(DatabaseDescriptor.getCommitLogLocation()).toPath(), FileStore::getUsableSpace) - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
     }
 
     @VisibleForTesting

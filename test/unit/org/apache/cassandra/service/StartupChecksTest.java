@@ -17,20 +17,25 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -57,7 +62,7 @@ public class StartupChecksTest
             FileUtils.deleteRecursive(dataDir);
 
         File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
-        sstableDir = Paths.get(dataDir.getAbsolutePath(), "Keyspace1", "Standard1");
+        sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
 
         startupChecks = new StartupChecks();
@@ -66,7 +71,7 @@ public class StartupChecksTest
     @After
     public void tearDown() throws IOException
     {
-        FileUtils.deleteRecursive(sstableDir.toFile());
+        FileUtils.deleteRecursive(new File(sstableDir));
     }
 
     @Test
@@ -79,13 +84,13 @@ public class StartupChecksTest
         verifyFailure(startupChecks, "Detected unreadable sstables");
 
         // we should ignore invalid sstables in a snapshots directory
-        FileUtils.deleteRecursive(sstableDir.toFile());
+        FileUtils.deleteRecursive(new File(sstableDir));
         Path snapshotDir = sstableDir.resolve("snapshots");
         Files.createDirectories(snapshotDir);
         copyInvalidLegacySSTables(snapshotDir); startupChecks.verify();
 
         // and in a backups directory
-        FileUtils.deleteRecursive(sstableDir.toFile());
+        FileUtils.deleteRecursive(new File(sstableDir));
         Path backupDir = sstableDir.resolve("backups");
         Files.createDirectories(backupDir);
         copyInvalidLegacySSTables(backupDir);
@@ -98,7 +103,7 @@ public class StartupChecksTest
         startupChecks = startupChecks.withTest(StartupChecks.checkSSTablesFormat);
 
         copyLegacyNonSSTableFiles(sstableDir);
-        assertFalse(sstableDir.toFile().listFiles().length == 0);
+        assertFalse(new File(sstableDir).tryList().length == 0);
 
         startupChecks.verify();
     }
@@ -124,11 +129,11 @@ public class StartupChecksTest
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
     {
-        File legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
+        File legacySSTableRoot = new File(Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
                                            "Keyspace1",
-                                           "Standard1").toFile();
-        for (File f : legacySSTableRoot.listFiles())
-            Files.copy(f.toPath(), targetDir.resolve(f.getName()));
+                                           "Standard1"));
+        for (File f : legacySSTableRoot.tryList())
+            Files.copy(f.toPath(), targetDir.resolve(f.name()));
 
     }
 

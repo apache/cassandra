@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -28,8 +27,13 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DisallowedDirectories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.FSDiskFullWriteError;
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSErrorHandler;
+import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class DefaultFSErrorHandler implements FSErrorHandler
@@ -63,7 +67,6 @@ public class DefaultFSErrorHandler implements FSErrorHandler
 
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
-            case die:
             case stop_paranoid:
             case stop:
                 // exception not logged here on purpose as it is already logged
@@ -84,10 +87,10 @@ public class DefaultFSErrorHandler implements FSErrorHandler
                 }
 
                 // for both read and write errors mark the path as unwritable.
-                DisallowedDirectories.maybeMarkUnwritable(e.path);
+                DisallowedDirectories.maybeMarkUnwritable(new File(e.path));
                 if (e instanceof FSReadError && shouldMaybeRemoveData(e))
                 {
-                    File directory = DisallowedDirectories.maybeMarkUnreadable(e.path);
+                    File directory = DisallowedDirectories.maybeMarkUnreadable(new File(e.path));
                     if (directory != null)
                         Keyspace.removeUnreadableSSTables(directory);
                 }

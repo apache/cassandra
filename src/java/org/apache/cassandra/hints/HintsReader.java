@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -33,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 

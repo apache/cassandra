@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -46,6 +45,7 @@ import org.apache.cassandra.io.sstable.UnsupportedSSTableException;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.serializers.AbstractTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;

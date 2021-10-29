@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -37,6 +36,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
@@ -94,7 +94,7 @@ public class HintWriteTTLTest
         ttldHint = makeHint(tbm, 2, nowInSeconds - (TTL + 1), GC_GRACE);
 
 
-        File directory = Files.createTempDirectory(null).toFile();
+        File directory = new File(Files.createTempDirectory(null));
         HintsDescriptor descriptor = new HintsDescriptor(UUIDGen.getTimeUUID(), s2m(nowInSeconds));
 
         try (HintsWriter writer = HintsWriter.create(directory, descriptor);

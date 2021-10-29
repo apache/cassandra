@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,17 +26,18 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -194,7 +194,7 @@ public class CommitLogReaderTest extends CQLTester
     static ArrayList<File> getCommitLogs()
     {
         File dir = new File(DatabaseDescriptor.getCommitLogLocation());
-        File[] files = dir.listFiles();
+        File[] files = dir.tryList();
         ArrayList<File> results = new ArrayList<>();
         for (File f : files)
         {

@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
-import java.nio.file.Path;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -34,11 +33,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.io.util.File;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -78,9 +78,9 @@ public class BinLogTest
         {
             binLog.stop();
         }
-        for (File f : path.toFile().listFiles())
+        for (File f : new File(path).tryList())
         {
-            f.delete();
+            f.tryDelete();
         }
     }
 

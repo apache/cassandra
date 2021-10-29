@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.DataInputStream;
+import java.io.DataInput;
 import java.io.IOException;
+import java.io.InputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,7 @@ public final class BloomFilterSerializer
     }
 
     @SuppressWarnings("resource")
-    public IFilter deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
+    public <I extends InputStream & DataInput> IFilter deserialize(I in, boolean oldBfFormat) throws IOException
     {
         int hashes = in.readInt();
         IBitSet bs;

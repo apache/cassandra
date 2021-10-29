@@ -18,9 +18,15 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.util.Random;
+
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 
 public class KeyGenerator
 {
@@ -119,7 +125,7 @@ public class KeyGenerator
 
         static 
         {
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream("/usr/share/dict/words")))) 
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStreamPlus("/usr/share/dict/words"))))
             {
                 while (br.ready()) 
                 {
@@ -156,7 +162,7 @@ public class KeyGenerator
             {
                 reader = new BufferedReader(new InputStreamReader(new FileInputStream("/usr/share/dict/words")));
             } 
-            catch (FileNotFoundException e) 
+            catch (FileNotFoundException e)
             {
                 throw new RuntimeException(e);
             }

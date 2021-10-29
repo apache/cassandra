@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -36,6 +35,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.utils.Shared;
@@ -288,7 +288,7 @@ public class InstanceConfig implements IInstanceConfig
 
     private static String[] datadirs(int datadirCount, File root, int nodeNum)
     {
-        String datadirFormat = String.format("%s/node%d/data%%d", root.getPath(), nodeNum);
+        String datadirFormat = String.format("%s/node%d/data%%d", root.path(), nodeNum);
         String [] datadirs = new String[datadirCount];
         for (int i = 0; i < datadirs.length; i++)
             datadirs[i] = String.format(datadirFormat, i);

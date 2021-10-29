@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -106,7 +105,7 @@ public class TailOverridingRebuffererTest
     {
         Rebufferer tor = new TailOverridingRebufferer(r, 8, tail.duplicate());
 
-        File tmp = File.createTempFile("fakeChannelProxy", "");
+        File tmp = FileUtils.createTempFile("fakeChannelProxy", "");
         try (ChannelProxy channelProxy = new ChannelProxy(tmp))
         {
             when(r.channel()).thenReturn(channelProxy);

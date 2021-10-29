@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sasi;
 
-import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -45,6 +44,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.plan.SASIIndexSearcher;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -170,7 +170,7 @@ public class SASIIndexTest
             store.forceMajorCompaction();
             LifecycleTransaction.waitForDeletions();
 
-            FileReader reader = new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName));
+            FileReader reader = new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName).toJavaIOFile());
             JSONObject manifest = (JSONObject) new JSONParser().parse(reader);
             JSONArray files = (JSONArray) manifest.get("files");
 

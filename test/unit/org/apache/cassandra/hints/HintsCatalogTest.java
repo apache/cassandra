@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -26,6 +25,7 @@ import java.util.*;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FBUtilities;
@@ -57,7 +57,7 @@ public class HintsCatalogTest
     @Test
     public void loadCompletenessAndOrderTest() throws IOException
     {
-        File directory = Files.createTempDirectory(null).toFile();
+        File directory = new File(Files.createTempDirectory(null));
         try
         {
             loadCompletenessAndOrderTest(directory);
@@ -107,7 +107,7 @@ public class HintsCatalogTest
     @Test
     public void deleteHintsTest() throws IOException
     {
-        File directory = Files.createTempDirectory(null).toFile();
+        File directory = new File(Files.createTempDirectory(null));
         UUID hostId1 = UUID.randomUUID();
         UUID hostId2 = UUID.randomUUID();
         long now = System.currentTimeMillis();
@@ -138,7 +138,7 @@ public class HintsCatalogTest
     @Test
     public void exciseHintFiles() throws IOException
     {
-        File directory = Files.createTempDirectory(null).toFile();
+        File directory = new File(Files.createTempDirectory(null));
         try
         {
             exciseHintFiles(directory);

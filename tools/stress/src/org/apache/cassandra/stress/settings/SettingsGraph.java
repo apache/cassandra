@@ -55,7 +55,7 @@ public class SettingsGraph implements Serializable
 
         if (inGraphMode())
         {
-            temporaryLogFile = FileUtils.createTempFile("cassandra-stress", ".log");
+            temporaryLogFile = FileUtils.createTempFile("cassandra-stress", ".log").toJavaIOFile();
         }
         else
         {

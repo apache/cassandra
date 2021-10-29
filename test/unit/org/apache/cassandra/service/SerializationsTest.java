@@ -39,13 +39,17 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.Validator;
-import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
@@ -103,7 +107,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testValidationRequestWrite();
 
-        try (DataInputStreamPlus in = getInput("service.ValidationRequest.bin"))
+        try (FileInputStreamPlus in = getInput("service.ValidationRequest.bin"))
         {
             ValidationRequest message = ValidationRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
@@ -142,7 +146,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testValidationCompleteWrite();
 
-        try (DataInputStreamPlus in = getInput("service.ValidationComplete.bin"))
+        try (FileInputStreamPlus in = getInput("service.ValidationComplete.bin"))
         {
             // empty validation
             ValidationResponse message = ValidationResponse.serializer.deserialize(in, getVersion());
@@ -187,7 +191,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
-        try (DataInputStreamPlus in = getInput("service.SyncRequest.bin"))
+        try (FileInputStreamPlus in = getInput("service.SyncRequest.bin"))
         {
             SyncRequest message = SyncRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
@@ -226,7 +230,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
         SyncNodePair nodes = new SyncNodePair(src, dest);
 
-        try (DataInputStreamPlus in = getInput("service.SyncComplete.bin"))
+        try (FileInputStreamPlus in = getInput("service.SyncComplete.bin"))
         {
             // success
             SyncResponse message = SyncResponse.serializer.deserialize(in, getVersion());

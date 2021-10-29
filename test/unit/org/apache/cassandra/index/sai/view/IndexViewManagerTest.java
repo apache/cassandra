@@ -48,6 +48,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -129,6 +130,7 @@ public class IndexViewManagerTest extends SAITester
         store.disableAutoCompaction();
 
         List<Descriptor> descriptors = new ArrayList<>();
+
         // create sstable 1 from flush
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
         execute("INSERT INTO %s(k, v) VALUES (2, 20)");
@@ -155,7 +157,7 @@ public class IndexViewManagerTest extends SAITester
         getCurrentColumnFamilyStore().getLiveSSTables().stream().map(t -> t.descriptor).forEach(descriptors::add);
 
         List<SSTableReader> sstables = descriptors.stream()
-                                                .map(desc -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, desc.id))
+                                                .map(desc -> new Descriptor(new File(tmpDir), KEYSPACE, tableName, desc.id))
                                                 .map(desc -> desc.getFormat().getReaderFactory().open(desc))
                                                 .collect(Collectors.toList());
         assertThat(sstables).hasSize(4);

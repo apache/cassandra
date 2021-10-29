@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Path;
@@ -28,6 +27,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 /**
  * Walks directory recursively, summing up total contents of files within.
  */
+import org.apache.cassandra.io.util.File;
+
 public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
 {
     protected volatile long size = 0;

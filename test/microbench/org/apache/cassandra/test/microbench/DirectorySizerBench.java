@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.test.microbench;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.openjdk.jmh.annotations.*;
@@ -46,7 +45,7 @@ public class DirectorySizerBench
     @Setup(Level.Trial)
     public void setUp() throws IOException
     {
-        tempDir = Files.createTempDirectory(randString()).toFile();
+        tempDir = new File(Files.createTempDirectory(randString()));
 
         // Since #'s on laptops and commodity desktops are so useful in considering enterprise virtualized server environments...
 
@@ -85,7 +84,7 @@ public class DirectorySizerBench
     {
         for (int i = 0; i < count; i++)
         {
-            PrintWriter pw = new PrintWriter(dir + File.separator + randString(), "UTF-8");
+            PrintWriter pw = new PrintWriter(dir + File.pathSeparator() + randString(), "UTF-8");
             pw.write(randString());
             pw.close();
         }

@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.security;
 
-import java.io.File;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import javax.net.ssl.TrustManagerFactory;
@@ -38,8 +37,7 @@ import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-
-import static org.junit.Assert.assertArrayEquals;
+import org.apache.cassandra.io.util.File;
 
 public class SSLFactoryTest
 {
@@ -165,7 +163,7 @@ public class SSLFactoryTest
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
 
-            keystoreFile.setLastModified(System.currentTimeMillis() + 15000);
+            keystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
             SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
@@ -206,7 +204,7 @@ public class SSLFactoryTest
             File keystoreFile = new File(options.keystore);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
-            keystoreFile.setLastModified(System.currentTimeMillis() + 5000);
+            keystoreFile.trySetLastModified(System.currentTimeMillis() + 5000);
 
             ServerEncryptionOptions modOptions = new ServerEncryptionOptions(options)
                                                  .withKeyStorePassword("bad password");
@@ -230,8 +228,8 @@ public class SSLFactoryTest
             ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
 
             File testKeystoreFile = new File(options.keystore + ".test");
-            FileUtils.copyFile(new File(options.keystore),testKeystoreFile);
-            options = options.withKeyStore(testKeystoreFile.getPath());
+            FileUtils.copyFile(new File(options.keystore).toJavaIOFile(), testKeystoreFile.toJavaIOFile());
+            options = options.withKeyStore(testKeystoreFile.path());
 
 
             SSLFactory.initHotReloading(options, options, true);
@@ -239,8 +237,8 @@ public class SSLFactoryTest
                                                                                                           .isAvailable());
             SSLFactory.checkCertFilesForHotReloading(options, options);
 
-            testKeystoreFile.setLastModified(System.currentTimeMillis() + 15000);
-            FileUtils.forceDelete(testKeystoreFile);
+            testKeystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
+            FileUtils.forceDelete(testKeystoreFile.toJavaIOFile());
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
             SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
@@ -255,7 +253,7 @@ public class SSLFactoryTest
         finally
         {
             DatabaseDescriptor.loadConfig();
-            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test"));
+            FileUtils.deleteQuietly(new File(encryptionOptions.keystore + ".test").toJavaIOFile());
         }
     }
 

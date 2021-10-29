@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -32,11 +31,12 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -85,7 +85,7 @@ public abstract class AlteredHints
         long ts = System.currentTimeMillis();
 
         HintsDescriptor descriptor = new HintsDescriptor(hostId, ts, params());
-        File dir = Files.createTempDir();
+        File dir = new File(Files.createTempDir());
         try (HintsWriter writer = HintsWriter.create(dir, descriptor))
         {
             Assert.assertTrue(looksLegit(writer));

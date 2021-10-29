@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,6 +46,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -139,7 +139,7 @@ public class StandaloneSplitter
 
                     if (options.snapshot) {
                         File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
-                        sstable.createLinks(snapshotDirectory.getPath());
+                        sstable.createLinks(snapshotDirectory.path());
                     }
 
                 }

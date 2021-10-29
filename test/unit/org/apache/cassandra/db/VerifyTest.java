@@ -19,8 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.UnknownHostException;
@@ -34,6 +32,7 @@ import java.util.zip.CheckedInputStream;
 
 import com.google.common.base.Charsets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -57,6 +56,8 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -65,8 +66,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
-
-import org.junit.Assume;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -804,7 +803,7 @@ public class VerifyTest
 
     protected long simpleFullChecksum(String filename) throws IOException
     {
-        try (FileInputStream inputStream = new FileInputStream(filename))
+        try (FileInputStreamPlus inputStream = new FileInputStreamPlus(filename))
         {
             CRC32 checksum = new CRC32();
             CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);

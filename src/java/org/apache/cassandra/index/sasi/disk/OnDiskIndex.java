@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sasi.disk;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,8 @@ import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -121,13 +124,11 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         keyFetcher = keyReader;
 
         comparator = cmp;
-        indexPath = index.getAbsolutePath();
+        indexPath = index.absolutePath();
 
-        RandomAccessFile backingFile = null;
-        try
+
+        try (FileInputStreamPlus backingFile = new FileInputStreamPlus(index))
         {
-            backingFile = new RandomAccessFile(index, "r");
-
             descriptor = new Descriptor(backingFile.readUTF());
 
             termSize = OnDiskIndexBuilder.TermSize.of(backingFile.readShort());
@@ -141,32 +142,29 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
             mode = OnDiskIndexBuilder.Mode.mode(backingFile.readUTF());
             hasMarkedPartials = backingFile.readBoolean();
 
-            indexSize = backingFile.length();
-            indexFile = new MappedBuffer(new ChannelProxy(indexPath, backingFile.getChannel()));
-
-            // start of the levels
-            indexFile.position(indexFile.getLong(indexSize - 8));
-
-            int numLevels = indexFile.getInt();
-            levels = new PointerLevel[numLevels];
-            for (int i = 0; i < levels.length; i++)
-            {
-                int blockCount = indexFile.getInt();
-                levels[i] = new PointerLevel(indexFile.position(), blockCount);
-                indexFile.position(indexFile.position() + blockCount * 8);
-            }
-
-            int blockCount = indexFile.getInt();
-            dataLevel = new DataLevel(indexFile.position(), blockCount);
+            FileChannel channel = index.newReadChannel();
+            indexSize = channel.size();
+            indexFile = new MappedBuffer(new ChannelProxy(indexPath, channel));
         }
         catch (IOException e)
         {
             throw new FSReadError(e, index);
         }
-        finally
+
+        // start of the levels
+        indexFile.position(indexFile.getLong(indexSize - 8));
+
+        int numLevels = indexFile.getInt();
+        levels = new PointerLevel[numLevels];
+        for (int i = 0; i < levels.length; i++)
         {
-            FileUtils.closeQuietly(backingFile);
+            int blockCount = indexFile.getInt();
+            levels[i] = new PointerLevel(indexFile.position(), blockCount);
+            indexFile.position(indexFile.position() + blockCount * 8);
         }
+
+        int blockCount = indexFile.getInt();
+        dataLevel = new DataLevel(indexFile.position(), blockCount);
     }
 
     public boolean hasMarkedPartials()

@@ -18,7 +18,6 @@
 package org.apache.cassandra.hadoop.cql3;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -28,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import com.google.common.net.HostAndPort;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -226,9 +226,9 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     
     private File getTableDirectory() throws IOException
     {
-        File dir = new File(String.format("%s%s%s%s%s-%s", getOutputLocation(), File.separator, keyspace, File.separator, table, UUID.randomUUID().toString()));
+        File dir = new File(String.format("%s%s%s%s%s-%s", getOutputLocation(), File.pathSeparator(), keyspace, File.pathSeparator(), table, UUID.randomUUID().toString()));
         
-        if (!dir.exists() && !dir.mkdirs())
+        if (!dir.exists() && !dir.tryCreateDirectories())
         {
             throw new IOException("Failed to created output directory: " + dir);
         }

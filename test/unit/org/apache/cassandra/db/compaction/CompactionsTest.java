@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db.compaction;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -73,6 +72,7 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
@@ -285,7 +285,7 @@ public class CompactionsTest
         SSTableReader sstable = sstables.iterator().next();
 
         SSTableId prevGeneration = sstable.descriptor.id;
-        String file = new File(sstable.descriptor.filenameFor(Component.DATA)).getAbsolutePath();
+        String file = new File(sstable.descriptor.filenameFor(Component.DATA)).absolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
         // wait until user defined compaction finishes

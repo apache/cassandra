@@ -20,9 +20,6 @@ package org.apache.cassandra.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.NumberFormat;
@@ -40,9 +37,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
@@ -228,12 +227,12 @@ public class BloomFilterTest
         File file = FileUtils.createDeletableTempFile("bloomFilterTest-", ".dat");
         BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d);
         filter.add(FilterTestHelper.wrap(test));
-        DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(file));
+        DataOutputStreamPlus out = new FileOutputStreamPlus(file);
         BloomFilter.serializer.serialize(filter, out);
         out.close();
         filter.close();
 
-        DataInputStream in = new DataInputStream(new FileInputStream(file));
+        DataInputStream in = new DataInputStream(new FileInputStreamPlus(file));
         IFilter filter2 = BloomFilter.serializer.deserialize(in, false);
         assertTrue(filter2.isPresent(FilterTestHelper.wrap(test)));
         FileUtils.closeQuietly(in);

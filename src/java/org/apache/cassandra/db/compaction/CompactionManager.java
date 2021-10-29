@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,6 +104,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.metrics.CompactionMetrics;
@@ -944,7 +944,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             // group by keyspace/columnfamily
             ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-            descriptors.put(cfs, cfs.getDirectories().find(new File(filename.trim()).getName()));
+            descriptors.put(cfs, cfs.getDirectories().find(new File(filename.trim()).name()));
         }
 
         List<Future<?>> futures = new ArrayList<>(descriptors.size());
@@ -970,7 +970,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             // group by keyspace/columnfamily
             ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-            desc = cfs.getDirectories().find(new File(filename.trim()).getName());
+            desc = cfs.getDirectories().find(new File(filename.trim()).name());
             if (desc != null)
                 descriptors.put(cfs, desc);
         }

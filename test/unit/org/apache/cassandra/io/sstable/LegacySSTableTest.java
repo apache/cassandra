@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,7 +43,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
-import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
@@ -61,6 +57,9 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -114,7 +113,7 @@ public class LegacySSTableTest
         String scp = System.getProperty(LEGACY_SSTABLE_PROP);
         Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
 
-        LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
+        LEGACY_SSTABLE_ROOT = new File(scp).toAbsolute();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
 
         SchemaLoader.prepareServer();
@@ -143,7 +142,7 @@ public class LegacySSTableTest
     protected Descriptor getDescriptor(String legacyVersion, String table) throws IOException
     {
         Path file = Files.list(getTableDir(legacyVersion, table).toPath()).findFirst().orElseThrow(() -> new RuntimeException(String.format("No files for verion=%s and table=%s", legacyVersion, table)));
-        return Descriptor.fromFilename(file.toFile());
+        return Descriptor.fromFilename(new File(file));
     }
 
     @Test
@@ -636,7 +635,7 @@ public class LegacySSTableTest
         StorageService.instance.forceKeyspaceFlush("legacy_tables");
 
         File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", version));
-        ksDir.mkdirs();
+        ksDir.tryCreateDirectories();
         copySstablesFromTestData(String.format("legacy_%s_simple", version), ksDir);
         copySstablesFromTestData(String.format("legacy_%s_simple_counter", version), ksDir);
         copySstablesFromTestData(String.format("legacy_%s_clust", version), ksDir);
@@ -646,11 +645,11 @@ public class LegacySSTableTest
     public static void copySstablesFromTestData(String table, File ksDir) throws IOException
     {
         File cfDir = new File(ksDir, table);
-        cfDir.mkdir();
+        cfDir.tryCreateDirectory();
 
         for (File srcDir : Keyspace.open("legacy_tables").getColumnFamilyStore(table).getDirectories().getCFDirectories())
         {
-            for (File file : srcDir.listFiles())
+            for (File file : srcDir.tryList())
             {
                 copyFile(cfDir, file);
             }
@@ -661,7 +660,7 @@ public class LegacySSTableTest
     {
         File tableDir = getTableDir(legacyVersion, table);
         Assert.assertTrue("The table directory " + tableDir + " was not found", tableDir.isDirectory());
-        for (File file : tableDir.listFiles())
+        for (File file : tableDir.tryList())
         {
             copyFile(cfDir, file);
         }
@@ -677,10 +676,10 @@ public class LegacySSTableTest
         byte[] buf = new byte[65536];
         if (file.isFile())
         {
-            File target = new File(cfDir, file.getName());
+            File target = new File(cfDir, file.name());
             int rd;
-            try (FileInputStream is = new FileInputStream(file);
-                 FileOutputStream os = new FileOutputStream(target);) {
+            try (FileInputStreamPlus is = new FileInputStreamPlus(file);
+                 FileOutputStreamPlus os = new FileOutputStreamPlus(target);) {
                 while ((rd = is.read(buf)) >= 0)
                     os.write(buf, 0, rd);
                 }

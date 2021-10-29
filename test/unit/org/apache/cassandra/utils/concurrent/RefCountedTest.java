@@ -18,11 +18,6 @@
 */
 package org.apache.cassandra.utils.concurrent;
 
-import org.junit.Test;
-
-import org.junit.Assert;
-
-import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +31,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.FileSystems;
@@ -42,6 +41,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.JMXUtil;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -131,7 +131,7 @@ public class ResourceLeakTest extends TestBaseImpl
         long pid = getProcessId();
         ProcessBuilder map = new ProcessBuilder("/usr/sbin/lsof", "-p", Long.toString(pid));
         File output = new File(outputFilename("lsof", description, ".txt"));
-        map.redirectOutput(output);
+        map.redirectOutput(output.toJavaIOFile());
         map.redirectErrorStream(true);
         map.start().waitFor();
     }

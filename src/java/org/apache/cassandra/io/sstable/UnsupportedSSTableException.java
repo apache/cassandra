@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 
 public class UnsupportedSSTableException extends CorruptSSTableException
 {

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -29,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class SnapshotDeletingTask implements Runnable

@@ -18,11 +18,11 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.File;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class NativeLibraryTest
@@ -32,7 +32,7 @@ public class NativeLibraryTest
     {
         File file = FileUtils.createDeletableTempFile("testSkipCache", "1");
 
-        NativeLibrary.trySkipCache(file.getPath(), 0, 0);
+        NativeLibrary.trySkipCache(file.path(), 0, 0);
     }
 
     @Test

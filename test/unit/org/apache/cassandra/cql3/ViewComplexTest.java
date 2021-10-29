@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Objects;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;

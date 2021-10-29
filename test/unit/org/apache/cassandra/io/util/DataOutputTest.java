@@ -24,9 +24,6 @@ import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.EOFException;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.BufferOverflowException;
@@ -327,16 +324,16 @@ public class DataOutputTest
         File file = FileUtils.createTempFile("dataoutput", "test");
         try
         {
-            DataOutputStreamPlus write = new WrappedDataOutputStreamPlus(new FileOutputStream(file));
+            DataOutputStreamPlus write = new WrappedDataOutputStreamPlus(new FileOutputStreamPlus(file));
             DataInput canon = testWrite(write);
             write.close();
-            DataInputStream test = new DataInputStream(new FileInputStream(file));
+            DataInputStream test = new DataInputStream(new FileInputStreamPlus(file));
             testRead(test, canon);
             test.close();
         }
         finally
         {
-            Assert.assertTrue(file.delete());
+            Assert.assertTrue(file.tryDelete());
         }
     }
 
@@ -346,16 +343,16 @@ public class DataOutputTest
         File file = FileUtils.createTempFile("dataoutput", "test");
         try
         {
-            DataOutputStreamPlus write = new BufferedDataOutputStreamPlus(new FileOutputStream(file));
+            DataOutputStreamPlus write = new FileOutputStreamPlus(file);
             DataInput canon = testWrite(write);
             write.close();
-            DataInputStream test = new DataInputStream(new FileInputStream(file));
+            DataInputStream test = new DataInputStream(new FileInputStreamPlus(file));
             testRead(test, canon);
             test.close();
         }
         finally
         {
-            Assert.assertTrue(file.delete());
+            Assert.assertTrue(file.tryDelete());
         }
     }
 
@@ -366,17 +363,17 @@ public class DataOutputTest
         try
         {
             @SuppressWarnings("resource")
-            final RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            final RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw");
             DataOutputStreamPlus write = new BufferedDataOutputStreamPlus(raf.getChannel());
             DataInput canon = testWrite(write);
             write.close();
-            DataInputStream test = new DataInputStream(new FileInputStream(file));
+            DataInputStream test = new DataInputStream(new FileInputStreamPlus(file));
             testRead(test, canon);
             test.close();
         }
         finally
         {
-            Assert.assertTrue(file.delete());
+            Assert.assertTrue(file.tryDelete());
         }
     }
 
@@ -390,10 +387,10 @@ public class DataOutputTest
         DataInput canon = testWrite(write);
         write.flush();
         write.close();
-        DataInputStream test = new DataInputStream(new FileInputStream(file));
+        DataInputStream test = new DataInputStream(new FileInputStreamPlus(file));
         testRead(test, canon);
         test.close();
-        Assert.assertTrue(file.delete());
+        Assert.assertTrue(file.tryDelete());
     }
 
     private DataInput testWrite(DataOutputPlus test) throws IOException

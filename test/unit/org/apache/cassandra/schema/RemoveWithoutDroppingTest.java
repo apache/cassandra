@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.schema;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.mockito.Mockito;
 
@@ -86,12 +86,12 @@ public class RemoveWithoutDroppingTest
         TableMetadata tm = Schema.instance.getTableMetadata(ks, tab);
 
         List<File> directories = cfs.getDirectories().getCFDirectories();
-        Set<File> filesBefore = directories.stream().flatMap(d -> Arrays.stream(d.listFiles()).filter(f -> !f.isDirectory())).collect(Collectors.toSet());
+        Set<File> filesBefore = directories.stream().flatMap(d -> Arrays.stream(d.tryList(f -> !f.isDirectory()))).collect(Collectors.toSet());
         assertThat(filesBefore).isNotEmpty();
 
         executeInternal(String.format("DROP KEYSPACE %s", ks));
 
-        Set<File> filesAfter = directories.stream().flatMap(d -> Arrays.stream(d.listFiles()).filter(f -> !f.isDirectory())).collect(Collectors.toSet());
+        Set<File> filesAfter = directories.stream().flatMap(d -> Arrays.stream(d.tryList(f -> !f.isDirectory()))).collect(Collectors.toSet());
         if (expectDropped)
             assertThat(filesAfter).isEmpty();
         else

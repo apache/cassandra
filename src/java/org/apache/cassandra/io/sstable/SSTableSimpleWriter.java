@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
 
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 
 /**

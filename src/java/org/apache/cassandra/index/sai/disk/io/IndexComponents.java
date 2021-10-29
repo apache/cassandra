@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sai.disk.io;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
@@ -47,6 +46,7 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -428,7 +428,7 @@ public class IndexComponents
             logger.trace(logMessage("Opening {} file handle for {} ({})"), temporary ? "temporary" : "", file, FBUtilities.prettyPrintMemory(file.length()));
         }
 
-        try (final FileHandle.Builder builder = new FileHandle.Builder(file.getAbsolutePath()).mmapped(true))
+        try (final FileHandle.Builder builder = new FileHandle.Builder(file.absolutePath()).mmapped(true))
         {
             return builder.complete();
         }
@@ -489,7 +489,7 @@ public class IndexComponents
         if (logger.isTraceEnabled())
             logger.trace(logMessage("Opening blocking index input for file {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
 
-        try (final FileHandle.Builder builder = new FileHandle.Builder(file.getAbsolutePath()))
+        try (final FileHandle.Builder builder = new FileHandle.Builder(file.absolutePath()))
         {
             final FileHandle fileHandle = builder.complete();
             final RandomAccessReader randomReader = fileHandle.createReader();
@@ -539,7 +539,7 @@ public class IndexComponents
         final File file = descriptor.tmpFileFor(component);
 
         if (file.exists())
-            if (!file.delete())
+            if (!file.tryDelete())
                 logger.warn("Failed to delete temporary file " + file);
     }
 
@@ -564,12 +564,12 @@ public class IndexComponents
 
     public void createGroupCompletionMarker() throws IOException
     {
-        Files.touch(descriptor.fileFor(groupCompletionMarker));
+        Files.touch(descriptor.fileFor(groupCompletionMarker).toJavaIOFile());
     }
 
     public void createColumnCompletionMarker() throws IOException
     {
-        Files.touch(descriptor.fileFor(columnCompletionMarker));
+        Files.touch(descriptor.fileFor(columnCompletionMarker).toJavaIOFile());
     }
 
     @Override

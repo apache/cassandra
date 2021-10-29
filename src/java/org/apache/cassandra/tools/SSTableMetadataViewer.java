@@ -18,7 +18,6 @@
 package org.apache.cassandra.tools;
 
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -62,6 +61,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tools.Util.TermHistogram;
@@ -534,7 +534,7 @@ public class SSTableMetadataViewer
             File sstable = new File(fname);
             if (sstable.exists())
             {
-                metawriter.printSStableMetadata(sstable.getAbsolutePath(), fullScan);
+                metawriter.printSStableMetadata(sstable.absolutePath(), fullScan);
             }
             else
             {

@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -146,6 +145,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -4085,7 +4085,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Set<String> keyspaces = new HashSet<>();
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            for(String keyspaceDir : new File(dataDir).list())
+            for(String keyspaceDir : new File(dataDir).tryListNames())
             {
                 // Only add a ks if it has been specified as a param, assuming params were actually provided.
                 if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
