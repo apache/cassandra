@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.compaction.writers;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.ScannerList;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;

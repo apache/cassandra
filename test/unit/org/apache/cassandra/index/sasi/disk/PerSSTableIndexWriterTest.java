@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sasi.disk;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -54,6 +53,7 @@ import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;

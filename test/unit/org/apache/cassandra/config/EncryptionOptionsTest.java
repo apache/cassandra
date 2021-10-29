@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.config;
 
-import java.io.File;
 import java.util.Collections;
 import java.util.Map;
 
@@ -27,16 +26,18 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
-import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.OPTIONAL;
-import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED;
 import static org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.all;
 import static org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.dc;
 import static org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none;
 import static org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.rack;
-import static org.junit.Assert.*;
+import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED;
+import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.OPTIONAL;
+import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class EncryptionOptionsTest
 {

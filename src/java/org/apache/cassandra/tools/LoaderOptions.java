@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.*;
@@ -32,6 +31,7 @@ import com.google.common.net.HostAndPort;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
@@ -376,7 +376,7 @@ public class LoaderOptions
                     {
                         errorMsg("Config file not found", options);
                     }
-                    config = new YamlConfigurationLoader().loadConfig(configFile.toURI().toURL());
+                    config = new YamlConfigurationLoader().loadConfig(configFile.toPath().toUri().toURL());
                 }
                 else
                 {

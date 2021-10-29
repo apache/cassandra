@@ -27,9 +27,7 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-
 import org.apache.commons.io.FileUtils;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -37,11 +35,12 @@ import org.junit.Test;
 
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner.ObservableTool;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
@@ -65,10 +64,10 @@ public class AuditLogViewerTest
     @After
     public void tearDown() throws IOException
     {
-        if (path.toFile().exists() && path.toFile().isDirectory())
+        if (new File(path).exists() && new File(path).isDirectory())
         {
             //Deletes directory and all of it's contents
-            FileUtils.deleteDirectory(path.toFile());
+            FileUtils.deleteDirectory(new File(path).toJavaIOFile());
         }
     }
 

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format.trieindex;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -56,6 +55,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.tries.TrieNode;
 import org.apache.cassandra.io.tries.Walker;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Rebufferer;
@@ -508,7 +508,7 @@ public class PartitionIndexTest
         {
             try
             {
-                File file = File.createTempFile("ColumnTrieReaderTest", "");
+                File file = FileUtils.createTempFile("ColumnTrieReaderTest", "");
                 SequentialWriter writer = new SequentialWriter(file, SequentialWriterOption.newBuilder().finishOnClose(true).build());
                 List<DecoratedKey> list = Lists.newArrayList();
                 String longString = "";
@@ -523,7 +523,7 @@ public class PartitionIndexTest
                 list.add(partitioner.decorateKey(ByteBufferUtil.bytes(longString + "D")));
                 list.add(partitioner.decorateKey(ByteBufferUtil.bytes(longString + "E")));
 
-                try (FileHandle.Builder fhBuilder = new FileHandle.Builder(file.getPath())
+                try (FileHandle.Builder fhBuilder = new FileHandle.Builder(file.path())
                                                     .bufferSize(PageAware.PAGE_SIZE)
                                                     .withChunkCache(ChunkCache.instance);
                      PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder)
@@ -924,7 +924,7 @@ public class PartitionIndexTest
 
     protected FileHandle.Builder makeHandle(File file)
     {
-        return new FileHandle.Builder(file.getPath())
+        return new FileHandle.Builder(file.path())
                .bufferSize(PageAware.PAGE_SIZE)
                .mmapped(accessMode == Config.DiskAccessMode.mmap)
                .withChunkCache(ChunkCache.instance);

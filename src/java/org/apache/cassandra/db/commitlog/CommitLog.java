@@ -17,10 +17,9 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.zip.CRC32;
 
@@ -49,7 +49,9 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
@@ -164,22 +166,22 @@ public class CommitLog implements CommitLogMBean
      */
     public int recoverSegmentsOnDisk() throws IOException
     {
-        FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+        BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
         // archiving pass, which we should not treat as serious.
-        for (File file : new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter))
+        for (File file : new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter))
         {
-            archiver.maybeArchive(file.getPath(), file.getName());
-            archiver.maybeWaitForArchiving(file.getName());
+            archiver.maybeArchive(file.path(), file.name());
+            archiver.maybeWaitForArchiving(file.name());
         }
 
         assert archiver.archivePending.isEmpty() : "Not all commit log archive tasks were completed before restore";
         archiver.maybeRestoreArchive();
 
         // List the files again as archiver may have added segments.
-        File[] files = new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter);
+        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
         int replayed = 0;
         if (files.length == 0)
         {
@@ -492,7 +494,7 @@ public class CommitLog implements CommitLogMBean
         segmentManager.stopUnsafe(deleteSegments);
         CommitLogSegment.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
                 FileUtils.deleteWithConfirm(f);
     }
 
@@ -508,7 +510,7 @@ public class CommitLog implements CommitLogMBean
 
     public static long freeDiskSpace()
     {
-        return FileUtils.getFreeSpace(new File(DatabaseDescriptor.getCommitLogLocation()));
+        return PathUtils.tryGetSpace(new File(DatabaseDescriptor.getCommitLogLocation()).toPath(), FileStore::getUsableSpace) - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
     }
 
     @VisibleForTesting

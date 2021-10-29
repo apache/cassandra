@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sai.disk.io;
 
-import java.io.File;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.store.Directory;
@@ -71,7 +71,7 @@ public class BKDTempFilesDirectory extends Directory
     {
         final File indexInput = getTmpFileByName(name);
         
-        try (FileHandle.Builder builder = new FileHandle.Builder(indexInput.getPath()))
+        try (FileHandle.Builder builder = new FileHandle.Builder(indexInput.path()))
         {
             final FileHandle handle = builder.complete();
             final RandomAccessReader reader = handle.createReader();
@@ -90,9 +90,9 @@ public class BKDTempFilesDirectory extends Directory
     public void deleteFile(String name)
     {
         final File file = getTmpFileByName(name);
-        if (!file.delete())
+        if (!file.tryDelete())
         {
-            logger.warn(delegate.logMessage("Unable to delete file {}"), file.getAbsolutePath());
+            logger.warn(delegate.logMessage("Unable to delete file {}"), file.absolutePath());
         }
     }
 

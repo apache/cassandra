@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -56,6 +55,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PropertyFileSnitch;
@@ -120,7 +120,7 @@ public class StorageServiceServerTest
         for (int i = 0; i < 5; i++)
         {
             File subdir = new File(f, Integer.toString(i));
-            subdir.mkdir();
+            subdir.tryCreateDirectory();
             for (int j = 0; j < 5; j++)
             {
                 File subF = new File(subdir, Integer.toString(j));
@@ -137,15 +137,15 @@ public class StorageServiceServerTest
         // Initial "run" of Cassandra, nothing in failed snapshot file
         WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
-        File f = new File(System.getenv("TEMP") + File.separator + Integer.toString(new Random().nextInt()));
-        f.mkdir();
+        File f = new File(System.getenv("TEMP") + File.pathSeparator() + Integer.toString(new Random().nextInt()));
+        f.tryCreateDirectory();
         f.deleteOnExit();
         for (int i = 0; i < 5; i++)
         {
             File subdir = new File(f, Integer.toString(i));
-            subdir.mkdir();
+            subdir.tryCreateDirectory();
             for (int j = 0; j < 5; j++)
-                new File(subdir, Integer.toString(j)).createNewFile();
+                new File(subdir, Integer.toString(j)).createFileIfNotExists();
         }
 
         checkTempFilePresence(f, true);
@@ -170,9 +170,9 @@ public class StorageServiceServerTest
         tempPrinter.close();
 
         File protectedDir = new File(".safeDir");
-        protectedDir.mkdir();
+        protectedDir.tryCreateDirectory();
         File protectedFile = new File(protectedDir, ".safeFile");
-        protectedFile.createNewFile();
+        protectedFile.createFileIfNotExists();
 
         WindowsFailedSnapshotTracker.handleFailedSnapshot(protectedDir);
         WindowsFailedSnapshotTracker.deleteOldSnapshots();
@@ -180,8 +180,8 @@ public class StorageServiceServerTest
         assertTrue(protectedDir.exists());
         assertTrue(protectedFile.exists());
 
-        protectedFile.delete();
-        protectedDir.delete();
+        protectedFile.tryDelete();
+        protectedDir.tryDelete();
     }
 
     @Test

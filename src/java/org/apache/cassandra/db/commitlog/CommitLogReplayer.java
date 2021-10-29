@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -31,6 +30,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
@@ -179,7 +179,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
         // Can only reach this point if CDC is enabled, thus we have a CDCSegmentManager
         ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).addCDCSize(f.length());
 
-        File dest = new File(DatabaseDescriptor.getCDCLogLocation(), f.getName());
+        File dest = new File(DatabaseDescriptor.getCDCLogLocation(), f.name());
 
         // If hard link already exists, assume it's from a previous node run. If people are mucking around in the cdc_raw
         // directory that's on them.

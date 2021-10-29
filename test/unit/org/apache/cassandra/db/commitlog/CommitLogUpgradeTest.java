@@ -21,8 +21,6 @@ package org.apache.cassandra.db.commitlog;
  *
  */
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Properties;
@@ -42,6 +40,8 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -117,7 +117,7 @@ public class CommitLogUpgradeTest
     public void testRestore(String location) throws IOException, InterruptedException
     {
         Properties prop = new Properties();
-        prop.load(new FileInputStream(new File(location + File.separatorChar + PROPERTIES_FILE)));
+        prop.load(new FileInputStreamPlus(new File(location + File.pathSeparator() + PROPERTIES_FILE)));
         int hash = Integer.parseInt(prop.getProperty(HASH_PROPERTY));
         int cells = Integer.parseInt(prop.getProperty(CELLS_PROPERTY));
 
@@ -134,7 +134,7 @@ public class CommitLogUpgradeTest
 
         Hasher hasher = new Hasher();
         CommitLogTestReplayer replayer = new CommitLogTestReplayer(hasher);
-        File[] files = new File(location).listFiles((file, name) -> name.endsWith(".log"));
+        File[] files = new File(location).tryList((file, name) -> name.endsWith(".log"));
         replayer.replayFiles(files);
 
         Assert.assertEquals(cells, hasher.cells);

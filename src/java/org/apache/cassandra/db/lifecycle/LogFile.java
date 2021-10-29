@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -30,6 +29,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,7 +77,7 @@ final class LogFile implements AutoCloseable
 
     static LogFile make(File logReplica)
     {
-        return make(logReplica.getName(), Collections.singletonList(logReplica));
+        return make(logReplica.name(), Collections.singletonList(logReplica));
     }
 
     static LogFile make(String fileName, List<File> logReplicas)
@@ -139,7 +139,7 @@ final class LogFile implements AutoCloseable
 
     static boolean isLogFile(File file)
     {
-        return LogFile.FILE_REGEX.matcher(file.getName()).matches();
+        return LogFile.FILE_REGEX.matcher(file.name()).matches();
     }
 
     LogFile(OperationType type, UUID id, List<File> replicas)
@@ -347,7 +347,7 @@ final class LogFile implements AutoCloseable
     private void maybeCreateReplica(SSTable sstable)
     {
         File directory = sstable.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.separator, getFileName());
+        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
         replicas.maybeCreateReplica(directory, fileName, onDiskRecords);
     }
 
@@ -443,7 +443,7 @@ final class LogFile implements AutoCloseable
     private static Set<File> getRecordFiles(NavigableSet<File> files, LogRecord record)
     {
         String fileName = record.fileName();
-        return files.stream().filter(f -> f.getName().startsWith(fileName)).collect(Collectors.toSet());
+        return files.stream().filter(f -> f.name().startsWith(fileName)).collect(Collectors.toSet());
     }
 
     boolean exists()

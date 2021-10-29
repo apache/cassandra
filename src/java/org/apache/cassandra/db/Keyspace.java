@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,6 +50,7 @@ import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;

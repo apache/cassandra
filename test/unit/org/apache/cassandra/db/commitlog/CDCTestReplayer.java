@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 
 import org.slf4j.Logger;
@@ -27,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 
 /**
@@ -45,7 +45,7 @@ public class CDCTestReplayer extends CommitLogReplayer
 
     public void examineCommitLog() throws IOException
     {
-        replayFiles(new File(DatabaseDescriptor.getCommitLogLocation()).listFiles());
+        replayFiles(new File(DatabaseDescriptor.getCommitLogLocation()).tryList());
     }
 
     private class CommitLogTestReader extends CommitLogReader

@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -91,6 +90,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
@@ -385,7 +385,7 @@ public class FBUtilities
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
 
-        return new File(scpurl.getFile()).getAbsolutePath();
+        return new File(scpurl.getFile()).absolutePath();
     }
 
     public static File cassandraTriggerDir()

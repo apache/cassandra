@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -36,14 +34,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -364,11 +362,11 @@ public class BinLog implements Runnable
         public Builder path(Path path)
         {
             Preconditions.checkNotNull(path, "path was null");
-            File pathAsFile = path.toFile();
+            File pathAsFile = new File(path);
             //Exists and is a directory or can be created
             Preconditions.checkArgument(!pathAsFile.toString().isEmpty(), "you might have forgotten to specify a directory to save logs");
-            Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) || (!pathAsFile.exists() && pathAsFile.mkdirs()), "path exists and is not a directory or couldn't be created");
-            Preconditions.checkArgument(pathAsFile.canRead() && pathAsFile.canWrite() && pathAsFile.canExecute(), "path is not readable, writable, and executable");
+            Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) || (!pathAsFile.exists() && pathAsFile.tryCreateDirectories()), "path exists and is not a directory or couldn't be created");
+            Preconditions.checkArgument(pathAsFile.isReadable() && pathAsFile.isWritable() && pathAsFile.isExecutable(), "path is not readable, writable, and executable");
             this.path = path;
             return this;
         }
@@ -433,7 +431,7 @@ public class BinLog implements Runnable
                     logger.info("Cleaning directory: {} as requested", path);
                     if (path.toFile().exists())
                     {
-                        Throwable error = cleanDirectory(path.toFile(), null);
+                        Throwable error = cleanDirectory(new File(path), null);
                         if (error != null)
                         {
                             throw new RuntimeException(error);
@@ -472,7 +470,7 @@ public class BinLog implements Runnable
         {
             return Throwables.merge(accumulate, new RuntimeException(String.format("%s is not a directory", directory)));
         }
-        for (File f : directory.listFiles())
+        for (File f : directory.tryList())
         {
             accumulate = deleteRecursively(f, accumulate);
         }
@@ -487,7 +485,7 @@ public class BinLog implements Runnable
     {
         if (fileOrDirectory.isDirectory())
         {
-            for (File f : fileOrDirectory.listFiles())
+            for (File f : fileOrDirectory.tryList())
             {
                 accumulate = FileUtils.deleteWithConfirm(f, accumulate);
             }

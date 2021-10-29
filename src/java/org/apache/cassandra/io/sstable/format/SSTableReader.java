@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -110,12 +108,13 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.CheckedFunction;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -715,7 +714,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
                 {
                     String compressionInfoFileName = descriptor.filenameFor(Component.COMPRESSION_INFO);
-                    throw new CorruptSSTableException(new FileNotFoundException(compressionInfoFileName), compressionInfoFileName);
+                    throw new CorruptSSTableException(new NoSuchFileException(compressionInfoFileName), compressionInfoFileName);
                 }
             }
             catch (IOException e)
@@ -826,7 +825,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (summariesFile.exists())
             FileUtils.deleteWithConfirm(summariesFile);
 
-        try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile)))
+        try (DataOutputStreamPlus oStream = new FileOutputStreamPlus(summariesFile))
         {
             IndexSummary.serializer.serialize(summary, oStream);
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
@@ -845,7 +844,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
     {
         File filterFile = new File(descriptor.filenameFor(Component.FILTER));
-        try (DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(new FileOutputStream(filterFile)))
+        try (DataOutputStreamPlus stream = new FileOutputStreamPlus(filterFile))
         {
             BloomFilter.serializer.serialize((BloomFilter) filter, stream);
             stream.flush();
@@ -1731,7 +1730,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 continue;
             if (null != limiter)
                 limiter.acquire();
-            File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+            File targetLink = new File(snapshotDirectoryPath, sourceFile.name());
             FileUtils.createHardLink(sourceFile, targetLink);
         }
     }

@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.index.sai;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
@@ -68,6 +67,7 @@ import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -119,7 +119,7 @@ public class SAITester extends CQLTester
                     @Override
                     public void corrupt(File file) throws IOException
                     {
-                        if (!file.delete())
+                        if (!file.tryDelete())
                             throw new IOException("Unable to delete file: " + file);
                     }
                 },
@@ -161,7 +161,7 @@ public class SAITester extends CQLTester
                     @Override
                     public void corrupt(File file) throws IOException
                     {
-                        try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
+                        try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
                         {
                             raf.seek(file.length());
 
@@ -473,9 +473,9 @@ public class SAITester extends CQLTester
         {
             List<File> files = cfs.getDirectories().getCFDirectories()
                     .stream()
-                    .flatMap(dir -> Arrays.stream(dir.listFiles()))
+                    .flatMap(dir -> Arrays.stream(dir.tryList()))
                     .filter(File::isFile)
-                    .filter(f -> f.getName().endsWith(component.name))
+                    .filter(f -> f.name().endsWith(component.name))
                     .collect(Collectors.toList());
             indexFiles.addAll(files);
         }
@@ -614,9 +614,9 @@ public class SAITester extends CQLTester
         List<String> fileNames = new ArrayList<>();
         for (File file : lister.listFiles())
         {
-            if (file.renameTo(new File(dataDirectory.getAbsoluteFile() + File.separator + file.getName())))
+            if (file.tryMove(new File(dataDirectory.absolutePath() + File.pathSeparator() + file.name())))
             {
-                fileNames.add(file.getName());
+                fileNames.add(file.name());
             }
         }
         cfs.loadNewSSTables();
@@ -673,13 +673,13 @@ public class SAITester extends CQLTester
 
     protected Set<File> componentFiles(Collection<File> indexFiles, Component component)
     {
-        return indexFiles.stream().filter(c -> c.getName().endsWith(component.name)).collect(Collectors.toSet());
+        return indexFiles.stream().filter(c -> c.name().endsWith(component.name)).collect(Collectors.toSet());
     }
 
     protected Set<File> componentFiles(Collection<File> indexFiles, String shortName)
     {
         String suffix = String.format("_%s.db", shortName);
-        return indexFiles.stream().filter(c -> c.getName().endsWith(suffix)).collect(Collectors.toSet());
+        return indexFiles.stream().filter(c -> c.name().endsWith(suffix)).collect(Collectors.toSet());
     }
 
     /**

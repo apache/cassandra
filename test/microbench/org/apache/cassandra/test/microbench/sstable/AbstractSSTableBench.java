@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 
 public abstract class AbstractSSTableBench
@@ -105,7 +106,7 @@ public abstract class AbstractSSTableBench
     public SSTableWriter createWriter(ColumnFamilyStore table, SSTableFormat format, LifecycleTransaction txn) throws Exception
     {
         Path tableDir = Files.createTempDirectory(getClass().getSimpleName());
-        Descriptor desc = table.newSSTableDescriptor(tableDir.toFile(), format.getType());
+        Descriptor desc = table.newSSTableDescriptor(new File(tableDir), format.getType());
 
         return SSTableWriter.create(desc,
                                     0,

@@ -211,8 +211,8 @@ public class SSTableReaderBench extends AbstractSSTableBench
             if (t != null)
                 throw new Exception(t);
 
-            logger.info("Created the following files: \n{}", Arrays.stream(tableWriter.descriptor.directory.listFiles())
-                                                                   .map(f -> f.getName() + " - " + FileUtils.stringifyFileSize(f.length()))
+            logger.info("Created the following files: \n{}", Arrays.stream(tableWriter.descriptor.directory.tryList())
+                                                                   .map(f -> f.name() + " - " + FileUtils.stringifyFileSize(f.length()))
                                                                    .collect(Collectors.joining("\n")));
 
             return tableWriter;

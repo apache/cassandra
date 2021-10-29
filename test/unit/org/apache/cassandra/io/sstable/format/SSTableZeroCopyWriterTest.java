@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -30,7 +29,6 @@ import java.util.function.Function;
 import com.google.common.collect.ImmutableSet;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +50,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.CachingParams;

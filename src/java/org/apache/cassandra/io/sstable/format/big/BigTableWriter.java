@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
@@ -63,23 +61,21 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.ChecksummedSequentialWriter;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataPosition;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.BloomFilterSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 public class BigTableWriter extends SSTableWriter
@@ -476,7 +472,7 @@ public class BigTableWriter extends SSTableWriter
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, file.getPath());
+            throw new FSWriteError(e, file.path());
         }
     }
 
@@ -552,13 +548,12 @@ public class BigTableWriter extends SSTableWriter
             if (components.contains(Component.FILTER))
             {
                 String path = descriptor.filenameFor(Component.FILTER);
-                try (FileOutputStream fos = new FileOutputStream(path);
-                     DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos))
+                try (FileOutputStreamPlus stream = new FileOutputStreamPlus(path))
                 {
                     // bloom filter
                     BloomFilter.serializer.serialize((BloomFilter) bf, stream);
                     stream.flush();
-                    SyncUtil.sync(fos);
+                    stream.sync();
                 }
                 catch (IOException e)
                 {

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +53,7 @@ import org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableC
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.schema.CompactionParams;
@@ -341,7 +341,7 @@ public class CompactionStrategyManagerTest
         Directories.DataDirectory[] directories = new Directories.DataDirectory[disks];
         for (int i = 0; i < disks; ++i)
         {
-            File tempDir = Files.createTempDir();
+            File tempDir = new File(Files.createTempDir());
             tempDir.deleteOnExit();
             directories[i] = new Directories.DataDirectory(tempDir);
         }

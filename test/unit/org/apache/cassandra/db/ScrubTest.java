@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -85,6 +84,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -421,10 +421,10 @@ public class ScrubTest
         {
             switch (sstable.descriptor.getFormat().getType()) {
                 case BIG:
-                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete());
+                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).tryDelete());
                     break;
                 case BTI:
-                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PARTITION_INDEX)).delete());
+                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PARTITION_INDEX)).tryDelete());
                     new File(sstable.descriptor.filenameFor(Component.ROW_INDEX)).delete(); // row index is optional
                     break;
                 default:
@@ -451,10 +451,10 @@ public class ScrubTest
         DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
 
         // Create out-of-order SSTable
-        File tempDir = Files.createTempDirectory("ScrubTest.testScrubOutOfOrder").toFile();
+        File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").parent();
         // create ks/cf directory
-        File tempDataDir = new File(tempDir, String.join(File.separator, ksName, CF));
-        assertTrue(tempDataDir.mkdirs());
+        File tempDataDir = new File(tempDir, String.join(File.pathSeparator(), ksName, CF));
+        assertTrue(tempDataDir.tryCreateDirectories());
         try
         {
             CompactionManager.instance.disableAutoCompaction();

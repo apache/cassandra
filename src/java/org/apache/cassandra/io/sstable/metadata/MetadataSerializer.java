@@ -17,14 +17,19 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.*;
-import java.util.*;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,9 +42,10 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -263,7 +269,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
         String filePath = descriptor.tmpFilenameFor(Component.STATS);
-        try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(filePath)))
+        try (DataOutputStreamPlus out = new FileOutputStreamPlus(filePath))
         {
             serialize(currentComponents, out, descriptor.version);
             out.flush();

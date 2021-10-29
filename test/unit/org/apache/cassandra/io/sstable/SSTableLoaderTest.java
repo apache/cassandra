@@ -17,14 +17,12 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.common.io.Files;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -32,16 +30,20 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -88,7 +90,7 @@ public class SSTableLoaderTest
     @Before
     public void setup() throws Exception
     {
-        tmpdir = Files.createTempDir();
+        tmpdir = new File(Files.createTempDir());
     }
 
     @After
@@ -185,7 +187,7 @@ public class SSTableLoaderTest
         cfs.forceBlockingFlush(UNIT_TESTS); // wait for sstables to be on disk else we won't be able to stream them
 
         //make sure we have some tables...
-        assertTrue(Objects.requireNonNull(dataDir.listFiles()).length > 0);
+        assertTrue(Objects.requireNonNull(dataDir.tryList()).length > 0);
 
         final CountDownLatch latch = new CountDownLatch(2);
         //writer is still open so loader should not load anything
@@ -213,8 +215,8 @@ public class SSTableLoaderTest
     @Test
     public void testLoadingSSTableToDifferentKeyspace() throws Exception
     {
-        File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + KEYSPACE1 + File.separator + CF_STANDARD1);
-        assert dataDir.mkdirs();
+        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + KEYSPACE1 + File.pathSeparator() + CF_STANDARD1);
+        assert dataDir.tryCreateDirectories();
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);
 
         String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
@@ -291,10 +293,10 @@ public class SSTableLoaderTest
 
     private File dataDir(String cf)
     {
-        File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + SSTableLoaderTest.KEYSPACE1 + File.separator + cf);
-        assert dataDir.mkdirs();
+        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + SSTableLoaderTest.KEYSPACE1 + File.pathSeparator() + cf);
+        assert dataDir.tryCreateDirectories();
         //make sure we have no tables...
-        assertEquals(Objects.requireNonNull(dataDir.listFiles()).length, 0);
+        assertEquals(Objects.requireNonNull(dataDir.tryList()).length, 0);
         return dataDir;
     }
 
