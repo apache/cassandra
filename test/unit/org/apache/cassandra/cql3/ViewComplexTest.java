@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -30,21 +29,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-import com.datastax.driver.core.exceptions.OperationTimedOutException;
-import org.apache.cassandra.concurrent.SEPExecutor;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.fail;
@@ -57,85 +47,8 @@ import static org.junit.Assert.fail;
  * - ViewComplexTest
  * - ViewComplexLivenessTest
  */
-@RunWith(Parameterized.class)
-public class ViewComplexTest extends CQLTester
+public class ViewComplexTest extends ViewComplexTester
 {
-    @Parameterized.Parameter
-    public ProtocolVersion version;
-
-    @Parameterized.Parameters()
-    public static Collection<Object[]> versions()
-    {
-        return ProtocolVersion.SUPPORTED.stream()
-                                        .map(v -> new Object[]{v})
-                                        .collect(Collectors.toList());
-    }
-
-    private final List<String> views = new ArrayList<>();
-
-    @BeforeClass
-    public static void startup()
-    {
-        requireNetwork();
-    }
-
-    @Before
-    public void begin()
-    {
-        beginSetup(views);
-    }
-
-    public static void beginSetup(List<String> views)
-    {
-        views.clear();
-    }
-
-    @After
-    public void end() throws Throwable
-    {
-        endTearDown(views, version, this);
-    }
-
-    public static void endTearDown(List<String> views, ProtocolVersion version, CQLTester cqlTester) throws Throwable
-    {
-        for (String viewName : views)
-            cqlTester.executeNet(version, "DROP MATERIALIZED VIEW " + viewName);
-    }
-
-    public static void createView(String name, String query, ProtocolVersion version, CQLTester cqlTester, List<String> views) throws Throwable
-    {
-        try
-        {
-            cqlTester.executeNet(version, String.format(query, name));
-            // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
-            // the desired behavior
-            views.add(name);
-        }
-        catch (OperationTimedOutException ex)
-        {
-            // ... except for timeout, when we actually do not know whether the view was created or not
-            views.add(name);
-            throw ex;
-        }
-    }
-
-    public static void updateView(String query, ProtocolVersion version, CQLTester cqlTester, Object... params) throws Throwable
-    {
-        updateViewWithFlush(query, false, version, cqlTester, params);
-    }
-
-    public static void updateViewWithFlush(String query, boolean flush, ProtocolVersion version, CQLTester cqlTester, Object... params) throws Throwable
-    {
-        cqlTester.executeNet(version, query, params);
-        while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
-                && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
-        {
-            Thread.sleep(1);
-        }
-        if (flush)
-            Keyspace.open(cqlTester.keyspace()).flush();
-    }
-
     @Test
     public void testNonBaseColumnInViewPkWithFlush() throws Throwable
     {
@@ -145,10 +58,10 @@ public class ViewComplexTest extends CQLTester
     @Test
     public void testNonBaseColumnInViewPkWithoutFlush() throws Throwable
     {
-        testNonBaseColumnInViewPk(true);
+        testNonBaseColumnInViewPk(false);
     }
 
-    public void testNonBaseColumnInViewPk(boolean flush) throws Throwable
+    private void testNonBaseColumnInViewPk(boolean flush) throws Throwable
     {
         createTable("create table %s (p1 int, p2 int, v1 int, v2 int, primary key (p1,p2))");
 
@@ -156,50 +69,47 @@ public class ViewComplexTest extends CQLTester
         executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        createView("mv",
-                   "create materialized view %s as select * from %%s where p1 is not null and p2 is not null primary key (p2, p1)"
-                           + " with gc_grace_seconds=5;",
-                   version,
-                   this,
-                   views);
-        ColumnFamilyStore cfs = ks.getColumnFamilyStore("mv");
+        String mv = createView("create materialized view %s as select * from %%s " +
+                               "where p1 is not null and p2 is not null primary key (p2, p1) " +
+                               "with gc_grace_seconds=5");
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(mv);
         cfs.disableAutoCompaction();
 
-        updateView("UPDATE %s USING TIMESTAMP 1 set v1 =1 where p1 = 1 AND p2 = 1;", version, this);
+        updateView("UPDATE %s USING TIMESTAMP 1 set v1 =1 where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, 1, null));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from mv"), row(1, 1, 1, null));
+        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, 1, null));
 
-        updateView("UPDATE %s USING TIMESTAMP 2 set v1 = null, v2 = 1 where p1 = 1 AND p2 = 1;", version, this);
+        updateView("UPDATE %s USING TIMESTAMP 2 set v1 = null, v2 = 1 where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from mv"), row(1, 1, null, 1));
+        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, null, 1));
 
-        updateView("UPDATE %s USING TIMESTAMP 2 set v2 = null where p1 = 1 AND p2 = 1;", version, this);
+        updateView("UPDATE %s USING TIMESTAMP 2 set v2 = null where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from mv"));
+        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv));
 
-        updateView("INSERT INTO %s (p1,p2) VALUES(1,1) USING TIMESTAMP 3;", version, this);
+        updateView("INSERT INTO %s (p1,p2) VALUES(1,1) USING TIMESTAMP 3;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, null));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from mv"), row(1, 1, null, null));
+        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, null, null));
 
-        updateView("DELETE FROM %s USING TIMESTAMP 4 WHERE p1 =1 AND p2 = 1;", version, this);
+        updateView("DELETE FROM %s USING TIMESTAMP 4 WHERE p1 =1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from mv"));
+        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv));
 
-        updateView("UPDATE %s USING TIMESTAMP 5 set v2 = 1 where p1 = 1 AND p2 = 1;", version, this);
+        updateView("UPDATE %s USING TIMESTAMP 5 set v2 = 1 where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from mv"), row(1, 1, null, 1));
+        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, null, 1));
     }
 
     @Test
@@ -222,58 +132,55 @@ public class ViewComplexTest extends CQLTester
         executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        createView("mv",
-                   "create materialized view %s as select * from %%s where p is not null and v1 is not null primary key (v1, p);",
-                   version,
-                   this,
-                   views);
-        ks.getColumnFamilyStore("mv").disableAutoCompaction();
+        String mv = createView("create materialized view %s as select * from %%s " +
+                               "where p is not null and v1 is not null primary key (v1, p)");
+        ks.getColumnFamilyStore(mv).disableAutoCompaction();
 
         // sstable 1, Set initial values TS=1
-        updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 1;", version, this);
+        updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 1;");
 
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v2, WRITETIME(v2) from mv WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
+        assertRowsIgnoringOrder(execute("SELECT v2, WRITETIME(v2) from " + mv + " WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
         // sstable 2
-        updateView("UPdate %s using timestamp 2 set v2 = null where p = 3", version, this);
+        updateView("UPdate %s using timestamp 2 set v2 = null where p = 3");
 
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v2, WRITETIME(v2) from mv WHERE v1 = ? AND p = ?", 1, 3),
+        assertRowsIgnoringOrder(execute("SELECT v2, WRITETIME(v2) from " + mv + " WHERE v1 = ? AND p = ?", 1, 3),
                                 row(null, null));
         // sstable 3
-        updateView("UPdate %s using timestamp 3 set v1 = 2 where p = 3", version, this);
+        updateView("UPdate %s using timestamp 3 set v1 = 2 where p = 3");
 
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(2, 3, null, null));
+        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(2, 3, null, null));
         // sstable 4
-        updateView("UPdate %s using timestamp 4 set v1 = 1 where p = 3", version, this);
+        updateView("UPdate %s using timestamp 4 set v1 = 1 where p = 3");
 
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(1, 3, null, null));
+        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, null, null));
 
         if (flush)
         {
             // compact sstable 2 and 3;
-            ColumnFamilyStore cfs = ks.getColumnFamilyStore("mv");
+            ColumnFamilyStore cfs = ks.getColumnFamilyStore(mv);
             List<String> sstables = cfs.getLiveSSTables()
                                        .stream()
                                        .sorted(Comparator.comparingInt(s -> s.descriptor.generation))
-                                       .map(s -> s.getFilename())
+                                       .map(SSTableReader::getFilename)
                                        .collect(Collectors.toList());
             String dataFiles = String.join(",", Arrays.asList(sstables.get(1), sstables.get(2)));
             CompactionManager.instance.forceUserDefinedCompaction(dataFiles);
         }
         // cell-tombstone in sstable 4 is not compacted away, because the shadowable tombstone is shadowed by new row.
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(1, 3, null, null));
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv limit 1"), row(1, 3, null, null));
+        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, null, null));
+        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv + " limit 1"), row(1, 3, null, null));
     }
 
     @Test
@@ -313,58 +220,57 @@ public class ViewComplexTest extends CQLTester
 
         for (int i = 0; i < mvStatements.size(); i++)
         {
-            String name = "mv" + i;
+            String name = createView(mvStatements.get(i));
             viewNames.add(name);
-            createView(name, mvStatements.get(i), version, this, views);
             ks.getColumnFamilyStore(name).disableAutoCompaction();
         }
 
         // insert
-        updateViewWithFlush("INSERT INTO %s (a,b,c,d,e,f) VALUES(1,1,1,1,1,1) using timestamp 1", flush, version, this);
+        updateViewWithFlush("INSERT INTO %s (a,b,c,d,e,f) VALUES(1,1,1,1,1,1) using timestamp 1", flush);
         assertBaseViews(row(1, 1, 1, 1, 1, 1), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 2 SET c=0, d=0 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 2 SET c=0, d=0 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, 0, 0, 1, 1), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 2 SET e=0, f=0 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 2 SET e=0, f=0 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, 0, 0, 0, 0), viewNames);
 
-        updateViewWithFlush("DELETE FROM %s using timestamp 2 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("DELETE FROM %s using timestamp 2 WHERE a=1 AND b=1", flush);
         assertBaseViews(null, viewNames);
 
         // partial update unselected, selected
-        updateViewWithFlush("UPDATE %s using timestamp 3 SET f=1 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 3 SET f=1 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, null, null, null, 1), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 4 SET e = 1, f=null WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 4 SET e = 1, f=null WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, null, null, 1, null), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 4 SET e = null WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 4 SET e = null WHERE a=1 AND b=1", flush);
         assertBaseViews(null, viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 5 SET c = 1 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 5 SET c = 1 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, 1, null, null, null), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 5 SET c = null WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 5 SET c = null WHERE a=1 AND b=1", flush);
         assertBaseViews(null, viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 6 SET d = 1 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 6 SET d = 1 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, null, 1, null, null), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 7 SET d = null WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 7 SET d = null WHERE a=1 AND b=1", flush);
         assertBaseViews(null, viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 8 SET f = 1 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 8 SET f = 1 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, null, null, null, 1), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 6 SET c = 1 WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 6 SET c = 1 WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, 1, null, null, 1), viewNames);
 
         // view row still alive due to c=1@6
-        updateViewWithFlush("UPDATE %s using timestamp 8 SET f = null WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 8 SET f = null WHERE a=1 AND b=1", flush);
         assertBaseViews(row(1, 1, 1, null, null, null), viewNames);
 
-        updateViewWithFlush("UPDATE %s using timestamp 6 SET c = null WHERE a=1 AND b=1", flush, version, this);
+        updateViewWithFlush("UPDATE %s using timestamp 6 SET c = null WHERE a=1 AND b=1", flush);
         assertBaseViews(null, viewNames);
     }
 
