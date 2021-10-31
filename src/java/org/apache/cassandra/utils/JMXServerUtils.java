@@ -325,7 +325,7 @@ public class JMXServerUtils
      * Better to use the internal API than re-invent the wheel.
      */
     @SuppressWarnings("restriction")
-    private static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
+    private static class JmxRegistry implements java.rmi.registry.Registry {
         private final String lookupName;
         private Remote remoteServerStub;
 
@@ -333,7 +333,6 @@ public class JMXServerUtils
                     final RMIClientSocketFactory csf,
                     RMIServerSocketFactory ssf,
                     final String lookupName) throws RemoteException {
-            super(port, csf, ssf);
             this.lookupName = lookupName;
         }
 
