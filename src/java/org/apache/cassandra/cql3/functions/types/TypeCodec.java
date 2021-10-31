@@ -35,6 +35,7 @@ import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
 import com.google.common.reflect.TypeToken;
 
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.functions.types.DataType.CollectionType;
 import org.apache.cassandra.cql3.functions.types.DataType.Name;
@@ -3045,19 +3046,20 @@ public abstract class TypeCodec<T>
             VIntCoding.computeVIntSize(months)
             + VIntCoding.computeVIntSize(days)
             + VIntCoding.computeVIntSize(nanoseconds);
-            ByteArrayDataOutput out = ByteStreams.newDataOutput(size);
+            ByteBuffer bb = ByteBuffer.allocate(size);
             try
             {
-                VIntCoding.writeVInt(months, out);
-                VIntCoding.writeVInt(days, out);
-                VIntCoding.writeVInt(nanoseconds, out);
+                VIntCoding.writeVInt(months, bb);
+                VIntCoding.writeVInt(days, bb);
+                VIntCoding.writeVInt(nanoseconds, bb);
             }
             catch (IOException e)
             {
                 // cannot happen
                 throw new AssertionError();
             }
-            return ByteBuffer.wrap(out.toByteArray());
+            bb.flip();
+            return bb;
         }
 
         @Override
