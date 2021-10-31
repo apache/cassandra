@@ -37,6 +37,7 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.Random;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 import org.junit.Test;
 
@@ -616,4 +617,20 @@ public class BufferedDataOutputStreamTest
         }
     }
 
+    @Test
+    public void testWriteBytes() throws Exception
+    {
+        setUp();
+        DataOutputStreamPlus dosp = new BufferedDataOutputStreamPlus(adapter, 8);
+        for (int i = 0; i < 1000; i++)
+        {
+            long val = r.nextLong();
+            int size = r.nextInt(9);
+            byte[] bytes = ByteBufferUtil.bytes(val).array();
+            canonical.write(bytes, 0, size);
+            dosp.writeBytes(val, size);
+        }
+        dosp.flush();
+        assertArrayEquals(canonical.toByteArray(), generated.toByteArray());
+    }
 }

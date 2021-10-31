@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.WritableByteChannel;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
@@ -52,7 +53,8 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         Preconditions.checkArgument(bufferSize >= 8, "Buffer size must be large enough to accommodate a long/double");
     }
 
-    protected BufferedDataOutputStreamPlus(WritableByteChannel channel, ByteBuffer buffer)
+    @VisibleForTesting
+    public BufferedDataOutputStreamPlus(WritableByteChannel channel, ByteBuffer buffer)
     {
         super(channel);
         this.buffer = buffer;
@@ -143,6 +145,21 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     public void writeByte(int v) throws IOException
     {
         write(v);
+    }
+
+    @Override
+    public void writeBytes(long register, int bytes) throws IOException
+    {
+        if (buffer.remaining() < Long.BYTES)
+        {
+            super.writeBytes(register, bytes);
+        }
+        else
+        {
+            int pos = buffer.position();
+            buffer.putLong(pos, register);
+            buffer.position(pos + bytes);
+        }
     }
 
     @Override

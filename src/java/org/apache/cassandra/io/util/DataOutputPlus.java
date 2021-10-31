@@ -60,6 +60,54 @@ public interface DataOutputPlus extends DataOutput
     }
 
     /**
+     * An efficient way to write the type {@code bytes} of a long
+     *
+     * @param register - the long value to be written
+     * @param bytes - the number of bytes the register occupies. Valid values are between 1 and 8 inclusive.
+     * @throws IOException
+     */
+    default void writeBytes(long register, int bytes) throws IOException
+    {
+        switch (bytes)
+        {
+            case 0:
+                break;
+            case 1:
+                writeByte((int)(register >>> 56));
+                break;
+            case 2:
+                writeShort((int)(register >> 48));
+                break;
+            case 3:
+                writeShort((int)(register >> 48));
+                writeByte((int)(register >> 40));
+                break;
+            case 4:
+                writeInt((int)(register >> 32));
+                break;
+            case 5:
+                writeInt((int)(register >> 32));
+                writeByte((int)(register >> 24));
+                break;
+            case 6:
+                writeInt((int)(register >> 32));
+                writeShort((int)(register >> 16));
+                break;
+            case 7:
+                writeInt((int)(register >> 32));
+                writeShort((int)(register >> 16));
+                writeByte((int)(register >> 8));
+                break;
+            case 8:
+                writeLong(register);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+
+    }
+
+    /**
      * Returns the current position of the underlying target like a file-pointer
      * or the position withing a buffer. Not every implementation may support this
      * functionality. Whether or not this functionality is supported can be checked
