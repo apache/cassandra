@@ -37,6 +37,7 @@ print_help()
   echo "   -h Generate config.yml using high resources"
   echo "   -p Use pre-commit test workflow running most relevant tests at once"
   echo "   -s Use separate test workflow running each group of tests separately"
+  echo "   -r Automatically run the first step of the workflows"
   echo "   -e <key=value> Environment variables to be used in the generated config.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=git://github.com/adelapena/cassandra-dtest.git"
@@ -58,6 +59,7 @@ print_help()
 
 precommit_workflow=false
 separate_workflow=false
+auto_run=false
 all=false
 lowres=false
 midres=false
@@ -65,11 +67,13 @@ highres=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-while getopts "e:almhfsp" opt; do
+while getopts "e:almhfspr" opt; do
   case $opt in
       s ) separate_workflow=true
           ;;
       p ) precommit_workflow=true
+          ;;
+      r ) auto_run=true
           ;;
       a ) all=true
           ;;
@@ -98,14 +102,14 @@ if [ "$#" -ne 0 ]; then
 fi
 
 # print help and exit if no flags
-if (!($all || $lowres || $midres || $highres || $separate_workflow || $precommit_workflow || $has_env_vars)); then
+if (!($all || $lowres || $midres || $highres || $separate_workflow || $precommit_workflow || $auto_run || $has_env_vars)); then
   print_help
   exit 0
 fi
 
 # maybe generate the default config
 if $all; then
-  ($lowres || $midres || $highres || $has_env_vars || $separate_workflow || $precommit_workflow) &&
+  ($lowres || $midres || $highres || $separate_workflow || $precommit_workflow || $auto_run || $has_env_vars) &&
   die "Cannot use option -a with options -l, -m, -h -e, -s or -p"
   echo "Generating new config.yml temp_config with low resources and LOWRES/MIDRES/HIGHRES templates from config-2_1.yml"
 
@@ -198,8 +202,17 @@ else
   sed -i.bak "s/    #java11_separate_tests: \*j11_separate_jobs/    java11_separate_tests: \*j11_separate_jobs/" $temp_config
 fi
 
+# meybe use the workflow with automatic startup
+if ($auto_run); then
+  echo "Using automatic workflow start"
+  sed -i.bak "s/\*j8_pre-commit_jobs/\*j8_pre-commit_jobs_auto/" $temp_config
+  sed -i.bak "s/\*j11_pre-commit_jobs/\*j11_pre-commit_jobs_auto/" $temp_config
+  sed -i.bak "s/\*j8_separate_jobs/\*j8_separate_jobs_auto/" $temp_config
+  sed -i.bak "s/\*j11_separate_jobs/\*j11_separate_jobs_auto/" $temp_config
+fi
+
 # maybe generate the expanded config
-if ($lowres || $midres || $highres || $separate_workflow || $precommit_workflow); then
+if ($lowres || $midres || $highres || $separate_workflow || $precommit_workflow || $auto_run); then
   echo "Generating new config.yml from config-2_1.yml"
   circleci config process $temp_config > $BASEDIR/config.yml.tmp
   cat $BASEDIR/license.yml $BASEDIR/config.yml.tmp > $BASEDIR/config.yml
