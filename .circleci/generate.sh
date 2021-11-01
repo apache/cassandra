@@ -35,6 +35,8 @@ print_help()
   echo "   -l Generate config.yml using low resources"
   echo "   -m Generate config.yml using mid resources"
   echo "   -h Generate config.yml using high resources"
+  echo "   -p Use pre-commit test workflow running most relevant tests at once"
+  echo "   -s Use separate test workflow running each group of tests separately"
   echo "   -e <key=value> Environment variables to be used in the generated config.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=git://github.com/adelapena/cassandra-dtest.git"
@@ -54,6 +56,8 @@ print_help()
   echo "   -f Stop checking that the environment variables are known"
 }
 
+precommit_workflow=false
+separate_workflow=false
 all=false
 lowres=false
 midres=false
@@ -61,8 +65,12 @@ highres=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-while getopts "e:almhf" opt; do
+while getopts "e:almhfsp" opt; do
   case $opt in
+      s ) separate_workflow=true
+          ;;
+      p ) precommit_workflow=true
+          ;;
       a ) all=true
           ;;
       l ) lowres=true
@@ -87,6 +95,41 @@ done
 shift $((OPTIND-1))
 if [ "$#" -ne 0 ]; then
     die "Unexpected arguments"
+fi
+
+# print help and exit if no flags
+if (!($all || $lowres || $midres || $highres || $separate_workflow || $precommit_workflow || $has_env_vars)); then
+  print_help
+  exit 0
+fi
+
+# maybe generate the default config
+if $all; then
+  ($lowres || $midres || $highres || $has_env_vars || $separate_workflow || $precommit_workflow) &&
+  die "Cannot use option -a with options -l, -m, -h -e, -s or -p"
+  echo "Generating new config.yml temp_config with low resources and LOWRES/MIDRES/HIGHRES templates from config-2_1.yml"
+
+  # setup lowres
+  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml.LOWRES
+  rm $BASEDIR/config.yml.LOWRES.tmp
+
+  # setup midres
+  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
+  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml.MIDRES
+  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
+
+  # setup highres
+  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
+  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml.HIGHRES
+  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
+
+  # copy lower into config.yml to make sure this gets updated
+  cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
+
+  exit 0
 fi
 
 # validate environment variables
@@ -116,58 +159,54 @@ if $has_env_vars && $check_env_vars; then
   done
 fi
 
+# validate resource flags and maybe patch the config
+temp_config=$BASEDIR/config-2_1.yml.tmp
 if $lowres; then
   ($all || $midres || $highres) && die "Cannot use option -l with options -a, -m or -h"
-  echo "Generating new config.yml file with low resources from config-2_1.yml"
-  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config.yml.LOWRES.tmp
-
+  echo "Using low resources"
+  cp $BASEDIR/config-2_1.yml $temp_config
 elif $midres; then
   ($all || $lowres || $highres) && die "Cannot use option -m with options -a, -l or -h"
-  echo "Generating new config.yml file with middle resources from config-2_1.yml"
-  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
-
+  echo "Using middle resources"
+  patch -o $temp_config $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
 elif $highres; then
   ($all || $lowres || $midres) && die "Cannot use option -h with options -a, -l or -m"
-  echo "Generating new config.yml file with high resources from config-2_1.yml"
-  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
-
-elif $all; then
-  ($lowres || $midres || $highres || $has_env_vars) && die "Cannot use option -a with options -l, -m, -h or -e"
-  echo "Generating new config.yml file with low resources and LOWRES/MIDRES/HIGHRES templates from config-2_1.yml"
-
-  # setup lowres
-  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml.LOWRES
-  rm $BASEDIR/config.yml.LOWRES.tmp
-
-  # setup midres
-  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml.MIDRES
-  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
-
-  # setup highres
-  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml.HIGHRES
-  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
-
-  # copy lower into config.yml to make sure this gets updated
-  cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
-
-elif (!($has_env_vars)); then
-  print_help
+  echo "Using high resources"
+  patch -o $temp_config $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
+else
+  cp $BASEDIR/config-2_1.yml $temp_config
 fi
 
-# replace environment variables
+# maybe setup workflows
+if ($separate_workflow && !($precommit_workflow)); then
+  echo "Using separate workflows"
+  sed -i.bak "s/    java8_pre-commit_tests: \*j8_pre-commit_jobs/    #java8_pre-commit_tests: \*j8_pre-commit_jobs/" $temp_config
+  sed -i.bak "s/    java11_pre-commit_tests: \*j11_pre-commit_jobs/    #java11_pre-commit_tests: \*j11_pre-commit_jobs/" $temp_config
+  sed -i.bak "s/    #java8_separate_tests: \*j8_separate_jobs/    java8_separate_tests: \*j8_separate_jobs/" $temp_config
+  sed -i.bak "s/    #java11_separate_tests: \*j11_separate_jobs/    java11_separate_tests: \*j11_separate_jobs/" $temp_config
+elif ($precommit_workflow && !($separate_workflow)); then
+  echo "Using pre-commit workflows"
+  sed -i.bak "s/    #java8_pre-commit_tests: \*j8_pre-commit_jobs/    java8_pre-commit_tests: \*j8_pre-commit_jobs/" $temp_config
+  sed -i.bak "s/    #java11_pre-commit_tests: \*j11_pre-commit_jobs/    java11_pre-commit_tests: \*j11_pre-commit_jobs/" $temp_config
+  sed -i.bak "s/    java8_separate_tests: \*j8_separate_jobs/    #java8_separate_tests: \*j8_separate_jobs/" $temp_config
+  sed -i.bak "s/    java11_separate_tests: \*j11_separate_jobs/    #java11_separate_tests: \*j11_separate_jobs/" $temp_config
+else
+  echo "Using both pre-commit and separate workflows"
+  sed -i.bak "s/    #java8_pre-commit_tests: \*j8_pre-commit_jobs/    java8_pre-commit_tests: \*j8_pre-commit_jobs/" $temp_config
+  sed -i.bak "s/    #java11_pre-commit_tests: \*j11_pre-commit_jobs/    java11_pre-commit_tests: \*j11_pre-commit_jobs/" $temp_config
+  sed -i.bak "s/    #java8_separate_tests: \*j8_separate_jobs/    java8_separate_tests: \*j8_separate_jobs/" $temp_config
+  sed -i.bak "s/    #java11_separate_tests: \*j11_separate_jobs/    java11_separate_tests: \*j11_separate_jobs/" $temp_config
+fi
+
+# maybe generate the expanded config
+if ($lowres || $midres || $highres || $separate_workflow || $precommit_workflow); then
+  echo "Generating new config.yml from config-2_1.yml"
+  circleci config process $temp_config > $BASEDIR/config.yml.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.tmp > $BASEDIR/config.yml
+  rm $temp_config $BASEDIR/config.yml.tmp
+fi
+
+# maybe replace environment variables
 if $has_env_vars; then
   IFS='='
   echo "$env_vars" | tr '|' '\n' | while read entry; do
@@ -179,4 +218,3 @@ if $has_env_vars; then
   done
   unset IFS
 fi
-
