@@ -40,6 +40,9 @@ public class InfiniteLoopExecutor implements Interruptible
     private static final Logger logger = LoggerFactory.getLogger(InfiniteLoopExecutor.class);
 
     public enum InternalState { TERMINATED }
+    public enum SimulatorSafe { SAFE, UNSAFE }
+    public enum Daemon        { DAEMON, NON_DAEMON }
+    public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
 
     private static final AtomicReferenceFieldUpdater<InfiniteLoopExecutor, Object> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(InfiniteLoopExecutor.class, Object.class, "state");
     private final Thread thread;
@@ -47,17 +50,17 @@ public class InfiniteLoopExecutor implements Interruptible
     private volatile Object state = NORMAL;
     private final Consumer<Thread> interruptHandler;
 
-    public InfiniteLoopExecutor(String name, Task task, boolean daemon)
+    public InfiniteLoopExecutor(String name, Task task, Daemon daemon)
     {
         this(ExecutorFactory.Global.executorFactory(), name, task, Thread::interrupt, daemon);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, boolean daemon)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon)
     {
         this(factory, name, task, Thread::interrupt, daemon);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Consumer<Thread> interruptHandler, boolean daemon)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Consumer<Thread> interruptHandler, Daemon daemon)
     {
         this.task = task;
         this.thread = factory.startThread(name, this::loop, daemon);
