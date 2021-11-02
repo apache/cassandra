@@ -64,6 +64,9 @@ New features
       than max_window_in_ms. If there is, a hint is not persisted. If there is not, it is.
       This behaviour might be reverted as it was in previous version by property hint_window_persistent_enabled by
       setting it to false. This property is by default set to true.
+    - Added a new feature to allow denylisting (i.e. blocking read, write, or range read configurable) access to partition
+      keys in configured keyspaces and tables. See doc/operating/denylisting_partitions.rst for details on using this new
+      feature. Also see CASSANDRA-12106.
 
 Upgrading
 ---------
