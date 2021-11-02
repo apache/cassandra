@@ -31,6 +31,8 @@ import java.util.function.Consumer;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState.TERMINATED;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.Interruptible.State.INTERRUPTED;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
@@ -52,20 +54,33 @@ public class InfiniteLoopExecutor implements Interruptible
 
     public InfiniteLoopExecutor(String name, Task task, Daemon daemon)
     {
-        this(ExecutorFactory.Global.executorFactory(), name, task, Thread::interrupt, daemon);
+        this(ExecutorFactory.Global.executorFactory(), name, task, daemon, UNSYNCHRONIZED);
     }
 
     public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon)
     {
-        this(factory, name, task, Thread::interrupt, daemon);
+        this(factory, name, task, daemon, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Consumer<Thread> interruptHandler, Daemon daemon)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon, Interrupts interrupts)
     {
         this.task = task;
         this.thread = factory.startThread(name, this::loop, daemon);
-        this.interruptHandler = interruptHandler;
+        this.interruptHandler = interrupts == SYNCHRONIZED
+                                ? interruptHandler(task)
+                                : Thread::interrupt;
     }
+
+    private static Consumer<Thread> interruptHandler(final Object monitor)
+    {
+        return thread -> {
+            synchronized (monitor)
+            {
+                thread.interrupt();
+            }
+        };
+    }
+
 
     private void loop()
     {

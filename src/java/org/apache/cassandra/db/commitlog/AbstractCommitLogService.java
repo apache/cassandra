@@ -36,8 +36,10 @@ import static com.codahale.metrics.Timer.Context;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
@@ -149,7 +151,8 @@ public abstract class AbstractCommitLogService
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %fms",
                                                              syncIntervalNanos * 1e-6));
 
-        executor = executorFactory().infiniteLoop(name, new SyncRunnable(MonotonicClock.preciseTime), SAFE, NON_DAEMON);
+        SyncRunnable sync = new SyncRunnable(MonotonicClock.preciseTime);
+        executor = executorFactory().infiniteLoop(name, sync, SAFE, NON_DAEMON, SYNCHRONIZED);
     }
 
     class SyncRunnable implements Interruptible.Task
@@ -173,19 +176,25 @@ public abstract class AbstractCommitLogService
                 // sync and signal
                 long pollStarted = clock.now();
                 boolean flushToDisk = lastSyncedAt + syncIntervalNanos <= pollStarted || state != NORMAL || syncRequested;
-                if (flushToDisk)
+                // synchronized to prevent thread interrupts while performing IO operations and also
+                // clear interrupted status to prevent ClosedByInterruptException in CommitLog::sync
+                synchronized (this)
                 {
-                    // in this branch, we want to flush the commit log to disk
-                    syncRequested = false;
-                    commitLog.sync(true);
-                    lastSyncedAt = pollStarted;
-                    syncComplete.signalAll();
-                    syncCount++;
-                }
-                else
-                {
-                    // in this branch, just update the commit log sync headers
-                    commitLog.sync(false);
+                    Thread.interrupted();
+                    if (flushToDisk)
+                    {
+                        // in this branch, we want to flush the commit log to disk
+                        syncRequested = false;
+                        commitLog.sync(true);
+                        lastSyncedAt = pollStarted;
+                        syncComplete.signalAll();
+                        syncCount++;
+                    }
+                    else
+                    {
+                        // in this branch, just update the commit log sync headers
+                        commitLog.sync(false);
+                    }
                 }
 
                 if (state == SHUTTING_DOWN)
