@@ -168,7 +168,7 @@ public abstract class AbstractCommitLogSegmentManager
                                                      bufferType);
 
         Consumer<Thread> interruptHandler = interruptHandler(monitor);
-        executor = executorFactory().infiniteLoop("COMMIT-LOG-ALLOCATOR", runnable, true, interruptHandler);
+        executor = executorFactory().infiniteLoop("COMMIT-LOG-ALLOCATOR", runnable, true, false, interruptHandler);
 
         // for simplicity, ensure the first segment is allocated before continuing
         advanceAllocatingFrom(null);

@@ -101,7 +101,12 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param runnable the task to execute
      * @return the new thread
      */
-    Thread startThread(String name, Runnable runnable);
+    Thread startThread(String name, Runnable runnable, boolean daemon);
+
+    default Thread startThread(String name, Runnable runnable)
+    {
+        return startThread(name, runnable, true);
+    }
 
     /**
      * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
@@ -112,7 +117,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param task the task to execute repeatedly
      * @return the new thread
      */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe);
+    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, boolean daemon);
 
     /**
      * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
@@ -124,7 +129,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param interruptHandler perform specific processing of interrupts of the task execution thread
      * @return the new thread
      */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Consumer<Thread> interruptHandler);
+    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, boolean daemon, Consumer<Thread> interruptHandler);
 
     /**
      * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
@@ -137,7 +142,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      */
     default Interruptible infiniteLoop(String name, Interruptible.SimpleTask task, boolean simulatorSafe)
     {
-        return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe);
+        return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe, true);
     }
 
     /**
@@ -243,22 +248,24 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
             return executor;
         }
 
-        public Thread startThread(String name, Runnable runnable)
+        @Override
+        public Thread startThread(String name, Runnable runnable, boolean daemon)
         {
-            Thread thread = setupThread(createThread(threadGroup, runnable, name, true), Thread.NORM_PRIORITY, contextClassLoader, uncaughtExceptionHandler);
+            Thread thread = setupThread(createThread(threadGroup, runnable, name, daemon), Thread.NORM_PRIORITY, contextClassLoader, uncaughtExceptionHandler);
             thread.start();
             return thread;
         }
 
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe)
+        @Override
+        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, boolean daemon)
         {
-            return new InfiniteLoopExecutor(this, name, task);
+            return new InfiniteLoopExecutor(this, name, task, daemon);
         }
 
         @Override
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Consumer<Thread> interruptHandler)
+        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, boolean daemon, Consumer<Thread> interruptHandler)
         {
-            return new InfiniteLoopExecutor(this, name, task, interruptHandler);
+            return new InfiniteLoopExecutor(this, name, task, interruptHandler, true);
         }
 
         @Override

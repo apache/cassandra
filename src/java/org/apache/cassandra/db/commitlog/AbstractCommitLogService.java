@@ -147,7 +147,7 @@ public abstract class AbstractCommitLogService
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %fms",
                                                              syncIntervalNanos * 1e-6));
 
-        executor = executorFactory().infiniteLoop(name, new SyncRunnable(MonotonicClock.preciseTime), true);
+        executor = executorFactory().infiniteLoop(name, new SyncRunnable(MonotonicClock.preciseTime), true, false);
     }
 
     class SyncRunnable implements Interruptible.Task

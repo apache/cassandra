@@ -47,27 +47,20 @@ public class InfiniteLoopExecutor implements Interruptible
     private volatile Object state = NORMAL;
     private final Consumer<Thread> interruptHandler;
 
-    public InfiniteLoopExecutor(String name, Task task)
+    public InfiniteLoopExecutor(String name, Task task, boolean daemon)
     {
-        this(ExecutorFactory.Global.executorFactory(), name, task, Thread::interrupt);
+        this(ExecutorFactory.Global.executorFactory(), name, task, Thread::interrupt, daemon);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, boolean daemon)
     {
-        this(factory, name, task, Thread::interrupt);
+        this(factory, name, task, Thread::interrupt, daemon);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Consumer<Thread> interruptHandler)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Consumer<Thread> interruptHandler, boolean daemon)
     {
         this.task = task;
-        this.thread = factory.startThread(name, this::loop);
-        this.interruptHandler = interruptHandler;
-    }
-
-    public InfiniteLoopExecutor(BiFunction<String, Runnable, Thread> threadStarter, String name, Task task, Consumer<Thread> interruptHandler)
-    {
-        this.task = task;
-        this.thread = threadStarter.apply(name, this::loop);
+        this.thread = factory.startThread(name, this::loop, daemon);
         this.interruptHandler = interruptHandler;
     }
 

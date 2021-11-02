@@ -36,7 +36,7 @@ public class InfiniteLoopExecutorTest
     public void testShutdownNow() throws InterruptedException, ExecutionException, TimeoutException
     {
         Semaphore semaphore = new Semaphore(0);
-        InfiniteLoopExecutor e1 = new InfiniteLoopExecutor("test", ignore -> semaphore.acquire(1));
+        InfiniteLoopExecutor e1 = new InfiniteLoopExecutor("test", ignore -> semaphore.acquire(1), true);
         ExecutorService exec = Executors.newCachedThreadPool();
         Future<?> f = exec.submit(() -> e1.awaitTermination(1L, TimeUnit.MINUTES));
         e1.shutdownNow();
@@ -53,7 +53,7 @@ public class InfiniteLoopExecutorTest
             semaphore.acquire(1);
             active.set(false);
             semaphore.release();
-        });
+        }, true);
         ExecutorService exec = Executors.newCachedThreadPool();
         Future<?> f = exec.submit(() -> e1.awaitTermination(1L, TimeUnit.MINUTES));
         // do ten normal loops
