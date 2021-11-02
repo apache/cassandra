@@ -36,4 +36,5 @@ Operating Cassandra
    metrics
    security
    hardware
+   denylisting_partitions
 
