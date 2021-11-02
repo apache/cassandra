@@ -21,6 +21,7 @@ package org.apache.cassandra.concurrent;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 
@@ -119,7 +120,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param task the task to execute repeatedly
      * @return the new thread
      */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Daemon daemon);
+    Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon);
 
     /**
      * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
@@ -131,7 +132,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param interruptHandler perform specific processing of interrupts of the task execution thread
      * @return the new thread
      */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Daemon daemon, Consumer<Thread> interruptHandler);
+    Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon, Consumer<Thread> interruptHandler);
 
     /**
      * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
@@ -142,7 +143,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param task the task to execute repeatedly
      * @return the new thread
      */
-    default Interruptible infiniteLoop(String name, Interruptible.SimpleTask task, boolean simulatorSafe)
+    default Interruptible infiniteLoop(String name, Interruptible.SimpleTask task, SimulatorSafe simulatorSafe)
     {
         return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe, DAEMON);
     }
@@ -259,13 +260,13 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         }
 
         @Override
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Daemon daemon)
+        public Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon)
         {
             return new InfiniteLoopExecutor(this, name, task, daemon);
         }
 
         @Override
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Daemon daemon, Consumer<Thread> interruptHandler)
+        public Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon, Consumer<Thread> interruptHandler)
         {
             return new InfiniteLoopExecutor(this, name, task, interruptHandler, daemon);
         }
