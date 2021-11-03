@@ -42,6 +42,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -163,6 +164,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         private final Collection<Column> newColumns;
+        private ClientState state;
 
         private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns)
         {
@@ -170,11 +172,23 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.newColumns = newColumns;
         }
 
+        @Override
+        public void validate(ClientState state)
+        {
+            super.validate(state);
+
+            // save the query state to use it for guardrails validation in #apply
+            this.state = state;
+        }
+
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, tableBuilder, viewsBuilder));
+
+            Guardrails.columnsPerTable.guard(tableBuilder.numColumns(), tableName, state);
+
             TableMetadata tableMetadata = tableBuilder.build();
             tableMetadata.validate();
 
@@ -389,6 +403,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             super(keyspaceName, tableName);
             this.attrs = attrs;
+        }
+
+        @Override
+        public void validate(ClientState state)
+        {
+            super.validate(state);
+
+            Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)

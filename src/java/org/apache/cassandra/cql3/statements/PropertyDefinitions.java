@@ -59,6 +59,19 @@ public class PropertyDefinitions
         }
     }
 
+    /**
+     * Returns the name of all the properties that are updated by this object.
+     */
+    public Set<String> updatedProperties()
+    {
+        return properties.keySet();
+    }
+
+    public void removeProperty(String name)
+    {
+        properties.remove(name);
+    }
+
     protected String getSimple(String name) throws SyntaxException
     {
         Object val = properties.get(name);

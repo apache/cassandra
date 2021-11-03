@@ -44,7 +44,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         this.keyspaceName = keyspaceName;
     }
 
-    public final void validate(ClientState state)
+    public void validate(ClientState state)
     {
         // no-op; validation is performed while executing the statement, in apply()
     }

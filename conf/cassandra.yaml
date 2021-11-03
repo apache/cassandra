@@ -1571,3 +1571,34 @@ enable_drop_compact_storage: false
 #     row_index_size:
 #         warn_threshold_kb: 0
 #         abort_threshold_kb: 0
+
+# Guardrails settings.
+# guardrails:
+# Whether guardrails are enabled or not. Guardrails are disabled by default.
+# enabled: false
+# Guardrail to warn or abort when creating more user tables than threshold.
+# The two thresholds default to -1 to disable.
+#     tables:
+#         warn_threshold: -1
+#         abort_threshold: -1
+# Guardrail to warn or abort when creating/altering a table with more columns per table than threshold.
+# The two thresholds default to -1 to disable.
+#     columns_per_table:
+#         warn_threshold: -1
+#         abort_threshold: -1
+# Guardrail to warn or abort when creating more secondary indexes per table than threshold.
+# The two thresholds default to -1 to disable.
+#     secondary_indexes_per_table:
+#         warn_threshold: -1
+#         abort_threshold: -1
+# Guardrail to warn or abort when creating more materialized views per table than threshold.
+# The two thresholds default to -1 to disable.
+#     materialized_views_per_table:
+#         warn_threshold: -1
+#         abort_threshold: -1
+# Guardrail to ignore or reject properties when creating tables. By default all properties are allowed.
+#     table_properties:
+#         ignored: []
+#         disallowed: []
+# Guardrail to allow/disallow user-provided timestamps. Defaults to true.
+#     user_timestamps_enabled: true

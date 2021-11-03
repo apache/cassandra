@@ -365,6 +365,8 @@ public class DatabaseDescriptor
         applyEncryptionContext();
 
         applySslContext();
+
+        applyGuardrails();
     }
 
     private static void applySimpleConfig()
@@ -870,6 +872,23 @@ public class DatabaseDescriptor
     static void applyTrackWarningsValidations(Config config)
     {
         config.track_warnings.validate("track_warnings");
+    }
+
+    public static GuardrailsOptions getGuardrailsConfig()
+    {
+        return conf.guardrails;
+    }
+
+    private static void applyGuardrails()
+    {
+        try
+        {
+            conf.guardrails.validate();
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException("Invalid guardrails configuration: " + e.getMessage(), e);
+        }
     }
 
     private static String storagedirFor(String type)

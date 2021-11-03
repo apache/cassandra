@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -81,6 +82,16 @@ public final class TableAttributes extends PropertyDefinitions
         {
             throw new ConfigurationException("Invalid table id", e);
         }
+    }
+
+    public static Set<String> validKeywords()
+    {
+        return ImmutableSet.copyOf(validKeywords);
+    }
+
+    public static Set<String> allKeywords()
+    {
+        return Sets.union(validKeywords, obsoleteKeywords);
     }
 
     private TableParams build(TableParams.Builder builder)

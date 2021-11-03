@@ -33,6 +33,8 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.schema.*;
@@ -116,6 +118,34 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
 
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
+    }
+
+    @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        // since there are multiple guardrails guarding this, we first check that guardrails are globally enabled as an
+        // optimization for the case where they are disabled, so we don't have to do the same check on every guardrail
+        if (Guardrails.enabled(state))
+        {
+            // Guardrails on table properties
+            Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+
+            // Guardrail on columns per table
+            Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, state);
+
+            // Guardrails on number of tables
+            if (Guardrails.tablesLimit.enabled(state))
+            {
+                int totalUserTables = Schema.instance.getUserKeyspaces()
+                                                     .stream()
+                                                     .map(Keyspace::open)
+                                                     .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
+                                                     .sum();
+                Guardrails.tablesLimit.guard(totalUserTables + 1, tableName, state);
+            }
+        }
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)

@@ -563,6 +563,9 @@ public class Config
      */
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
+    /** The configuration for guardrails. */
+    public final GuardrailsOptions guardrails = new GuardrailsOptions();
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */

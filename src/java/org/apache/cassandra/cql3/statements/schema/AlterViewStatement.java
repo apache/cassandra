@@ -22,6 +22,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -33,12 +34,22 @@ public final class AlterViewStatement extends AlterSchemaStatement
 {
     private final String viewName;
     private final TableAttributes attrs;
+    private ClientState state;
 
     public AlterViewStatement(String keyspaceName, String viewName, TableAttributes attrs)
     {
         super(keyspaceName);
         this.viewName = viewName;
         this.attrs = attrs;
+    }
+
+    @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        // save the query state to use it for guardrails validation in #apply
+        this.state = state;
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -53,6 +64,9 @@ public final class AlterViewStatement extends AlterSchemaStatement
             throw ire("Materialized view '%s.%s' doesn't exist", keyspaceName, viewName);
 
         attrs.validate();
+
+        // Guardrails on table properties
+        Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
         TableParams params = attrs.asAlteredTableParams(view.metadata.params);
 
