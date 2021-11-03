@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.*;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.audit.AuditLogContext;
@@ -31,6 +32,7 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.statements.StatementType;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.view.View;
@@ -65,6 +67,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
     private final boolean ifNotExists;
 
+    private ClientState state;
+
     public CreateViewStatement(String keyspaceName,
                                String tableName,
                                String viewName,
@@ -94,6 +98,15 @@ public final class CreateViewStatement extends AlterSchemaStatement
         this.attrs = attrs;
 
         this.ifNotExists = ifNotExists;
+    }
+
+    @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        // save the query state to use it for guardrails validation in #apply
+        this.state = state;
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -136,6 +149,15 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
         if (table.isView())
             throw ire("Materialized views cannot be created against other materialized views");
+
+        // Guardrails on table properties
+        Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+
+        // Guardrail to limit number of mvs per table
+        Iterable<ViewMetadata> tableViews = keyspace.views.forTable(table.id);
+        Guardrails.materializedViewsPerTable.guard(Iterables.size(tableViews) + 1,
+                                                   String.format("%s on table %s", viewName, table.name),
+                                                   state);
 
         if (table.params.gcGraceSeconds == 0)
         {
