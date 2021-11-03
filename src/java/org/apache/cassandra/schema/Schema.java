@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -29,8 +30,6 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -45,12 +44,14 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.LoadingMap;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.lang.String.format;
 import static com.google.common.collect.Iterables.size;
 
-public final class Schema implements SchemaProvider
+public class Schema implements SchemaProvider
 {
     public static final Schema instance = new Schema();
 
@@ -63,7 +64,7 @@ public final class Schema implements SchemaProvider
     private final Map<Pair<String, String>, TableMetadataRef> indexMetadataRefs = new NonBlockingHashMap<>();
 
     // Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace.
-    private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<>();
+    private final LoadingMap<String, Keyspace> keyspaceInstances = new LoadingMap<>();
 
     private volatile UUID version;
 
@@ -225,7 +226,7 @@ public final class Schema implements SchemaProvider
     @Override
     public Keyspace getKeyspaceInstance(String keyspaceName)
     {
-        return keyspaceInstances.get(keyspaceName);
+        return keyspaceInstances.getIfReady(keyspaceName);
     }
 
     public ColumnFamilyStore getColumnFamilyStoreInstance(TableId id)
@@ -243,30 +244,22 @@ public final class Schema implements SchemaProvider
              : null;
     }
 
-    /**
-     * Store given Keyspace instance to the schema
-     *
-     * @param keyspace The Keyspace instance to store
-     *
-     * @throws IllegalArgumentException if Keyspace is already stored
-     */
     @Override
-    public void storeKeyspaceInstance(Keyspace keyspace)
+    public Keyspace maybeAddKeyspaceInstance(String keyspaceName, Supplier<Keyspace> loadFunction)
     {
-        if (keyspaceInstances.putIfAbsent(keyspace.getName(), keyspace) != null)
-            throw new IllegalArgumentException(String.format("Keyspace %s was already initialized.", keyspace.getName()));
+        return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
 
-    /**
-     * Remove keyspace from schema
-     *
-     * @param keyspaceName The name of the keyspace to remove
-     *
-     * @return removed keyspace instance or null if it wasn't found
-     */
-    public Keyspace removeKeyspaceInstance(String keyspaceName)
+    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName)
     {
-        return keyspaceInstances.remove(keyspaceName);
+        try
+        {
+            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, Keyspace::unload);
+        }
+        catch (LoadingMap.UnloadExecutionException e)
+        {
+            throw new AssertionError("Failed to unload the keyspace " + keyspaceName);
+        }
     }
 
     public Keyspaces snapshot()
@@ -771,7 +764,7 @@ public final class Schema implements SchemaProvider
         keyspace.tables.forEach(this::dropTable);
 
         // remove the keyspace from the static instances.
-        Keyspace.clear(keyspace.name);
+        maybeRemoveKeyspaceInstance(keyspace.name);
         unload(keyspace);
         Keyspace.writeOrder.awaitNewBarrier();
 
@@ -793,14 +786,6 @@ public final class Schema implements SchemaProvider
     private void dropTable(TableMetadata metadata)
     {
         SchemaDiagnostics.tableDropping(this, metadata);
-        ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
-        assert cfs != null;
-        // make sure all the indexes are dropped, or else.
-        cfs.indexManager.markAllIndexesRemoved();
-        CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), (sstable) -> true, true);
-        if (DatabaseDescriptor.isAutoSnapshot())
-            cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
         Keyspace.open(metadata.keyspace).dropCf(metadata.id);
         SchemaDiagnostics.tableDropped(this, metadata);
     }

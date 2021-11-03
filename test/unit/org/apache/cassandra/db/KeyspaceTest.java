@@ -21,6 +21,9 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -42,6 +45,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class KeyspaceTest extends CQLTester
 {
@@ -499,12 +507,9 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void shouldThrowOnMissingKeyspace()
     {
-        SchemaProvider schema = Mockito.mock(SchemaProvider.class);
         String ksName = "MissingKeyspace";
-        
-        Mockito.when(schema.getKeyspaceMetadata(ksName)).thenReturn(null);
 
-        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName, schema, false))
+        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName, Schema.instance, false))
                   .isInstanceOf(AssertionError.class)
                   .hasMessage("Unknown keyspace " + ksName);
     }
