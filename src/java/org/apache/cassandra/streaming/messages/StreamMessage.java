@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
@@ -44,7 +45,7 @@ public abstract class StreamMessage
         return 1 + message.type.outSerializer.serializedSize(message, version);
     }
 
-    public static StreamMessage deserialize(DataInputPlus in, int version) throws IOException
+    public static StreamMessage deserialize(DataInputPlus in, int version) throws IOException, StreamReceiveException
     {
         Type type = Type.lookupById(in.readByte());
         return type.inSerializer.deserialize(in, version);

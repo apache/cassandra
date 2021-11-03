@@ -273,7 +273,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public boolean isShutdown()
         {
-            return isShutdown;
+            IInvokableInstance delegate = this.delegate;
+            // if the instance shuts down on its own, detect that
+            return isShutdown || (delegate != null && delegate.isShutdown());
         }
 
         private boolean isRunning()

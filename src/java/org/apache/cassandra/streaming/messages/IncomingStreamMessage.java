@@ -35,7 +35,7 @@ public class IncomingStreamMessage extends StreamMessage
 {
     public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
-        public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
+        public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException, StreamReceiveException
         {
             StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
             StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);
@@ -44,7 +44,6 @@ public class IncomingStreamMessage extends StreamMessage
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(header.tableId);
             if (cfs == null)
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
-
             try
             {
                 IncomingStream incomingData = cfs.getStreamManager().prepareIncomingStream(session, header);
@@ -52,10 +51,12 @@ public class IncomingStreamMessage extends StreamMessage
 
                 return new IncomingStreamMessage(incomingData, header);
             }
-            catch (Throwable t)
+            catch (Exception | Error e)
             {
-                JVMStabilityInspector.inspectThrowable(t);
-                throw new StreamReceiveException(session, t);
+                if (e instanceof StreamReceiveException)
+                    throw (StreamReceiveException) e;
+                // make sure to wrap so the caller always has access to the session to call onError
+                throw new StreamReceiveException(session, e);
             }
         }
 

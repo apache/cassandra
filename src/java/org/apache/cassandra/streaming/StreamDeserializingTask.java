@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.streaming;
 
-import java.nio.channels.ClosedChannelException;
-
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,9 +75,6 @@ public class StreamDeserializingTask implements Runnable
 
                 session.messageReceived(message);
             }
-        }
-        catch (ClosedChannelException ignore)
-        {
         }
         catch (Throwable t)
         {

@@ -29,12 +29,11 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * CassandraStreamReader that reads from streamed compressed SSTable
@@ -57,7 +56,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
      */
     @Override
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
-    public SSTableMultiWriter read(DataInputPlus inputPlus) throws IOException
+    public SSTableMultiWriter read(DataInputPlus inputPlus) throws Exception
     {
         long totalSize = totalSize();
 
@@ -110,12 +109,10 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
             logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
                         session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName());
             if (writer != null)
-            {
-                writer.abort(e);
-            }
-            if (extractIOExceptionCause(e).isPresent())
-                throw e;
-            throw Throwables.propagate(e);
+                e = writer.abort(e);
+            Throwables.throwIfUnchecked(e);
+            Throwables.throwIfInstanceOf(e, Exception.class);
+            throw new RuntimeException(e); // not possible; just here to compile
         }
     }
 

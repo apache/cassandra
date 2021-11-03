@@ -64,9 +64,10 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
-    public synchronized void read(DataInputPlus in, int version) throws IOException
+    public synchronized void read(DataInputPlus in, int version) throws Exception
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
+        // this log is used by tests to validate entireSSTable=true
         logger.debug("Incoming stream entireSSTable={} components={}", streamHeader.isEntireSSTable, streamHeader.componentManifest);
 
         IStreamReader reader;
