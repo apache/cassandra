@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -116,7 +117,7 @@ public class MemtableCleanerThread<P extends MemtablePool> implements Interrupti
 
     private MemtableCleanerThread(Clean<P> clean)
     {
-        this.executor = executorFactory().infiniteLoop(clean.pool.getClass().getSimpleName() + "Cleaner", clean, true);
+        this.executor = executorFactory().infiniteLoop(clean.pool.getClass().getSimpleName() + "Cleaner", clean, SAFE);
         this.trigger = clean.wait::signal;
         this.clean = clean;
     }
