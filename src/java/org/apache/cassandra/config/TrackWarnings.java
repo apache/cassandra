@@ -36,73 +36,73 @@ public class TrackWarnings
 
     public static class LongByteThreshold
     {
-        public volatile long warn_threshold_kb = 0;
-        public volatile long abort_threshold_kb = 0;
+        public volatile DataStorage warn_threshold = new DataStorage("0kb");
+        public volatile DataStorage abort_threshold = new DataStorage("0kb");
 
         public long getWarnThresholdKb()
         {
-            return warn_threshold_kb;
+            return warn_threshold.toKilobytes();
         }
 
         public void setWarnThresholdKb(long value)
         {
-            warn_threshold_kb = Math.max(value, 0);
+            warn_threshold = DataStorage.inKilobytes(Math.max(value, 0));
         }
 
         public long getAbortThresholdKb()
         {
-            return abort_threshold_kb;
+            return abort_threshold.toKilobytes();
         }
 
         public void setAbortThresholdKb(long value)
         {
-            abort_threshold_kb = Math.max(value, 0);
+            abort_threshold = DataStorage.inKilobytes(Math.max(value, 0));
         }
 
         public void validate(String prefix)
         {
-            warn_threshold_kb = Math.max(warn_threshold_kb, 0);
-            abort_threshold_kb = Math.max(abort_threshold_kb, 0);
+            warn_threshold = DataStorage.inKilobytes(Math.max(warn_threshold.toKilobytes(), 0));
+            abort_threshold = DataStorage.inKilobytes(Math.max(abort_threshold.toKilobytes(), 0));
 
-            if (abort_threshold_kb != 0 && abort_threshold_kb < warn_threshold_kb)
-                throw new ConfigurationException(String.format("abort_threshold_kb (%d) must be greater than or equal to warn_threshold_kb (%d); see %s",
-                                                               abort_threshold_kb, warn_threshold_kb, prefix));
+            if (abort_threshold.toKilobytes() != 0 && abort_threshold.toKilobytes() < warn_threshold.toKilobytes())
+                throw new ConfigurationException(String.format("abort_threshold (%s) must be greater than or equal to warn_threshold (%s); see %s",
+                                                               abort_threshold, warn_threshold, prefix));
         }
     }
 
     public static class IntByteThreshold
     {
-        public volatile int warn_threshold_kb = 0;
-        public volatile int abort_threshold_kb = 0;
+        public volatile DataStorage warn_threshold = new DataStorage("0kb");
+        public volatile DataStorage abort_threshold = new DataStorage("0kb");
 
         public int getWarnThresholdKb()
         {
-            return warn_threshold_kb;
+            return warn_threshold.toKilobytesAsInt();
         }
 
         public void setWarnThresholdKb(int value)
         {
-            warn_threshold_kb = Math.max(value, 0);
+            warn_threshold = DataStorage.inKilobytes(Math.max(value, 0));
         }
 
         public int getAbortThresholdKb()
         {
-            return abort_threshold_kb;
+            return abort_threshold.toKilobytesAsInt();
         }
 
         public void setAbortThresholdKb(int value)
         {
-            abort_threshold_kb = Math.max(value, 0);
+            abort_threshold = DataStorage.inKilobytes(Math.max(value, 0));
         }
 
         public void validate(String prefix)
         {
-            warn_threshold_kb = Math.max(warn_threshold_kb, 0);
-            abort_threshold_kb = Math.max(abort_threshold_kb, 0);
+            warn_threshold = DataStorage.inKilobytes(Math.max(warn_threshold.toKilobytes(), 0));
+            abort_threshold = DataStorage.inKilobytes(Math.max(abort_threshold.toKilobytes(), 0));
 
-            if (abort_threshold_kb != 0 && abort_threshold_kb < warn_threshold_kb)
-                throw new ConfigurationException(String.format("abort_threshold_kb (%d) must be greater than or equal to warn_threshold_kb (%d); see %s",
-                                                               abort_threshold_kb, warn_threshold_kb, prefix));
+            if (abort_threshold.toKilobytesAsInt() != 0 && abort_threshold.toKilobytesAsInt() < warn_threshold.toKilobytesAsInt())
+                throw new ConfigurationException(String.format("abort_threshold (%s) must be greater than or equal to warn_threshold (%s); see %s",
+                                                               abort_threshold, warn_threshold, prefix));
         }
     }
 }

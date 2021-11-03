@@ -6223,7 +6223,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (threshold < 0)
             throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(threshold);
-        logger.info("updated track_warnings.coordinator_large_read.warn_threshold_kb to {}", threshold);
+        logger.info("updated track_warnings.coordinator_large_read.warn_threshold to {}", threshold);
     }
 
     @Override
@@ -6238,7 +6238,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (threshold < 0)
             throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(threshold);
-        logger.info("updated track_warnings.coordinator_large_read.abort_threshold_kb to {}", threshold);
+        logger.info("updated track_warnings.coordinator_large_read.abort_threshold to {}", threshold);
     }
 
     @Override
@@ -6253,7 +6253,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(value);
-        logger.info("updated track_warnings.local_read_size.warn_threshold_kb to {}", value);
+        logger.info("updated track_warnings.local_read_size.warn_threshold to {}", value);
     }
 
     @Override
@@ -6268,7 +6268,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(value);
-        logger.info("updated track_warnings.local_read_size.abort_threshold_kb to {}", value);
+        logger.info("updated track_warnings.local_read_size.abort_threshold to {}", value);
     }
 
     @Override
@@ -6283,7 +6283,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setRowIndexSizeWarnThresholdKb(value);
-        logger.info("updated track_warnings.row_index_size.warn_threshold_kb to {}", value);
+        logger.info("updated track_warnings.row_index_size.warn_threshold to {}", value);
     }
 
     @Override
@@ -6298,7 +6298,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
         DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(value);
-        logger.info("updated track_warnings.row_index_size.abort_threshold_kb to {}", value);
+        logger.info("updated track_warnings.row_index_size.abort_threshold to {}", value);
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)

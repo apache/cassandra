@@ -50,14 +50,14 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.warn_threshold_kb)").contains("and issued local read size warnings for query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.warn_threshold)").contains("and issued local read size warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.abort_threshold_kb)").contains("aborted the query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.abort_threshold)").contains("aborted the query");
     }
 
     @Override

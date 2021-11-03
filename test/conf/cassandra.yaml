@@ -55,11 +55,11 @@ auto_hints_cleanup_enabled: true
 track_warnings:
     enabled: true
     coordinator_read_size:
-        warn_threshold_kb: 1024
-        abort_threshold_kb: 4096
+        warn_threshold: 1024kb
+        abort_threshold: 4096kb
     local_read_size:
-        warn_threshold_kb: 4096
-        abort_threshold_kb: 8192
+        warn_threshold: 4096kb
+        abort_threshold: 8192kb
     row_index_size:
-        warn_threshold_kb: 4096
-        abort_threshold_kb: 8192
+        warn_threshold: 4096kb
+        abort_threshold: 8192kb

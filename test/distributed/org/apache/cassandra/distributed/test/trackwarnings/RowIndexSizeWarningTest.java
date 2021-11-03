@@ -93,14 +93,14 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold)").contains("bytes in RowIndexEntry and issued warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold_kb)").contains("bytes in RowIndexEntry and aborted the query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold)").contains("bytes in RowIndexEntry and aborted the query");
     }
 
     @Override
