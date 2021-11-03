@@ -987,6 +987,11 @@ public class TableMetadata implements SchemaElement
             return columns.values();
         }
 
+        public int numColumns()
+        {
+            return columns.size();
+        }
+
         public Set<String> columnNames()
         {
             return columns.values().stream().map(c -> c.name.toString()).collect(toSet());

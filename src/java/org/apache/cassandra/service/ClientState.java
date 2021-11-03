@@ -23,7 +23,6 @@ import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -492,9 +491,37 @@ public class ClientState
             throw new UnauthorizedException("You have to be logged in and not anonymous to perform this request");
     }
 
+    /**
+     * Checks if this user is an ordinary user (not a super or system user).
+     *
+     * @return {@code true} if this user is an ordinary user, {@code false} otherwise.
+     */
+    public boolean isOrdinaryUser()
+    {
+        return !isSuper() && !isSystem();
+    }
+
+    /**
+     * Checks if this user is a super user.
+     */
+    public boolean isSuper()
+    {
+        return !DatabaseDescriptor.getAuthenticator().requireAuthentication() || (user != null && user.isSuper());
+    }
+
+    /**
+     * Checks if the user is the system user.
+     *
+     * @return {@code true} if this user is the system user, {@code false} otherwise.
+     */
+    public boolean isSystem()
+    {
+        return isInternal;
+    }
+
     public void ensureIsSuperuser(String message)
     {
-        if (DatabaseDescriptor.getAuthenticator().requireAuthentication() && (user == null || !user.isSuper()))
+        if (!isSuper())
             throw new UnauthorizedException(message);
     }
 

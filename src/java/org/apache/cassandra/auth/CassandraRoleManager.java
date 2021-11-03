@@ -80,7 +80,7 @@ public class CassandraRoleManager implements IRoleManager
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManager.class);
 
-    static final String DEFAULT_SUPERUSER_NAME = "cassandra";
+    public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
     static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
 
     /**
