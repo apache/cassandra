@@ -24,6 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -43,10 +46,12 @@ import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
@@ -632,6 +637,44 @@ public class CQLSSTableWriterTest
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         assertEquals(100, resultSet.size());
+    }
+
+    @Test
+    public void testDateType() throws Exception
+    {
+        // Test to make sure we can write to `date` fields in both old and new formats
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int,"
+                        + "  c date,"
+                        + "  PRIMARY KEY (k)"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert)
+                                                  .withBufferSizeInMB(1)
+                                                  .build();
+
+        final int ID_OFFSET = 1000;
+        for (int i = 0; i < 100 ; i++) {
+            // Use old-style integer as date to test backwards-compatibility
+            writer.addRow(i, i - Integer.MIN_VALUE); // old-style raw integer needs to be offset
+            // Use new-style `LocalDate` for date value.
+            writer.addRow(i + ID_OFFSET, LocalDate.fromDaysSinceEpoch(i));
+        }
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
+        assertEquals(200, rs.size());
+        Map<Integer, LocalDate> map = StreamSupport.stream(rs.spliterator(), false)
+                                                   .collect(Collectors.toMap( r -> r.getInt("k"), r -> r.getDate("c")));
+        for (int i = 0; i < 100; i++) {
+            final LocalDate expected = LocalDate.fromDaysSinceEpoch(i);
+            assertEquals(expected, map.get(i + ID_OFFSET));
+            assertEquals(expected, map.get(i));
+        }
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException

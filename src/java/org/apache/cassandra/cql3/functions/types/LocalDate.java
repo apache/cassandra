@@ -62,7 +62,7 @@ public final class LocalDate
      * @param daysSinceEpoch the number of days.
      * @return the new instance.
      */
-    static LocalDate fromDaysSinceEpoch(int daysSinceEpoch)
+    public static LocalDate fromDaysSinceEpoch(int daysSinceEpoch)
     {
         return new LocalDate(daysSinceEpoch);
     }
@@ -76,7 +76,7 @@ public final class LocalDate
      * @throws IllegalArgumentException if the date is not in the range [-5877641-06-23;
      *                                  5881580-07-11].
      */
-    static LocalDate fromMillisSinceEpoch(long millisSinceEpoch)
+    public static LocalDate fromMillisSinceEpoch(long millisSinceEpoch)
     throws IllegalArgumentException
     {
         long daysSinceEpoch = TimeUnit.MILLISECONDS.toDays(millisSinceEpoch);
@@ -92,7 +92,7 @@ public final class LocalDate
      *
      * @return the number of days.
      */
-    int getDaysSinceEpoch()
+    public int getDaysSinceEpoch()
     {
         return daysSinceEpoch;
     }

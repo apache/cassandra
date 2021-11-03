@@ -24,6 +24,8 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.datastax.driver.core.CodecUtils;
+import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
@@ -393,6 +395,8 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             return TimestampType.instance.compose(data.get(column));
         }
+
+        public LocalDate getDate(String column) { return LocalDate.fromDaysSinceEpoch(CodecUtils.fromUnsignedToSignedInt(data.get(column).getInt()));}
 
         public long getLong(String column)
         {
