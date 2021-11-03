@@ -412,12 +412,7 @@ public class Keyspace
         if (cfs == null)
             return;
 
-        cfs.getCompactionStrategyManager().shutdown();
-        CompactionManager.instance.interruptCompactionForCFs(cfs.concatWithIndexes(), (sstable) -> true, true);
-        // wait for any outstanding reads/writes that might affect the CFS
-        cfs.keyspace.writeOrder.awaitNewBarrier();
-        cfs.readOrdering.awaitNewBarrier();
-
+        cfs.onTableDropped();
         unloadCf(cfs);
     }
 
