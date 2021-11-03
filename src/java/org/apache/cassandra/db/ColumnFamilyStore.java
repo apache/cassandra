@@ -2160,7 +2160,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     public void forceMajorCompaction(boolean splitOutput)
-   {
+    {
         CompactionManager.instance.performMaximal(this, splitOutput);
     }
 
@@ -2831,6 +2831,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean getNeverPurgeTombstones()
     {
         return neverPurgeTombstones;
+    }
+
+    void onTableDropped()
+    {
+        indexManager.markAllIndexesRemoved();
+
+        CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
+
+        if (DatabaseDescriptor.isAutoSnapshot())
+            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
+
+        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+
+        compactionStrategyManager.shutdown();
+
+        // wait for any outstanding reads/writes that might affect the CFS
+        Keyspace.writeOrder.awaitNewBarrier();
+        readOrdering.awaitNewBarrier();
     }
 
     /**

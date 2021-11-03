@@ -58,7 +58,7 @@ public class OptionalTasksTest
         Objects.requireNonNull(cfs).metric.coordinatorReadLatency.update(100, TimeUnit.NANOSECONDS);
         
         // Remove the Keyspace name to make it invisible to the updater...
-        Keyspace removed = Schema.instance.removeKeyspaceInstance(KEYSPACE);
+        Keyspace removed = Schema.instance.maybeRemoveKeyspaceInstance(KEYSPACE);
 
         try
         {
@@ -72,7 +72,7 @@ public class OptionalTasksTest
         finally
         {
             // Restore the removed Keyspace to put things back the way we found them.
-            Schema.instance.storeKeyspaceInstance(removed);
+            Schema.instance.maybeAddKeyspaceInstance(removed.getName(), () -> removed);
         }
     }
 
