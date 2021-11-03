@@ -30,13 +30,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.DAEMON;
+
 public class InfiniteLoopExecutorTest
 {
     @Test
     public void testShutdownNow() throws InterruptedException, ExecutionException, TimeoutException
     {
         Semaphore semaphore = new Semaphore(0);
-        InfiniteLoopExecutor e1 = new InfiniteLoopExecutor("test", ignore -> semaphore.acquire(1));
+        InfiniteLoopExecutor e1 = new InfiniteLoopExecutor("test", ignore -> semaphore.acquire(1), DAEMON);
         ExecutorService exec = Executors.newCachedThreadPool();
         Future<?> f = exec.submit(() -> e1.awaitTermination(1L, TimeUnit.MINUTES));
         e1.shutdownNow();
@@ -53,7 +55,7 @@ public class InfiniteLoopExecutorTest
             semaphore.acquire(1);
             active.set(false);
             semaphore.release();
-        });
+        }, DAEMON);
         ExecutorService exec = Executors.newCachedThreadPool();
         Future<?> f = exec.submit(() -> e1.awaitTermination(1L, TimeUnit.MINUTES));
         // do ten normal loops

@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
 
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 import static org.apache.cassandra.utils.ExecutorUtils.*;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
@@ -173,7 +174,7 @@ public class BufferPool
         this.globalPool = new GlobalPool();
         this.metrics = new BufferPoolMetrics(name, this);
         this.recyclePartially = recyclePartially;
-        this.localPoolCleaner = executorFactory().infiniteLoop("LocalPool-Cleaner-" + name, this::cleanupOneReference, false);
+        this.localPoolCleaner = executorFactory().infiniteLoop("LocalPool-Cleaner-" + name, this::cleanupOneReference, UNSAFE);
     }
 
     /**

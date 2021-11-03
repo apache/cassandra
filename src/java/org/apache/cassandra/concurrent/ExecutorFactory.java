@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.concurrent;
 
-import java.util.function.Consumer;
-
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 
 import static java.lang.Thread.*;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.DAEMON;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.createThread;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.setupThread;
 import static org.apache.cassandra.concurrent.ThreadPoolExecutorBuilder.pooledJmx;
@@ -99,45 +102,52 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * Create and start a new thread to execute {@code runnable}
      * @param name the name of the thread
      * @param runnable the task to execute
+     * @param daemon flag to indicate whether the thread should be a daemon or not
      * @return the new thread
      */
-    Thread startThread(String name, Runnable runnable);
+    Thread startThread(String name, Runnable runnable, Daemon daemon);
 
     /**
-     * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
-     * On shutdown, the executing thread will be interrupted; to support clean shutdown
-     * {@code runnable} should propagate {@link InterruptedException}
-     *
-     * @param name the name of the thread used to invoke the task repeatedly
-     * @param task the task to execute repeatedly
+     * Create and start a new thread to execute {@code runnable}; this thread will be a daemon thread.
+     * @param name the name of the thread
+     * @param runnable the task to execute
      * @return the new thread
      */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe);
-
-    /**
-     * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
-     * On shutdown, the executing thread will be interrupted; to support clean shutdown
-     * {@code runnable} should propagate {@link InterruptedException}
-     *
-     * @param name the name of the thread used to invoke the task repeatedly
-     * @param task the task to execute repeatedly
-     * @param interruptHandler perform specific processing of interrupts of the task execution thread
-     * @return the new thread
-     */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Consumer<Thread> interruptHandler);
-
-    /**
-     * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
-     * On shutdown, the executing thread will be interrupted; to support clean shutdown
-     * {@code runnable} should propagate {@link InterruptedException}
-     *
-     * @param name the name of the thread used to invoke the task repeatedly
-     * @param task the task to execute repeatedly
-     * @return the new thread
-     */
-    default Interruptible infiniteLoop(String name, Interruptible.SimpleTask task, boolean simulatorSafe)
+    default Thread startThread(String name, Runnable runnable)
     {
-        return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe);
+        return startThread(name, runnable, DAEMON);
+    }
+
+    /**
+     * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
+     * On shutdown, the executing thread will be interrupted; to support clean shutdown
+     * {@code runnable} should propagate {@link InterruptedException}
+     *
+     * @param name the name of the thread used to invoke the task repeatedly
+     * @param task the task to execute repeatedly
+     * @param simulatorSafe flag indicating if the loop thread can be intercepted / rescheduled during cluster simulation
+     * @param daemon flag to indicate whether the loop thread should be a daemon thread or not
+     * @param interrupts flag to indicate whether to synchronize interrupts of the task execution thread
+     *                   using the task's monitor this can be used to prevent interruption while performing
+     *                   IO operations which forbid interrupted threads.
+     *                   See: {@link org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager::start}
+     * @return the new thread
+     */
+    Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon, Interrupts interrupts);
+
+    /**
+     * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
+     * On shutdown, the executing thread will be interrupted; to support clean shutdown
+     * {@code runnable} should propagate {@link InterruptedException}
+     *
+     * @param name the name of the thread used to invoke the task repeatedly
+     * @param task the task to execute repeatedly
+     * @param simulatorSafe flag indicating if the loop thread can be intercepted / rescheduled during cluster simulation
+     * @return the new thread
+     */
+    default Interruptible infiniteLoop(String name, Interruptible.SimpleTask task, SimulatorSafe simulatorSafe)
+    {
+        return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe, DAEMON, UNSYNCHRONIZED);
     }
 
     /**
@@ -169,6 +179,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
             super(contextClassLoader, threadGroup, uncaughtExceptionHandler);
         }
 
+        @Override
         public LocalAwareSubFactory localAware()
         {
             return new LocalAwareSubFactory()
@@ -225,16 +236,19 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
             };
         }
 
+        @Override
         public ExecutorBuilder<SingleThreadExecutorPlus> configureSequential(String name)
         {
             return ThreadPoolExecutorBuilder.sequential(SingleThreadExecutorPlus::new, contextClassLoader, threadGroup, uncaughtExceptionHandler, name);
         }
 
+        @Override
         public ExecutorBuilder<ThreadPoolExecutorPlus> configurePooled(String name, int threads)
         {
             return ThreadPoolExecutorBuilder.pooled(ThreadPoolExecutorPlus::new, contextClassLoader, threadGroup, uncaughtExceptionHandler, name, threads);
         }
 
+        @Override
         public ScheduledExecutorPlus scheduled(boolean executeOnShutdown, String name, int priority)
         {
             ScheduledThreadPoolExecutorPlus executor = new ScheduledThreadPoolExecutorPlus(newThreadFactory(name, priority));
@@ -243,22 +257,21 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
             return executor;
         }
 
-        public Thread startThread(String name, Runnable runnable)
+        @Override
+        public Thread startThread(String name, Runnable runnable, Daemon daemon)
         {
-            Thread thread = setupThread(createThread(threadGroup, runnable, name, true), Thread.NORM_PRIORITY, contextClassLoader, uncaughtExceptionHandler);
+            Thread thread = setupThread(createThread(threadGroup, runnable, name, daemon == DAEMON),
+                                        Thread.NORM_PRIORITY,
+                                        contextClassLoader,
+                                        uncaughtExceptionHandler);
             thread.start();
             return thread;
         }
 
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe)
-        {
-            return new InfiniteLoopExecutor(this, name, task);
-        }
-
         @Override
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, boolean simulatorSafe, Consumer<Thread> interruptHandler)
+        public Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon, Interrupts interrupts)
         {
-            return new InfiniteLoopExecutor(this, name, task, interruptHandler);
+            return new InfiniteLoopExecutor(this, name, task, daemon, interrupts);
         }
 
         @Override

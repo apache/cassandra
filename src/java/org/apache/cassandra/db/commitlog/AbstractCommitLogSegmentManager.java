@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -47,6 +46,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.concurrent.*;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
@@ -106,11 +108,29 @@ public abstract class AbstractCommitLogSegmentManager
 
     void start()
     {
-        // used for synchronization to prevent thread interrupts while performing IO operations
-        final Object monitor = new Object();
-        // The run loop for the manager thread
-        Interruptible.Task runnable = state -> {
+        // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
+        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
+        BufferType bufferType = commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
+                                ? BufferType.ON_HEAP
+                                : commitLog.configuration.getCompressor().preferredBufferType();
 
+        this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                                     DatabaseDescriptor.getCommitLogSegmentSize(),
+                                                     bufferType);
+
+
+        AllocatorRunnable allocator = new AllocatorRunnable();
+        executor = executorFactory().infiniteLoop("COMMIT-LOG-ALLOCATOR", allocator, SAFE, NON_DAEMON, SYNCHRONIZED);
+        // for simplicity, ensure the first segment is allocated before continuing
+        advanceAllocatingFrom(null);
+    }
+
+    class AllocatorRunnable implements Interruptible.Task
+    {
+        // The run loop for the manager thread
+        @Override
+        public void run(Interruptible.State state) throws InterruptedException
+        {
             try
             {
                 switch (state)
@@ -123,9 +143,12 @@ public abstract class AbstractCommitLogSegmentManager
 
                     case NORMAL:
                         assert availableSegment == null;
+                        // synchronized to prevent thread interrupts while performing IO operations and also
+                        // clear interrupted status to prevent ClosedByInterruptException in createSegment
 
-                        synchronized (monitor)
+                        synchronized (this)
                         {
+                            Thread.interrupted();
                             logger.trace("No segments in reserve; creating a fresh one");
                             availableSegment = createSegment();
 
@@ -155,33 +178,7 @@ public abstract class AbstractCommitLogSegmentManager
                 // shutting down-- nothing more can or needs to be done in that case.
             }
             WaitQueue.waitOnCondition(managerThreadWaitCondition, managerThreadWaitQueue);
-        };
-
-        // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
-        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        BufferType bufferType = commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
-                              ? BufferType.ON_HEAP
-                              : commitLog.configuration.getCompressor().preferredBufferType();
-
-        this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
-                                                     DatabaseDescriptor.getCommitLogSegmentSize(),
-                                                     bufferType);
-
-        Consumer<Thread> interruptHandler = interruptHandler(monitor);
-        executor = executorFactory().infiniteLoop("COMMIT-LOG-ALLOCATOR", runnable, true, interruptHandler);
-
-        // for simplicity, ensure the first segment is allocated before continuing
-        advanceAllocatingFrom(null);
-    }
-
-    private Consumer<Thread> interruptHandler(final Object monitor)
-    {
-        return thread -> {
-            synchronized (monitor)
-            {
-                thread.interrupt();
-            }
-        };
+        }
     }
 
     private boolean atSegmentBufferLimit()
