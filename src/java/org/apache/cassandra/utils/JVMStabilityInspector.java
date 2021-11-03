@@ -140,6 +140,14 @@ public final class JVMStabilityInspector
             if (t instanceof FSError || t instanceof CorruptSSTableException)
                 isUnstable = true;
 
+        // Check for file handle exhaustion
+        if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)
+            if (t.getMessage() != null && t.getMessage().contains("Too many open files"))
+                isUnstable = true;
+
+        if (isUnstable)
+            killer.killCurrentJVM(t);
+
         try
         {
             fn.accept(t);
@@ -149,14 +157,6 @@ public final class JVMStabilityInspector
             //TODO what should we do here?  Disk failure policy check does not support 'die' as it expects this
             // logic to handle it; so throws exception...
         }
-
-        // Check for file handle exhaustion
-        if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)
-            if (t.getMessage() != null && t.getMessage().contains("Too many open files"))
-                isUnstable = true;
-
-        if (isUnstable)
-            killer.killCurrentJVM(t);
 
         if (t.getCause() != null)
             inspectThrowable(t.getCause(), fn);
