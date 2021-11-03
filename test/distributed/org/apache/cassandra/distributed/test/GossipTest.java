@@ -19,15 +19,21 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Collection;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import net.bytebuddy.asm.Advice;
+import org.apache.cassandra.gms.*;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,16 +43,16 @@ import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.*;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -54,6 +60,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getLocalToken;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.runAndWaitForLogs;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 public class GossipTest extends TestBaseImpl
@@ -274,6 +281,127 @@ public class GossipTest extends TestBaseImpl
                               node1, node3);
             // node1 & node3 should not consider any ranges as still pending for node2
             assertPendingRangesForPeer(false, movingAddress, cluster);
+        }
+    }
+
+    public static class DiagnosticSubscriber implements IEndpointStateChangeSubscriber
+    {
+        private final static Logger logger = LoggerFactory.getLogger(DiagnosticSubscriber.class);
+
+        public final static DiagnosticSubscriber instance = new DiagnosticSubscriber();
+
+        public final AtomicReference<Throwable> onJoin = new AtomicReference<>();
+        public final AtomicReference<Throwable> onAlive = new AtomicReference<>();
+        public final AtomicReference<Throwable> onDead = new AtomicReference<>();
+
+        public final Map<ApplicationState, VersionedValue> forecastedChanges = new ConcurrentHashMap<>();
+        public final Map<ApplicationState, VersionedValue> notifiedState = new ConcurrentHashMap<>();
+
+        @Override
+        public void onJoin(InetAddressAndPort endpoint, EndpointState state)
+        {
+            logger.info("onJoin({}, {})", endpoint, state.snapshot());
+            if (!onJoin.compareAndSet(null, new Throwable()))
+            {
+                logger.error("onJoin already called at:", onJoin.get());
+                throw new AssertionError("onJoin already called", onJoin.get());
+            }
+            notifiedState.putAll(state.snapshot());
+        }
+
+        @Override
+        public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue)
+        {
+            logger.info("beforeChange({}, {}, {}, {})", endpoint, currentState.snapshot(), newStateKey, newValue);
+            forecastedChanges.put(newStateKey, newValue);
+        }
+
+        @Override
+        public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
+        {
+            logger.info("onChange({}, {}, {})", endpoint, state, value);
+            VersionedValue v = forecastedChanges.remove(state);
+            assertThat(v).isNotNull();
+            assertThat(value.value).isEqualTo(v.value);
+            notifiedState.put(state, value);
+        }
+
+        @Override
+        public void onAlive(InetAddressAndPort endpoint, EndpointState state)
+        {
+            logger.info("onAlive({}, {})", endpoint, state.snapshot());
+            if (!onAlive.compareAndSet(null, new Throwable()))
+            {
+                logger.error("onAlive already called at:", onAlive.get());
+                throw new AssertionError("onAlive already called", onAlive.get());
+            }
+            notifiedState.putAll(state.snapshot());
+        }
+
+        @Override
+        public void onDead(InetAddressAndPort endpoint, EndpointState state)
+        {
+            logger.info("onDead({}, {})", endpoint, state.snapshot());
+            if (!onDead.compareAndSet(null, new Throwable()))
+            {
+                logger.error("onDead already called at:", onDead.get());
+                throw new AssertionError("onDead already called", onDead.get());
+            }
+            notifiedState.putAll(state.snapshot());
+        }
+
+        @Override
+        public void onRemove(InetAddressAndPort endpoint)
+        {
+            logger.info("onRemove({})", endpoint);
+        }
+
+        @Override
+        public void onRestart(InetAddressAndPort endpoint, EndpointState state)
+        {
+            logger.info("onRestart({}, {})", endpoint, state.snapshot());
+            notifiedState.putAll(state.snapshot());
+        }
+    }
+
+    @Test
+    public void endpointStateChangeNotificationOnJoin() throws IOException
+    {
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(c -> c.with(GOSSIP, NETWORK))
+                                      .withInstanceInitializer(new DiagnosticSubscriberHelper())
+                                      .start())
+        {
+            cluster.get(1).runOnInstance(() -> {
+                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+                Map<ApplicationState, VersionedValue> state = epState.states().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                assertThat(DiagnosticSubscriber.instance.notifiedState).isEqualTo(state);
+                assertThat(DiagnosticSubscriber.instance.onAlive.get()).isNotNull();
+                assertThat(DiagnosticSubscriber.instance.onJoin.get()).isNotNull();
+                assertThat(DiagnosticSubscriber.instance.onDead.get()).isNull();
+            });
+
+            cluster.get(1).shutdown(true);
+
+            assertThat(DiagnosticSubscriber.instance.onDead.get()).isNotNull();
+        }
+    }
+
+    public static class DiagnosticSubscriberHelper implements IInstanceInitializer
+    {
+        @Override
+        public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
+        {
+            new ByteBuddy().redefine(Gossiper.class)
+                           .visit(Advice.to(DiagnosticSubscriberHelper.class).on(isConstructor()))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        @Advice.OnMethodExit
+        public static void registerDiagnosticSubscriber(@Advice.This Gossiper gossiper)
+        {
+            gossiper.register(DiagnosticSubscriber.instance);
         }
     }
 

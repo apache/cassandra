@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +101,11 @@ public class EndpointState
     public Set<Map.Entry<ApplicationState, VersionedValue>> states()
     {
         return applicationState.get().entrySet();
+    }
+
+    public Map<ApplicationState, VersionedValue> snapshot()
+    {
+        return ImmutableMap.copyOf(applicationState.get());
     }
 
     public void addApplicationState(ApplicationState key, VersionedValue value)
