@@ -146,7 +146,11 @@ public final class JVMStabilityInspector
                 isUnstable = true;
 
         if (isUnstable)
+        {
+            if (!StorageService.instance.isDaemonSetupCompleted())
+                FileUtils.handleStartupFSError(t);
             killer.killCurrentJVM(t);
+        }
 
         try
         {

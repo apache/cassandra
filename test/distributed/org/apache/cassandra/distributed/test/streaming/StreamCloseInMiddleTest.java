@@ -19,6 +19,7 @@ package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
@@ -33,9 +34,12 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.streaming.CassandraIncomingFile;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogResult;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
@@ -62,6 +66,7 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
     private void streamClose(boolean zeroCopyStreaming) throws IOException
     {
         try (Cluster cluster = Cluster.build(2)
+                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withInstanceInitializer(BBHelper::install)
                                       .withConfig(c -> c.with(Feature.values())
                                                         .set("stream_entire_sstables", zeroCopyStreaming)
@@ -76,11 +81,26 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
 
             triggerStreaming(cluster, zeroCopyStreaming);
             // make sure disk failure policy is not triggered
-            cluster.forEach(i -> {
-                Assertions.assertThat(i.isShutdown()).describedAs("%s was shutdown; this is not expected", i).isFalse();
-                Assertions.assertThat(i.killAttempts()).describedAs("%s saw kill attempts; this is not expected", i).isEqualTo(0);
-            });
+            assertNoNodeShutdown(cluster);
+
+            // now bootstrap a new node; streaming will fail
+            IInvokableInstance node3 = ClusterUtils.addInstance(cluster, c -> c.set("auto_bootstrap", true));
+            node3.startup();
+            for (String line : Arrays.asList("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted", // bootstrap failed
+                                             "Some data streaming failed. Use nodetool to check bootstrap state and resume")) // didn't join ring because bootstrap failed
+                Assertions.assertThat(node3.logs().grep(line).getResult())
+                          .hasSize(1);
+
+            assertNoNodeShutdown(cluster);
         }
+    }
+
+    private void assertNoNodeShutdown(Cluster cluster)
+    {
+        cluster.forEach(i -> {
+            Assertions.assertThat(i.isShutdown()).describedAs("%s was shutdown; this is not expected", i).isFalse();
+            Assertions.assertThat(i.killAttempts()).describedAs("%s saw kill attempts; this is not expected", i).isEqualTo(0);
+        });
     }
 
     private static void triggerStreaming(Cluster cluster, boolean expectedEntireSSTable)
@@ -102,8 +122,13 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
         long mark = node2.logs().mark();
         node2.nodetoolResult("repair", "-full", KEYSPACE, "tbl").asserts().failure();
 
+        assertStreamingFailed(node2, expectedEntireSSTable, mark);
+    }
+
+    private static void assertStreamingFailed(IInvokableInstance node, boolean expectedEntireSSTable, long mark)
+    {
         // make sure zero-copy streaming was done; only way to know is by checking debug logs on the recieving end
-        LogResult<List<String>> logs = node2.logs().grep(mark, "Incoming stream entireSSTable=");
+        LogResult<List<String>> logs = node.logs().grep(mark, "Incoming stream entireSSTable=");
         Assertions.assertThat(logs.getResult()).isNotEmpty();
         Pattern pattern = Pattern.compile("entireSSTable=(.*?)\\s");
         logs.getResult().forEach(line -> {
@@ -112,8 +137,6 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
             boolean entireSSTable = Boolean.parseBoolean(match.group(1));
             Assertions.assertThat(entireSSTable).isEqualTo(expectedEntireSSTable);
         });
-
-        // no node had a shut
     }
 
     public static class BBHelper

@@ -27,4 +27,5 @@ public interface FSErrorHandler
 {
     void handleCorruptSSTable(CorruptSSTableException e);
     void handleFSError(FSError e);
+    default void handleStartupFSError(Throwable t) {}
 }
