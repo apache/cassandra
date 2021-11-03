@@ -73,7 +73,7 @@ public class ViewUtilsTest
         replicationMap.put("DC1", "1");
         replicationMap.put("DC2", "1");
 
-        Keyspace.clear("Keyspace1");
+        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.load(meta);
 
@@ -106,7 +106,7 @@ public class ViewUtilsTest
         replicationMap.put("DC1", "2");
         replicationMap.put("DC2", "2");
 
-        Keyspace.clear("Keyspace1");
+        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.load(meta);
 
@@ -138,7 +138,7 @@ public class ViewUtilsTest
         replicationMap.put("DC1", "1");
         replicationMap.put("DC2", "1");
 
-        Keyspace.clear("Keyspace1");
+        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.load(meta);
 
