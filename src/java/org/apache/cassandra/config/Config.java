@@ -470,7 +470,8 @@ public class Config
     @Replaces(oldName = "enable_sasi_indexes", deprecated = true)
     public boolean sasi_indexes_enabled = false;
 
-    public volatile boolean enable_drop_compact_storage = false;
+    @Replaces(oldName = "enable_drop_compact_storage", deprecated = true)
+    public volatile boolean drop_compact_storage_enabled = false;
 
     /**
      * Optionally disable asynchronous UDF execution.
@@ -482,7 +483,7 @@ public class Config
      * UDFs that run too long or forever - and this can destabilize the cluster.
      */
     // Below parameter is not presented in cassandra.yaml but to be on the safe side that no one was directly using it
-    // I still added backward compatibility
+    // I still added backward compatibility (CASSANDRA-15234)
     @Replaces(oldName = "enable_user_defined_functions_threads", deprecated = true)
     public boolean user_defined_functions_threads_enabled = true;
     /**
@@ -597,17 +598,17 @@ public class Config
     /** This feature allows denying access to operations on certain key partitions, intended for use by operators to
      * provide another tool to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
      */
-    public volatile boolean enable_partition_denylist = false;
+    public volatile boolean partition_denylist_enabled = false;
 
-    public volatile boolean enable_denylist_writes = true;
+    public volatile boolean denylist_writes_enabled = true;
 
-    public volatile boolean enable_denylist_reads = true;
+    public volatile boolean denylist_reads_enabled = true;
 
-    public volatile boolean enable_denylist_range_reads = true;
+    public volatile boolean denylist_range_reads_enabled = true;
 
-    public int denylist_refresh_seconds = 600;
+    public Duration denylist_refresh = new Duration("600S");
 
-    public int denylist_initial_load_retry_seconds = 5;
+    public Duration denylist_initial_load_retry = new Duration("5S");
 
     /** We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Operators will
      * receive warnings and only denylist_max_keys_per_table in natural query ordering will be processed on overflow.

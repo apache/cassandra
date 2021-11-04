@@ -49,7 +49,7 @@ stream_entire_sstables: true
 stream_throughput_outbound: 200000000mib/s
 sasi_indexes_enabled: true
 materialized_views_enabled: true
-enable_drop_compact_storage: true
+drop_compact_storage_enabled: true
 file_cache_enabled: true
 auto_hints_cleanup_enabled: true
 track_warnings:

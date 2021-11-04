@@ -36,7 +36,7 @@ public class CompactStorage3to4UpgradeTest extends UpgradeTestBase
     {
         new TestCase().nodes(1)
                       .upgradesFrom(v30)
-                      .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
+                      .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("drop_compact_storage_enabled", true))
                       .setup(cluster -> {
                           String create = "CREATE TABLE %s.%s(k int, c1 int, c2 int, v int, PRIMARY KEY (k, c1, c2)) " +
                                           "WITH compaction = { 'class':'LeveledCompactionStrategy', 'enabled':'false'} AND COMPACT STORAGE";

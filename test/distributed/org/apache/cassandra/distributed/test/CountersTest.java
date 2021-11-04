@@ -45,7 +45,7 @@ public class CountersTest extends TestBaseImpl
 
     private static void testUpdateCounter(boolean droppedCompactStorage) throws Throwable
     {
-        try (Cluster cluster = Cluster.build(2).withConfig(c -> c.with(GOSSIP, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true)).start())
+        try (Cluster cluster = Cluster.build(2).withConfig(c -> c.with(GOSSIP, NATIVE_PROTOCOL).set("drop_compact_storage_enabled", true)).start())
         {
             cluster.schemaChange("CREATE KEYSPACE k WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
 
