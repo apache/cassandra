@@ -158,8 +158,7 @@ public final class JVMStabilityInspector
         }
         catch (Exception | Error e)
         {
-            //TODO what should we do here?  Disk failure policy check does not support 'die' as it expects this
-            // logic to handle it; so throws exception...
+            logger.warn("Unexpected exception while handling another exception; ignoring", e);
         }
 
         if (t.getCause() != null)
