@@ -31,6 +31,18 @@ public interface ScalarFunction extends Function
     public boolean isCalledOnNullInput();
 
     /**
+     * Checks if the function is monotonic.
+     *
+     *<p>A function is monotonic if it is either entirely nonincreasing or nondecreasing.</p>
+     *
+     * @return {@code true} if the function is monotonic {@code false} otherwise.
+     */
+    public default boolean isMonotonic()
+    {
+        return false;
+    }
+
+    /**
      * Applies this function to the specified parameter.
      *
      * @param protocolVersion protocol version used for parameters and return value

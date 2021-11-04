@@ -167,6 +167,12 @@ public abstract class TimeFcts
                long millis = type.toTimeInMillis(bb);
                return SimpleDateType.instance.fromTimeInMillis(millis);
            }
+
+           @Override
+           public boolean isMonotonic()
+           {
+               return true;
+           }
        };
    }
 
@@ -188,6 +194,12 @@ public abstract class TimeFcts
                long millis = type.toTimeInMillis(bb);
                return TimestampType.instance.fromTimeInMillis(millis);
            }
+
+           @Override
+           public boolean isMonotonic()
+           {
+               return true;
+           }
        };
    }
 
@@ -207,6 +219,12 @@ public abstract class TimeFcts
                     return null;
 
                 return ByteBufferUtil.bytes(type.toTimeInMillis(bb));
+            }
+
+            @Override
+            public boolean isMonotonic()
+            {
+                return true;
             }
         };
     }
