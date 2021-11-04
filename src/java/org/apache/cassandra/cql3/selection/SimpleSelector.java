@@ -17,19 +17,38 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public final class SimpleSelector extends Selector
 {
+    protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
+    {
+        protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
+            ColumnMetadata column = metadata.getColumn(columnName);
+            int idx = in.readInt();
+            return new SimpleSelector(column, idx);
+        }
+    };
+
     /**
      * The Factory for {@code SimpleSelector}.
      */
@@ -113,17 +132,17 @@ public final class SimpleSelector extends Selector
     }
 
     @Override
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input) throws InvalidRequestException
     {
         if (!isSet)
         {
             isSet = true;
-            current = rs.current.get(idx);
+            current = input.getValue(idx);
         }
     }
 
     @Override
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         return current;
     }
@@ -149,7 +168,48 @@ public final class SimpleSelector extends Selector
 
     private SimpleSelector(ColumnMetadata column, int idx)
     {
+        super(Kind.SIMPLE_SELECTOR);
         this.column = column;
         this.idx = idx;
+    }
+
+    @Override
+    public void validateForGroupBy()
+    {
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof SimpleSelector))
+            return false;
+
+        SimpleSelector s = (SimpleSelector) o;
+
+        return Objects.equal(column, s.column)
+            && Objects.equal(idx, s.idx);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(column, idx);
+    }
+
+    @Override
+    protected int serializedSize(int version)
+    {
+        return ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes)
+                + TypeSizes.sizeof(idx);
+    }
+
+    @Override
+    protected void serialize(DataOutputPlus out, int version) throws IOException
+    {
+        ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
+        out.writeInt(idx);;
     }
 }

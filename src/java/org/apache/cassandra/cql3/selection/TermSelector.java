@@ -17,16 +17,22 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Selector representing a simple term (literals or bound variables).
@@ -36,6 +42,16 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 public class TermSelector extends Selector
 {
+    protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
+    {
+        protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            AbstractType<?> type = readType(metadata, in);
+            ByteBuffer value = ByteBufferUtil.readWithVIntLength(in);
+            return new TermSelector(value, type);
+        }
+    };
+
     private final ByteBuffer value;
     private final AbstractType<?> type;
 
@@ -74,8 +90,9 @@ public class TermSelector extends Selector
         };
     }
 
-    private TermSelector(ByteBuffer value, AbstractType<?> type)
+    TermSelector(ByteBuffer value, AbstractType<?> type)
     {
+        super(Kind.TERM_SELECTOR);
         this.value = value;
         this.type = type;
     }
@@ -84,11 +101,11 @@ public class TermSelector extends Selector
     {
     }
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         return value;
     }
@@ -100,5 +117,45 @@ public class TermSelector extends Selector
 
     public void reset()
     {
+    }
+
+    @Override
+    public boolean isTerminal()
+    {
+        return true;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof TermSelector))
+            return false;
+
+        TermSelector s = (TermSelector) o;
+
+        return Objects.equal(value, s.value)
+            && Objects.equal(type, s.type);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(value, type);
+    }
+
+    @Override
+    protected int serializedSize(int version)
+    {
+        return sizeOf(type) + ByteBufferUtil.serializedSizeWithVIntLength(value);
+    }
+
+    @Override
+    protected void serialize(DataOutputPlus out, int version) throws IOException
+    {
+        writeType(out, type);
+        ByteBufferUtil.writeWithVIntLength(value, out);
     }
 }
