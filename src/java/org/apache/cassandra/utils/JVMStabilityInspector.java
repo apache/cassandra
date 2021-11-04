@@ -158,7 +158,7 @@ public final class JVMStabilityInspector
         }
         catch (Exception | Error e)
         {
-            logger.warn("Unexpected exception while handling another exception; ignoring", e);
+            logger.warn("Unexpected error while handling unexpected error", e);
         }
 
         if (t.getCause() != null)
