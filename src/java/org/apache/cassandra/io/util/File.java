@@ -21,7 +21,7 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
+import java.nio.file.*; // checkstyle: permit this import
 import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -544,7 +544,7 @@ public class File implements Comparable<File>
 
     public java.io.File toJavaIOFile()
     {
-        return path == null ? new java.io.File("") : path.toFile();
+        return path == null ? new java.io.File("") : path.toFile();  // checkstyle: permit this instantiation
     }
 
     /**

@@ -45,8 +45,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
 import io.netty.channel.unix.Errors;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.Future; //checkstyle: permit this import
+import io.netty.util.concurrent.Promise; //checkstyle: permit this import
 import io.netty.util.concurrent.PromiseNotifier;
 import io.netty.util.concurrent.SucceededFuture;
 import org.apache.cassandra.config.DatabaseDescriptor;

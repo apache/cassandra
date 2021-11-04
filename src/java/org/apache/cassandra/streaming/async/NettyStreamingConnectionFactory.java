@@ -26,7 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoop;
-import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import org.apache.cassandra.net.ConnectionCategory;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result;

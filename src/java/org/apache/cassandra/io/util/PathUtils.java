@@ -536,7 +536,7 @@ public final class PathUtils
 
         DeleteOnExit()
         {
-            Runtime.getRuntime().addShutdownHook(new Thread(this));
+            Runtime.getRuntime().addShutdownHook(new Thread(this)); // checkstyle: permit this instantiation
         }
 
         synchronized void add(Path path, boolean recursive)

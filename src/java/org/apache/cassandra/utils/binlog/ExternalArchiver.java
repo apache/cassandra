@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
+import java.io.File; // checkstyle: permit this import
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.DelayQueue;

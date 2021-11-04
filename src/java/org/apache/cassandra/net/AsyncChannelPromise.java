@@ -22,7 +22,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 

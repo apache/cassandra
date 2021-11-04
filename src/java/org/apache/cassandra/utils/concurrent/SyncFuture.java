@@ -24,7 +24,7 @@ import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.AsyncFunction;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
 import io.netty.util.concurrent.GenericFutureListener;
 

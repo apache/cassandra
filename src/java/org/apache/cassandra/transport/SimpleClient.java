@@ -38,7 +38,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
-import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;

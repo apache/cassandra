@@ -91,7 +91,7 @@ public interface Clock
          */
         public long nanoTime()
         {
-            return System.nanoTime();
+            return System.nanoTime(); // checkstyle: permit system clock
         }
 
         /**
@@ -99,7 +99,7 @@ public interface Clock
          */
         public long currentTimeMillis()
         {
-            return System.currentTimeMillis();
+            return System.currentTimeMillis(); // checkstyle: permit system clock
         }
     }
 

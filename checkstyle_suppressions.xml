@@ -21,6 +21,5 @@
         "https://checkstyle.org/dtds/suppressions_1_1.dtd">
 
 <suppressions>
-  <suppress checks="RegexpSinglelineJava" files="Clock\.java|Semaphore\.java"/>
-  <suppress checks="IllegalImport|IllegalInstantiation" files="File\.java|[\\/]binlog[\\/]|Semaphore\.java|DataStructureFactory\.java|PathUtils\.java|UDFunction\.java|BlockingQueues\.java"/>
+  <suppress checks="RegexpSinglelineJava" files="Semaphore\.java"/>
 </suppressions>

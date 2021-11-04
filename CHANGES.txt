@@ -1,4 +1,5 @@
 4.1
+ * Forbid other Future implementations with checkstyle (CASSANDRA-17055)
  * commit log was switched from non-daemon to daemon threads, which causes the JVM to exit in some case as no non-daemon threads are active (CASSANDRA-17085)
  * Add a Denylist to block reads and writes on specific partition keys (CASSANDRA-12106)
  * v4+ protocol did not clean up client warnings, which caused leaking the state (CASSANDRA-17054)

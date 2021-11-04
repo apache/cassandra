@@ -22,8 +22,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.LinkedBlockingQueue; // checkstyle: permit this import
+import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.utils.Intercept;
