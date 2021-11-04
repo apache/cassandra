@@ -28,6 +28,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.selection.Selector.InputRow;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -346,6 +347,12 @@ public abstract class Selection
         public ColumnFilter getColumnFilter();
 
         /**
+         * Checks if this Selectors perform some processing
+         * @return {@code true} if this Selectors perform some processing, {@code false} otherwise.
+         */
+        public boolean hasProcessing();
+
+        /**
          * Checks if one of the selectors perform some aggregations.
          * @return {@code true} if one of the selectors perform some aggregations, {@code false} otherwise.
          */
@@ -372,10 +379,9 @@ public abstract class Selection
         /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
          *
-         * @param rs the <code>ResultSetBuilder</code>
-         * @throws InvalidRequestException
+         * @param input the input row
          */
-        public void addInputRow(ResultSetBuilder rs);
+        public void addInputRow(InputRow input);
 
         public List<ByteBuffer> getOutputRow();
 
@@ -467,12 +473,17 @@ public abstract class Selection
                     return current;
                 }
 
-                public void addInputRow(ResultSetBuilder rs) throws InvalidRequestException
+                public void addInputRow(InputRow input)
                 {
-                    current = rs.current;
+                    current = input.getValues();
                 }
 
                 public boolean isAggregate()
+                {
+                    return false;
+                }
+
+                public boolean hasProcessing()
                 {
                     return false;
                 }
@@ -572,6 +583,11 @@ public abstract class Selection
                     return factories.doesAggregation();
                 }
 
+                public boolean hasProcessing()
+                {
+                    return true;
+                }
+
                 public List<ByteBuffer> getOutputRow()
                 {
                     List<ByteBuffer> outputRow = new ArrayList<>(selectors.size());
@@ -582,10 +598,10 @@ public abstract class Selection
                     return isJson ? rowToJson(outputRow, options.getProtocolVersion(), metadata, orderingColumns) : outputRow;
                 }
 
-                public void addInputRow(ResultSetBuilder rs) throws InvalidRequestException
+                public void addInputRow(InputRow input)
                 {
                     for (Selector selector : selectors)
-                        selector.addInput(options.getProtocolVersion(), rs);
+                        selector.addInput(options.getProtocolVersion(), input);
                 }
 
                 @Override

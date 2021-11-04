@@ -17,18 +17,31 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.schema.CQLTypeParser;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * A <code>Selector</code> is used to convert the data returned by the storage engine into the data requested by the
@@ -38,6 +51,50 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 public abstract class Selector
 {
+    protected static abstract class SelectorDeserializer
+    {
+        protected abstract Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException;
+
+        protected final AbstractType<?> readType(TableMetadata metadata, DataInputPlus in) throws IOException
+        {
+            KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
+            return readType(keyspace, in);
+        }
+
+        protected final AbstractType<?> readType(KeyspaceMetadata keyspace, DataInputPlus in) throws IOException
+        {
+            String cqlType = in.readUTF();
+            return CQLTypeParser.parse(keyspace.name, cqlType, keyspace.types);
+        }
+    }
+
+    /**
+     * The <code>Selector</code> kinds.
+     */
+    public static enum Kind
+    {
+        SIMPLE_SELECTOR(SimpleSelector.deserializer),
+        TERM_SELECTOR(TermSelector.deserializer),
+        WRITETIME_OR_TTL_SELECTOR(WritetimeOrTTLSelector.deserializer),
+        LIST_SELECTOR(ListSelector.deserializer),
+        SET_SELECTOR(SetSelector.deserializer),
+        MAP_SELECTOR(MapSelector.deserializer),
+        TUPLE_SELECTOR(TupleSelector.deserializer),
+        USER_TYPE_SELECTOR(UserTypeSelector.deserializer),
+        FIELD_SELECTOR(FieldSelector.deserializer),
+        SCALAR_FUNCTION_SELECTOR(ScalarFunctionSelector.deserializer),
+        AGGREGATE_FUNCTION_SELECTOR(AggregateFunctionSelector.deserializer),
+        ELEMENT_SELECTOR(ElementsSelector.ElementSelector.deserializer),
+        SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer);
+
+        private final SelectorDeserializer deserializer;
+
+        Kind(SelectorDeserializer deserializer)
+        {
+            this.deserializer = deserializer;
+        }
+    }
+
     /**
      * A factory for <code>Selector</code> instances.
      */
@@ -70,7 +127,7 @@ public abstract class Selector
          * depends on the bound values in particular).
          * @return a new <code>Selector</code> instance
          */
-        public abstract Selector newInstance(QueryOptions options) throws InvalidRequestException;
+        public abstract Selector newInstance(QueryOptions options);
 
         /**
          * Checks if this factory creates selectors instances that creates aggregates.
@@ -174,6 +231,50 @@ public abstract class Selector
         abstract void addFetchedColumns(ColumnFilter.Builder builder);
     }
 
+    public static class Serializer
+    {
+        public void serialize(Selector selector, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeByte(selector.kind().ordinal());
+            selector.serialize(out, version);
+        }
+
+        public Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            Kind kind = Kind.values()[in.readUnsignedByte()];
+            return kind.deserializer.deserialize(in, version, metadata);
+        }
+
+        public int serializedSize(Selector selector, int version)
+        {
+            return TypeSizes.sizeof((byte) selector.kind().ordinal()) + selector.serializedSize(version);
+        }
+    }
+
+    /**
+     * The {@code Selector} serializer.
+     */
+    public static final Serializer serializer = new Serializer();
+
+    /**
+     * The {@code Selector} kind.
+     */
+    private final Kind kind;
+
+    /**
+     * Returns the {@code Selector} kind.
+     * @return the {@code Selector} kind
+     */
+    public final Kind kind()
+    {
+        return kind;
+    }
+
+    protected Selector(Kind kind)
+    {
+        this.kind = kind;
+    }
+
     /**
      * Add to the provided builder the column (and potential subselections) to fetch for this
      * selection.
@@ -183,13 +284,157 @@ public abstract class Selector
     public abstract void addFetchedColumns(ColumnFilter.Builder builder);
 
     /**
+     * A row of data that need to be processed by a {@code Selector}
+     */
+    public static final class InputRow
+    {
+        private ByteBuffer[] values;
+        private final long[] timestamps;
+        private final int[] ttls;
+        private int index;
+
+        public InputRow(int size, boolean collectTimestamps, boolean collectTTLs)
+        {
+            this.values = new ByteBuffer[size];
+
+            if (collectTimestamps)
+            {
+                this.timestamps = new long[size];
+                // We use MIN_VALUE to indicate no timestamp
+                Arrays.fill(timestamps, Long.MIN_VALUE);
+            }
+            else
+            {
+                timestamps = null;
+            }
+
+            if (collectTTLs)
+            {
+                this.ttls = new int[size];
+                // We use -1 to indicate no ttl
+                Arrays.fill(ttls, -1);
+            }
+            else
+            {
+                ttls = null;
+            }
+        }
+
+        public void add(ByteBuffer v)
+        {
+            values[index] = v;
+
+            if (timestamps != null)
+                timestamps[index] = Long.MIN_VALUE;
+
+            if (ttls != null)
+                ttls[index] = -1;
+
+            index++;
+        }
+
+        public void add(Cell<?> c, int nowInSec)
+        {
+            if (c == null)
+            {
+                add(null);
+                return;
+            }
+
+            values[index] = value(c);
+
+            if (timestamps != null)
+                timestamps[index] = c.timestamp();
+
+            if (ttls != null)
+                ttls[index] = remainingTTL(c, nowInSec);
+
+            index++;
+        }
+
+        private int remainingTTL(Cell<?> c, int nowInSec)
+        {
+            if (!c.isExpiring())
+                return -1;
+
+            int remaining = c.localDeletionTime() - nowInSec;
+            return remaining >= 0 ? remaining : -1;
+        }
+
+        private <V> ByteBuffer value(Cell<V> c)
+        {
+            return c.isCounterCell()
+                 ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value(), c.accessor()))
+                 : c.buffer();
+        }
+
+        /**
+         * Return the value of the column with the specified index.
+         *
+         * @param index the column index
+         * @return the value of the column with the specified index
+         */
+        public ByteBuffer getValue(int index)
+        {
+            return values[index];
+        }
+
+        /**
+         * Reset the row internal state.
+         * <p>If the reset is not a deep one only the index will be reset. If the reset is a deep one a new
+         * array will be created to store the column values. This allow to reduce object creation when it is not
+         * necessary.</p>
+         *
+         * @param deep {@code true} if the reset must be a deep one.
+         */
+        public void reset(boolean deep)
+        {
+            index = 0;
+            if (deep)
+                values = new ByteBuffer[values.length];
+        }
+
+        /**
+         * Return the timestamp of the column with the specified index.
+         *
+         * @param index the column index
+         * @return the timestamp of the column with the specified index
+         */
+        public long getTimestamp(int index)
+        {
+            return timestamps[index];
+        }
+
+        /**
+         * Return the ttl of the column with the specified index.
+         *
+         * @param index the column index
+         * @return the ttl of the column with the specified index
+         */
+        public int getTtl(int index)
+        {
+            return ttls[index];
+        }
+
+        /**
+         * Returns the column values as list.
+         * <p>This content of the list will be shared with the {@code InputRow} unless a deep reset has been done.</p>
+         * @return the column values as list.
+         */
+        public List<ByteBuffer> getValues()
+        {
+            return Arrays.asList(values);
+        }
+    }
+
+    /**
      * Add the current value from the specified <code>ResultSetBuilder</code>.
      *
      * @param protocolVersion protocol version used for serialization
-     * @param rs the <code>ResultSetBuilder</code>
-     * @throws InvalidRequestException if a problem occurs while add the input value
+     * @param input the input row
+     * @throws InvalidRequestException if a problem occurs while adding the input row
      */
-    public abstract void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException;
+    public abstract void addInput(ProtocolVersion protocolVersion, InputRow input);
 
     /**
      * Returns the selector output.
@@ -211,4 +456,36 @@ public abstract class Selector
      * Reset the internal state of this <code>Selector</code>.
      */
     public abstract void reset();
+
+    /**
+     * A selector is terminal if it doesn't require any input for it's output to be computed, i.e. if {@link #getOutput}
+     * result doesn't depend of {@link #addInput}. This is typically the case of a constant value or functions on constant
+     * values.
+     */
+    public boolean isTerminal()
+    {
+        return false;
+    }
+
+    /**
+     * Checks that this selector is valid for GROUP BY clause.
+     */
+    public void validateForGroupBy()
+    {
+        throw invalidRequest("Only column names and monotonic scalar functions are supported in the GROUP BY clause.");
+    }
+
+    protected abstract int serializedSize(int version);
+
+    protected abstract void serialize(DataOutputPlus out, int version) throws IOException;
+
+    protected static void writeType(DataOutputPlus out, AbstractType<?> type) throws IOException
+    {
+        out.writeUTF(type.asCQL3Type().toString());
+    }
+
+    protected static int sizeOf(AbstractType<?> type)
+    {
+        return TypeSizes.sizeof(type.asCQL3Type().toString());
+    }
 }

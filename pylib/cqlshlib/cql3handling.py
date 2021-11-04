@@ -742,7 +742,13 @@ syntax_rules += r'''
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
                   ;
 <groupByClause> ::= [groupcol]=<cident>
+                  | <functionName><groupByFunctionArguments>
                   ;
+<groupByFunctionArguments> ::= "(" ( <groupByFunctionArgument> ( "," <groupByFunctionArgument> )* )? ")"
+                             ;
+<groupByFunctionArgument> ::= [groupcol]=<cident>
+                            | <term>
+                            ;
 '''
 
 

@@ -17,30 +17,29 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.util.Arrays;
+import java.nio.ByteBuffer;
+import java.util.List;
 
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * Base class for our native/hardcoded functions.
+ * A partial application of a function.
+ *
+ * @see ScalarFunction#partialApplication(ProtocolVersion, List)
  */
-public abstract class NativeFunction extends AbstractFunction
+public interface PartialScalarFunction extends ScalarFunction
 {
-    protected NativeFunction(String name, AbstractType<?> returnType, AbstractType<?>... argTypes)
-    {
-        super(FunctionName.nativeFunction(name), Arrays.asList(argTypes), returnType);
-    }
+    /**
+     * Returns the original function.
+     *
+     * @return the original function
+     */
+    public Function getFunction();
 
-    @Override
-    public boolean isNative()
-    {
-        return true;
-    }
-
-    @Override
-    public boolean isPure()
-    {
-        // Most of our functions are pure, the other ones should override this
-        return true;
-    }
+    /**
+     * Returns the list of input parameters for the function where some parameters can be {@link #UNRESOLVED}.
+     *
+     * @return the list of input parameters for the function
+     */
+    public List<ByteBuffer> getPartialParameters();
 }

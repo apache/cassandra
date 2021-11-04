@@ -56,6 +56,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Add support for the use of pure monotonic functions on the last attribute of the GROUP BY clause.
+    - Add floor functions that can be use to group by time range.
     - Support for native transport rate limiting via native_transport_rate_limiting_enabled and 
       native_transport_max_requests_per_second in cassandra.yaml.
     - Support for pre hashing passwords on CQL DCL commands
