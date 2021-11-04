@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -25,9 +26,11 @@ import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -88,7 +91,45 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             public Selector newInstance(QueryOptions options) throws InvalidRequestException
             {
                 return fun.isAggregate() ? new AggregateFunctionSelector(fun, factories.newInstances(options))
-                                         : new ScalarFunctionSelector(fun, factories.newInstances(options));
+                                         : createScalarSelector(options, (ScalarFunction) fun, factories.newInstances(options));
+            }
+
+            private Selector createScalarSelector(QueryOptions options, ScalarFunction function, List<Selector> argSelectors)
+            {
+                ProtocolVersion version = options.getProtocolVersion();
+                int terminalCount = 0;
+                List<ByteBuffer> terminalArgs = new ArrayList<>(argSelectors.size());
+                for (Selector selector : argSelectors)
+                {
+                    if (selector.isTerminal())
+                    {
+                        ++terminalCount;
+                        ByteBuffer output = selector.getOutput(version);
+                        RequestValidations.checkBindValueSet(output, "Invalid unset value for argument in call to function %s", fun.name().name);
+                        terminalArgs.add(output);
+                    }
+                    else
+                    {
+                        terminalArgs.add(Function.UNRESOLVED);
+                    }
+                }
+
+                if (terminalCount == 0)
+                    return new ScalarFunctionSelector(fun, argSelectors);
+
+                // All terminal, reduce to a simple value if the function is pure
+                if (terminalCount == argSelectors.size() && function.isPure())
+                    return new TermSelector(function.execute(version, terminalArgs), function.returnType());
+
+                // We have some terminal arguments but not all, do a partial application
+                ScalarFunction partialFunction = function.partialApplication(version, terminalArgs);
+                List<Selector> remainingSelectors = new ArrayList<>(argSelectors.size() - terminalCount);
+                for (Selector selector : argSelectors)
+                {
+                    if (!selector.isTerminal())
+                        remainingSelectors.add(selector);
+                }
+                return new ScalarFunctionSelector(partialFunction, remainingSelectors);
             }
 
             public boolean isWritetimeSelectorFactory()

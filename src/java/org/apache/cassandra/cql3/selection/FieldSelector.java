@@ -104,6 +104,12 @@ final class FieldSelector extends Selector
     }
 
     @Override
+    public boolean isTerminal()
+    {
+        return selected.isTerminal();
+    }
+
+    @Override
     public String toString()
     {
         return String.format("%s.%s", selected, type.fieldName(field));

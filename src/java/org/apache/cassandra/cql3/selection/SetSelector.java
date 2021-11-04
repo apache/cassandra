@@ -92,6 +92,17 @@ final class SetSelector extends Selector
             elements.get(i).reset();
     }
 
+    @Override
+    public boolean isTerminal()
+    {
+        for (int i = 0, m = elements.size(); i < m; i++)
+        {
+            if(!elements.get(i).isTerminal())
+                return false;
+        }
+        return true;
+    }
+
     public AbstractType<?> getType()
     {
         return type;

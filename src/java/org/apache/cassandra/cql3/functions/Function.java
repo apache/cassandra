@@ -29,6 +29,15 @@ import org.github.jamm.Unmetered;
 @Unmetered
 public interface Function extends AssignmentTestable
 {
+    /**
+     * A marker buffer used to represent function parameters that cannot be resolved at some stage of CQL processing.
+     * This is used for partial function application in particular.
+     *
+     * @see ScalarFunction#partialApplication(ProtocolVersion, List)
+     * @see Selector.Factory#maybeResolve
+     */
+    public static final ByteBuffer UNRESOLVED = ByteBuffer.allocate(0);
+
     public FunctionName name();
     public List<AbstractType<?>> argTypes();
     public AbstractType<?> returnType();

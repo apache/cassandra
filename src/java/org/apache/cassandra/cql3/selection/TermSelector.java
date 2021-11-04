@@ -74,7 +74,7 @@ public class TermSelector extends Selector
         };
     }
 
-    private TermSelector(ByteBuffer value, AbstractType<?> type)
+    TermSelector(ByteBuffer value, AbstractType<?> type)
     {
         this.value = value;
         this.type = type;
@@ -100,5 +100,11 @@ public class TermSelector extends Selector
 
     public void reset()
     {
+    }
+
+    @Override
+    public boolean isTerminal()
+    {
+        return true;
     }
 }

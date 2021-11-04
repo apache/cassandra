@@ -228,6 +228,12 @@ abstract class ElementsSelector extends Selector
         selected.reset();
     }
 
+    @Override
+    public boolean isTerminal()
+    {
+        return selected.isTerminal();
+    }
+
     private static class ElementSelector extends ElementsSelector
     {
         private final CollectionType<?> type;

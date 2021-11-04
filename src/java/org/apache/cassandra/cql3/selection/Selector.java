@@ -211,4 +211,14 @@ public abstract class Selector
      * Reset the internal state of this <code>Selector</code>.
      */
     public abstract void reset();
+
+    /**
+     * A selector is terminal if it doesn't require any input for it's output to be computed, i.e. if {@link #getOutput}
+     * result doesn't depend of {@link #addInput}. This is typically the case of a constant value or functions on constant
+     * values.
+     */
+    public boolean isTerminal()
+    {
+        return false;
+    }
 }
