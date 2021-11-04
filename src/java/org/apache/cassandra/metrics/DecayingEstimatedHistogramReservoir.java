@@ -439,7 +439,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      * The decaying buckets will be used for quantile calculations and mean values, but the non decaying buckets will be
      * exposed for calls to {@link Snapshot#getValues()}.
      */
-    static class EstimatedHistogramReservoirSnapshot extends Snapshot
+    public static class EstimatedHistogramReservoirSnapshot extends Snapshot
     {
         private final long[] decayingBuckets;
         private final long[] values;
@@ -508,6 +508,11 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public long[] getValues()
         {
             return values;
+        }
+
+        public long[] getOffsets()
+        {
+            return bucketOffsets;
         }
 
         /**
