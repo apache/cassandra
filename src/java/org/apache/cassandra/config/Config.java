@@ -227,14 +227,11 @@ public class Config
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
     public Integer native_transport_port_ssl = null;
-    @Replaces(oldName = "native_transport_max_threads", deprecated = true)
-    public int max_native_transport_threads = 128;
+    public int native_transport_max_threads = 128;
     @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
-    public DataStorage max_native_transport_frame_size = new DataStorage("16MB");
-    @Replaces(oldName = "native_transport_max_concurrent_connections", deprecated = true)
-    public volatile long max_native_transport_concurrent_connections = -1L;
-    @Replaces(oldName = "native_transport_max_concurrent_connections_per_ip", deprecated = true)
-    public volatile long max_native_transport_concurrent_connections_per_ip = -1L;
+    public DataStorage native_transport_max_frame_size = new DataStorage("16MB");
+    public volatile long native_transport_max_concurrent_connections = -1L;
+    public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
