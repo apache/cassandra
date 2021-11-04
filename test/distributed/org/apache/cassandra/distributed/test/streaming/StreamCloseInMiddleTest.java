@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -34,7 +35,6 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.streaming.CassandraIncomingFile;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogResult;
@@ -97,10 +97,24 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
 
     private void assertNoNodeShutdown(Cluster cluster)
     {
-        cluster.forEach(i -> {
-            Assertions.assertThat(i.isShutdown()).describedAs("%s was shutdown; this is not expected", i).isFalse();
-            Assertions.assertThat(i.killAttempts()).describedAs("%s saw kill attempts; this is not expected", i).isEqualTo(0);
-        });
+        AssertionError t = null;
+        for (IInvokableInstance i : cluster.stream().collect(Collectors.toList()))
+        {
+            try
+            {
+                Assertions.assertThat(i.isShutdown()).describedAs("%s was shutdown; this is not expected", i).isFalse();
+                Assertions.assertThat(i.killAttempts()).describedAs("%s saw kill attempts; this is not expected", i).isEqualTo(0);
+            }
+            catch (AssertionError t2)
+            {
+                if (t == null)
+                    t = t2;
+                else
+                    t.addSuppressed(t2);
+            }
+        }
+        if (t != null)
+            throw t;
     }
 
     private static void triggerStreaming(Cluster cluster, boolean expectedEntireSSTable)
