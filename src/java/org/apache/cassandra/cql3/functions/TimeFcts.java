@@ -65,6 +65,12 @@ public abstract class TimeFcts
             {
                 return type.now();
             }
+
+            @Override
+            public boolean isPure()
+            {
+                return false;
+            }
         };
     };
 
