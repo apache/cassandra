@@ -40,11 +40,10 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
-import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -57,7 +56,6 @@ import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
-import static org.apache.cassandra.config.DatabaseDescriptor.getStreamingKeepAlivePeriod;
 import static org.apache.cassandra.streaming.StreamSession.createLogTag;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serialize;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serializedSize;

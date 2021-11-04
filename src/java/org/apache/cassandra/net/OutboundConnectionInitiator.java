@@ -24,8 +24,8 @@ import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.Future; //checkstyle: permit this import
+import io.netty.util.concurrent.Promise; //checkstyle: permit this import
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;

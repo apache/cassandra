@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.FutureCallback;
 
-import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import io.netty.util.concurrent.GenericFutureListener;
 
 /**

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.net;
 
-import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Future; //checkstyle: permit this import
 
 /**
  * An abstraction for yielding a result performed by an asynchronous task,

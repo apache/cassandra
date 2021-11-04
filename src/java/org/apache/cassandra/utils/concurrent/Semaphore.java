@@ -252,7 +252,7 @@ public interface Semaphore
 
         public FairJDK(int permits)
         {
-            wrapped = new java.util.concurrent.Semaphore(permits, true);
+            wrapped = new java.util.concurrent.Semaphore(permits, true); // checkstyle: permit this instantiation
         }
 
         /**

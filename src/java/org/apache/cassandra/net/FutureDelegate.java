@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import io.netty.util.concurrent.GenericFutureListener;
 
 /**

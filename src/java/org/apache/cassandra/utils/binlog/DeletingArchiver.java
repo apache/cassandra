@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
+import java.io.File; // checkstyle: permit this import
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 

@@ -29,6 +29,7 @@
   </module>
 
   <!-- https://checkstyle.org/config_filters.html#SuppressionFilter -->
+  <!-- this exists only because for some reason the comment filter does not seem to work for Semaphore -->
   <module name="SuppressionFilter">
     <property name="file" value="${checkstyle.suppressions}"
               default="checkstyle-suppressions.xml" />
@@ -36,7 +37,24 @@
   </module>
 
   <module name="TreeWalker">
-
+    <module name="SuppressWithNearbyCommentFilter">
+       <property name="commentFormat" value="checkstyle: permit this import"/>
+       <property name="checkFormat" value="IllegalImport"/>
+       <property name="influenceFormat" value="0"/>
+    </module>
+ 
+    <module name="SuppressWithNearbyCommentFilter">
+       <property name="commentFormat" value="checkstyle: permit this instantiation"/>
+       <property name="checkFormat" value="IllegalInstantiation"/>
+       <property name="influenceFormat" value="0"/>
+    </module>
+ 
+    <module name="SuppressWithNearbyCommentFilter">
+       <property name="commentFormat" value="checkstyle: permit system clock"/>
+       <property name="checkFormat" value="RegexpSinglelineJava"/>
+       <property name="influenceFormat" value="0"/>
+    </module>
+ 
     <module name="RegexpSinglelineJava">
       <!-- To prevent static imports and System.nanoTime or System.currentTimeMillis -->
       <property name="format" value="(newSingleThreadExecutor|newFixedThreadPool|newCachedThreadPool|newSingleThreadScheduledExecutor|newWorkStealingPool|newScheduledThreadPool|defaultThreadFactory)\(|System\.(currentTimeMillis|nanoTime)"/>
@@ -44,7 +62,7 @@
     </module>
     <module name="IllegalImport">
       <property name="illegalPkgs" value=""/>
-      <property name="illegalClasses" value="java.io.File,java.io.FileInputStream,java.io.FileOutputStream,java.io.FileReader,java.io.FileWriter,java.io.RandomAccessFile,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.Executors,java.util.concurrent.LinkedBlockingQueue,java.util.concurrent.SynchronousQueue,java.util.concurrent.ArrayBlockingQueue,com.google.common.util.concurrent.Futures,java.util.concurrent.CompletableFuture"/>
+      <property name="illegalClasses" value="java.io.File,java.io.FileInputStream,java.io.FileOutputStream,java.io.FileReader,java.io.FileWriter,java.io.RandomAccessFile,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.Executors,java.util.concurrent.LinkedBlockingQueue,java.util.concurrent.SynchronousQueue,java.util.concurrent.ArrayBlockingQueue,com.google.common.util.concurrent.Futures,java.util.concurrent.CompletableFuture,io.netty.util.concurrent.Future,io.netty.util.concurrent.Promise,io.netty.util.concurrent.AbstractFuture,com.google.common.util.concurrent.ListenableFutureTask,com.google.common.util.concurrent.ListenableFuture,com.google.common.util.concurrent.AbstractFuture"/>
     </module>
     <module name="IllegalInstantiation">
       <property name="classes" value="java.io.File,java.lang.Thread,java.util.concurrent.FutureTask,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.ScheduledThreadPoolExecutor,java.util.concurrent.ThreadPoolExecutor,java.util.concurrent.ForkJoinPool))"/>
