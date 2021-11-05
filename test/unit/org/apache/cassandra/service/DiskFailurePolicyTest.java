@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,7 +37,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.JVMKiller;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -55,7 +56,7 @@ import static org.junit.Assert.assertTrue;
 public class DiskFailurePolicyTest
 {
     DiskFailurePolicy originalDiskFailurePolicy;
-    JVMStabilityInspector.Killer originalKiller;
+    JVMKiller originalKiller;
     KillerForTests killerForTests;
     DiskFailurePolicy testPolicy;
     boolean isStartUpInProgress;
@@ -118,6 +119,7 @@ public class DiskFailurePolicyTest
             daemon.completeSetup(); //mark startup completed
         StorageService.instance.registerDaemon(daemon);
         killerForTests = new KillerForTests();
+        JVMKiller x = JVMStabilityInspector.replaceKiller(killerForTests);
         originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         originalDiskFailurePolicy = DatabaseDescriptor.getDiskFailurePolicy();
         StorageService.instance.startGossiping();
@@ -145,11 +147,11 @@ public class DiskFailurePolicyTest
                 throw e;
         }
 
-        if (testPolicy == best_effort && ((FSReadError) t).path.getName().equals("best_effort_io_exception"))
+        if (testPolicy == best_effort && ((FSReadError) t).file.name().equals("best_effort_io_exception"))
             assertTrue(DisallowedDirectories.isUnreadable(new File("best_effort_io_exception")));
 
         // when we have OOM, as cause, there is no reason to remove data
-        if (testPolicy == best_effort && ((FSReadError) t).path.getName().equals("best_effort_oom"))
+        if (testPolicy == best_effort && ((FSReadError) t).file.name().equals("best_effort_oom"))
             assertFalse(DisallowedDirectories.isUnreadable(new File("best_effort_oom")));
 
         assertEquals(expectJVMKilled, killerForTests.wasKilled());

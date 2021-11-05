@@ -599,7 +599,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
-                    StorageService.instance.removeShutdownHook();
+                    JVMStabilityInspector.removeShutdownHooks();
                     Gossiper.waitToSettle();
                 }
                 else
@@ -802,7 +802,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
-                StorageService.instance.shutdownServer();
+                JVMStabilityInspector.removeShutdownHooks();
             }
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);

@@ -40,7 +40,7 @@ public class KillerForTests extends JVMStabilityInspector.Killer
     }
 
     @Override
-    protected void killCurrentJVM(Throwable t, boolean quiet)
+    public void killJVM(Throwable t, boolean quiet)
     {
         if (!expected)
             Assert.fail("Saw JVM Kill but did not expect it.");

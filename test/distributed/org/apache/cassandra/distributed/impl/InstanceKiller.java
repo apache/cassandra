@@ -37,7 +37,7 @@ public class InstanceKiller extends JVMStabilityInspector.Killer
     }
 
     @Override
-    protected void killCurrentJVM(Throwable t, boolean quiet)
+    public void killJVM(Throwable t, boolean quiet)
     {
         KILL_ATTEMPTS.incrementAndGet();
         // the bad part is that System.exit kills the JVM, so all code which calls kill won't hit the
