@@ -36,28 +36,36 @@ import static org.junit.Assert.assertEquals;
  * - ViewComplexTest
  * - ViewComplexLivenessTest
  */
-public class ViewComplexLivenessTest extends ViewComplexTester
+public class ViewComplexLivenessTest extends ViewAbstractParameterizedTest
 {
     @Test
-    public void testUnselectedColumnWithExpiredLivenessInfo() throws Throwable
+    public void testUnselectedColumnWithExpiredLivenessInfoWithFlush() throws Throwable
     {
-        boolean flush = true;
+        testUnselectedColumnWithExpiredLivenessInfo(true);
+    }
+
+    @Test
+    public void testUnselectedColumnWithExpiredLivenessInfoWithoutFlush() throws Throwable
+    {
+        testUnselectedColumnWithExpiredLivenessInfo(false);
+    }
+
+    private void testUnselectedColumnWithExpiredLivenessInfo(boolean flush) throws Throwable
+    {
         createTable("create table %s (k int, c int, a int, b int, PRIMARY KEY(k, c))");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String name = createView("create materialized view %s as select k,c,b from %%s " +
-                                 "where c is not null and k is not null primary key (c, k)");
-        ks.getColumnFamilyStore(name).disableAutoCompaction();
+        createView("create materialized view %s as select k,c,b from %s " +
+                   "where c is not null and k is not null primary key (c, k)");
+        ks.getColumnFamilyStore(currentView()).disableAutoCompaction();
 
         // sstable-1, Set initial values TS=1
         updateViewWithFlush("UPDATE %s SET a = 1 WHERE k = 1 AND c = 1;", flush);
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, 1, null));
-        assertRowsIgnoringOrder(execute("SELECT k,c,b from " + name + " WHERE k = 1 AND c = 1;"),
+        assertRowsIgnoringOrder(executeView("SELECT k,c,b from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, null));
 
         // sstable-2
@@ -65,28 +73,28 @@ public class ViewComplexLivenessTest extends ViewComplexTester
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, 1, null));
-        assertRowsIgnoringOrder(execute("SELECT k,c,b from " + name + " WHERE k = 1 AND c = 1;"),
+        assertRowsIgnoringOrder(executeView("SELECT k,c,b from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, null));
 
         Thread.sleep(5001);
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, 1, null));
-        assertRowsIgnoringOrder(execute("SELECT k,c,b from " + name + " WHERE k = 1 AND c = 1;"),
+        assertRowsIgnoringOrder(executeView("SELECT k,c,b from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, null));
 
         // sstable-3
         updateViewWithFlush("Update %s set a = null where k = 1 AND c = 1;", flush);
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE k = 1 AND c = 1;"));
-        assertRowsIgnoringOrder(execute("SELECT k,c,b from " + name + " WHERE k = 1 AND c = 1;"));
+        assertRowsIgnoringOrder(executeView("SELECT k,c,b from %s WHERE k = 1 AND c = 1;"));
 
         // sstable-4
         updateViewWithFlush("Update %s USING TIMESTAMP 1 set b = 1 where k = 1 AND c = 1;", flush);
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, null, 1));
-        assertRowsIgnoringOrder(execute("SELECT k,c,b from " + name + " WHERE k = 1 AND c = 1;"),
+        assertRowsIgnoringOrder(executeView("SELECT k,c,b from %s WHERE k = 1 AND c = 1;"),
                                 row(1, 1, 1));
     }
 
@@ -108,13 +116,11 @@ public class ViewComplexLivenessTest extends ViewComplexTester
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int);");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s " +
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
                                 "WHERE k IS NOT NULL AND a IS NOT NULL PRIMARY KEY (k, a)");
-        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s " +
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
                                 "WHERE k IS NOT NULL AND a IS NOT NULL PRIMARY KEY (a, k)");
         ks.getColumnFamilyStore(mv1).disableAutoCompaction();
         ks.getColumnFamilyStore(mv2).disableAutoCompaction();
@@ -128,6 +134,7 @@ public class ViewComplexLivenessTest extends ViewComplexTester
             // create expired liveness
             updateView("DELETE a FROM %s WHERE k = ?;", i);
         }
+
         if (flush)
         {
             ks.getColumnFamilyStore(mv1).forceBlockingFlush();
@@ -137,10 +144,10 @@ public class ViewComplexLivenessTest extends ViewComplexTester
         for (String view : Arrays.asList(mv1, mv2))
         {
             // paging
-            assertEquals(1, executeNetWithPaging(version, String.format("SELECT k,a,b FROM %s limit 1", view), 1).all().size());
-            assertEquals(2, executeNetWithPaging(version, String.format("SELECT k,a,b FROM %s limit 2", view), 1).all().size());
-            assertEquals(2, executeNetWithPaging(version, String.format("SELECT k,a,b FROM %s", view), 1).all().size());
-            assertRowsNet(version, executeNetWithPaging(version, String.format("SELECT k,a,b FROM %s ", view), 1),
+            assertEquals(1, executeNetWithPaging(String.format("SELECT k,a,b FROM %s limit 1", view), 1).all().size());
+            assertEquals(2, executeNetWithPaging(String.format("SELECT k,a,b FROM %s limit 2", view), 1).all().size());
+            assertEquals(2, executeNetWithPaging(String.format("SELECT k,a,b FROM %s", view), 1).all().size());
+            assertRowsNet(executeNetWithPaging(String.format("SELECT k,a,b FROM %s ", view), 1),
                           row(50, 50, 50),
                           row(100, 100, 100));
             // limit
@@ -156,22 +163,20 @@ public class ViewComplexLivenessTest extends ViewComplexTester
     {
         createTable("create table %s (p int primary key, v1 int, v2 int)");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String name = createView("create materialized view %s as select * from %%s " +
-                                 "where p is not null and v1 is not null primary key (v1, p) " +
-                                 "with gc_grace_seconds=5");
-        ColumnFamilyStore cfs = ks.getColumnFamilyStore(name);
+        createView("create materialized view %s as select * from %s " +
+                   "where p is not null and v1 is not null primary key (v1, p) " +
+                   "with gc_grace_seconds=5");
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(currentView());
         cfs.disableAutoCompaction();
 
         updateView("Insert into %s (p, v1, v2) values (1, 1, 1)");
-        assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name), row(1, 1, 1));
+        assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"), row(1, 1, 1));
 
         updateView("Update %s set v1 = null WHERE p = 1");
         FBUtilities.waitOnFutures(ks.flush());
-        assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name));
+        assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"));
 
         cfs.forceMajorCompaction(); // before gc grace second, strict-liveness tombstoned dead row remains
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -184,16 +189,16 @@ public class ViewComplexLivenessTest extends ViewComplexTester
 
         updateView("Update %s using ttl 5 set v1 = 1 WHERE p = 1");
         FBUtilities.waitOnFutures(ks.flush());
-        assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name), row(1, 1, 1));
+        assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"), row(1, 1, 1));
 
         cfs.forceMajorCompaction(); // before ttl+gc_grace_second, strict-liveness ttled dead row remains
         assertEquals(1, cfs.getLiveSSTables().size());
-        assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name), row(1, 1, 1));
+        assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"), row(1, 1, 1));
 
         Thread.sleep(5500); // after expired, before gc_grace_second
         cfs.forceMajorCompaction();// before ttl+gc_grace_second, strict-liveness ttled dead row remains
         assertEquals(1, cfs.getLiveSSTables().size());
-        assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name));
+        assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"));
 
         Thread.sleep(5500); // after expired + gc_grace_second
         assertEquals(1, cfs.getLiveSSTables().size()); // no auto compaction.

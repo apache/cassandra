@@ -22,122 +22,55 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.Assert;
-
-import com.datastax.driver.core.exceptions.OperationTimedOutException;
-import org.apache.cassandra.concurrent.SEPExecutor;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SchemaCQLHelper;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.serializers.SimpleDateSerializer;
-import org.apache.cassandra.serializers.TimeSerializer;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SchemaCQLHelper;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.serializers.SimpleDateSerializer;
+import org.apache.cassandra.serializers.TimeSerializer;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertTrue;
 
-
-public class ViewSchemaTest extends CQLTester
+public class ViewSchemaTest extends ViewAbstractTest
 {
-    ProtocolVersion protocolVersion = ProtocolVersion.V4;
-    private final List<String> views = new ArrayList<>();
-
-    @BeforeClass
-    public static void startup()
-    {
-        requireNetwork();
-    }
-    @Before
-    public void begin()
-    {
-        views.clear();
-    }
-
-    @After
-    public void end() throws Throwable
-    {
-        for (String viewName : views)
-            executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + viewName);
-    }
-
-    private void createView(String name, String query) throws Throwable
-    {
-        try
-        {
-            executeNet(protocolVersion, String.format(query, name));
-            // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
-            // the desired behavior
-            views.add(name);
-        }
-        catch (OperationTimedOutException ex)
-        {
-            // ... except for timeout, when we actually do not know whether the view was created or not
-            views.add(name);
-            throw ex;
-        }
-    }
-
-    private void updateView(String query, Object... params) throws Throwable
-    {
-        executeNet(protocolVersion, query, params);
-        while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
-                 && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
-        {
-            Thread.sleep(1);
-        }
-    }
-
     @Test
     public void testCaseSensitivity() throws Throwable
     {
         createTable("CREATE TABLE %s (\"theKey\" int, \"theClustering\" int, \"theValue\" int, PRIMARY KEY (\"theKey\", \"theClustering\"))");
 
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
         execute("INSERT INTO %s (\"theKey\", \"theClustering\", \"theValue\") VALUES (?, ?, ?)", 0, 0, 0);
 
-        createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s " +
-                              "WHERE \"theKey\" IS NOT NULL AND \"theClustering\" IS NOT NULL AND \"theValue\" IS NOT NULL " +
-                              "PRIMARY KEY (\"theKey\", \"theClustering\")");
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                "WHERE \"theKey\" IS NOT NULL AND \"theClustering\" IS NOT NULL AND \"theValue\" IS NOT NULL " +
+                                "PRIMARY KEY (\"theKey\", \"theClustering\")");
 
-        while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test"))
-            Thread.sleep(10);
-        createView("mv_test2", "CREATE MATERIALIZED VIEW %s AS SELECT \"theKey\", \"theClustering\", \"theValue\" FROM %%s " +
-                               "WHERE \"theKey\" IS NOT NULL AND \"theClustering\" IS NOT NULL AND \"theValue\" IS NOT NULL " +
-                               "PRIMARY KEY (\"theKey\", \"theClustering\")");
-        while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test2"))
-            Thread.sleep(10);
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT \"theKey\", \"theClustering\", \"theValue\" FROM %s " +
+                                "WHERE \"theKey\" IS NOT NULL AND \"theClustering\" IS NOT NULL AND \"theValue\" IS NOT NULL " +
+                                "PRIMARY KEY (\"theKey\", \"theClustering\")");
 
-        for (String mvname : Arrays.asList("mv_test", "mv_test2"))
+        for (String mvname : Arrays.asList(mv1, mv2))
         {
             assertRows(execute("SELECT \"theKey\", \"theClustering\", \"theValue\" FROM " + mvname),
-               row(0, 0, 0)
-            );
+                       row(0, 0, 0));
         }
 
-        executeNet(protocolVersion, "ALTER TABLE %s RENAME \"theClustering\" TO \"Col\"");
+        executeNet("ALTER TABLE %s RENAME \"theClustering\" TO \"Col\"");
 
-        for (String mvname : Arrays.asList("mv_test", "mv_test2"))
+        for (String mvname : Arrays.asList(mv1, mv2))
         {
             assertRows(execute("SELECT \"theKey\", \"Col\", \"theValue\" FROM " + mvname),
                        row(0, 0, 0)
@@ -154,54 +87,56 @@ public class ViewSchemaTest extends CQLTester
                     "bigintval bigint, " +
                     "PRIMARY KEY((k, asciival)))");
 
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
-        createView("mv1_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE bigintval IS NOT NULL AND k IS NOT NULL AND asciival IS NOT NULL PRIMARY KEY (bigintval, k, asciival)");
+        createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                   "WHERE bigintval IS NOT NULL AND k IS NOT NULL AND asciival IS NOT NULL " +
+                   "PRIMARY KEY (bigintval, k, asciival)");
         updateView("INSERT INTO %s(k,asciival,bigintval)VALUES(?,?,?)", 0, "foo", 1L);
 
         try
         {
-            updateView("INSERT INTO mv1_test(k,asciival,bigintval) VALUES(?,?,?)", 1, "foo", 2L);
+            updateView("INSERT INTO " + currentView() + "(k,asciival,bigintval) VALUES(?,?,?)", 1, "foo", 2L);
             Assert.fail("Shouldn't be able to modify a MV directly");
         }
-        catch (Exception e)
+        catch (InvalidQueryException e)
         {
+            Assertions.assertThat(e.getMessage()).contains("Cannot directly modify a materialized view");
         }
 
         try
         {
-            executeNet(protocolVersion, "ALTER TABLE mv1_test ADD foo text");
+            executeViewNet("ALTER TABLE %s ADD foo text");
             Assert.fail("Should not be able to use alter table with MV");
         }
-        catch (Exception e)
+        catch (InvalidQueryException e)
         {
+            Assertions.assertThat(e.getMessage()).contains("Cannot use ALTER TABLE on a materialized view");
         }
 
         try
         {
-            executeNet(protocolVersion, "ALTER TABLE mv1_test WITH compaction = { 'class' : 'LeveledCompactionStrategy' }");
+            executeViewNet("ALTER TABLE %s WITH compaction = { 'class' : 'LeveledCompactionStrategy' }");
             Assert.fail("Should not be able to use alter table with MV");
         }
-        catch (Exception e)
+        catch (InvalidQueryException e)
         {
+            Assertions.assertThat(e.getMessage()).contains("Cannot use ALTER TABLE on a materialized view");
         }
 
-        executeNet(protocolVersion, "ALTER MATERIALIZED VIEW mv1_test WITH compaction = { 'class' : 'LeveledCompactionStrategy' }");
+        executeViewNet("ALTER MATERIALIZED VIEW %s WITH compaction = { 'class' : 'LeveledCompactionStrategy' }");
 
         //Test alter add
-        executeNet(protocolVersion, "ALTER TABLE %s ADD foo text");
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        executeNet("ALTER TABLE %s ADD foo text");
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentView());
         Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("foo")));
 
         updateView("INSERT INTO %s(k,asciival,bigintval,foo)VALUES(?,?,?,?)", 0, "foo", 1L, "bar");
         assertRows(execute("SELECT foo from %s"), row("bar"));
 
         //Test alter rename
-        executeNet(protocolVersion, "ALTER TABLE %s RENAME asciival TO bar");
+        executeNet("ALTER TABLE %s RENAME asciival TO bar");
 
         assertRows(execute("SELECT bar from %s"), row("foo"));
-        metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        metadata = Schema.instance.getTableMetadata(keyspace(), currentView());
         Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("bar")));
     }
 
@@ -209,36 +144,33 @@ public class ViewSchemaTest extends CQLTester
     @Test
     public void testTwoTablesOneView() throws Throwable
     {
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
         createTable("CREATE TABLE " + keyspace() + ".dummy_table (" +
-                "j int, " +
-                "intval int, " +
-                "PRIMARY KEY (j))");
+                    "j int, " +
+                    "intval int, " +
+                    "PRIMARY KEY (j))");
 
         createTable("CREATE TABLE " + keyspace() + ".real_base (" +
-                "k int, " +
-                "intval int, " +
-                "PRIMARY KEY (k))");
+                    "k int, " +
+                    "intval int, " +
+                    "PRIMARY KEY (k))");
 
-        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace() + ".real_base WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
-        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace() + ".dummy_table WHERE j IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, j)");
+        String mv = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace() + ".real_base WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
+        createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace() + ".dummy_table WHERE j IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, j)");
 
         updateView("INSERT INTO " + keyspace() + ".real_base (k, intval) VALUES (?, ?)", 0, 0);
         assertRows(execute("SELECT k, intval FROM " + keyspace() + ".real_base WHERE k = ?", 0), row(0, 0));
-        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 0), row(0, 0));
+        assertRows(execute("SELECT k, intval from " + mv + " WHERE intval = ?", 0), row(0, 0));
 
         updateView("INSERT INTO " + keyspace() + ".real_base (k, intval) VALUES (?, ?)", 0, 1);
         assertRows(execute("SELECT k, intval FROM " + keyspace() + ".real_base WHERE k = ?", 0), row(0, 1));
-        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+        assertRows(execute("SELECT k, intval from " + mv + " WHERE intval = ?", 1), row(0, 1));
 
         assertRows(execute("SELECT k, intval FROM " + keyspace() + ".real_base WHERE k = ?", 0), row(0, 1));
-        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+        assertRows(execute("SELECT k, intval from " + mv + " WHERE intval = ?", 1), row(0, 1));
 
-        updateView("INSERT INTO " + keyspace() +".dummy_table (j, intval) VALUES(?, ?)", 0, 1);
+        updateView("INSERT INTO " + keyspace() + ".dummy_table (j, intval) VALUES(?, ?)", 0, 1);
         assertRows(execute("SELECT j, intval FROM " + keyspace() + ".dummy_table WHERE j = ?", 0), row(0, 1));
-        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+        assertRows(execute("SELECT k, intval from " + mv + " WHERE intval = ?", 1), row(0, 1));
     }
 
     @Test
@@ -249,23 +181,23 @@ public class ViewSchemaTest extends CQLTester
                     "intval int, " +
                     "PRIMARY KEY (k))");
 
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
-        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
+        String view = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                 "WHERE k IS NOT NULL AND intval IS NOT NULL " +
+                                 "PRIMARY KEY (intval, k)");
 
         updateView("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, 0);
         assertRows(execute("SELECT k, intval FROM %s WHERE k = ?", 0), row(0, 0));
-        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 0), row(0, 0));
+        assertRows(executeView("SELECT k, intval from %s WHERE intval = ?", 0), row(0, 0));
 
-        executeNet(protocolVersion, "DROP MATERIALIZED VIEW mv");
-        views.remove("mv");
+        executeNet("DROP MATERIALIZED VIEW " + view);
 
-        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
+        createView(view, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                         "WHERE k IS NOT NULL AND intval IS NOT NULL " +
+                         "PRIMARY KEY (intval, k)");
 
         updateView("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, 1);
         assertRows(execute("SELECT k, intval FROM %s WHERE k = ?", 0), row(0, 1));
-        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+        assertRows(executeView("SELECT k, intval from %s WHERE intval = ?", 1), row(0, 1));
     }
 
     @Test
@@ -303,14 +235,11 @@ public class ViewSchemaTest extends CQLTester
 
         TableMetadata metadata = currentTableMetadata();
 
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
         for (ColumnMetadata def : new HashSet<>(metadata.columns()))
         {
             try
             {
-                createView("mv_" + def.name, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE " + def.name + " IS NOT NULL AND k IS NOT NULL PRIMARY KEY (" + def.name + ",k)");
+                createView("mv_" + def.name, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE " + def.name + " IS NOT NULL AND k IS NOT NULL PRIMARY KEY (" + def.name + ",k)");
 
                 if (def.type.isMultiCell())
                     Assert.fail("MV on a multicell should fail " + def);
@@ -318,7 +247,7 @@ public class ViewSchemaTest extends CQLTester
                 if (def.isPartitionKey())
                     Assert.fail("MV on partition key should fail " + def);
             }
-            catch (InvalidQueryException e)
+            catch (Exception e)
             {
                 if (!def.type.isMultiCell() && !def.isPartitionKey())
                     Assert.fail("MV creation failed on " + def);
@@ -678,20 +607,19 @@ public class ViewSchemaTest extends CQLTester
     public void testDropTableWithMV() throws Throwable
     {
         createTable("CREATE TABLE %s (" +
-                "a int," +
-                "b int," +
-                "c int," +
-                "d int," +
-                "PRIMARY KEY (a, b, c))");
+                    "a int," +
+                    "b int," +
+                    "c int," +
+                    "d int," +
+                    "PRIMARY KEY (a, b, c))");
 
-        executeNet(protocolVersion, "USE " + keyspace());
+        executeNet("USE " + keyspace());
 
-        createView(keyspace() + ".mv1",
-                   "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
+        String mv = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
 
         try
         {
-            executeNet(protocolVersion, "DROP TABLE " + keyspace() + ".mv1");
+            executeNet("DROP TABLE " + keyspace() + '.' + mv);
             Assert.fail();
         }
         catch (InvalidQueryException e)
@@ -707,21 +635,18 @@ public class ViewSchemaTest extends CQLTester
         // format changes.
         createTable("CREATE TABLE %s ( a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
 
-        executeNet(protocolVersion, "USE " + keyspace());
+        executeNet("USE " + keyspace());
 
         assertInvalidMessage("Non-primary key columns can only be restricted with 'IS NOT NULL'",
                              "CREATE MATERIALIZED VIEW " + keyspace() + ".mv AS SELECT * FROM %s "
-                                     + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "
-                                     + "AND d = 1 PRIMARY KEY (c, b, a)");
+                             + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "
+                             + "AND d = 1 PRIMARY KEY (c, b, a)");
     }
 
     @Test
     public void testViewTokenRestrictions() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY(a))");
-
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
 
         execute("INSERT into %s (a,b,c,d) VALUES (?,?,?,?)", 1, 2, 3, 4);
 
@@ -740,11 +665,8 @@ public class ViewSchemaTest extends CQLTester
                     "v int, " +
                     "PRIMARY KEY (pk, c1, c2, c3))");
 
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
-        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 DESC, c1 ASC, c3 ASC)");
-        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 ASC, c1 DESC, c3 DESC)");
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 DESC, c1 ASC, c3 ASC)");
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 ASC, c1 DESC, c3 DESC)");
 
         updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 0, 0);
         updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 1, 1);
@@ -767,7 +689,7 @@ public class ViewSchemaTest extends CQLTester
                    row(0, 1, 2, 1, 7),
                    row(0, 2, 1, 1, 8));
 
-        assertRows(execute("SELECT * FROM mv1 WHERE pk = ?", 0),
+        assertRows(execute("SELECT * FROM " + mv1 + " WHERE pk = ?", 0),
                    row(0, 2, 1, 1, 7),
                    row(0, 1, 0, 0, 3),
                    row(0, 1, 0, 1, 4),
@@ -778,7 +700,7 @@ public class ViewSchemaTest extends CQLTester
                    row(0, 0, 0, 1, 1),
                    row(0, 0, 0, 2, 2));
 
-        assertRows(execute("SELECT * FROM mv2 WHERE pk = ?", 0),
+        assertRows(execute("SELECT * FROM " + mv2 + " WHERE pk = ?", 0),
                    row(0, 0, 0, 2, 2),
                    row(0, 0, 0, 1, 1),
                    row(0, 0, 0, 0, 0),
@@ -801,12 +723,9 @@ public class ViewSchemaTest extends CQLTester
                     "v int, " +
                     "PRIMARY KEY (pk, c1, c2, c3)) WITH CLUSTERING ORDER BY (c1 DESC, c2 ASC, c3 DESC)");
 
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
-        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3)");
-        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 DESC, c1 ASC, c3 ASC)");
-        createView("mv3", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 ASC, c1 DESC, c3 DESC)");
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3)");
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 DESC, c1 ASC, c3 ASC)");
+        String mv3 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE pk IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL and c3 IS NOT NULL PRIMARY KEY (pk, c2, c1, c3) WITH CLUSTERING ORDER BY (c2 ASC, c1 DESC, c3 DESC)");
 
         updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 0, 0);
         updateView("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 0, 0, 0, 1, 1);
@@ -827,9 +746,9 @@ public class ViewSchemaTest extends CQLTester
                    row(0, 0, 0, 0, 0),
                    row(0, 0, 1, 2, 5),
                    row(0, 0, 1, 1, 4),
-                  row(0, 0, 1, 0, 3));
+                   row(0, 0, 1, 0, 3));
 
-        assertRows(execute("SELECT * FROM mv1 WHERE pk = ?", 0),
+        assertRows(execute("SELECT * FROM " + mv1 + " WHERE pk = ?", 0),
                    row(0, 0, 0, 2, 2),
                    row(0, 0, 0, 1, 1),
                    row(0, 0, 0, 0, 0),
@@ -840,7 +759,7 @@ public class ViewSchemaTest extends CQLTester
                    row(0, 1, 0, 0, 3),
                    row(0, 2, 1, 1, 7));
 
-        assertRows(execute("SELECT * FROM mv2 WHERE pk = ?", 0),
+        assertRows(execute("SELECT * FROM " + mv2 + " WHERE pk = ?", 0),
                    row(0, 2, 1, 1, 7),
                    row(0, 1, 0, 0, 3),
                    row(0, 1, 0, 1, 4),
@@ -851,7 +770,7 @@ public class ViewSchemaTest extends CQLTester
                    row(0, 0, 0, 1, 1),
                    row(0, 0, 0, 2, 2));
 
-        assertRows(execute("SELECT * FROM mv3 WHERE pk = ?", 0),
+        assertRows(execute("SELECT * FROM " + mv3 + " WHERE pk = ?", 0),
                    row(0, 0, 0, 2, 2),
                    row(0, 0, 0, 1, 1),
                    row(0, 0, 0, 0, 0),
@@ -864,7 +783,7 @@ public class ViewSchemaTest extends CQLTester
     }
 
     @Test
-    public void testViewMetadataCQLNotIncludeAllColumn() throws Throwable
+    public void testViewMetadataCQLNotIncludeAllColumn()
     {
         String createBase = "CREATE TABLE IF NOT EXISTS %s (" +
                             "pk1 int," +
@@ -877,7 +796,7 @@ public class ViewSchemaTest extends CQLTester
                             "PRIMARY KEY ((pk1, pk2), ck1, ck2)) WITH " +
                             "CLUSTERING ORDER BY (ck1 ASC, ck2 ASC);";
 
-        String createView = "CREATE MATERIALIZED VIEW IF NOT EXISTS %s AS SELECT pk1, pk2, ck1, ck2, reg1, reg2 FROM %%s "
+        String createView = "CREATE MATERIALIZED VIEW IF NOT EXISTS %s AS SELECT pk1, pk2, ck1, ck2, reg1, reg2 FROM %s "
                             + "WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL PRIMARY KEY((pk2, pk1), ck2, ck1)";
 
         String expectedViewSnapshot = "CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s AS\n" +
@@ -894,7 +813,7 @@ public class ViewSchemaTest extends CQLTester
     }
 
     @Test
-    public void testViewMetadataCQLIncludeAllColumn() throws Throwable
+    public void testViewMetadataCQLIncludeAllColumn()
     {
         String createBase = "CREATE TABLE IF NOT EXISTS %s (" +
                             "pk1 int," +
@@ -907,7 +826,7 @@ public class ViewSchemaTest extends CQLTester
                             "PRIMARY KEY ((pk1, pk2), ck1, ck2)) WITH " +
                             "CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);";
 
-        String createView = "CREATE MATERIALIZED VIEW IF NOT EXISTS %s AS SELECT * FROM %%s "
+        String createView = "CREATE MATERIALIZED VIEW IF NOT EXISTS %s AS SELECT * FROM %s "
                             + "WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL PRIMARY KEY((pk2, pk1), ck2, ck1)";
 
         String expectedViewSnapshot = "CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s AS\n" +
@@ -923,18 +842,14 @@ public class ViewSchemaTest extends CQLTester
                             expectedViewSnapshot);
     }
 
-    private void testViewMetadataCQL(String createBase, String createView, String viewSnapshotSchema) throws Throwable
+    private void testViewMetadataCQL(String createBase, String createView, String viewSnapshotSchema)
     {
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
         String base = createTable(createBase);
 
-        String view = "mv";
-        createView(view, createView);
+        String view = createView(createView);
 
         ColumnFamilyStore mv = Keyspace.open(keyspace()).getColumnFamilyStore(view);
-        
+
         assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(mv.metadata(), true, true, true)
                                   .startsWith(String.format(viewSnapshotSchema,
                                                             keyspace(),
