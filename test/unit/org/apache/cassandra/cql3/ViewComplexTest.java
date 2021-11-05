@@ -47,7 +47,7 @@ import static org.junit.Assert.fail;
  * - ViewComplexTest
  * - ViewComplexLivenessTest
  */
-public class ViewComplexTest extends ViewComplexTester
+public class ViewComplexTest extends ViewAbstractParameterizedTest
 {
     @Test
     public void testNonBaseColumnInViewPkWithFlush() throws Throwable
@@ -65,51 +65,49 @@ public class ViewComplexTest extends ViewComplexTester
     {
         createTable("create table %s (p1 int, p2 int, v1 int, v2 int, primary key (p1,p2))");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String mv = createView("create materialized view %s as select * from %%s " +
-                               "where p1 is not null and p2 is not null primary key (p2, p1) " +
-                               "with gc_grace_seconds=5");
-        ColumnFamilyStore cfs = ks.getColumnFamilyStore(mv);
+        createView("create materialized view %s as select * from %s " +
+                   "where p1 is not null and p2 is not null primary key (p2, p1) " +
+                   "with gc_grace_seconds=5");
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(currentView());
         cfs.disableAutoCompaction();
 
         updateView("UPDATE %s USING TIMESTAMP 1 set v1 =1 where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, 1, null));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, 1, null));
+        assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, 1, null));
 
         updateView("UPDATE %s USING TIMESTAMP 2 set v1 = null, v2 = 1 where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, null, 1));
+        assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
 
         updateView("UPDATE %s USING TIMESTAMP 2 set v2 = null where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv));
+        assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"));
 
         updateView("INSERT INTO %s (p1,p2) VALUES(1,1) USING TIMESTAMP 3;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, null));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, null, null));
+        assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, null));
 
         updateView("DELETE FROM %s USING TIMESTAMP 4 WHERE p1 =1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv));
+        assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"));
 
         updateView("UPDATE %s USING TIMESTAMP 5 set v2 = 1 where p1 = 1 AND p2 = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
-        assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from " + mv), row(1, 1, null, 1));
+        assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
     }
 
     @Test
@@ -128,13 +126,11 @@ public class ViewComplexTest extends ViewComplexTester
     {
         createTable("create table %s (p int primary key, v1 int, v2 int)");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String mv = createView("create materialized view %s as select * from %%s " +
-                               "where p is not null and v1 is not null primary key (v1, p)");
-        ks.getColumnFamilyStore(mv).disableAutoCompaction();
+        createView("create materialized view %s as select * from %s " +
+                   "where p is not null and v1 is not null primary key (v1, p)");
+        ks.getColumnFamilyStore(currentView()).disableAutoCompaction();
 
         // sstable 1, Set initial values TS=1
         updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 1;");
@@ -142,14 +138,14 @@ public class ViewComplexTest extends ViewComplexTester
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v2, WRITETIME(v2) from " + mv + " WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
+        assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
         // sstable 2
         updateView("UPdate %s using timestamp 2 set v2 = null where p = 3");
 
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v2, WRITETIME(v2) from " + mv + " WHERE v1 = ? AND p = ?", 1, 3),
+        assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3),
                                 row(null, null));
         // sstable 3
         updateView("UPdate %s using timestamp 3 set v1 = 2 where p = 3");
@@ -157,19 +153,19 @@ public class ViewComplexTest extends ViewComplexTester
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(2, 3, null, null));
+        assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(2, 3, null, null));
         // sstable 4
         updateView("UPdate %s using timestamp 4 set v1 = 1 where p = 3");
 
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, null, null));
+        assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, null, null));
 
         if (flush)
         {
             // compact sstable 2 and 3;
-            ColumnFamilyStore cfs = ks.getColumnFamilyStore(mv);
+            ColumnFamilyStore cfs = ks.getColumnFamilyStore(currentView());
             List<String> sstables = cfs.getLiveSSTables()
                                        .stream()
                                        .sorted(Comparator.comparingInt(s -> s.descriptor.generation))
@@ -179,8 +175,8 @@ public class ViewComplexTest extends ViewComplexTester
             CompactionManager.instance.forceUserDefinedCompaction(dataFiles);
         }
         // cell-tombstone in sstable 4 is not compacted away, because the shadowable tombstone is shadowed by new row.
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, null, null));
-        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv + " limit 1"), row(1, 3, null, null));
+        assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, null, null));
+        assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s limit 1"), row(1, 3, null, null));
     }
 
     @Test
@@ -199,22 +195,20 @@ public class ViewComplexTest extends ViewComplexTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, f int, PRIMARY KEY(a, b))");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         List<String> viewNames = new ArrayList<>();
         List<String> mvStatements = Arrays.asList(
                                                   // all selected
-                                                  "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
+                                                  "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
                                                   // unselected e,f
-                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b,c,d FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
+                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b,c,d FROM %s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
                                                   // no selected
-                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
+                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b FROM %s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
                                                   // all selected, re-order keys
-                                                  "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b,a)",
+                                                  "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b,a)",
                                                   // unselected e,f, re-order keys
-                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b,c,d FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b,a)",
+                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b,c,d FROM %s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b,a)",
                                                   // no selected, re-order keys
-                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b,a)");
+                                                  "CREATE MATERIALIZED VIEW %s AS SELECT a,b FROM %s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b,a)");
 
         Keyspace ks = Keyspace.open(keyspace());
 
