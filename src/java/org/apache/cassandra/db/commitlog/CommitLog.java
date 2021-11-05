@@ -516,7 +516,7 @@ public class CommitLog implements CommitLogMBean
     @VisibleForTesting
     public static boolean handleCommitError(String message, Throwable t)
     {
-        JVMStabilityInspector.inspectCommitLogThrowable(t);
+        JVMStabilityInspector.inspectCommitLogThrowable(message, t);
         switch (DatabaseDescriptor.getCommitFailurePolicy())
         {
             // Needed here for unit tests to not fail on default assertion
