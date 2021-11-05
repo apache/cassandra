@@ -78,7 +78,7 @@ public class JVMStabilityInspectorTest
 
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
             killerForTests.reset();
-            JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
+            JVMStabilityInspector.inspectCommitLogThrowable("testKill", new Throwable());
             assertTrue(killerForTests.wasKilled());
 
             killerForTests.reset();
@@ -154,7 +154,7 @@ public class JVMStabilityInspectorTest
             assertTrue(killerForTests.wasKilled());
 
             killerForTests.reset();
-            JVMStabilityInspector.inspectCommitLogThrowable(new FileNotFoundException("Too many open files"));
+            JVMStabilityInspector.inspectCommitLogThrowable("fileHandleTest", new FileNotFoundException("Too many open files"));
             assertTrue(killerForTests.wasKilled());
 
         }
@@ -162,5 +162,27 @@ public class JVMStabilityInspectorTest
         {
             JVMStabilityInspector.replaceKiller(originalKiller);
         }
+    }
+
+    @Test
+    public void testShutdownHookRemoved()
+    {
+        class TestShutdownHook {
+            boolean shutdownHookRemoved = false;
+            
+            private void onHookRemoved()
+            {
+                shutdownHookRemoved = true;
+            }
+
+            private void shutdownHook()
+            {
+            }
+        }
+        
+        TestShutdownHook testShutdownHook = new TestShutdownHook();
+        JVMStabilityInspector.registerShutdownHook(new Thread(() -> testShutdownHook.shutdownHook()), () -> testShutdownHook.onHookRemoved());
+        JVMStabilityInspector.removeShutdownHooks();
+        assertTrue(testShutdownHook.shutdownHookRemoved);
     }
 }
