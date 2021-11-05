@@ -34,7 +34,7 @@ import static org.junit.Assert.assertTrue;
  * - ViewComplexTest
  * - ViewComplexLivenessTest
  */
-public class ViewComplexTTLTest extends ViewComplexTester
+public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
 {
     @Test
     public void testUpdateColumnInViewPKWithTTLWithFlush() throws Throwable
@@ -55,13 +55,11 @@ public class ViewComplexTTLTest extends ViewComplexTester
         // CASSANDRA-13657 if base column used in view pk is ttled, then view row is considered dead
         createTable("create table %s (k int primary key, a int, b int)");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String mv = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s " +
-                               "WHERE k IS NOT NULL AND a IS NOT NULL PRIMARY KEY (a, k)");
-        ks.getColumnFamilyStore(mv).disableAutoCompaction();
+        createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                   "WHERE k IS NOT NULL AND a IS NOT NULL PRIMARY KEY (a, k)");
+        ks.getColumnFamilyStore(currentView()).disableAutoCompaction();
 
         updateView("UPDATE %s SET a = 1 WHERE k = 1;");
 
@@ -69,7 +67,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertRows(execute("SELECT * from %s"), row(1, 1, null));
-        assertRows(execute("SELECT * from " + mv), row(1, 1, null));
+        assertRows(executeView("SELECT * from %s"), row(1, 1, null));
 
         updateView("DELETE a FROM %s WHERE k = 1");
 
@@ -77,7 +75,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertRows(execute("SELECT * from %s"));
-        assertEmpty(execute("SELECT * from " + mv));
+        assertEmpty(executeView("SELECT * from %s"));
 
         updateView("INSERT INTO %s (k) VALUES (1);");
 
@@ -85,7 +83,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertRows(execute("SELECT * from %s"), row(1, null, null));
-        assertEmpty(execute("SELECT * from " + mv));
+        assertEmpty(executeView("SELECT * from %s"));
 
         updateView("UPDATE %s USING TTL 5 SET a = 10 WHERE k = 1;");
 
@@ -93,7 +91,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertRows(execute("SELECT * from %s"), row(1, 10, null));
-        assertRows(execute("SELECT * from " + mv), row(10, 1, null));
+        assertRows(executeView("SELECT * from %s"), row(10, 1, null));
 
         updateView("UPDATE %s SET b = 100 WHERE k = 1;");
 
@@ -101,14 +99,14 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertRows(execute("SELECT * from %s"), row(1, 10, 100));
-        assertRows(execute("SELECT * from " + mv), row(10, 1, 100));
+        assertRows(executeView("SELECT * from %s"), row(10, 1, 100));
 
         Thread.sleep(5000);
 
         // 'a' is TTL of 5 and removed.
         assertRows(execute("SELECT * from %s"), row(1, null, 100));
-        assertEmpty(execute("SELECT * from " + mv));
-        assertEmpty(execute("SELECT * from " + mv + " WHERE k = ? AND a = ?", 1, 10));
+        assertEmpty(executeView("SELECT * from %s"));
+        assertEmpty(executeView("SELECT * from %s WHERE k = ? AND a = ?", 1, 10));
 
         updateView("DELETE b FROM %s WHERE k=1");
 
@@ -116,7 +114,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertRows(execute("SELECT * from %s"), row(1, null, null));
-        assertEmpty(execute("SELECT * from " + mv));
+        assertEmpty(executeView("SELECT * from %s"));
 
         updateView("DELETE FROM %s WHERE k=1;");
 
@@ -124,7 +122,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
             FBUtilities.waitOnFutures(ks.flush());
 
         assertEmpty(execute("SELECT * from %s"));
-        assertEmpty(execute("SELECT * from " + mv));
+        assertEmpty(executeView("SELECT * from %s"));
     }
     @Test
     public void testUnselectedColumnsTTLWithFlush() throws Throwable
@@ -145,48 +143,46 @@ public class ViewComplexTTLTest extends ViewComplexTester
         // CASSANDRA-13127 not ttled unselected column in base should keep view row alive
         createTable("create table %s (p int, c int, v int, primary key(p, c))");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
-        String mv = createView("CREATE MATERIALIZED VIEW %s AS SELECT p, c FROM %%s " +
-                               "WHERE p IS NOT NULL AND c IS NOT NULL PRIMARY KEY (c, p)");
-        ks.getColumnFamilyStore(mv).disableAutoCompaction();
+        createView("CREATE MATERIALIZED VIEW %s AS SELECT p, c FROM %s " +
+                   "WHERE p IS NOT NULL AND c IS NOT NULL PRIMARY KEY (c, p)");
+        ks.getColumnFamilyStore(currentView()).disableAutoCompaction();
 
         updateViewWithFlush("INSERT INTO %s (p, c) VALUES (0, 0) USING TTL 3;", flush);
 
         updateViewWithFlush("UPDATE %s USING TTL 1000 SET v = 0 WHERE p = 0 and c = 0;", flush);
 
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0));
 
         Thread.sleep(3000);
 
         UntypedResultSet.Row row = execute("SELECT v, ttl(v) from %s WHERE c = ? AND p = ?", 0, 0).one();
         assertEquals("row should have value of 0", 0, row.getInt("v"));
         assertTrue("row should have ttl less than 1000", row.getInt("ttl(v)") < 1000);
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0));
 
         updateViewWithFlush("DELETE FROM %s WHERE p = 0 and c = 0;", flush);
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 0, 0));
 
         updateViewWithFlush("INSERT INTO %s (p, c) VALUES (0, 0) ", flush);
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0));
 
         // already have a live row, no need to apply the unselected cell ttl
         updateViewWithFlush("UPDATE %s USING TTL 3 SET v = 0 WHERE p = 0 and c = 0;", flush);
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0));
 
         updateViewWithFlush("INSERT INTO %s (p, c) VALUES (1, 1) USING TTL 3", flush);
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 1, 1), row(1, 1));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 1, 1), row(1, 1));
 
         Thread.sleep(4000);
 
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 1, 1));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 1, 1));
 
         // unselected should keep view row alive
         updateViewWithFlush("UPDATE %s SET v = 0 WHERE p = 1 and c = 1;", flush);
-        assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 1, 1), row(1, 1));
+        assertRowsIgnoringOrder(executeView("SELECT * from %s WHERE c = ? AND p = ?", 1, 1), row(1, 1));
 
     } 
 
@@ -196,8 +192,6 @@ public class ViewComplexTTLTest extends ViewComplexTester
         // CASSANDRA-13127 when liveness timestamp tie, greater localDeletionTime should win if both are expiring.
         createTable("create table %s (p int, c int, v int, primary key(p, c))");
 
-        execute("USE " + keyspace());
-        executeNet(version, "USE " + keyspace());
         Keyspace ks = Keyspace.open(keyspace());
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) using timestamp 1;");

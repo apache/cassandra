@@ -67,6 +67,7 @@ import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -100,6 +101,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.assertj.core.api.Assertions;
 import org.apache.cassandra.utils.Pair;
+import org.awaitility.Awaitility;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
@@ -180,6 +182,7 @@ public abstract class CQLTester
 
     private List<String> keyspaces = new ArrayList<>();
     private List<String> tables = new ArrayList<>();
+    private List<String> views = new ArrayList<>();
     private List<String> types = new ArrayList<>();
     private List<String> functions = new ArrayList<>();
     private List<String> aggregates = new ArrayList<>();
@@ -358,11 +361,13 @@ public abstract class CQLTester
 
         final List<String> keyspacesToDrop = copy(keyspaces);
         final List<String> tablesToDrop = copy(tables);
+        final List<String> viewsToDrop = copy(views);
         final List<String> typesToDrop = copy(types);
         final List<String> functionsToDrop = copy(functions);
         final List<String> aggregatesToDrop = copy(aggregates);
         keyspaces = null;
         tables = null;
+        views = null;
         types = null;
         functions = null;
         aggregates = null;
@@ -375,6 +380,9 @@ public abstract class CQLTester
             {
                 try
                 {
+                    for (int i = viewsToDrop.size() - 1; i >= 0; i--)
+                        schemaChange(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s", KEYSPACE, viewsToDrop.get(i)));
+
                     for (int i = tablesToDrop.size() - 1; i >= 0; i--)
                         schemaChange(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, tablesToDrop.get(i)));
 
@@ -705,6 +713,13 @@ public abstract class CQLTester
         return tables.get(tables.size() - 1);
     }
 
+    protected String currentView()
+    {
+        if (views.isEmpty())
+            return null;
+        return views.get(views.size() - 1);
+    }
+
     protected String currentKeyspace()
     {
         if (keyspaces.isEmpty())
@@ -860,6 +875,119 @@ public abstract class CQLTester
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
         QueryProcessor.executeOnceInternal(fullQuery);
+    }
+
+    /**
+     * Creates a materialized view, waiting for the completion of its builder tasks.
+     *
+     * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
+     * @return the name of the created view
+     */
+    protected String createView(String query)
+    {
+        return createView(null, query);
+    }
+
+    /**
+     * Creates a materialized view, waiting for the completion of its builder tasks.
+     *
+     * @param viewName the name of the view to be created, or {@code null} for using an automatically generated a name
+     * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
+     * @return the name of the created view
+     */
+    protected String createView(String viewName, String query)
+    {
+        String currentView = createViewAsync(viewName, query);
+        waitForViewBuild(currentView);
+        return currentView;
+    }
+
+    /**
+     * Creates a materialized view, without waiting for the completion of its builder tasks.
+     *
+     * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
+     * @return the name of the created view
+     */
+    protected String createViewAsync(String query)
+    {
+        return createViewAsync(null, query);
+    }
+
+    /**
+     * Creates a materialized view, without waiting for the completion of its builder tasks.
+     *
+     * @param viewName the name of the view to be created, or {@code null} for using an automatically generated a name
+     * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
+     * @return the name of the created view
+     */
+    protected String createViewAsync(String viewName, String query)
+    {
+        String currentView = viewName == null ? createViewName() : viewName;
+        String fullQuery = String.format(query, KEYSPACE + "." + currentView, KEYSPACE + "." + currentTable());
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return currentView;
+    }
+
+    protected void dropView()
+    {
+        dropView(currentView());
+    }
+
+    protected void dropView(String view)
+    {
+        dropFormattedTable(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s", KEYSPACE, view));
+        views.remove(view);
+    }
+
+    protected String createViewName()
+    {
+        String currentView = String.format("mv_%02d", seqNumber.getAndIncrement());
+        views.add(currentView);
+        return currentView;
+    }
+
+    protected List<String> getViews()
+    {
+        return copy(views);
+    }
+
+    protected void updateView(String query, Object... params) throws Throwable
+    {
+        updateView(getDefaultVersion(), query, params);
+    }
+
+    protected void updateView(ProtocolVersion version, String query, Object... params) throws Throwable
+    {
+        executeNet(version, query, params);
+        waitForViewMutations();
+    }
+
+    /**
+     * Waits for any pending asynchronous materialized view mutations.
+     */
+    protected static void waitForViewMutations()
+    {
+        Awaitility.await()
+                  .atMost(10, TimeUnit.MINUTES)
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .pollInterval(1, TimeUnit.MILLISECONDS)
+                  .until(() -> Stage.VIEW_MUTATION.executor().getPendingTaskCount() == 0 &&
+                               Stage.VIEW_MUTATION.executor().getActiveTaskCount() == 0);
+    }
+
+    /**
+     * Waits for the building tasks of the specified materialized view.
+     *
+     * @param view the name of the view
+     */
+    protected void waitForViewBuild(String view)
+    {
+        Awaitility.await()
+                  .atMost(10, TimeUnit.MINUTES)
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .pollInterval(10, TimeUnit.MILLISECONDS)
+                  .until(() -> SystemKeyspace.isViewBuilt(keyspace(), view));
     }
 
     protected void alterTable(String query)
@@ -1080,17 +1208,22 @@ public abstract class CQLTester
         return sessionNet().execute(formatQuery(query), values);
     }
 
+    protected com.datastax.driver.core.ResultSet executeViewNet(String query, Object... values)
+    {
+        return sessionNet().execute(formatViewQuery(query), values);
+    }
+
     protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, Statement statement)
     {
         return sessionNet(protocolVersion).execute(statement);
     }
 
-    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize) throws Throwable
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize)
     {
         return sessionNet(version).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
     }
 
-    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize) throws Throwable
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize)
     {
         return sessionNet().execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
     }
@@ -1135,6 +1268,17 @@ public abstract class CQLTester
         return currentTable == null ? query : String.format(query, keyspace + "." + currentTable);
     }
 
+    public String formatViewQuery(String query)
+    {
+        return formatViewQuery(KEYSPACE, query);
+    }
+
+    public String formatViewQuery(String keyspace, String query)
+    {
+        String currentView = currentView();
+        return currentView == null ? query : String.format(query, keyspace + "." + currentView);
+    }
+
     protected ResultMessage.Prepared prepare(String query) throws Throwable
     {
         return QueryProcessor.prepare(formatQuery(query), ClientState.forInternalCalls());
@@ -1143,6 +1287,11 @@ public abstract class CQLTester
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
         return executeFormattedQuery(formatQuery(query), values);
+    }
+
+    public UntypedResultSet executeView(String query, Object... values) throws Throwable
+    {
+        return executeFormattedQuery(formatViewQuery(KEYSPACE, query), values);
     }
 
     protected UntypedResultSet executeFormattedQuery(String query, Object... values) throws Throwable
