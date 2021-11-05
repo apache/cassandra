@@ -33,6 +33,7 @@ import java.util.regex.*;
 import java.util.regex.Matcher;
 
 import com.google.common.net.InetAddresses;
+import com.google.common.util.concurrent.Futures;
 
 import com.codahale.metrics.Timer;
 
@@ -310,9 +311,12 @@ public class MessagingServiceTest
     @Test
     public void listenOptionalSecureConnection() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withOptional(true);
-        listen(serverEncryptionOptions, false);
+        for (int i = 0; i < 500000; i++) // test used to be flaky, so run in a loop to make sure stable (see CASSANDRA-17033)
+        {
+            ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
+                                                              .withOptional(true);
+            listen(serverEncryptionOptions, false);
+        }
     }
 
     @Test
@@ -339,8 +343,8 @@ public class MessagingServiceTest
         InboundSockets connections = new InboundSockets(settings);
         try
         {
-            connections.open().await();
-            Assert.assertTrue(connections.isListening());
+            Futures.getUnchecked(connections.open());
+            Assert.assertTrue("connections is not listening", connections.isListening());
 
             Set<InetAddressAndPort> expect = new HashSet<>();
             expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getStoragePort()));
