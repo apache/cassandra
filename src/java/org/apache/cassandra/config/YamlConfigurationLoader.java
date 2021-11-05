@@ -69,7 +69,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * Inspect the classpath to find storage configuration file
      */
     @VisibleForTesting
-    public static URL getStorageConfigURL() throws ConfigurationException
+    private static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
@@ -175,6 +175,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                                                "order to get a default one");
     }
 
+    /**
+     * This method helps to preserve the behavior of parameters which were originally of primitive type and
+     * without default value in Config.java (CASSANDRA-15234)
+     */
     private static boolean isBlank(String property)
     {
         Pattern p = Pattern.compile(String.format("%s%s *: *$", '^', property), Pattern.MULTILINE);
