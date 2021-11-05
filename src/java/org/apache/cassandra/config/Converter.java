@@ -50,7 +50,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return Duration.inMilliseconds(value.longValue());
+            return Duration.inMilliseconds(value);
         }
     }
 
@@ -85,7 +85,7 @@ public interface Converter<Original, Current>
             if (value.equals((long) -1))
                 value = 0L;
 
-            return Duration.inMilliseconds(value.longValue());
+            return Duration.inMilliseconds(value);
         }
     }
 
@@ -100,7 +100,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return Duration.inSeconds(value.longValue());
+            return Duration.inSeconds(value);
         }
     }
 
@@ -115,7 +115,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return Duration.inMinutes(value.longValue());
+            return Duration.inMinutes(value);
         }
     }
 
@@ -130,7 +130,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return DataStorage.inMegabytes(value.longValue());
+            return DataStorage.inMegabytes(value);
         }
     }
 
@@ -145,7 +145,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return DataStorage.inKilobytes(value.longValue());
+            return DataStorage.inKilobytes(value);
         }
     }
 
@@ -160,7 +160,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return DataStorage.inBytes(value.longValue());
+            return DataStorage.inBytes(value);
         }
     }
 
@@ -175,7 +175,7 @@ public interface Converter<Original, Current>
         {
             if (value == null)
                 return null;
-            return BitRate.inMegabitsPerSecond(value.longValue());
+            return BitRate.inMegabitsPerSecond(value);
         }
     }
 }

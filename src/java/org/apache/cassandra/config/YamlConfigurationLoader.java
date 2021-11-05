@@ -282,6 +282,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             {
                 Replacement replacement = typeReplacements.get(name);
                 Converter converter = replacement.converter;
+
                 final Property newProperty = super.getProperty(type, replacement.newName);
                 result = new Property(replacement.oldName, replacement.oldType)
                 {
@@ -316,18 +317,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                         return null;
                     }
                 };
-<<<<<<< HEAD
 
                 if(replacement.deprecated)
                 {
-                    logger.warn("{} parameter has been deprecated. It has a new name; For more information, please refer to NEWS.txt", name);
-                }
-=======
->>>>>>> Cleanup
-
-                if(replacement.deprecated)
-                {
-                    logger.warn("{} parameter has been deprecated. It has a new name and value format; For more information, please refer to NEWS.txt", name);
+                    logger.warn("{} parameter has been deprecated. It has a new name and/or value format; For more information, please refer to NEWS.txt", name);
                 }
             }
             else
@@ -393,16 +386,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-<<<<<<< HEAD
+
     /**
      * @param klass to get replacements for
      * @return map of old names and replacements needed.
      */
     private static Map<Class<? extends Object>, Map<String, Replacement>> getReplacements(Class<? extends Object> klass)
-=======
-    @VisibleForTesting
-    static Map<Class<?>, Map<String, Replacement>> getReplacements(Class<?> klass)
->>>>>>> Cleanup
     {
         List<Replacement> replacements = getReplacementsRecursive(klass);
         Map<Class<?>, Map<String, Replacement>> objectOldNames = new HashMap<>();
@@ -492,11 +481,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         });
 
         boolean deprecated = r.deprecated();
-        deprecated = r.deprecated();
 
         Class<?> oldType = converter.getInputType();
         if (oldType == null)
             oldType = newType;
+
         replacements.add(new Replacement(klass, oldName, oldType, newName, converter, deprecated));
     }
 
