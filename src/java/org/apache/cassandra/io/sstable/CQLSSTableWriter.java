@@ -43,6 +43,7 @@ import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -169,7 +170,7 @@ public class CQLSSTableWriter implements Closeable
         for (int i = 0; i < size; i++)
         {
             Object value = values.get(i);
-            rawValues.add(serialize(value, typeCodecs.get(i)));
+            rawValues.add(serialize(value, typeCodecs.get(i), boundNames.get(i)));
         }
 
         return rawAddRow(rawValues);
@@ -204,7 +205,7 @@ public class CQLSSTableWriter implements Closeable
         {
             ColumnSpecification spec = boundNames.get(i);
             Object value = values.get(spec.name.toString());
-            rawValues.add(serialize(value, typeCodecs.get(i)));
+            rawValues.add(serialize(value, typeCodecs.get(i), boundNames.get(i)));
         }
         return rawAddRow(rawValues);
     }
@@ -289,7 +290,7 @@ public class CQLSSTableWriter implements Closeable
     {
         int size = Math.min(values.size(), boundNames.size());
         List<ByteBuffer> rawValues = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) 
+        for (int i = 0; i < size; i++)
         {
             ColumnSpecification spec = boundNames.get(i);
             rawValues.add(values.get(spec.name.toString()));
@@ -322,12 +323,21 @@ public class CQLSSTableWriter implements Closeable
         writer.close();
     }
 
-    private ByteBuffer serialize(Object value, TypeCodec codec)
+    private ByteBuffer serialize(Object value, TypeCodec codec, ColumnSpecification columnSpecification)
     {
         if (value == null || value == UNSET_VALUE)
             return (ByteBuffer) value;
 
-        return codec.serialize(value, ProtocolVersion.CURRENT);
+        try
+        {
+            return codec.serialize(value, ProtocolVersion.CURRENT);
+        }
+        catch (ClassCastException cce)
+        {
+            // For backwards-compatibility with consumers that may be passing
+            // an Integer for a Date field, for example.
+            return ((AbstractType)columnSpecification.type).decompose(value);
+        }
     }
     /**
      * A Builder for a CQLSSTableWriter object.

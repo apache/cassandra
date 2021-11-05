@@ -52,6 +52,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Add backward compatibility for CQLSSTableWriter Date fields (CASSANDRA-17117)
  * Push initial client connection messages to trace (CASSANDRA-17038)
  * Correct the internode message timestamp if sending node has wrapped (CASSANDRA-16997)
  * Avoid race causing us to return null in RangesAtEndpoint (CASSANDRA-16965)
