@@ -122,6 +122,9 @@ public class TableSnapshot
 
     public long computeTrueSizeBytes()
     {
+        // FIXME: move this to outside this class which should be CFS independent
+        if (trueDiskSizeComputer == null)
+            return computeSizeOnDiskBytes();
         return snapshotDirs.stream().mapToLong(trueDiskSizeComputer::apply).sum();
     }
 
