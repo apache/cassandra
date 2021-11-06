@@ -4024,23 +4024,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
-        Map<String, TabularData> snapshotMap = new HashMap<>();
-        for (Keyspace keyspace : Keyspace.all())
-        {
-            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-            {
-                for (Map.Entry<String, TableSnapshot> snapshotDetail : TableSnapshot.filter(cfStore.listSnapshots(), options).entrySet())
-                {
-                    TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshotDetail.getKey());
-                    if (data == null)
-                    {
-                        data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
-                        snapshotMap.put(snapshotDetail.getKey(), data);
-                    }
+        boolean skipExpiring = Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
 
-                    SnapshotDetailsTabularData.from(snapshotDetail.getValue(), data);
-                }
-            }
+        Map<String, TabularData> snapshotMap = new HashMap<>();
+        for (TableSnapshot s : snapshotManager.getSnapshots(s -> !skipExpiring || !s.isExpiring()))
+        {
+            TabularDataSupport data = (TabularDataSupport) snapshotMap.computeIfAbsent(s.getTag(), k -> new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE));
+            SnapshotDetailsTabularData.from(s, data);
         }
         return snapshotMap;
     }
