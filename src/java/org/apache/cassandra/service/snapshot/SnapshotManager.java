@@ -18,10 +18,13 @@
 package org.apache.cassandra.service.snapshot;
 
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -32,12 +35,12 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Keyspace;
 
 import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -58,6 +61,8 @@ public class SnapshotManager {
     @VisibleForTesting
     protected volatile ScheduledFuture cleanupTaskFuture;
 
+    private final Set<TableSnapshot> liveSnapshots = new HashSet<>();
+
     /**
      * Expiring ssnapshots ordered by expiration date, to allow only iterating over snapshots
      * that need to be removed on {@link this#clearExpiredSnapshots()}
@@ -68,8 +73,7 @@ public class SnapshotManager {
     {
         this(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS.getInt(),
              CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS.getInt(),
-             () -> StreamSupport.stream(Keyspace.all().spliterator(), false)
-                                .flatMap(ks -> ks.getAllSnapshots()));
+             () -> loadSnapshotsFromDataDirectories().stream());
     }
 
     @VisibleForTesting
@@ -104,12 +108,19 @@ public class SnapshotManager {
 
     public synchronized void addSnapshot(TableSnapshot snapshot)
     {
-        // We currently only care about expiring snapshots
+        liveSnapshots.add(snapshot);
         if (snapshot.isExpiring())
         {
             logger.debug("Adding expiring snapshot {}", snapshot);
             expiringSnapshots.add(snapshot);
         }
+    }
+
+    public synchronized Collection<TableSnapshot> getSnapshots(Predicate<TableSnapshot> filter)
+    {
+        return liveSnapshots.stream()
+                            .filter(filter)
+                            .collect(Collectors.toSet());
     }
 
     @VisibleForTesting
@@ -152,11 +163,24 @@ public class SnapshotManager {
             Directories.removeSnapshotDirectory(DatabaseDescriptor.getSnapshotRateLimiter(), snapshotDir);
         }
         expiringSnapshots.remove(snapshot);
+        liveSnapshots.remove(snapshot);
     }
 
     @VisibleForTesting
     public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownNowAndWait(timeout, unit, executor);
+    }
+
+    private static Set<TableSnapshot> loadSnapshotsFromDataDirectories()
+    {
+        try
+        {
+            return new SnapshotFinder(DatabaseDescriptor.getAllDataFileLocations()).findAll();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error while loading snapshots from data directories.", e);
+        }
     }
 }
