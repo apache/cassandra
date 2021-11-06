@@ -434,10 +434,10 @@ public class Config
     public Duration gc_warn_threshold = new Duration("1s");
 
     // TTL for different types of trace events.
-    @Replaces(oldName = "tracetype_query_ttl", converter = Converter.SecondsDurationConverter.class)
-    public Duration tracetype_query_ttl = new Duration("86400s");
-    @Replaces(oldName = "tracetype_repair_ttl", converter = Converter.SecondsDurationConverter.class)
-    public Duration tracetype_repair_ttl = new Duration("604800s");
+    @Replaces(oldName = "tracetype_query_ttl", converter = Converter.SecondsDurationConverter.class, deprecated=true)
+    public Duration trace_type_query_ttl = new Duration("86400s");
+    @Replaces(oldName = "tracetype_repair_ttl", converter = Converter.SecondsDurationConverter.class, deprecated=true)
+    public Duration trace_type_repair_ttl = new Duration("604800s");
 
     /**
      * Maintain statistics on whether writes achieve the ideal consistency level

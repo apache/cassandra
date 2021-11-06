@@ -60,8 +60,8 @@ public class ParseAndConvertUnitsTest
         assertEquals(Duration.inMilliseconds(200), config.gc_log_threshold);
         assertEquals(Duration.inMilliseconds(10000), config.hints_flush_period);
         assertEquals(Duration.inMilliseconds(1000), config.gc_warn_threshold);
-        assertEquals(Duration.inSeconds(86400), config.tracetype_query_ttl);
-        assertEquals(Duration.inSeconds(604800), config.tracetype_repair_ttl);
+        assertEquals(Duration.inSeconds(86400), config.trace_type_query_ttl);
+        assertEquals(Duration.inSeconds(604800), config.trace_type_repair_ttl);
         assertEquals(Duration.inMilliseconds(2000), config.permissions_validity);
         assertEquals(Duration.inMilliseconds(0), config.permissions_update_interval);
         assertEquals(Duration.inMilliseconds(2000), config.roles_validity);

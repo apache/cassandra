@@ -2940,12 +2940,12 @@ public class DatabaseDescriptor
 
     public static int getTracetypeRepairTTL()
     {
-        return conf.tracetype_repair_ttl.toSecondsAsInt();
+        return conf.trace_type_repair_ttl.toSecondsAsInt();
     }
 
     public static int getTracetypeQueryTTL()
     {
-        return conf.tracetype_query_ttl.toSecondsAsInt();
+        return conf.trace_type_query_ttl.toSecondsAsInt();
     }
 
     public static int getWindowsTimerInterval()

@@ -1297,8 +1297,8 @@ internode_compression: dc
 inter_dc_tcp_nodelay: false
 
 # TTL for different trace types used during logging of the repair process.
-tracetype_query_ttl: 86400
-tracetype_repair_ttl: 604800
+trace_type_query_ttl: 86400s
+trace_type_repair_ttl: 604800s
 
 # If unset, all GC Pauses greater than gc_log_threshold will log at
 # INFO level
