@@ -183,4 +183,9 @@ public class SnapshotManager {
             throw new RuntimeException("Error while loading snapshots from data directories.", e);
         }
     }
+
+    public void clearSnapshots(Predicate<TableSnapshot> predicate)
+    {
+        getSnapshots(predicate).forEach(this::clearSnapshot);
+    }
 }

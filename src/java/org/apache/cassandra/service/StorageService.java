@@ -4000,23 +4000,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        if(tag == null)
-            tag = "";
-
-        Set<String> keyspaces = new HashSet<>();
-        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            for(String keyspaceDir : new File(dataDir).tryListNames())
-            {
-                // Only add a ks if it has been specified as a param, assuming params were actually provided.
-                if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
-                    continue;
-                keyspaces.add(keyspaceDir);
-            }
-        }
-
-        for (String keyspace : keyspaces)
-            Keyspace.clearSnapshot(tag, keyspace);
+        Set<String> keyspaces = new HashSet<>(Arrays.asList(keyspaceNames));
+        snapshotManager.clearSnapshots(s -> tag == null || s.getTag().equals(tag) && (keyspaces.isEmpty() || keyspaces.contains(s.getKeyspace())));
 
         if (logger.isDebugEnabled())
             logger.debug("Cleared out snapshot directories");
