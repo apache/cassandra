@@ -311,7 +311,7 @@ public class MessagingServiceTest
     @Test
     public void listenOptionalSecureConnection() throws InterruptedException
     {
-        for (int i = 0; i < 500000; i++) // test used to be flaky, so run in a loop to make sure stable (see CASSANDRA-17033)
+        for (int i = 0; i < 500; i++) // test used to be flaky, so run in a loop to make sure stable (see CASSANDRA-17033)
         {
             ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
                                                               .withOptional(true);

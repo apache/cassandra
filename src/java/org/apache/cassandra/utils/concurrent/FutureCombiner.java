@@ -157,10 +157,8 @@ public class FutureCombiner<T> extends AsyncFuture<T>
         {
             Listener<T> listener = listenerFactory.create(combine.size(), resultSupplier, this);
             combine.forEach(f -> {
-//                if (f.isDone()) listener.operationComplete((io.netty.util.concurrent.Future<Object>) f);
-//                else f.addListener(listener);
-                //TODO why does `(f.isDone()) listener.operationComplete((io.netty.util.concurrent.Future<Object>) f)` cause the tests to fail?  It acts as if the future triggers too early in this case?
-                f.addListener(listener);
+                if (f.isDone()) listener.operationComplete((io.netty.util.concurrent.Future<Object>) f);
+                else f.addListener(listener);
             });
         }
     }
@@ -216,7 +214,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     /**
      * Waits for all of {@code futures} to complete, only propagating failures on completion
      */
-    public static Future<Void> nettySuccessListener(Collection<? extends io.netty.util.concurrent.Future<?>> futures)
+    public static FutureCombiner<Void> nettySuccessListener(Collection<? extends io.netty.util.concurrent.Future<?>> futures)
     {
         return new FutureCombiner<Void>(futures, () -> null, FailSlowListener::new)
         {
