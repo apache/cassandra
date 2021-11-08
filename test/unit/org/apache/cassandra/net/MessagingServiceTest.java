@@ -33,7 +33,6 @@ import java.util.regex.*;
 import java.util.regex.Matcher;
 
 import com.google.common.net.InetAddresses;
-import com.google.common.util.concurrent.Futures;
 
 import com.codahale.metrics.Timer;
 
@@ -343,7 +342,7 @@ public class MessagingServiceTest
         InboundSockets connections = new InboundSockets(settings);
         try
         {
-            Futures.getUnchecked(connections.open());
+            connections.open().sync();
             Assert.assertTrue("connections is not listening", connections.isListening());
 
             Set<InetAddressAndPort> expect = new HashSet<>();
