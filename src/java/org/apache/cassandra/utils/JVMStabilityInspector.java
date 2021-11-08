@@ -160,7 +160,7 @@ public final class JVMStabilityInspector
      * Intentionally produce a heap space OOM upon seeing a non heap memory OOM.
      * Direct buffer OOM cannot trigger JVM OOM error related options,
      * e.g. OnOutOfMemoryError, HeapDumpOnOutOfMemoryError, etc.
-     * See CASSANDRA-15214 and <insert here> for more details
+     * See CASSANDRA-15214 and CASSANDRA-17128 for more details
      */
     @Exclude // Exclude from just in time compilation.
     private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
