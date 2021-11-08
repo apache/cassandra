@@ -48,6 +48,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class HintsWriteThenReadTest
 {
     private static final String KEYSPACE = "hints_write_then_read_test";
@@ -61,7 +63,7 @@ public class HintsWriteThenReadTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), SchemaLoader.standardCFMD(KEYSPACE, TABLE));
 
-        HintsDescriptor descriptor = new HintsDescriptor(UUID.randomUUID(), System.currentTimeMillis());
+        HintsDescriptor descriptor = new HintsDescriptor(UUID.randomUUID(), currentTimeMillis());
 
         File directory = new File(Files.createTempDirectory(null));
         try

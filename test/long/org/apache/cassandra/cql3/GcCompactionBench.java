@@ -46,6 +46,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class GcCompactionBench extends CQLTester
@@ -202,7 +203,7 @@ public class GcCompactionBench extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        long onStartTime = System.currentTimeMillis();
+        long onStartTime = currentTimeMillis();
         ExecutorService es = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<Future<?>> tasks = new ArrayList<>();
         for (int ti = 0; ti < 1; ++ti)
@@ -226,7 +227,7 @@ public class GcCompactionBench extends CQLTester
             task.get();
 
         flush();
-        long onEndTime = System.currentTimeMillis();
+        long onEndTime = currentTimeMillis();
         int startRowCount = countRows(cfs);
         int startTombCount = countTombstoneMarkers(cfs);
         int startRowDeletions = countRowDeletions(cfs);
@@ -237,9 +238,9 @@ public class GcCompactionBench extends CQLTester
 
         String hashesBefore = getHashes();
 
-        long startTime = System.currentTimeMillis();
+        long startTime = currentTimeMillis();
         CompactionManager.instance.performGarbageCollection(cfs, tombstoneOption, 0);
-        long endTime = System.currentTimeMillis();
+        long endTime = currentTimeMillis();
 
         int endRowCount = countRows(cfs);
         int endTombCount = countTombstoneMarkers(cfs);
@@ -266,9 +267,9 @@ public class GcCompactionBench extends CQLTester
 
     private String getHashes() throws Throwable
     {
-        long startTime = System.currentTimeMillis();
+        long startTime = currentTimeMillis();
         String hashes = Arrays.toString(getRows(execute(hashQuery))[0]);
-        long endTime = System.currentTimeMillis();
+        long endTime = currentTimeMillis();
         System.out.println(String.format("Hashes: %s, retrieved in %.3fs", hashes, (endTime - startTime) * 1e-3));
         return hashes;
     }

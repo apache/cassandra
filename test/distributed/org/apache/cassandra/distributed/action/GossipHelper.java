@@ -50,6 +50,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class GossipHelper
 {
@@ -329,14 +330,14 @@ public class GossipHelper
     public static VersionedApplicationState statusLeft(IInvokableInstance instance)
     {
         return versionedToken(instance, ApplicationState.STATUS, (partitioner, tokens) -> {
-            return new VersionedValue.VersionedValueFactory(partitioner).left(tokens, System.currentTimeMillis() + Gossiper.aVeryLongTime);
+            return new VersionedValue.VersionedValueFactory(partitioner).left(tokens, currentTimeMillis() + Gossiper.aVeryLongTime);
         });
     }
 
     public static VersionedApplicationState statusWithPortLeft(IInvokableInstance instance)
     {
         return versionedToken(instance, ApplicationState.STATUS_WITH_PORT, (partitioner, tokens) -> {
-            return new VersionedValue.VersionedValueFactory(partitioner).left(tokens, System.currentTimeMillis() + Gossiper.aVeryLongTime);
+            return new VersionedValue.VersionedValueFactory(partitioner).left(tokens, currentTimeMillis() + Gossiper.aVeryLongTime);
 
         });
     }

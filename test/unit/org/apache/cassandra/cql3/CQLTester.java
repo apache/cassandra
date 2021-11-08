@@ -103,6 +103,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -940,7 +941,7 @@ public abstract class CQLTester
      */
     protected boolean waitForIndex(String keyspace, String table, String index) throws Throwable
     {
-        long start = System.currentTimeMillis();
+        long start = currentTimeMillis();
         boolean indexCreated = false;
         while (!indexCreated)
         {
@@ -954,7 +955,7 @@ public abstract class CQLTester
                 }
             }
 
-            if (System.currentTimeMillis() - start > 5000)
+            if (currentTimeMillis() - start > 5000)
                 break;
 
             Thread.sleep(10);
@@ -975,7 +976,7 @@ public abstract class CQLTester
      */
     protected boolean waitForIndexBuilds(String keyspace, String indexName) throws InterruptedException
     {
-        long start = System.currentTimeMillis();
+        long start = currentTimeMillis();
         SecondaryIndexManager indexManager = getCurrentColumnFamilyStore(keyspace).indexManager;
 
         while (true)
@@ -984,7 +985,7 @@ public abstract class CQLTester
             {
                 return true;
             }
-            else if (System.currentTimeMillis() - start > 5000)
+            else if (currentTimeMillis() - start > 5000)
             {
                 return false;
             }

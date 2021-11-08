@@ -184,7 +184,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     };
 
     /**
-     * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an upper bound
+     * maxDataAge is a timestamp in local server time (e.g. Global.currentTimeMilli) which represents an upper bound
      * to the newest piece of data stored in the sstable. In other words, this sstable does not contain items created
      * later than maxDataAge.
      *

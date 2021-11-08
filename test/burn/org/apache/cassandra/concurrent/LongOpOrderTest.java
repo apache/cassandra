@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.assertTrue;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 // TODO: we don't currently test SAFE functionality at all!
 // TODO: should also test markBlocking and SyncOrdered
@@ -85,13 +86,13 @@ public class LongOpOrderTest
         @Override
         public void run()
         {
-            final long until = System.currentTimeMillis() + RUNTIME;
-            long lastReport = System.currentTimeMillis();
+            final long until = currentTimeMillis() + RUNTIME;
+            long lastReport = currentTimeMillis();
             long count = 0;
             long opCount = 0;
             while (true)
             {
-                long now = System.currentTimeMillis();
+                long now = currentTimeMillis();
                 if (now > until)
                     break;
                 if (now > lastReport + REPORT_INTERVAL)

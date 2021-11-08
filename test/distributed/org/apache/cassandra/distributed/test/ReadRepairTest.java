@@ -68,6 +68,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.apache.cassandra.net.Verb.READ_REQ;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.fail;
 
@@ -132,7 +133,7 @@ public class ReadRepairTest extends TestBaseImpl
             cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
             assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
             cluster.verbs(READ_REPAIR_RSP).to(1).drop();
-            final long start = System.currentTimeMillis();
+            final long start = currentTimeMillis();
             try
             {
                 cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL);
@@ -142,7 +143,7 @@ public class ReadRepairTest extends TestBaseImpl
             {
                 // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
                 Assert.assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
-                long actualTimeTaken = System.currentTimeMillis() - start;
+                long actualTimeTaken = currentTimeMillis() - start;
                 long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
                 // Due to the delays, the actual time taken from client perspective is slighly more than the timeout value
                 Assert.assertTrue(actualTimeTaken > reducedReadTimeout);

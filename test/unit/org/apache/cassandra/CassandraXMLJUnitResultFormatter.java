@@ -50,6 +50,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Text;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Prints XML output of the test to a specified Writer.
@@ -240,7 +241,7 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
      * @param t the test.
      */
     public void startTest(final Test t) {
-        testStarts.put(createDescription(t), System.currentTimeMillis());
+        testStarts.put(createDescription(t), currentTimeMillis());
     }
 
     private static String createDescription(final Test test) throws BuildException {
@@ -284,7 +285,7 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
 
         final Long l = testStarts.get(createDescription(test));
         currentTest.setAttribute(ATTR_TIME,
-            "" + ((System.currentTimeMillis() - l) / ONE_SECOND));
+            "" + ((currentTimeMillis() - l) / ONE_SECOND));
     }
 
     /**
