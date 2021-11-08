@@ -21,13 +21,14 @@ import java.io.FileNotFoundException;
 import java.net.SocketException;
 import java.nio.file.FileSystemException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -153,31 +154,27 @@ public final class JVMStabilityInspector
             inspectThrowable(t.getCause(), fn);
     }
 
+    private static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
+
     /**
-     * Intentionally produce a heap space OOM upon seeing a Direct buffer memory OOM.
+     * Intentionally produce a heap space OOM upon seeing a non heap memory OOM.
      * Direct buffer OOM cannot trigger JVM OOM error related options,
      * e.g. OnOutOfMemoryError, HeapDumpOnOutOfMemoryError, etc.
-     * See CASSANDRA-15214 for more details
+     * See CASSANDRA-15214 and <insert here> for more details
      */
     @Exclude // Exclude from just in time compilation.
     private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
     {
-        // See the oom thrown from java.nio.Bits.reserveMemory.
-        // In jdk 13 and up, the message is "Cannot reserve XX bytes of direct buffer memory (...)"
-        // In jdk 11 and below, the message is "Direct buffer memory"
-        if ((oom.getMessage() != null && oom.getMessage().toLowerCase().contains("direct buffer memory")) ||
-            Arrays.stream(oom.getStackTrace()).anyMatch(x -> x.getClassName().equals("java.nio.Bits")
-                                                             && x.getMethodName().equals("reserveMemory")))
+        if (FORCE_HEAP_OOM_IGNORE_SET.contains(oom.getMessage()))
+            return;
+        logger.error("Force heap space OutOfMemoryError in the presence of", oom);
+        // Start to produce heap space OOM forcibly.
+        List<long[]> ignored = new ArrayList<>();
+        while (true)
         {
-            logger.error("Force heap space OutOfMemoryError in the presence of", oom);
-            // Start to produce heap space OOM forcibly.
-            List<long[]> ignored = new ArrayList<>();
-            while (true)
-            {
-                // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
-                // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
-                ignored.add(new long[Integer.MAX_VALUE / 2]);
-            }
+            // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
+            // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
+            ignored.add(new long[Integer.MAX_VALUE / 2]);
         }
     }
 
