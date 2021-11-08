@@ -39,22 +39,22 @@ public interface Converter<Original, Current>
         }
     }
 
-    public static final class MillisDurationConverter implements Converter<Long, Duration>
+    public static final class MillisDurationConverter implements Converter<Long, CassandraDuration>
     {
         public Class<Long> getInputType()
         {
             return Long.class;
         }
 
-        public Duration apply(Long value)
+        public CassandraDuration apply(Long value)
         {
             if (value == null)
                 return null;
-            return Duration.inMilliseconds(value);
+            return CassandraDuration.inMilliseconds(value);
         }
     }
 
-    public static final class MillisDurationInDoubleConverter implements Converter<Double, Duration>
+    public static final class MillisDurationInDoubleConverter implements Converter<Double, CassandraDuration>
     {
 
         public Class<Double> getInputType()
@@ -62,22 +62,22 @@ public interface Converter<Original, Current>
             return Double.class;
         }
 
-        public Duration apply(Double value)
+        public CassandraDuration apply(Double value)
         {
             if (value == null)
                 return null;
-            return Duration.inMilliseconds((long)value.doubleValue());
+            return CassandraDuration.inMilliseconds((long)value.doubleValue());
         }
     }
 
-    public static final class MillisDurationConverterCustom implements Converter<Long, Duration>
+    public static final class MillisDurationConverterCustom implements Converter<Long, CassandraDuration>
     {
         public Class<Long> getInputType()
         {
             return Long.class;
         }
 
-        public Duration apply(Long value)
+        public CassandraDuration apply(Long value)
         {
             if (value == null)
                 return null;
@@ -85,37 +85,37 @@ public interface Converter<Original, Current>
             if (value.equals((long) -1))
                 value = 0L;
 
-            return Duration.inMilliseconds(value);
+            return CassandraDuration.inMilliseconds(value);
         }
     }
 
-    public static final class SecondsDurationConverter implements Converter<Long, Duration>
+    public static final class SecondsDurationConverter implements Converter<Long, CassandraDuration>
     {
         public Class<Long> getInputType()
         {
             return Long.class;
         }
 
-        public Duration apply(Long value)
+        public CassandraDuration apply(Long value)
         {
             if (value == null)
                 return null;
-            return Duration.inSeconds(value);
+            return CassandraDuration.inSeconds(value);
         }
     }
 
-    public static final class MinutesDurationConverter implements Converter<Long, Duration>
+    public static final class MinutesDurationConverter implements Converter<Long, CassandraDuration>
     {
         public Class<Long> getInputType()
         {
             return Long.class;
         }
 
-        public Duration apply(Long value)
+        public CassandraDuration apply(Long value)
         {
             if (value == null)
                 return null;
-            return Duration.inMinutes(value);
+            return CassandraDuration.inMinutes(value);
         }
     }
 

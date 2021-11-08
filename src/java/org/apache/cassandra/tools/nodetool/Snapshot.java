@@ -33,7 +33,7 @@ import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.config.Duration;
+import org.apache.cassandra.config.CassandraDuration;
 
 @Command(name = "snapshot", description = "Take a snapshot of specified keyspaces or a snapshot of the specified table")
 public class Snapshot extends NodeToolCmd
@@ -69,7 +69,7 @@ public class Snapshot extends NodeToolCmd
             Map<String, String> options = new HashMap<String,String>();
             options.put("skipFlush", Boolean.toString(skipFlush));
             if (null != ttl) {
-                Duration d = new Duration(ttl);
+                CassandraDuration d = new CassandraDuration(ttl);
                 options.put("ttl", d.toString());
             }
 

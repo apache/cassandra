@@ -27,6 +27,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.config.CassandraDuration;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.commons.lang3.StringUtils;
@@ -36,7 +38,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -186,7 +187,7 @@ public class DirectoriesTest
         if (createManifest)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
-            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new Duration("1m"), Instant.now());
+            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new CassandraDuration("1m"), Instant.now());
             manifest.serializeToJsonFile(manifestFile);
         }
 
@@ -311,7 +312,7 @@ public class DirectoriesTest
 
             File manifestFile = directories.getSnapshotManifestFile(tag);
 
-            SnapshotManifest manifest = new SnapshotManifest(files, new Duration("1m"), Instant.now());
+            SnapshotManifest manifest = new SnapshotManifest(files, new CassandraDuration("1m"), Instant.now());
             manifest.serializeToJsonFile(manifestFile);
 
             Set<File> dirs = new HashSet<>();

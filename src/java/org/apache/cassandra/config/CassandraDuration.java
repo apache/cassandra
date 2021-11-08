@@ -29,7 +29,7 @@ import com.google.common.primitives.Ints;
 /**
  * Represents a positive time duration.
  */
-public final class Duration
+public final class CassandraDuration
 {
     /**
      * The Regexp used to parse the duration provided as String.
@@ -41,7 +41,7 @@ public final class Duration
 
     private final TimeUnit unit;
 
-    public Duration(String value)
+    public CassandraDuration(String value)
     {
         if (value == null || value.equals("null"))
         {
@@ -69,60 +69,60 @@ public final class Duration
         }
     }
 
-    private Duration(long quantity, TimeUnit unit)
+    private CassandraDuration(long quantity, TimeUnit unit)
     {
         if (quantity < 0)
-            throw new IllegalArgumentException("Duration must be positive");
+            throw new IllegalArgumentException("CassandraDuration must be positive");
 
         this.quantity = quantity;
         this.unit = unit;
     }
 
-    private Duration(double quantity, TimeUnit unit)
+    private CassandraDuration(double quantity, TimeUnit unit)
     {
         if (quantity < 0)
-            throw new IllegalArgumentException("Duration must be positive");
+            throw new IllegalArgumentException("CassandraDuration must be positive");
 
         this.quantity = (long) quantity;
         this.unit = unit;
     }
 
     /**
-     * Creates a {@code Duration} of the specified amount of milliseconds.
+     * Creates a {@code CassandraDuration} of the specified amount of milliseconds.
      *
      * @param milliseconds the amount of milliseconds
      * @return a duration
      */
-    public static Duration inMilliseconds(long milliseconds)
+    public static CassandraDuration inMilliseconds(long milliseconds)
     {
-        return new Duration(milliseconds, TimeUnit.MILLISECONDS);
+        return new CassandraDuration(milliseconds, TimeUnit.MILLISECONDS);
     }
 
-    public static Duration inDoubleMilliseconds(double milliseconds)
+    public static CassandraDuration inDoubleMilliseconds(double milliseconds)
     {
-        return new Duration(milliseconds, TimeUnit.MILLISECONDS);
+        return new CassandraDuration(milliseconds, TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Creates a {@code Duration} of the specified amount of seconds.
+     * Creates a {@code CassandraDuration} of the specified amount of seconds.
      *
      * @param seconds the amount of seconds
      * @return a duration
      */
-    public static Duration inSeconds(long seconds)
+    public static CassandraDuration inSeconds(long seconds)
     {
-        return new Duration(seconds, TimeUnit.SECONDS);
+        return new CassandraDuration(seconds, TimeUnit.SECONDS);
     }
 
     /**
-     * Creates a {@code Duration} of the specified amount of minutes.
+     * Creates a {@code CassandraDuration} of the specified amount of minutes.
      *
      * @param minutes the amount of minutes
      * @return a duration
      */
-    public static Duration inMinutes(long minutes)
+    public static CassandraDuration inMinutes(long minutes)
     {
-        return new Duration(minutes, TimeUnit.MINUTES);
+        return new CassandraDuration(minutes, TimeUnit.MINUTES);
     }
 
     /**
@@ -146,7 +146,7 @@ public final class Duration
         }
         throw new IllegalArgumentException(String.format("Unsupported time unit: %s. Supported units are: %s",
                                                          symbol, Arrays.stream(TimeUnit.values())
-                                                                       .map(Duration::getSymbol)
+                                                                       .map(CassandraDuration::getSymbol)
                                                                        .collect(Collectors.joining(", "))));
     }
 
@@ -234,10 +234,10 @@ public final class Duration
         if (this == obj)
             return true;
 
-        if (!(obj instanceof Duration))
+        if (!(obj instanceof CassandraDuration))
             return false;
 
-        Duration other = (Duration) obj;
+        CassandraDuration other = (CassandraDuration) obj;
         if (unit == other.unit)
             return quantity == other.quantity;
 

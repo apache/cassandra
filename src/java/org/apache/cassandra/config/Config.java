@@ -57,22 +57,22 @@ public class Config
     public String network_authorizer;
 
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration permissions_validity = new Duration("2s");
+    public volatile CassandraDuration permissions_validity = new CassandraDuration("2s");
     public volatile int permissions_cache_max_entries = 1000;
     @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, deprecated = true)
-    public volatile Duration permissions_update_interval = new Duration("0ms");
+    public volatile CassandraDuration permissions_update_interval = new CassandraDuration("0ms");
     public volatile boolean permissions_cache_active_update = false;
     @Replaces(oldName = "roles_validity_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration roles_validity = new Duration("2s");
+    public volatile CassandraDuration roles_validity = new CassandraDuration("2s");
     public volatile int roles_cache_max_entries = 1000;
     @Replaces(oldName = "roles_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, deprecated = true)
-    public volatile Duration roles_update_interval= new Duration("0ms");
+    public volatile CassandraDuration roles_update_interval= new CassandraDuration("0ms");
     public volatile boolean roles_cache_active_update = false;
     @Replaces(oldName = "credentials_validity_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration credentials_validity = new Duration("2s");
+    public volatile CassandraDuration credentials_validity = new CassandraDuration("2s");
     public volatile int credentials_cache_max_entries = 1000;
     @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, deprecated = true)
-    public volatile Duration credentials_update_interval= new Duration("0ms");
+    public volatile CassandraDuration credentials_update_interval= new CassandraDuration("0ms");
     public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
@@ -82,7 +82,7 @@ public class Config
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
     @Replaces(oldName = "max_hint_window_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration max_hint_window = new Duration("3h");
+    public volatile CassandraDuration max_hint_window = new CassandraDuration("3h");
     public String hints_directory;
     public boolean hint_window_persistent_enabled = true;
 
@@ -103,38 +103,38 @@ public class Config
     public Integer allocate_tokens_for_local_replication_factor = null;
 
     @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration native_transport_idle_timeout = new Duration("0ms");
+    public volatile CassandraDuration native_transport_idle_timeout = new CassandraDuration("0ms");
 
     @Replaces(oldName = "request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration request_timeout = new Duration("10000ms");
+    public volatile CassandraDuration request_timeout = new CassandraDuration("10000ms");
 
     @Replaces(oldName = "read_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration read_request_timeout = new Duration("5000ms");
+    public volatile CassandraDuration read_request_timeout = new CassandraDuration("5000ms");
 
     @Replaces(oldName = "range_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration range_request_timeout = new Duration("10000ms");
+    public volatile CassandraDuration range_request_timeout = new CassandraDuration("10000ms");
 
     @Replaces(oldName = "write_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration write_request_timeout = new Duration("2000ms");
+    public volatile CassandraDuration write_request_timeout = new CassandraDuration("2000ms");
 
     @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration counter_write_request_timeout = new Duration("5000ms");
+    public volatile CassandraDuration counter_write_request_timeout = new CassandraDuration("5000ms");
 
     @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration cas_contention_timeout = new Duration("1000ms");
+    public volatile CassandraDuration cas_contention_timeout = new CassandraDuration("1000ms");
 
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration truncate_request_timeout = new Duration("60000ms");
+    public volatile CassandraDuration truncate_request_timeout = new CassandraDuration("60000ms");
 
     public Integer streaming_connections_per_host = 1;
     @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converter.SecondsDurationConverter.class, deprecated = true)
-    public Duration streaming_keep_alive_period = new Duration("300s");
+    public CassandraDuration streaming_keep_alive_period = new CassandraDuration("300s");
 
     @Replaces(oldName = "cross_node_timeout", deprecated = true)
     public boolean internode_timeout = true;
 
     @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration slow_query_log_timeout = new Duration("500ms");
+    public volatile CassandraDuration slow_query_log_timeout = new CassandraDuration("500ms");
 
     public volatile double phi_convict_threshold = 8.0;
 
@@ -212,17 +212,17 @@ public class Config
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
     @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration internode_tcp_connect_timeout = new Duration("2s");
+    public volatile CassandraDuration internode_tcp_connect_timeout = new CassandraDuration("2s");
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
     @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration internode_tcp_user_timeout = new Duration("30s");
+    public volatile CassandraDuration internode_tcp_user_timeout = new CassandraDuration("30s");
     // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
     // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
     @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public volatile Duration internode_streaming_tcp_user_timeout = new Duration("300s"); // 5 minutes
+    public volatile CassandraDuration internode_streaming_tcp_user_timeout = new CassandraDuration("300s"); // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
@@ -302,9 +302,9 @@ public class Config
     public CommitLogSync commitlog_sync;
 
     @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, deprecated = true)
-    public Duration commitlog_sync_group_window = new Duration("0ms");
+    public CassandraDuration commitlog_sync_group_window = new CassandraDuration("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration commitlog_sync_period = new Duration("0ms");
+    public CassandraDuration commitlog_sync_period = new CassandraDuration("0ms");
     @Replaces(oldName = "commitlog_segment_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
     public DataStorage commitlog_segment_size = new DataStorage("32mb");
 
@@ -312,7 +312,7 @@ public class Config
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
     @Replaces(oldName = "periodic_commitlog_sync_lag_block_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration periodic_commitlog_sync_lag_block;
+    public CassandraDuration periodic_commitlog_sync_lag_block;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
     @Replaces(oldName = "max_mutation_size_in_kb", converter = Converter.KilobytesDataStorageConverter.class, deprecated = true)
@@ -324,7 +324,7 @@ public class Config
     @Replaces(oldName = "cdc_total_space_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
     public DataStorage cdc_total_space = new DataStorage("0MB");
     @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration cdc_free_space_check_interval = new Duration("250ms");
+    public CassandraDuration cdc_free_space_check_interval = new CassandraDuration("250ms");
 
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
@@ -332,9 +332,9 @@ public class Config
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
     @Replaces(oldName = "dynamic_snitch_update_interval_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration dynamic_snitch_update_interval = new Duration("100ms");
+    public CassandraDuration dynamic_snitch_update_interval = new CassandraDuration("100ms");
     @Replaces(oldName = "dynamic_snitch_reset_interval_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration dynamic_snitch_reset_interval = new Duration("10m");
+    public CassandraDuration dynamic_snitch_reset_interval = new CassandraDuration("10m");
     public double dynamic_snitch_badness_threshold = 1.0;
     
     public String failure_detector = "FailureDetector";
@@ -350,7 +350,7 @@ public class Config
     public volatile DataStorage batchlog_replay_throttle = new DataStorage("1024KB");
     public int max_hints_delivery_threads = 2;
     @Replaces(oldName = "hints_flush_period_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration hints_flush_period = new Duration("10s");
+    public CassandraDuration hints_flush_period = new CassandraDuration("10s");
     @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
     public DataStorage max_hints_file_size = new DataStorage("128mb");
     public ParameterizedClass hints_compression;
@@ -426,25 +426,25 @@ public class Config
     @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
     public DataStorage index_summary_capacity;
     @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converter.MinutesDurationConverter.class, deprecated = true)
-    public volatile Duration index_summary_resize_interval = new Duration("60m");
+    public volatile CassandraDuration index_summary_resize_interval = new CassandraDuration("60m");
 
     @Replaces(oldName = "gc_log_threshold_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration gc_log_threshold = new Duration("200ms");
+    public CassandraDuration gc_log_threshold = new CassandraDuration("200ms");
     @Replaces(oldName = "gc_warn_threshold_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
-    public Duration gc_warn_threshold = new Duration("1s");
+    public CassandraDuration gc_warn_threshold = new CassandraDuration("1s");
 
     // TTL for different types of trace events.
     @Replaces(oldName = "tracetype_query_ttl", converter = Converter.SecondsDurationConverter.class, deprecated=true)
-    public Duration trace_type_query_ttl = new Duration("86400s");
+    public CassandraDuration trace_type_query_ttl = new CassandraDuration("86400s");
     @Replaces(oldName = "tracetype_repair_ttl", converter = Converter.SecondsDurationConverter.class, deprecated=true)
-    public Duration trace_type_repair_ttl = new Duration("604800s");
+    public CassandraDuration trace_type_repair_ttl = new CassandraDuration("604800s");
 
     /**
      * Maintain statistics on whether writes achieve the ideal consistency level
      * before expiring and becoming hints
      */
     public volatile ConsistencyLevel ideal_consistency_level = null;
-
+    
     public int windows_timer_interval = 0;
 
     /**
@@ -606,9 +606,9 @@ public class Config
 
     public volatile boolean denylist_range_reads_enabled = true;
 
-    public Duration denylist_refresh = new Duration("600S");
+    public CassandraDuration denylist_refresh = new CassandraDuration("600S");
 
-    public Duration denylist_initial_load_retry = new Duration("5S");
+    public CassandraDuration denylist_initial_load_retry = new CassandraDuration("5S");
 
     /** We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Operators will
      * receive warnings and only denylist_max_keys_per_table in natural query ordering will be processed on overflow.

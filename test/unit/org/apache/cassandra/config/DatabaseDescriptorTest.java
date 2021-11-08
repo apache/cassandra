@@ -334,7 +334,7 @@ public class DatabaseDescriptorTest
     {
         Config testConfig = new Config();
 
-        Duration greaterThanLowestTimeout = Duration.inMilliseconds(DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT.toMilliseconds()+1);
+        CassandraDuration greaterThanLowestTimeout = CassandraDuration.inMilliseconds(DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT.toMilliseconds() + 1);
 
         testConfig.read_request_timeout = greaterThanLowestTimeout;
         testConfig.range_request_timeout = greaterThanLowestTimeout;
@@ -353,7 +353,7 @@ public class DatabaseDescriptorTest
         assertEquals(testConfig.request_timeout, greaterThanLowestTimeout);
 
         //set less than Lowest acceptable value
-        Duration lowerThanLowestTimeout = Duration.inMilliseconds(DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT.toMilliseconds() - 1);
+        CassandraDuration lowerThanLowestTimeout = CassandraDuration.inMilliseconds(DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT.toMilliseconds() - 1);
 
         testConfig.read_request_timeout = lowerThanLowestTimeout;
         testConfig.range_request_timeout = lowerThanLowestTimeout;

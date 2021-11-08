@@ -26,7 +26,7 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.config.Duration;
+import org.apache.cassandra.config.CassandraDuration;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import org.apache.cassandra.io.util.File;
@@ -60,7 +60,7 @@ public class SnapshotManifest
         this.expiresAt = null;
     }
 
-    public SnapshotManifest(List<String> files, Duration ttl, Instant creationTime)
+    public SnapshotManifest(List<String> files, CassandraDuration ttl, Instant creationTime)
     {
         this.files = files;
         this.createdAt = creationTime;

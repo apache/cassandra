@@ -185,7 +185,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.locator.InetAddressAndPort",
     "org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement",
     "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement",
-    "org.apache.cassandra.config.Duration",
+    "org.apache.cassandra.config.CassandraDuration",
     "org.apache.cassandra.config.DataStorage",
     "org.apache.cassandra.config.DataStorage$DataStorageUnit",
     "org.apache.cassandra.config.DataStorage$DataStorageUnit$1",
