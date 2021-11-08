@@ -360,7 +360,7 @@ public abstract class Lists
                 else
                 {
                     // in addition to being at the same millisecond, we handle the unexpected case of the millis parameter
-                    // being in the past. That could happen if the System.currentTimeMillis() not operating montonically
+                    // being in the past. That could happen if the Global.currentTimeMillis() not operating montonically
                     // or if one thread is just a really big loser in the compareAndSet game of life.
                     long millisToUse = millis <= current.millis ? millis : current.millis;
 

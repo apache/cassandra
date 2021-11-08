@@ -33,6 +33,7 @@ import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class CommunicationDuringDecommissionTest extends TestBaseImpl
 {
@@ -53,10 +54,10 @@ public class CommunicationDuringDecommissionTest extends TestBaseImpl
 
 
             Map<Integer, Long> connectionAttempts = new HashMap<>();
-            long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(10);
+            long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(10);
 
             // Wait 10 seconds and check if there are any new connection attempts to the decomissioned node
-            while (System.currentTimeMillis() <= deadline)
+            while (currentTimeMillis() <= deadline)
             {
                 for (int i = 2; i <= cluster.size(); i++)
                 {

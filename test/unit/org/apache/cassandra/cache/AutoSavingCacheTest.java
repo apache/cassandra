@@ -34,6 +34,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class AutoSavingCacheTest
 {
     private static final String KEYSPACE1 = "AutoSavingCacheTest1";
@@ -71,7 +73,7 @@ public class AutoSavingCacheTest
         for (int i = 0; i < 2; i++)
         {
             ColumnMetadata colDef = ColumnMetadata.regularColumn(cfs.metadata(), ByteBufferUtil.bytes("col1"), AsciiType.instance);
-            RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), "key1");
+            RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), currentTimeMillis(), "key1");
             rowBuilder.add(colDef, "val1");
             rowBuilder.build().apply();
             cfs.forceBlockingFlush();

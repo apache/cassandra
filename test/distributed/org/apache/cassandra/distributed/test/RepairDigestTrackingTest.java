@@ -67,6 +67,7 @@ import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -544,7 +545,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                     SSTableReader sstable = sstables.next();
                     Descriptor descriptor = sstable.descriptor;
                     descriptor.getMetadataSerializer()
-                              .mutateRepairMetadata(descriptor, System.currentTimeMillis(), null, false);
+                              .mutateRepairMetadata(descriptor, currentTimeMillis(), null, false);
                     sstable.reloadSSTableMetadata();
                 }
             } catch (IOException e) {

@@ -55,6 +55,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.*;
 
 public class BatchlogManagerTest
@@ -146,8 +147,8 @@ public class BatchlogManagerTest
             }
 
             long timestamp = i < 50
-                           ? (System.currentTimeMillis() - BatchlogManager.getBatchlogTimeout())
-                           : (System.currentTimeMillis() + BatchlogManager.getBatchlogTimeout());
+                           ? (currentTimeMillis() - BatchlogManager.getBatchlogTimeout())
+                           : (currentTimeMillis() + BatchlogManager.getBatchlogTimeout());
 
             BatchlogManager.store(Batch.createLocal(UUIDGen.getTimeUUID(timestamp, i), timestamp * 1000, mutations));
         }
@@ -220,7 +221,7 @@ public class BatchlogManagerTest
             List<Mutation> mutations = Lists.newArrayList(mutation1, mutation2);
 
             // Make sure it's ready to be replayed, so adjust the timestamp.
-            long timestamp = System.currentTimeMillis() - BatchlogManager.getBatchlogTimeout();
+            long timestamp = currentTimeMillis() - BatchlogManager.getBatchlogTimeout();
 
             if (i == 500)
                 SystemKeyspace.saveTruncationRecord(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2),
@@ -275,7 +276,7 @@ public class BatchlogManagerTest
         long initialAllBatches = BatchlogManager.instance.countAllBatches();
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD5).metadata();
 
-        long timestamp = (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
+        long timestamp = (currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
         UUID uuid = UUIDGen.getTimeUUID();
 
         // Add a batch with 10 mutations
@@ -307,7 +308,7 @@ public class BatchlogManagerTest
         long initialAllBatches = BatchlogManager.instance.countAllBatches();
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD5).metadata();
 
-        long timestamp = (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
+        long timestamp = (currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
         UUID uuid = UUIDGen.getTimeUUID();
 
         // Add a batch with 10 mutations
@@ -349,7 +350,7 @@ public class BatchlogManagerTest
 
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata();
 
-        long timestamp = (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
+        long timestamp = (currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
         UUID uuid = UUIDGen.getTimeUUID();
 
         // Add a batch with 10 mutations

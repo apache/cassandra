@@ -50,6 +50,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class SchemaLoader
 {
     @BeforeClass
@@ -82,7 +84,7 @@ public class SchemaLoader
         // skip shadow round and endpoint collision check in tests
         System.setProperty("cassandra.allow_unsafe_join", "true");
         if (!Gossiper.instance.isEnabled())
-            Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
+            Gossiper.instance.start((int) (currentTimeMillis() / 1000));
     }
 
     public static void schemaDefinition(String testName) throws ConfigurationException

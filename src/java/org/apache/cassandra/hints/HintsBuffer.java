@@ -148,7 +148,7 @@ final class HintsBuffer
     /**
      * Retrieve the time of the earliest hint in the buffer for a specific node
      * @param hostId UUID of the node
-     * @return timestamp for the earliest hint in the buffer, or {@link System#currentTimeMillis()}
+     * @return timestamp for the earliest hint in the buffer, or {@link Global#currentTimeMillis()}
      */
     long getEarliestHintTime(UUID hostId)
     {
