@@ -29,6 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.assertj.core.api.Assertions;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
@@ -123,6 +124,15 @@ public class JVMStabilityInspectorTest
             assertSame(e.getClass(), OutOfMemoryError.class);
             assertEquals("Java heap space", e.getMessage());
         }
+    }
+
+    @Test
+    public void testForceHeapSpaceOomExclude()
+    {
+        OutOfMemoryError error = new OutOfMemoryError("Java heap space");
+        Assertions.assertThatThrownBy(() -> JVMStabilityInspector.inspectThrowable(error))
+                  .isInstanceOf(OutOfMemoryError.class)
+                  .isEqualTo(error);
     }
 
     @Test
