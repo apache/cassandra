@@ -529,7 +529,7 @@ public class MigrationManagerTest
         // check
         assertTrue(cfs.indexManager.listIndexes().isEmpty());
         LifecycleTransaction.waitForDeletions();
-        assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
+        assertFalse(desc.fileFor(Component.DATA).exists());
     }
 
     @Test

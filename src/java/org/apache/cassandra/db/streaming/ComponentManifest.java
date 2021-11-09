@@ -57,7 +57,7 @@ public final class ComponentManifest implements Iterable<Component>
         {
             if (descriptor.getFormat().supportedComponents().contains(component))
             {
-                File file = new File(descriptor.filenameFor(component));
+                File file = descriptor.fileFor(component);
                 if (!file.exists())
                     continue;
 

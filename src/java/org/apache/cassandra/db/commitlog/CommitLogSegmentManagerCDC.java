@@ -44,10 +44,10 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     static final Logger logger = LoggerFactory.getLogger(CommitLogSegmentManagerCDC.class);
     private final CDCSizeTracker cdcSizeTracker;
 
-    public CommitLogSegmentManagerCDC(final CommitLog commitLog, String storageDirectory)
+    public CommitLogSegmentManagerCDC(final CommitLog commitLog, File storageDirectory)
     {
         super(commitLog, storageDirectory);
-        cdcSizeTracker = new CDCSizeTracker(this, new File(DatabaseDescriptor.getCDCLogLocation()));
+        cdcSizeTracker = new CDCSizeTracker(this, DatabaseDescriptor.getCDCLogLocation());
     }
 
     @Override

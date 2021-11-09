@@ -315,11 +315,11 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.fileFor(Component.DIGEST).toJavaIOFile(), "rw"))
         {
             Long correctChecksum = Long.valueOf(file.readLine());
 
-            writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+            writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Component.DIGEST));
         }
 
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
@@ -365,7 +365,7 @@ public class VerifyTest
             ChunkCache.instance.invalidateFile(sstable.getFilename());
 
         // Update the Digest to have the right Checksum
-        writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.filenameFor(Component.DIGEST));
+        writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.fileFor(Component.DIGEST));
 
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
@@ -408,8 +408,8 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
-        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
+        File filenameToCorrupt = sstable.descriptor.fileFor(Component.STATS);
+        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt.toJavaIOFile(), "rw");
         file.seek(0);
         file.writeBytes(StringUtils.repeat('z', 2));
         file.close();
@@ -448,11 +448,11 @@ public class VerifyTest
 
         // break the sstable:
         Long correctChecksum;
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.fileFor(Component.DIGEST).toJavaIOFile(), "rw"))
         {
             correctChecksum = Long.parseLong(file.readLine());
         }
-        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Component.DIGEST));
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().mutateRepairStatus(false).invokeDiskFailurePolicy(true).build()))
         {
             verifier.verify();
@@ -517,11 +517,11 @@ public class VerifyTest
 
         sstable = cfs.getLiveSSTables().iterator().next();
         Long correctChecksum;
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.fileFor(Component.DIGEST).toJavaIOFile(), "rw"))
         {
             correctChecksum = Long.parseLong(file.readLine());
         }
-        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Component.DIGEST));
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true).build()))
         {
             verifier.verify();
@@ -579,8 +579,8 @@ public class VerifyTest
         {
             verifier.verify(); //still not corrupt, should pass
         }
-        String filenameToCorrupt = sstable.descriptor.filenameFor(componentToBreak);
-        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        File filenameToCorrupt = sstable.descriptor.fileFor(componentToBreak);
+        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt.toJavaIOFile(), "rw"))
         {
             file.setLength(3);
         }
@@ -610,11 +610,11 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.fileFor(Component.DIGEST).toJavaIOFile(), "rw"))
         {
             Long correctChecksum = Long.valueOf(file.readLine());
 
-            writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+            writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Component.DIGEST));
         }
 
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
@@ -749,7 +749,7 @@ public class VerifyTest
         assertEquals(1.0, cfs.metadata().params.bloomFilterFpChance, 0.0);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            File f = new File(sstable.descriptor.filenameFor(Component.FILTER));
+            File f = sstable.descriptor.fileFor(Component.FILTER);
             assertFalse(f.exists());
             try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().build()))
             {
@@ -814,20 +814,19 @@ public class VerifyTest
         }
     }
 
-    public static void writeChecksum(long checksum, String filePath)
+    public static void writeChecksum(long checksum, File filePath)
     {
-        File outFile = new File(filePath);
         BufferedWriter out = null;
         try
         {
-            out = Files.newBufferedWriter(outFile.toPath(), Charsets.UTF_8);
+            out = Files.newBufferedWriter(filePath.toPath(), Charsets.UTF_8);
             out.write(String.valueOf(checksum));
             out.flush();
             out.close();
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, outFile);
+            throw new FSWriteError(e, filePath);
         }
         finally
         {

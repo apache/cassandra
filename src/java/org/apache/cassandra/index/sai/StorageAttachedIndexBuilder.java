@@ -147,7 +147,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
         }
 
         try (RandomAccessReader dataFile = sstable.openDataReader();
-             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.INDEX_BUILD))
+             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.INDEX_BUILD, tracker.metadata))
         {
             perSSTableFileLock = shouldWriteTokenOffsetFiles(sstable);
             boolean perColumnOnly = perSSTableFileLock == null;
@@ -192,7 +192,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                     DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
 
                     try (SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), dataFile, sstable.header, helper, partitionLevelDeletion);
-                         SSTableIdentityIterator partition = new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, sstable.getFilename(), iterator))
+                         SSTableIdentityIterator partition = new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, sstable.getDataFile(), iterator))
                     {
                         // if the row has statics attached, it has to be indexed separately
                         if (metadata.hasStaticColumns())
@@ -212,6 +212,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                 }
 
                 completeSSTable(indexWriter, sstable, indexes, perSSTableFileLock);
+                txn.trackNewAttachedIndexFiles(sstable);
             }
 
             return false;
@@ -362,7 +363,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             if (isFullRebuild)
                 throw new RuntimeException(logMessage(String.format("%s are dropped, will stop index build.", droppedIndexes)));
             else
-                logger.debug(logMessage("Skip building dropped index {} on sstable {}"), droppedIndexes, descriptor.baseFilename());
+                logger.debug(logMessage("Skip building dropped index {} on sstable {}"), droppedIndexes, descriptor.baseFileUri());
         }
 
         return existing;

@@ -193,7 +193,7 @@ public class CommitLogReaderTest extends CQLTester
 
     static ArrayList<File> getCommitLogs()
     {
-        File dir = new File(DatabaseDescriptor.getCommitLogLocation());
+        File dir = DatabaseDescriptor.getCommitLogLocation();
         File[] files = dir.tryList();
         ArrayList<File> results = new ArrayList<>();
         for (File f : files)

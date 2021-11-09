@@ -47,12 +47,14 @@ public class CompactionStrategyFactory
      *                compaction strategy
      * @param compactionParams the new compaction parameters
      * @param reason the reason for reloading
+     * @param enableAutoCompaction true if auto compaction should be enabled
      *
      * @return Either a new strategy container or the current one, but reloaded with the given compaction parameters.
      */
     public CompactionStrategyContainer reload(@Nullable CompactionStrategyContainer current,
                                               CompactionParams compactionParams,
-                                              CompactionStrategyContainer.ReloadReason reason)
+                                              CompactionStrategyContainer.ReloadReason reason,
+                                              boolean enableAutoCompaction)
     {
         // If we were called due to a metadata change but the compaction parameters are the same then
         // don't reload since we risk overriding parameters set via JMX
@@ -68,7 +70,7 @@ public class CompactionStrategyFactory
         else
         {
             // otherwise we need to re-create the container
-            ret = createStrategyContainer(containerClass, current, compactionParams, reason);
+            ret = createStrategyContainer(containerClass, current, compactionParams, reason, enableAutoCompaction);
         }
         
         return ret;
@@ -114,7 +116,8 @@ public class CompactionStrategyFactory
     private CompactionStrategyContainer createStrategyContainer(Class<? extends CompactionStrategyContainer> containerClass,
                                                                 CompactionStrategyContainer previous,
                                                                 CompactionParams compactionParams,
-                                                                CompactionStrategyContainer.ReloadReason reason)
+                                                                CompactionStrategyContainer.ReloadReason reason,
+                                                                boolean enableAutoCompaction)
     {
         CompactionStrategyContainer ret;
         try
@@ -123,16 +126,18 @@ public class CompactionStrategyFactory
                                                            CompactionStrategyContainer.class,
                                                            CompactionStrategyFactory.class,
                                                            CompactionParams.class,
-                                                           CompactionStrategyContainer.ReloadReason.class);
+                                                           CompactionStrategyContainer.ReloadReason.class,
+                                                           boolean.class);
             ret = (CompactionStrategyContainer) createMethod.invoke(null,
                                                                     previous,
                                                                     this,
                                                                     compactionParams,
-                                                                    reason);
+                                                                    reason,
+                                                                    enableAutoCompaction);
         }
         catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e)
         {
-            ret = new CompactionStrategyManager(this);
+            ret = new CompactionStrategyManager(this, enableAutoCompaction);
             ret.reload(previous, compactionParams, reason);
         }
         return ret;

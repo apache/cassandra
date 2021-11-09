@@ -428,7 +428,7 @@ public class IndexComponents
             logger.trace(logMessage("Opening {} file handle for {} ({})"), temporary ? "temporary" : "", file, FBUtilities.prettyPrintMemory(file.length()));
         }
 
-        try (final FileHandle.Builder builder = new FileHandle.Builder(file.absolutePath()).mmapped(true))
+        try (final FileHandle.Builder builder = new FileHandle.Builder(file).mmapped(true))
         {
             return builder.complete();
         }
@@ -489,7 +489,7 @@ public class IndexComponents
         if (logger.isTraceEnabled())
             logger.trace(logMessage("Opening blocking index input for file {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
 
-        try (final FileHandle.Builder builder = new FileHandle.Builder(file.absolutePath()))
+        try (final FileHandle.Builder builder = new FileHandle.Builder(file))
         {
             final FileHandle fileHandle = builder.complete();
             final RandomAccessReader randomReader = fileHandle.createReader();

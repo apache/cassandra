@@ -762,7 +762,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         StringBuilder newSSTableNames = new StringBuilder(newSStables.size() * 100);
         for (SSTableReader reader : newSStables)
-            newSSTableNames.append(reader.descriptor.baseFilename()).append(",");
+            newSSTableNames.append(reader.descriptor.baseFileUri()).append(",");
         logger.debug("Compacted ({}) {} sstables to [{}] to level={}. {} to {} (~{}% of original) in {}ms. " +
                      "Read Throughput = {}, Write Throughput = {}, Row Throughput = ~{}/s, Partition Throughput = ~{}/s." +
                      " {} total partitions merged to {}. Partition merge counts were {}.",

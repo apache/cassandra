@@ -29,7 +29,6 @@ import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -44,7 +43,6 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.ForwardingSSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
 
@@ -195,7 +193,7 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
 
         private CorruptSSTableException throwCorrupted()
         {
-            throw new CorruptSSTableException(new IOException("failed to get position"), descriptor.baseFilename());
+            throw new CorruptSSTableException(new IOException("failed to get position"), descriptor.baseFileUri());
         }
     }
 }

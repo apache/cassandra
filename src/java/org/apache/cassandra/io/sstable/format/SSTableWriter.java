@@ -383,45 +383,45 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     {
         for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
         {
-            FileUtils.renameWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
+            tmpdesc.fileFor(component).move(newdesc.fileFor(component));
         }
 
         // do -Data last because -Data present should mean the sstable was completely renamed before crash
-        FileUtils.renameWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
+        tmpdesc.fileFor(Component.DATA).move(newdesc.fileFor(Component.DATA));
 
         // rename it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
         if (components.contains(Component.SUMMARY))
-            FileUtils.renameWithOutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
+            tmpdesc.fileFor(Component.SUMMARY).tryMove(newdesc.fileFor(Component.SUMMARY));
     }
 
     public static void copy(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
     {
         for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
         {
-            FileUtils.copyWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
+            FileUtils.copyWithConfirm(tmpdesc.fileFor(component), newdesc.fileFor(component));
         }
 
         // do -Data last because -Data present should mean the sstable was completely copied before crash
-        FileUtils.copyWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
+        FileUtils.copyWithConfirm(tmpdesc.fileFor(Component.DATA), newdesc.fileFor(Component.DATA));
 
         // copy it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
         if (components.contains(Component.SUMMARY))
-            FileUtils.copyWithOutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
+            FileUtils.copyWithOutConfirm(tmpdesc.fileFor(Component.SUMMARY), newdesc.fileFor(Component.SUMMARY));
     }
 
     public static void hardlink(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
     {
         for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
         {
-            FileUtils.createHardLinkWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
+            FileUtils.createHardLinkWithConfirm(tmpdesc.fileFor(component), newdesc.fileFor(component));
         }
 
         // do -Data last because -Data present should mean the sstable was completely copied before crash
-        FileUtils.createHardLinkWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
+        FileUtils.createHardLinkWithConfirm(tmpdesc.fileFor(Component.DATA), newdesc.fileFor(Component.DATA));
 
         // copy it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
         if (components.contains(Component.SUMMARY))
-            FileUtils.createHardLinkWithoutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
+            FileUtils.createHardLinkWithoutConfirm(tmpdesc.fileFor(Component.SUMMARY), newdesc.fileFor(Component.SUMMARY));
     }
 
     public interface SSTableSizeParameters

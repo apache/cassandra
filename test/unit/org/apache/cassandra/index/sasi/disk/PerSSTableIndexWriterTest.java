@@ -92,7 +92,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor descriptor = cfs.newSSTableDescriptor(directory);
-        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, LifecycleTransaction.offline(OperationType.FLUSH));
+        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, LifecycleTransaction.offline(OperationType.FLUSH, cfs.metadata));
 
         SortedMap<DecoratedKey, Row> expectedKeys = new TreeMap<>(DecoratedKey.comparator);
 
@@ -184,7 +184,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor descriptor = cfs.newSSTableDescriptor(directory);
-        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, LifecycleTransaction.offline(OperationType.FLUSH));
+        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, LifecycleTransaction.offline(OperationType.FLUSH, cfs.metadata));
 
         final long now = System.currentTimeMillis();
 
@@ -241,7 +241,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
             Assert.assertFalse(new File(segment).exists());
 
         // and combined index doesn't exist either
-        Assert.assertFalse(new File(index.outputFile).exists());
+        Assert.assertFalse(index.outputFile.exists());
     }
 
     private static void populateSegment(TableMetadata metadata, PerSSTableIndexWriter.Index index, Map<Long, Set<Integer>> data)

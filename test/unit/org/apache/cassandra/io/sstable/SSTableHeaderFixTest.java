@@ -811,7 +811,7 @@ public class SSTableHeaderFixTest
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)
-                assertTrue(new File(desc.filenameFor(component)).createFileIfNotExists());
+                assertTrue(desc.fileFor(component).createFileIfNotExists());
 
             AbstractType<?> partitionKey = headerMetadata.partitionKeyType;
             List<AbstractType<?>> clusteringKey = headerMetadata.clusteringColumns()
@@ -827,7 +827,7 @@ public class SSTableHeaderFixTest
                                                                             .filter(cd -> cd.kind == ColumnMetadata.Kind.REGULAR)
                                                                             .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a));
 
-            File statsFile = new File(desc.filenameFor(Component.STATS));
+            File statsFile = desc.fileFor(Component.STATS);
             SerializationHeader.Component header = SerializationHeader.Component.buildComponentForTools(partitionKey,
                                                                                                         clusteringKey,
                                                                                                         staticColumns,
@@ -840,7 +840,7 @@ public class SSTableHeaderFixTest
                 out.finish();
             }
 
-            return new File(desc.filenameFor(Component.DATA));
+            return desc.fileFor(Component.DATA);
         }
         catch (Exception e)
         {

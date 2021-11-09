@@ -882,7 +882,7 @@ public class LeveledCompactionStrategyTest
         List<SSTableReader> l0sstables = new ArrayList<>();
         for (int i = 10; i < 20; i++)
             l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, Iterables.concat(l0sstables, l1sstables)))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, cfs.metadata, Iterables.concat(l0sstables, l1sstables)))
         {
             Set<SSTableReader> nonExpired = Sets.difference(txn.originals(), Collections.emptySet());
             CompactionTask task = new LeveledCompactionTask(cfs, txn, 1, 0, 1024*1024, false, null);
@@ -927,7 +927,7 @@ public class LeveledCompactionStrategyTest
         for (int i = 10; i < 20; i++)
             l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
 
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, l0sstables))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, cfs.metadata, l0sstables))
         {
             CompactionTask task = new LeveledCompactionTask(cfs, txn, 0, 0, 1024*1024, false, null);
 
@@ -977,7 +977,7 @@ public class LeveledCompactionStrategyTest
             sstable.reloadSSTableMetadata();
             sstables.add(sstable);
         }
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, cfs.metadata, sstables))
         {
             CompactionTask task = new LeveledCompactionTask(cfs, txn, 0, 0, 1024 * 1024, false, null);
             assertFalse(task.reduceScopeForLimitedSpace(Sets.newHashSet(sstables), 0));

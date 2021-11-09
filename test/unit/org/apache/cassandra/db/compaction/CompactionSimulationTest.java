@@ -66,6 +66,7 @@ import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.unified.AdaptiveController;
+import org.apache.cassandra.db.compaction.unified.CompactionAggregatePrioritizer;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.CostsCalculator;
 import org.apache.cassandra.db.compaction.unified.StaticController;
@@ -203,6 +204,9 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
 
     @Option(name= {"-unsafe-aggressive-sstable-expiration"}, description = "Whether to drop expired SSTables without checking if the partitions appear in other SSTables")
     boolean ignoreOverlaps = false;
+
+    @Option(name= {"-l0-shards-enabed"}, description = "Whether to use shards on L0, true by default")
+    boolean l0ShardsEnabled = true;
 
     @BeforeClass
     public static void setUpClass()
@@ -374,7 +378,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
         Controller controller = adaptive
                                 ? new AdaptiveController(MonotonicClock.preciseTime,
                                                          new SimulatedEnvironment(counters, valueSize), Ws[0],
-                                                         o,
+                                                         new double[] { o },
                                                          datasetSizeGB << 10,  // MB
                                                          numShards,
                                                          sstableSize >> 20, // MB
@@ -383,6 +387,8 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          0,
                                                          expiredSSTableCheckFrequency,
                                                          ignoreOverlaps,
+                                                         l0ShardsEnabled,
+                                                         CompactionAggregatePrioritizer.instance,
                                                          updateTimeSec,
                                                          minW,
                                                          maxW,
@@ -390,7 +396,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          minCost)
                                 : new StaticController(new SimulatedEnvironment(counters, valueSize),
                                                        Ws,
-                                                       o,
+                                                       new double[] { o },
                                                        datasetSizeGB << 10,  // MB
                                                        numShards,
                                                        sstableSize >> 20,
@@ -398,7 +404,9 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                        maxSpaceOverhead, // MB
                                                        0,
                                                        expiredSSTableCheckFrequency,
-                                                       ignoreOverlaps);
+                                                       ignoreOverlaps,
+                                                       l0ShardsEnabled,
+                                                       CompactionAggregatePrioritizer.instance);
 
         return new UnifiedCompactionStrategy(strategyFactory, controller);
     }

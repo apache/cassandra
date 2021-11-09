@@ -132,7 +132,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
         String corruptStatsTable = "corruptStatsTable";
         createAndPopulateTable(keyspaceName, corruptStatsTable, cfs -> {
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-            try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.STATS), "rw"))
+            try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.fileFor(Component.STATS).toJavaIOFile(), "rw"))
             {
                 file.seek(0);
                 file.writeBytes(StringUtils.repeat('z', 2));

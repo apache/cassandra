@@ -85,6 +85,7 @@ public abstract class ControllerTest
         when(strategy.getEstimatedRemainingTasks()).thenReturn(0);
 
         when(metadata.toString()).thenReturn("");
+        when(cfs.getKeyspaceReplicationFactor()).thenReturn(3);
 
         when(executorService.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(fut);
 
@@ -113,7 +114,8 @@ public abstract class ControllerTest
         assertEquals(numShards, controller.getNumShards());
         assertEquals(((long) dataSizeGB << 30) / numShards, controller.getShardSizeBytes());
         assertFalse(controller.isRunning());
-        assertEquals(Controller.DEFAULT_SURVIVAL_FACTOR, controller.getSurvivalFactor(), epsilon);
+        for (int i = 0; i < 5; i++) // simulate 5 levels
+            assertEquals(Controller.DEFAULT_SURVIVAL_FACTOR, controller.getSurvivalFactor(i), epsilon);
         assertNull(controller.getCalculator());
 
         return controller;
@@ -144,7 +146,7 @@ public abstract class ControllerTest
         assertEquals(((long) dataSizeGB << 30) / numShards, controller.getShardSizeBytes());
         assertEquals((long) sstableSizeMB << 20, controller.getMinSstableSizeBytes());
         assertFalse(controller.isRunning());
-        assertEquals(Controller.DEFAULT_SURVIVAL_FACTOR, controller.getSurvivalFactor(), epsilon);
+        assertEquals(Controller.DEFAULT_SURVIVAL_FACTOR, controller.getSurvivalFactor(0), epsilon);
         assertNull(controller.getCalculator());
 
         controller.startup(strategy, executorService);

@@ -284,6 +284,8 @@ public class Config
     public Integer periodic_commitlog_sync_lag_block_in_ms;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
+    public StorageFlagsConfig storage_flags = new StorageFlagsConfig();
+
     public Integer max_mutation_size_in_kb;
 
     // Change-data-capture logs
@@ -508,6 +510,7 @@ public class Config
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
     public boolean stream_entire_sstables = true;
+    public boolean netty_zerocopy_enabled = true;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
     public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();

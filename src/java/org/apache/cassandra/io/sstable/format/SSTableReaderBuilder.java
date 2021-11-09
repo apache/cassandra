@@ -21,8 +21,6 @@ package org.apache.cassandra.io.sstable.format;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -94,7 +92,7 @@ public abstract class SSTableReaderBuilder
     @SuppressWarnings("resource")
     public static FileHandle.Builder defaultIndexHandleBuilder(Descriptor descriptor, Component component)
     {
-        return new FileHandle.Builder(descriptor.filenameFor(component))
+        return new FileHandle.Builder(descriptor.fileFor(component))
                 .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
                 .withChunkCache(ChunkCache.instance);
     }
@@ -102,7 +100,7 @@ public abstract class SSTableReaderBuilder
     @SuppressWarnings("resource")
     public static FileHandle.Builder defaultDataHandleBuilder(Descriptor descriptor)
     {
-        return new FileHandle.Builder(descriptor.filenameFor(Component.DATA))
+        return new FileHandle.Builder(descriptor.fileFor(Component.DATA))
                 .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
                 .withChunkCache(ChunkCache.instance);
     }
@@ -115,7 +113,7 @@ public abstract class SSTableReaderBuilder
      */
     void loadSummary()
     {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        File summariesFile = descriptor.fileFor(Component.SUMMARY);
         if (!summariesFile.exists())
         {
             if (logger.isDebugEnabled())
@@ -216,13 +214,13 @@ public abstract class SSTableReaderBuilder
         }
     }
 
-    public static IFilter loadBloomFilter(Path path, boolean oldFormat)
+    public static IFilter loadBloomFilter(File file, boolean oldFormat)
     {
-        if (Files.exists(path))
+        if (file.exists())
         {
-            logger.debug("Loading bloom filter from {}", path);
+            logger.debug("Loading bloom filter from {}", file);
             IFilter filter = null;
-            try (FileInputStreamPlus stream = new File(path).newInputStream())
+            try (FileInputStreamPlus stream = file.newInputStream())
             {
                 filter = BloomFilter.serializer.deserialize(stream, oldFormat);
                 return filter;
@@ -237,7 +235,7 @@ public abstract class SSTableReaderBuilder
         }
         else
         {
-            logger.error("Bloom filter {} not found", path);
+            logger.error("Bloom filter {} not found", file);
         }
         return null;
     }
@@ -304,17 +302,16 @@ public abstract class SSTableReaderBuilder
         public SSTableReader build()
         {
             assert dfile == null && ifile == null && summary == null && bf == null;
-            String dataFilePath = descriptor.filenameFor(Component.DATA);
-            long fileLength = new File(dataFilePath).length();
-            logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
+            File dataFile = descriptor.fileFor(Component.DATA);
+            logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(dataFile.length()));
 
-            initSummary(dataFilePath, components, statsMetadata);
+            initSummary(dataFile, components, statsMetadata);
 
             boolean compression = components.contains(Component.COMPRESSION_INFO);
             try (FileHandle.Builder ibuilder = defaultIndexHandleBuilder(descriptor, Component.PRIMARY_INDEX);
                  FileHandle.Builder dbuilder = defaultDataHandleBuilder(descriptor).compressed(compression))
             {
-                long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
+                long indexFileLength = descriptor.fileFor(Component.PRIMARY_INDEX).length();
                 DiskOptimizationStrategy optimizationStrategy = DatabaseDescriptor.getDiskOptimizationStrategy();
                 int dataBufferSize = optimizationStrategy.bufferSize(statsMetadata.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
                 int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / summary.size());
@@ -332,7 +329,7 @@ public abstract class SSTableReaderBuilder
             }
         }
 
-        void initSummary(String dataFilePath, Set<Component> components, StatsMetadata statsMetadata)
+        void initSummary(File dataFilePath, Set<Component> components, StatsMetadata statsMetadata)
         {
             loadSummary();
             if (summary == null)
@@ -371,8 +368,8 @@ public abstract class SSTableReaderBuilder
         public SSTableReader build()
         {
             assert dfile == null && ifile == null && summary == null && bf == null;
-            String dataFilePath = descriptor.filenameFor(Component.DATA);
-            long fileLength = new File(dataFilePath).length();
+            File dataFilePath = descriptor.fileFor(Component.DATA);
+            long fileLength = dataFilePath.length();
             logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
 
             try
@@ -410,7 +407,7 @@ public abstract class SSTableReaderBuilder
             double desiredFPChance = metadata.params.bloomFilterFpChance;
 
             if (SSTableReader.shouldLoadBloomFilter(descriptor, components, currentFPChance, desiredFPChance))
-                bf = loadBloomFilter(Paths.get(descriptor.filenameFor(Component.FILTER)), descriptor.version.hasOldBfFormat());
+                bf = loadBloomFilter(descriptor.fileFor(Component.FILTER), descriptor.version.hasOldBfFormat());
 
             boolean recreateBloomFilter = bf == null && SSTableReader.mayRecreateBloomFilter(descriptor, components, currentFPChance, isOffline, desiredFPChance);
             load(recreateBloomFilter, !isOffline, optimizationStrategy, statsMetadata, components);
@@ -449,7 +446,7 @@ public abstract class SSTableReaderBuilder
 
                 if (components.contains(Component.PRIMARY_INDEX))
                 {
-                    long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
+                    long indexFileLength = descriptor.fileFor(Component.PRIMARY_INDEX).length();
                     int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / summary.size());
                     ifile = ibuilder.bufferSize(indexBufferSize).complete();
                 }

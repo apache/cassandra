@@ -52,6 +52,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
@@ -1787,7 +1788,9 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(group.metadata().keyspace);
-        if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(group.queries))
+        ColumnFamilyStore cfs = Keyspace.openAndGetStore(group.metadata());
+
+        if (!cfs.isReadyToServeData() && !systemKeyspaceQuery(group.queries))
         {
             metrics.readMetrics.unavailables.mark();
             metrics.readMetricsForLevel(consistencyLevel).unavailables.mark();

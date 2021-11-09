@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -165,7 +165,7 @@ public class FileHandle extends SharedCloseableImpl
             else
                 return metadata.chunkFor(before).offset;
         }).orElse(before);
-        NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, path());
+        INativeLibrary.instance.trySkipCache(channel.getFileDescriptor(), 0, position, path());
     }
 
     public Rebufferer instantiateRebufferer()
@@ -242,7 +242,7 @@ public class FileHandle extends SharedCloseableImpl
      */
     public static class Builder implements AutoCloseable
     {
-        private final String path;
+        private final File file;
 
         private ChannelProxy channel;
         private CompressionMetadata compressionMetadata;
@@ -255,15 +255,15 @@ public class FileHandle extends SharedCloseableImpl
         private boolean compressed = false;
         private long length = -1;
 
-        public Builder(String path)
+        public Builder(File file)
         {
-            this.path = path;
+            this.file = file;
         }
 
         public Builder(ChannelProxy channel)
         {
             this.channel = channel;
-            this.path = channel.filePath();
+            this.file = channel.getFile();
         }
 
         public Builder compressed(boolean compressed)
@@ -361,7 +361,7 @@ public class FileHandle extends SharedCloseableImpl
             boolean channelOpened = false;
             if (channel == null)
             {
-                channel = new ChannelProxy(path);
+                channel = new ChannelProxy(file);
                 channelOpened = true;
             }
 
@@ -369,7 +369,7 @@ public class FileHandle extends SharedCloseableImpl
             try
             {
                 if (compressed && compressionMetadata == null)
-                    compressionMetadata = CompressionMetadata.create(channelCopy.filePath());
+                    compressionMetadata = CompressionMetadata.create(channelCopy.getFile());
 
                 long length = overrideLength > 0 ? overrideLength : compressed ? compressionMetadata.compressedFileLength : channelCopy.size();
 

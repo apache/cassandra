@@ -19,11 +19,14 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
+import com.google.common.util.concurrent.Runnables;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +38,8 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -105,7 +110,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
     private final Tracker tracker;
     // The transaction logs keep track of new and old sstable files
-    private final LogTransaction log;
+    private final AbstractLogTransaction log;
     // the original readers this transaction was opened over, and that it guards
     // (no other transactions may operate over these readers concurrently)
     private final Set<SSTableReader> originals = new HashSet<>();
@@ -122,7 +127,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     private final State staged = new State();
 
     // the tidier and their readers, to be used for marking readers obsoleted during a commit
-    private List<LogTransaction.Obsoletion> obsoletions;
+    private List<AbstractLogTransaction.Obsoletion> obsoletions;
 
     // commit/rollback hooks
     private List<Runnable> commitHooks = new ArrayList<>();
@@ -133,16 +138,16 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public static LifecycleTransaction offline(OperationType operationType, SSTableReader reader)
     {
-        return offline(operationType, singleton(reader));
+        return offline(operationType, reader.metadataRef(), singleton(reader));
     }
 
     /**
      * construct a Transaction for use in an offline operation
      */
-    public static LifecycleTransaction offline(OperationType operationType, Iterable<SSTableReader> readers)
+    public static LifecycleTransaction offline(OperationType operationType, TableMetadataRef metadata, Iterable<SSTableReader> readers)
     {
         // if offline, for simplicity we just use a dummy tracker
-        Tracker dummy = Tracker.newDummyTracker();
+        Tracker dummy = Tracker.newDummyTracker(metadata);
         dummy.addInitialSSTables(readers);
         dummy.apply(updateCompacting(emptySet(), readers));
         return new LifecycleTransaction(dummy, operationType, readers);
@@ -152,23 +157,18 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      * construct an empty Transaction with no existing readers
      */
     @SuppressWarnings("resource") // log closed during postCleanup
-    public static LifecycleTransaction offline(OperationType operationType)
+    public static LifecycleTransaction offline(OperationType operationType, TableMetadataRef metadata)
     {
-        Tracker dummy = Tracker.newDummyTracker();
-        return new LifecycleTransaction(dummy, new LogTransaction(operationType), Collections.emptyList());
+        Tracker dummy = Tracker.newDummyTracker(metadata);
+        return new LifecycleTransaction(dummy, operationType, Collections.emptyList());
     }
 
     @SuppressWarnings("resource") // log closed during postCleanup
     @VisibleForTesting
     public LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers)
     {
-        this(tracker, new LogTransaction(operationType), readers);
-    }
-
-    LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<? extends SSTableReader> readers)
-    {
         this.tracker = tracker;
-        this.log = log;
+        this.log = ILogTransactionsFactory.instance.createLogTransaction(operationType, tracker.metadata);
         for (SSTableReader reader : readers)
         {
             originals.add(reader);
@@ -177,7 +177,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         }
     }
 
-    public LogTransaction log()
+    public AbstractLogTransaction log()
     {
         return log;
     }
@@ -584,6 +584,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     @Override
+    public void trackNewAttachedIndexFiles(SSTable table)
+    {
+        log.trackNewAttachedIndexFiles(table);
+    }
+
+    @Override
     public void untrackNew(SSTable table)
     {
         log.untrackNew(table);
@@ -591,12 +597,36 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
     public static boolean removeUnfinishedLeftovers(ColumnFamilyStore cfs)
     {
-        return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());
+        return removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());
     }
 
+    /**
+     * Removes any leftovers from unifinished transactions as indicated by any transaction log files that
+     * are found in the table directories. This means that any old sstable files for transactions that were committed,
+     * or any new sstable files for transactions that were aborted or still in progress, should be removed *if
+     * it is safe to do so*. Refer to the checks in LogFile.verify for further details on the safety checks
+     * before removing transaction leftovers and refer to the comments at the beginning of this file or in NEWS.txt
+     * for further details on transaction logs.
+     *
+     * This method is called on startup and by the standalone sstableutil tool when the cleanup option is specified,
+     * @see org.apache.cassandra.tools.StandaloneSSTableUtil
+     *
+     * @return true if the leftovers of all transaction logs found were removed, false otherwise.
+     *
+     */
     public static boolean removeUnfinishedLeftovers(TableMetadata metadata)
     {
-        return LogTransaction.removeUnfinishedLeftovers(metadata);
+        return removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
+    }
+
+    public static boolean removeUnfinishedLeftovers(List<File> directories)
+    {
+        // List<Path> directories
+        ILogFileCleaner cleaner = ILogTransactionsFactory.instance.createLogFileCleaner();
+        for (File dir : directories)
+            cleaner.list(dir);
+
+        return cleaner.removeUnfinishedLeftovers();
     }
 
     /**
@@ -613,7 +643,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public static List<File> getFiles(Path folder, BiPredicate<File, Directories.FileType> filter, Directories.OnTxnErr onTxnErr)
     {
-        return new LogAwareFileLister(folder, filter, onTxnErr).list();
+        return ILogTransactionsFactory.instance.createLogAwareFileLister().list(folder, filter, onTxnErr);
     }
 
     /**
@@ -622,7 +652,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public static void rescheduleFailedDeletions()
     {
-        LogTransaction.rescheduleFailedDeletions();
+        ILogTransactionsFactory.instance.createFailedTransactionDeletionHandler().rescheduleFailedDeletions();
     }
 
     /**
@@ -631,7 +661,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public static void waitForDeletions()
     {
-        LogTransaction.waitForDeletions();
+        FBUtilities.waitOnFuture(ScheduledExecutors.nonPeriodicTasks.schedule(Runnables.doNothing(), 0, TimeUnit.MILLISECONDS));
     }
 
     // a class representing the current state of the reader within this transaction, encoding the actions both logged

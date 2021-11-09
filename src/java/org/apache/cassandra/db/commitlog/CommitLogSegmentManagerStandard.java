@@ -19,11 +19,12 @@
 package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentManager
 {
-    public CommitLogSegmentManagerStandard(final CommitLog commitLog, String storageDirectory)
+    public CommitLogSegmentManagerStandard(final CommitLog commitLog, File storageDirectory)
     {
         super(commitLog, storageDirectory);
     }

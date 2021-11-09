@@ -83,7 +83,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     private static SequentialWriter makeWriter(Descriptor descriptor, Component component)
     {
-        return new SequentialWriter(new File(descriptor.filenameFor(component)), WRITER_OPTION, false);
+        return new SequentialWriter(descriptor.fileFor(component), WRITER_OPTION, false);
     }
 
     private void write(DataInputPlus in, long size, SequentialWriter out) throws FSWriteError
@@ -105,7 +105,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, out.getPath());
+            throw new FSWriteError(e, out.getFile());
         }
     }
 
@@ -200,7 +200,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     public void writeComponent(Component.Type type, DataInputPlus in, long size)
     {
-        logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getPath(), prettyPrintMemory(size));
+        logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getFile(), prettyPrintMemory(size));
 
         if (in instanceof AsyncStreamingInputPlus)
             write((AsyncStreamingInputPlus) in, size, componentWriters.get(type));
@@ -210,7 +210,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     private void write(AsyncStreamingInputPlus in, long size, SequentialWriter writer)
     {
-        logger.info("Block Writing component to {} length {}", writer.getPath(), prettyPrintMemory(size));
+        logger.info("Block Writing component to {} length {}", writer.getFile(), prettyPrintMemory(size));
 
         try
         {
@@ -224,7 +224,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, writer.getPath());
+            throw new FSWriteError(e, writer.getFile());
         }
     }
 }

@@ -31,6 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
@@ -148,8 +149,8 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         cfs.forceBlockingFlush(UNIT_TESTS);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
-        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
+        File filenameToCorrupt = sstable.descriptor.fileFor(Component.STATS);
+        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt.toJavaIOFile(), "rw");
         file.seek(0);
         file.writeBytes(StringUtils.repeat('z', 2));
         file.close();

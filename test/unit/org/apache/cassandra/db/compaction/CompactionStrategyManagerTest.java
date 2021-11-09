@@ -163,6 +163,7 @@ public class CompactionStrategyManagerTest
         logger.debug("Boundaries for {} disks is {}", numDisks, Arrays.toString(boundaries));
         CompactionStrategyManager csm = new CompactionStrategyManager(strategyFactory,
                                                                       mockBoundaryManager::getBoundaries,
+                                                                      true,
                                                                       true);
         csm.reload(csm, cfs.metadata().params.compaction, CompactionStrategyContainer.ReloadReason.FULL);
 
@@ -300,7 +301,7 @@ public class CompactionStrategyManagerTest
                                                        Lists.newArrayList(forKey(100), forKey(200), forKey(300)),
                                                        localRanges, 10);
 
-        CompactionStrategyManager csm = new CompactionStrategyManager(strategyFactory, () -> boundaries, true);
+        CompactionStrategyManager csm = new CompactionStrategyManager(strategyFactory, () -> boundaries, true, true);
         csm.reload(csm, cfs.metadata().params.compaction, CompactionStrategyContainer.ReloadReason.FULL);
 
         List<GroupedSSTableContainer<SSTableReader>> grouped = csm.groupSSTables(Iterables.concat( transientRepairs, pendingRepair, repaired, unrepaired));

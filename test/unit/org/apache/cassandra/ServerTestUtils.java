@@ -151,14 +151,14 @@ public final class ServerTestUtils
         // clean up commitlog
         cleanupDirectory(DatabaseDescriptor.getCommitLogLocation());
 
-        String cdcDir = DatabaseDescriptor.getCDCLogLocation();
+        File cdcDir = DatabaseDescriptor.getCDCLogLocation();
         if (cdcDir != null)
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files
-        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
+        for (File dirName : DatabaseDescriptor.getAllDataFileLocations())
         {
             cleanupDirectory(dirName);
         }

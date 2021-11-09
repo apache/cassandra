@@ -33,7 +33,7 @@ import com.sun.jna.Pointer;
  * using the Windows/Kernel32 library.</p>
  *
  * @see org.apache.cassandra.utils.NativeLibraryWrapper
- * @see NativeLibrary
+ * @see INativeLibrary
  */
 public class NativeLibraryWindows implements NativeLibraryWrapper
 {

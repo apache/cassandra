@@ -159,9 +159,9 @@ public class Scrubber implements Closeable
         return null;
     }
 
-    private UnfilteredRowIterator withValidation(UnfilteredRowIterator iter, String filename)
+    private UnfilteredRowIterator withValidation(UnfilteredRowIterator iter, File file)
     {
-        return checkData ? UnfilteredRowIterators.withValidation(iter, filename) : iter;
+        return checkData ? UnfilteredRowIterators.withValidation(iter, file) : iter;
     }
 
     private String keyString(DecoratedKey key)
@@ -386,7 +386,7 @@ public class Scrubber implements Closeable
         OrderCheckerIterator sstableIterator = new OrderCheckerIterator(getIterator(key),
                                                                         realm.metadata().comparator);
 
-        try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getPath()))
+        try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getFile()))
         {
             if (prevKey != null && prevKey.compareTo(key) > 0)
             {

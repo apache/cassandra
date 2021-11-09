@@ -139,7 +139,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
 
         for (ColumnIndex index : indexes)
         {
-            File tmpIndex = new File(sstable.descriptor.filenameFor(index.getComponent()));
+            File tmpIndex = sstable.descriptor.fileFor(index.getComponent());
             if (!tmpIndex.exists()) // no data was inserted into the index for given sstable
                 continue;
 

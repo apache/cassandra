@@ -239,12 +239,12 @@ public class ScrubTest
         assertOrderedAll(cfs, scrubResult.goodPartitions);
     }
 
-    private String primaryIndexPath(SSTableReader reader)
+    private File primaryIndexPath(SSTableReader reader)
     {
         if (reader.descriptor.getFormat().getType() == SSTableFormat.Type.BIG)
-            return reader.descriptor.filenameFor(Component.PRIMARY_INDEX);
+            return reader.descriptor.fileFor(Component.PRIMARY_INDEX);
         if (reader.descriptor.getFormat().getType() == SSTableFormat.Type.BTI)
-            return reader.descriptor.filenameFor(Component.PARTITION_INDEX);
+            return reader.descriptor.fileFor(Component.PARTITION_INDEX);
         else throw new IllegalArgumentException();
     }
 
@@ -421,11 +421,11 @@ public class ScrubTest
         {
             switch (sstable.descriptor.getFormat().getType()) {
                 case BIG:
-                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).tryDelete());
+                    assertTrue(sstable.descriptor.fileFor(Component.PRIMARY_INDEX).tryDelete());
                     break;
                 case BTI:
-                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PARTITION_INDEX)).tryDelete());
-                    new File(sstable.descriptor.filenameFor(Component.ROW_INDEX)).delete(); // row index is optional
+                    assertTrue(sstable.descriptor.fileFor(Component.PARTITION_INDEX).tryDelete());
+                    sstable.descriptor.fileFor(Component.ROW_INDEX).delete(); // row index is optional
                     break;
                 default:
                     fail("Unknonw SSTable format");
@@ -463,7 +463,7 @@ public class ScrubTest
             List<String> keys = Arrays.asList("t", "a", "b", "z", "c", "y", "d");
             Descriptor desc = cfs.newSSTableDescriptor(tempDataDir);
 
-            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, cfs.metadata);
                  SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, keys.size(), cfs.metadata, txn)))
             {
                 for (String k : keys)
@@ -487,7 +487,7 @@ public class ScrubTest
 
             // open without validation for scrubbing
             Set<Component> components = new HashSet<>();
-            if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
+            if (desc.fileFor(Component.COMPRESSION_INFO).exists())
                 components.add(Component.COMPRESSION_INFO);
             components.add(Component.DATA);
             components.addAll(desc.getFormat().primaryIndexComponents());
@@ -529,7 +529,7 @@ public class ScrubTest
 
         if (compression)
         { // overwrite with garbage the compression chunks from key1 to key2
-            CompressionMetadata compData = CompressionMetadata.create(sstable.getFilename());
+            CompressionMetadata compData = CompressionMetadata.create(sstable.getDataFile());
 
             CompressionMetadata.Chunk chunk1 = compData.chunkFor(
             sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.getPartitioner()), SSTableReader.Operator.EQ).position);
@@ -559,12 +559,12 @@ public class ScrubTest
 
     private static void overrideWithGarbage(SSTableReader sstable, long startPosition, long endPosition, byte junk) throws IOException
     {
-        overrideWithGarbage(sstable.getFilename(), startPosition, endPosition, junk);
+        overrideWithGarbage(sstable.getDataFile(), startPosition, endPosition, junk);
     }
 
-    private static void overrideWithGarbage(String path, long startPosition, long endPosition, byte junk) throws IOException
+    private static void overrideWithGarbage(File path, long startPosition, long endPosition, byte junk) throws IOException
     {
-        try (RandomAccessFile file = new RandomAccessFile(path, "rw"))
+        try (RandomAccessFile file = new RandomAccessFile(path.toJavaIOFile(), "rw"))
         {
             file.seek(startPosition);
             int length = (int)(endPosition - startPosition);
@@ -573,7 +573,7 @@ public class ScrubTest
             file.write(buff, 0, length);
         }
         if (ChunkCache.instance != null)
-            ChunkCache.instance.invalidateFile(path);
+            ChunkCache.instance.invalidateFile(path.toString());
     }
 
     static void assertOrderedAll(ColumnFamilyStore cfs, int expectedSize)

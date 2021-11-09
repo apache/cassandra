@@ -224,7 +224,7 @@ public class SSTableImporter
             if (sstable != null)
                 sstable.selfRef().release();
         }
-        return targetDirectory == null ? cfs.getDirectories().getWriteableLocationToLoadFile(new File(descriptor.baseFilename())) : targetDirectory;
+        return targetDirectory == null ? cfs.getDirectories().getWriteableLocationToLoadFile(new File(descriptor.baseFileUri())) : targetDirectory;
     }
 
     /**
@@ -245,7 +245,7 @@ public class SSTableImporter
                 {
                     throw new RuntimeException(String.format("Directory %s does not exist", path));
                 }
-                if (!Directories.verifyFullPermissions(dir, path))
+                if (!Directories.verifyFullPermissions(dir))
                 {
                     throw new RuntimeException("Insufficient permissions on directory " + path);
                 }
@@ -287,10 +287,10 @@ public class SSTableImporter
     {
         for (MovedSSTable movedSSTable : movedSSTables)
         {
-            if (new File(movedSSTable.newDescriptor.filenameFor(Component.DATA)).exists())
+            if (movedSSTable.newDescriptor.fileFor(Component.DATA).exists())
             {
-                logger.debug("Moving sstable {} back to {}", movedSSTable.newDescriptor.filenameFor(Component.DATA)
-                                                          , movedSSTable.oldDescriptor.filenameFor(Component.DATA));
+                logger.debug("Moving sstable {} back to {}", movedSSTable.newDescriptor.fileFor(Component.DATA)
+                                                          , movedSSTable.oldDescriptor.fileFor(Component.DATA));
                 SSTableWriter.rename(movedSSTable.newDescriptor, movedSSTable.oldDescriptor, movedSSTable.components);
             }
         }
@@ -307,7 +307,7 @@ public class SSTableImporter
         logger.debug("Removing copied SSTables which were left in data directories after failed SSTable import.");
         for (MovedSSTable movedSSTable : movedSSTables)
         {
-            if (new File(movedSSTable.newDescriptor.filenameFor(Component.DATA)).exists())
+            if (movedSSTable.newDescriptor.fileFor(Component.DATA).exists())
             {
                 // no logging here as for moveSSTablesBack case above as logging is done in delete method
                 SSTableWriter.delete(movedSSTable.newDescriptor, movedSSTable.components);
@@ -372,7 +372,7 @@ public class SSTableImporter
      */
     private void maybeMutateMetadata(Descriptor descriptor, Options options) throws IOException
     {
-        if (new File(descriptor.filenameFor(Component.STATS)).exists())
+        if (descriptor.fileFor(Component.STATS).exists())
         {
             if (options.resetLevel)
             {
