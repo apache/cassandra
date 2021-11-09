@@ -58,6 +58,8 @@ public class LoaderOptions
     public static final String CONFIG_PATH = "conf-path";
     public static final String THROTTLE_MBITS = "throttle";
     public static final String INTER_DC_THROTTLE_MBITS = "inter-dc-throttle";
+    public static final String ENTIRE_SSTABLE_THROTTLE_MBITS = "entire-sstable-throttle";
+    public static final String ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS = "entire-sstable-inter-dc-throttle";
     public static final String TOOL_NAME = "sstableloader";
     public static final String TARGET_KEYSPACE = "target-keyspace";
 
@@ -81,6 +83,8 @@ public class LoaderOptions
     public final AuthProvider authProvider;
     public final int throttle;
     public final int interDcThrottle;
+    public final int entireSSTableThrottle;
+    public final int entireSSTableInterDcThrottle;
     public final int storagePort;
     public final int sslStoragePort;
     public final EncryptionOptions clientEncOptions;
@@ -102,6 +106,8 @@ public class LoaderOptions
         authProvider = builder.authProvider;
         throttle = builder.throttle;
         interDcThrottle = builder.interDcThrottle;
+        entireSSTableThrottle = builder.entireSSTableThrottle;
+        entireSSTableInterDcThrottle = builder.entireSSTableInterDcThrottle;
         storagePort = builder.storagePort;
         sslStoragePort = builder.sslStoragePort;
         clientEncOptions = builder.clientEncOptions;
@@ -125,6 +131,8 @@ public class LoaderOptions
         AuthProvider authProvider;
         int throttle = 0;
         int interDcThrottle = 0;
+        int entireSSTableThrottle = 0;
+        int entireSSTableInterDcThrottle = 0;
         int storagePort;
         int sslStoragePort;
         EncryptionOptions clientEncOptions = new EncryptionOptions();
@@ -221,6 +229,18 @@ public class LoaderOptions
         public Builder interDcThrottle(int interDcThrottle)
         {
             this.interDcThrottle = interDcThrottle;
+            return this;
+        }
+
+        public Builder entireSSTableThrottle(int entireSSTableThrottle)
+        {
+            this.entireSSTableThrottle = entireSSTableThrottle;
+            return this;
+        }
+
+        public Builder entireSSTableInterDcThrottle(int entireSSTableInterDcThrottle)
+        {
+            this.entireSSTableInterDcThrottle = entireSSTableInterDcThrottle;
             return this;
         }
 
@@ -384,6 +404,8 @@ public class LoaderOptions
                     // unthrottle stream by default
                     config.stream_throughput_outbound_megabits_per_sec = 0;
                     config.inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
+                    config.entire_sstable_stream_throughput_outbound_megabits_per_sec = 0;
+                    config.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
                 }
 
 
@@ -452,6 +474,16 @@ public class LoaderOptions
                 if (cmd.hasOption(INTER_DC_THROTTLE_MBITS))
                 {
                     interDcThrottle = Integer.parseInt(cmd.getOptionValue(INTER_DC_THROTTLE_MBITS));
+                }
+
+                if (cmd.hasOption(ENTIRE_SSTABLE_THROTTLE_MBITS))
+                {
+                    entireSSTableThrottle = Integer.parseInt(cmd.getOptionValue(ENTIRE_SSTABLE_THROTTLE_MBITS));
+                }
+
+                if (cmd.hasOption(ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS))
+                {
+                    entireSSTableInterDcThrottle = Integer.parseInt(cmd.getOptionValue(ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS));
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE) || cmd.hasOption(SSL_TRUSTSTORE_PW) ||
@@ -613,6 +645,8 @@ public class LoaderOptions
         options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001)");
         options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
         options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
+        options.addOption("e", ENTIRE_SSTABLE_THROTTLE_MBITS, "entire-sstable-throttle", "entire SSTable throttle speed in Mbits (default unlimited)");
+        options.addOption("eidct", ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS, "entire-sstable-inter-dc-throttle", "entire SSTable inter-datacenter throttle speed in Mbits (default unlimited)");
         options.addOption("u", USER_OPTION, "username", "username for cassandra authentication");
         options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
         options.addOption("ap", AUTH_PROVIDER_OPTION, "auth provider", "custom AuthProvider class name for cassandra authentication");

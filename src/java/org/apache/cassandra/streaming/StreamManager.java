@@ -31,8 +31,8 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
@@ -57,25 +57,60 @@ public class StreamManager implements StreamManagerMBean
      */
     public static StreamRateLimiter getRateLimiter(InetAddressAndPort peer)
     {
-        return new StreamRateLimiter(peer);
+        return new StreamRateLimiter(peer,
+                                     StreamRateLimiter.LIMITER,
+                                     StreamRateLimiter.INTER_DC_LIMITER,
+                                     DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec(),
+                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec());
+    }
+
+    /**
+     * Get streaming rate limiter for entire SSTable operations.
+     * When {@code entire_sstable_stream_throughput_outbound_megabits_per_sec}
+     * is less than or equal ot {@code 0}, this returns rate limiter with the
+     * rate of {@link Double.MAX_VALUE} bytes per second.
+     * Rate unit is bytes per sec.
+     *
+     * @param peer the peer location
+     * @return {@link  StreamRateLimiter} with entire SSTable rate limit set based on peer location
+     */
+    public static StreamRateLimiter getEntireSSTableRateLimiter(InetAddressAndPort peer)
+    {
+        return new StreamRateLimiter(peer,
+                                     StreamRateLimiter.ENTIRE_SSTABLE_LIMITER,
+                                     StreamRateLimiter.ENTIRE_SSTABLE_INTER_DC_LIMITER,
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec(),
+                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec());
     }
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
         public static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
-        private static final RateLimiter limiter = RateLimiter.create(calculateRateInBytes());
-        private static final RateLimiter interDCLimiter = RateLimiter.create(calculateInterDCRateInBytes());
-        private final boolean isLocalDC;
+        private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
+        private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
+        private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
+        private static final RateLimiter ENTIRE_SSTABLE_INTER_DC_LIMITER = RateLimiter.create(calculateEntireSSTableInterDCRateInBytes());
 
-        public StreamRateLimiter(InetAddressAndPort peer)
+        private final RateLimiter limiter;
+        private final RateLimiter interDCLimiter;
+        private final boolean isLocalDC;
+        private final int throughput;
+        private final int interDCThroughput;
+
+        private StreamRateLimiter(InetAddressAndPort peer, RateLimiter limiter, RateLimiter interDCLimiter, int throughput, int interDCThroughput)
         {
+            this.limiter = limiter;
+            this.interDCLimiter = interDCLimiter;
+            this.throughput = throughput;
+            this.interDCThroughput = interDCThroughput;
             if (DatabaseDescriptor.getLocalDataCenter() != null && DatabaseDescriptor.getEndpointSnitch() != null)
                 isLocalDC = DatabaseDescriptor.getLocalDataCenter().equals(
-                            DatabaseDescriptor.getEndpointSnitch().getDatacenter(peer));
+                DatabaseDescriptor.getEndpointSnitch().getDatacenter(peer));
             else
                 isLocalDC = true;
         }
 
+        @Override
         public void acquire(int toTransfer)
         {
             limiter.acquire(toTransfer);
@@ -83,40 +118,88 @@ public class StreamManager implements StreamManagerMBean
                 interDCLimiter.acquire(toTransfer);
         }
 
+        @Override
+        public boolean isRateLimited()
+        {
+            // Rate limiting is enabled when throughput greater than 0.
+            // If the peer is not local, also check whether inter-DC rate limiting is enabled.
+            return throughput > 0 || (!isLocalDC && interDCThroughput > 0);
+        }
+
         public static void updateThroughput()
         {
-            limiter.setRate(calculateRateInBytes());
+            LIMITER.setRate(calculateRateInBytes());
         }
 
         public static void updateInterDCThroughput()
         {
-            interDCLimiter.setRate(calculateInterDCRateInBytes());
+            INTER_DC_LIMITER.setRate(calculateInterDCRateInBytes());
+        }
+
+        public static void updateEntireSSTableThroughput()
+        {
+            ENTIRE_SSTABLE_LIMITER.setRate(calculateEntireSSTableRateInBytes());
+        }
+
+        public static void updateEntireSSTableInterDCThroughput()
+        {
+            ENTIRE_SSTABLE_INTER_DC_LIMITER.setRate(calculateEntireSSTableInterDCRateInBytes());
         }
 
         private static double calculateRateInBytes()
         {
-            return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() > 0
-                   ? DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT
-                   : Double.MAX_VALUE; // if throughput is set to 0 or negative value, throttling is disabled
+            int throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
+            return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateInterDCRateInBytes()
         {
-            return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() > 0
-                   ? DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT
-                   : Double.MAX_VALUE; // if throughput is set to 0 or negative value, throttling is disabled
+            int throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
+            return calculateEffectiveRateInBytes(throughput);
+        }
+
+        private static double calculateEntireSSTableRateInBytes()
+        {
+            int throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
+            return calculateEffectiveRateInBytes(throughput);
+        }
+
+        private static double calculateEntireSSTableInterDCRateInBytes()
+        {
+            int throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
+            return calculateEffectiveRateInBytes(throughput);
         }
 
         @VisibleForTesting
         public static double getRateLimiterRateInBytes()
         {
-            return limiter.getRate();
+            return LIMITER.getRate();
         }
 
         @VisibleForTesting
         public static double getInterDCRateLimiterRateInBytes()
         {
-            return interDCLimiter.getRate();
+            return INTER_DC_LIMITER.getRate();
+        }
+
+        @VisibleForTesting
+        public static double getEntireSSTableRateLimiterRateInBytes()
+        {
+            return ENTIRE_SSTABLE_LIMITER.getRate();
+        }
+
+        @VisibleForTesting
+        public static double getEntireSSTableInterDCRateLimiterRateInBytes()
+        {
+            return ENTIRE_SSTABLE_INTER_DC_LIMITER.getRate();
+        }
+
+        private static double calculateEffectiveRateInBytes(int throughput)
+        {
+            // if throughput is set to 0 or negative value, throttling is disabled
+            return throughput > 0
+                   ? throughput * BYTES_PER_MEGABIT
+                   : Double.MAX_VALUE;
         }
     }
 
@@ -157,7 +240,7 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> followerStreams.remove(result.planId));
 
         StreamResultFuture previous = followerStreams.putIfAbsent(result.planId, result);
-        return previous ==  null ? result : previous;
+        return previous == null ? result : previous;
     }
 
     public StreamResultFuture getReceivingStream(UUID planId)

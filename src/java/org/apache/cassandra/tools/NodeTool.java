@@ -35,7 +35,6 @@ import java.io.FileNotFoundException;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.nio.file.NoSuchFileException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -340,7 +339,7 @@ public class NodeTool
         @Option(type = OptionType.GLOBAL, name = {"-pwf", "--password-file"}, description = "Path to the JMX password file")
         private String passwordFilePath = EMPTY;
 
-		@Option(type = OptionType.GLOBAL, name = { "-pp", "--print-port"}, description = "Operate in 4.0 mode with hosts disambiguated by port number", arity = 0)
+        @Option(type = OptionType.GLOBAL, name = { "-pp", "--print-port"}, description = "Operate in 4.0 mode with hosts disambiguated by port number", arity = 0)
         protected boolean printPort = false;
 
         private INodeProbeFactory nodeProbeFactory;

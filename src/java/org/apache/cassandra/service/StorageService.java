@@ -62,8 +62,6 @@ import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
@@ -1511,7 +1509,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValue = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateThroughput();
-        logger.info("setstreamthroughput: throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
+        logger.info("setstreamthroughput: throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
     public int getStreamThroughputMbPerSec()
@@ -1519,12 +1517,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
     }
 
+    public void setEntireSSTableStreamThroughputMbPerSec(int value)
+    {
+        int oldValue = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(value);
+        StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
+        logger.info("setstreamthroughput (entire SSTable): throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
+    }
+
+    public int getEntireSSTableStreamThroughputMbPerSec()
+    {
+        return DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
+    }
+
     public void setInterDCStreamThroughputMbPerSec(int value)
     {
         int oldValue = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateInterDCThroughput();
-        logger.info("setinterdcstreamthroughput: throttle set to {} Mb/s (was {} Mb/s)", value, oldValue);
+        logger.info("setinterdcstreamthroughput: throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
     public int getInterDCStreamThroughputMbPerSec()
@@ -1532,6 +1543,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
     }
 
+    public void setEntireSSTableInterDCStreamThroughputMbPerSec(int value)
+    {
+        int oldValue = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(value);
+        StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
+        logger.info("setinterdcstreamthroughput (entire SSTable): throttle set to {}{} Mb/s (was {} Mb/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
+    }
+
+    public int getEntireSSTableInterDCStreamThroughputMbPerSec()
+    {
+        return DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
+    }
 
     public int getCompactionThroughputMbPerSec()
     {

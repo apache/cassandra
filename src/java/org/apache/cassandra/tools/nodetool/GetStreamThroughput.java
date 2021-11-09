@@ -18,16 +18,24 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
-
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getstreamthroughput", description = "Print the Mb/s throughput cap for streaming in the system")
+@Command(name = "getstreamthroughput", description = "Print the Mb/s throughput cap for streaming and entire SSTable streaming in the system")
 public class GetStreamThroughput extends NodeToolCmd
 {
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput")
+    private boolean entireSSTableThroughput;
+
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.output().out.println("Current stream throughput: " + probe.getStreamThroughput() + " Mb/s");
+        int throughput = entireSSTableThroughput ? probe.getEntireSSTableStreamThroughput() : probe.getStreamThroughput();
+
+        probe.output().out.printf("Current %sstream throughput: %s%n",
+                                  entireSSTableThroughput ? "entire SSTable " : "",
+                                  throughput > 0 ? throughput + " Mb/s" : "unlimited");
     }
 }

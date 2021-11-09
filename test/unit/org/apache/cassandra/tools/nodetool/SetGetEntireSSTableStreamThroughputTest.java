@@ -30,9 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.withPrecision;
 
 /**
- * Tests for {@code nodetool setinterdcstreamthroughput} and {@code nodetool getinterdcstreamthroughput}.
+ * Tests for entire SSTable {@code nodetool setstreamthroughput} and {@code nodetool getstreamthroughput}.
  */
-public class SetGetInterDCStreamThroughputTest extends CQLTester
+public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -43,7 +43,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidThroughput(null, "Required parameters are missing: inter_dc_stream_throughput");
+        assertSetInvalidThroughput(null, "Required parameters are missing: stream_throughput");
     }
 
     @Test
@@ -73,37 +73,42 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidThroughput("1.2", "inter_dc_stream_throughput: can not convert \"1.2\" to a int");
-        assertSetInvalidThroughput("value", "inter_dc_stream_throughput: can not convert \"value\" to a int");
+        assertSetInvalidThroughput("1.2", "stream_throughput: can not convert \"1.2\" to a int");
+        assertSetInvalidThroughput("value", "stream_throughput: can not convert \"value\" to a int");
     }
 
-    private static void assertSetGetValidThroughput(int throughput, double rateInBytes)
+    private static void assertSetGetValidThroughput(int throughput)
     {
-        ToolResult tool = invokeNodetool("setinterdcstreamthroughput", String.valueOf(throughput));
+        ToolResult tool = invokeNodetool("setstreamthroughput", "-e", String.valueOf(throughput));
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEmpty();
 
         assertGetThroughput(throughput);
+    }
 
-        assertThat(StreamRateLimiter.getInterDCRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
+    private static void assertSetGetValidThroughput(int throughput, double rateInBytes)
+    {
+        assertSetGetValidThroughput(throughput);
+
+        assertThat(StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
     }
 
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
     {
-        ToolResult tool = throughput == null ? invokeNodetool("setinterdcstreamthroughput")
-                                             : invokeNodetool("setinterdcstreamthroughput", throughput);
+        ToolResult tool = throughput == null ? invokeNodetool("setstreamthroughput", "-e")
+                                             : invokeNodetool("setstreamthroughput", "-e", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
     private static void assertGetThroughput(int expected)
     {
-        ToolResult tool = invokeNodetool("getinterdcstreamthroughput");
+        ToolResult tool = invokeNodetool("getstreamthroughput", "-e");
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " Mb/s");
+            assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: " + expected + " Mb/s");
         else
-            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
+            assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: unlimited");
     }
 }

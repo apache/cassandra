@@ -19,20 +19,27 @@ package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
-
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "setinterdcstreamthroughput", description = "Set the Mb/s throughput cap for inter-datacenter streaming in the system, or 0 to disable throttling")
+@Command(name = "setinterdcstreamthroughput", description = "Set the Mb/s throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system, or 0 to disable throttling")
 public class SetInterDCStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
     @Arguments(title = "inter_dc_stream_throughput", usage = "<value_in_mb>", description = "Value in Mb, 0 to disable throttling", required = true)
     private int interDCStreamThroughput;
 
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput")
+    private boolean setEntireSSTableThroughput;
+
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.setInterDCStreamThroughput(interDCStreamThroughput);
+        if (setEntireSSTableThroughput)
+            probe.setEntireSSTableInterDCStreamThroughput(interDCStreamThroughput);
+        else
+            probe.setInterDCStreamThroughput(interDCStreamThroughput);
     }
 }
