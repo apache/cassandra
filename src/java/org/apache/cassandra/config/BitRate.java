@@ -26,12 +26,13 @@ import java.util.stream.Collectors;
 import com.google.common.primitives.Ints;
 
 /**
- * Represents a bit rate.
+ * Represents a bit rate type used for cassandra configuration. It supports the opportunity for the users to be able to
+ * add units to the confiuration parameter value. (CASSANDRA-15234)
  */
 public final class BitRate
 {
     /**
-     * The Regexp used to parse the rate provided as String.
+     * The Regexp used to parse the rate provided as String in cassandra.yaml.
      */
     private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|mib/s|MiB/S|KiB/s|kib/s|KiB/S|B/s|b/s|B/S)$");
 
@@ -181,8 +182,8 @@ public final class BitRate
         if (unit == other.unit)
             return quantity == other.quantity;
 
-        // Due to overflows we can only guaranty that the 2 bit rates are equals if we get the same results
-        // doing the convertion in both directions.
+        // Due to overflows we can only guarantee that the 2 bit rates are equal if we get the same results
+        // doing the conversion in both directions.
         return unit.convert(other.quantity, other.unit) == quantity && other.unit.convert(quantity, unit) == other.quantity;
     }
 

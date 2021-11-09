@@ -444,7 +444,7 @@ public class Config
      * before expiring and becoming hints
      */
     public volatile ConsistencyLevel ideal_consistency_level = null;
-    
+
     public int windows_timer_interval = 0;
 
     /**

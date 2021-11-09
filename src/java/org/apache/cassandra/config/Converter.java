@@ -20,12 +20,35 @@
  */
 package org.apache.cassandra.config;
 
+/**
+ * An interface to support conversions for backward compatibility with the old cassandra.yaml where duration, bit rate and
+ * data storage configuration parameters were provided only by value and the expected unit was part of the configuration
+ * parameter name. (CASSANDRA-15234)
+ * It is important to be noted that this converter is not intended to be used when we don't change name of a configuration
+ * parameter but we want to add unit. This would always default to the old value provided without a unit at the moment.
+ * in case this functionality is needed at some point, please, raise a ticket.
+ */
 public interface Converter<Original, Current>
 {
+    /**
+     * A method to identify what type is needed to be returned from the conversion used for a configuration parameter
+     * in {@link Replaces} annotation in {@link Config}
+     * @return class type
+     */
     Class<Original> getInputType();
 
+    /**
+     * Apply the converter specified as part of the {@link Replaces} annotation in {@link Config}
+     * @param value we will use from cassandra.yaml to create a new {@link Config} parameter of type {@link CassandraDuration},
+     * {@link BitRate} or {@link DataStorage}
+     * @return new object of type {@link CassandraDuration}, {@link BitRate} or {@link DataStorage}
+     */
     Current apply(Original value);
 
+    /**
+     * This converter is used when we change the name of a cassandra.yaml configuration parameter but we want to be
+     * able to still use the old name too. No units involved.
+     */
     public static final class IdentityConverter implements Converter<Object, Object>
     {
         public Class<Object> getInputType()

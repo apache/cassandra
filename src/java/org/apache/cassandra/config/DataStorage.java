@@ -26,7 +26,9 @@ import java.util.stream.Collectors;
 import com.google.common.primitives.Ints;
 
 /**
- * Represents an amount of data storage
+ * Represents an amount of data storage. Wrapper class for Cassandra configuration parameters, providing to the
+ * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
+ * options. (CASSANDRA-15234)
  */
 public final class DataStorage
 {
