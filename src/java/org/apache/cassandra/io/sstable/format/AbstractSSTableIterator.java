@@ -44,6 +44,7 @@ import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
@@ -138,7 +139,7 @@ public abstract class AbstractSSTableIterator<E extends RowIndexEntry> implement
             catch (IOException e)
             {
                 sstable.markSuspect();
-                String filePath = file.getPath();
+                File filePath = file.getFile();
                 if (shouldCloseFile)
                 {
                     try
@@ -550,7 +551,7 @@ public abstract class AbstractSSTableIterator<E extends RowIndexEntry> implement
         @Override
         public String toString()
         {
-            return file != null ? file.getPath() : "null";
+            return file != null ? file.getFile().toString() : "null";
         }
     }
 

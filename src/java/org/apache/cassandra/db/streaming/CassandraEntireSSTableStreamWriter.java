@@ -93,7 +93,7 @@ public class CassandraEntireSSTableStreamWriter
             long bytesWritten = out.writeFileToChannel(channel, limiter);
             progress += bytesWritten;
 
-            session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesWritten, length);
+            session.progress(sstable.descriptor.fileFor(component).toString(), ProgressInfo.Direction.OUT, bytesWritten, length);
 
             logger.debug("[Stream #{}] Finished streaming {}.{} gen {} component {} to {}, xfered = {}, length = {}, totalSize = {}",
                          session.planId(),

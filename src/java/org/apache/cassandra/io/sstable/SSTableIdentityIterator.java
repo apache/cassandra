@@ -31,6 +31,7 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -41,19 +42,19 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final SSTableReader sstable;
     private final DecoratedKey key;
     private final DeletionTime partitionLevelDeletion;
-    private final String filename;
+    private final File file;
 
     protected final SSTableSimpleIterator iterator;
     private final Row staticRow;
 
     public SSTableIdentityIterator(SSTableReader sstable, DecoratedKey key, DeletionTime partitionLevelDeletion,
-            String filename, SSTableSimpleIterator iterator) throws IOException
+                                   File file, SSTableSimpleIterator iterator) throws IOException
     {
         super();
         this.sstable = sstable;
         this.key = key;
         this.partitionLevelDeletion = partitionLevelDeletion;
-        this.filename = filename;
+        this.file = file;
         this.iterator = iterator;
         this.staticRow = iterator.readStaticRow();
     }
@@ -68,12 +69,12 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
             DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), file, sstable.header, helper, partitionLevelDeletion);
-            return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getPath(), iterator);
+            return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getFile(), iterator);
         }
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, file.getPath());
+            throw new CorruptSSTableException(e, file.getFile());
         }
     }
 
@@ -92,12 +93,12 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             SSTableSimpleIterator iterator = tombstoneOnly
                     ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
                     : SSTableSimpleIterator.create(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion);
-            return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, dfile.getPath(), iterator);
+            return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, dfile.getFile(), iterator);
         }
         catch (IOException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, dfile.getPath());
+            throw new CorruptSSTableException(e, dfile.getFile());
         }
     }
 
@@ -140,14 +141,14 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         catch (IndexOutOfBoundsException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, filename);
+            throw new CorruptSSTableException(e, file);
         }
         catch (IOError e)
         {
             if (e.getCause() instanceof IOException)
             {
                 sstable.markSuspect();
-                throw new CorruptSSTableException((Exception)e.getCause(), filename);
+                throw new CorruptSSTableException((Exception)e.getCause(), file);
             }
             else
             {
@@ -165,14 +166,14 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         catch (IndexOutOfBoundsException e)
         {
             sstable.markSuspect();
-            throw new CorruptSSTableException(e, filename);
+            throw new CorruptSSTableException(e, file);
         }
         catch (IOError e)
         {
             if (e.getCause() instanceof IOException)
             {
                 sstable.markSuspect();
-                throw new CorruptSSTableException((Exception)e.getCause(), filename);
+                throw new CorruptSSTableException((Exception)e.getCause(), file);
             }
             else
             {
@@ -193,9 +194,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         // creator is responsible for closing file when finished
     }
 
-    public String getPath()
+    public File getFile()
     {
-        return filename;
+        return file;
     }
 
     public EncodingStats stats()

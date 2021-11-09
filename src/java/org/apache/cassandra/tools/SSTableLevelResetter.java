@@ -97,12 +97,12 @@ public class SSTableLevelResetter
                     StatsMetadata metadata = (StatsMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.STATS);
                     if (metadata.sstableLevel > 0)
                     {
-                        out.println("Changing level from " + metadata.sstableLevel + " to 0 on " + descriptor.filenameFor(Component.DATA));
+                        out.println("Changing level from " + metadata.sstableLevel + " to 0 on " + descriptor.fileFor(Component.DATA));
                         descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
                     }
                     else
                     {
-                        out.println("Skipped " + descriptor.filenameFor(Component.DATA) + " since it is already on level 0");
+                        out.println("Skipped " + descriptor.fileFor(Component.DATA) + " since it is already on level 0");
                     }
                 }
             }

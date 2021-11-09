@@ -183,7 +183,7 @@ public class CompactionAwareWriterTest extends CQLTester
             sstables.add(MockSchema.sstable(i, 1000, getCurrentColumnFamilyStore()));
 
         Directories dirs = new Directories(getCurrentColumnFamilyStore().metadata(), dataDirs);
-        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables);
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, getColumnFamilyStore().metadata, sstables);
         CompactionAwareWriter writer = new MaxSSTableSizeWriter(getCurrentColumnFamilyStore(), dirs, txn, sstables, 2000, 1);
         // init case
         writer.maybeSwitchWriter(null);

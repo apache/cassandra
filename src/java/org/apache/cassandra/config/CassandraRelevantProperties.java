@@ -166,6 +166,11 @@ public enum CassandraRelevantProperties
     IGNORED_SCHEMA_CHECK_ENDPOINTS("cassandra.skip_schema_check_for_endpoints"),
 
     /**
+     * Factory to create instances used during log transaction processing
+     */
+    LOG_TRANSACTIONS_FACTORY("cassandra.log_transactions_factory"),
+
+    /**
      * When doing a host replacement its possible that the gossip state is "empty" meaning that the endpoint is known
      * but the current state isn't known.  If the host replacement is needed to repair this state, this property must
      * be true.
@@ -178,6 +183,21 @@ public enum CassandraRelevantProperties
     ENABLE_NODELOCAL_QUERIES("cassandra.enable_nodelocal_queries", "false"),
 
     CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
+
+    /**
+     * To provide custom implementation to prioritize compaction tasks in UCS
+     */
+    UCS_COMPACTION_AGGREGATE_PRIORITIZER("unified_compaction.custom_compaction_aggregate_prioritizer"),
+
+    /**
+     * The handler of the storage of sstables, and possibly other files such as txn logs.
+     */
+    REMOTE_STORAGE_HANDLER("cassandra.remote_storage_handler"),
+
+    /**
+     * custom native library for os access
+     */
+    CUSTOM_NATIVE_LIBRARY("cassandra.custom_native_library"),
 
     //cassandra properties (without the "cassandra." prefix)
 
@@ -226,7 +246,20 @@ public enum CassandraRelevantProperties
      * Which class to use for creating guardrails
      */
     CUSTOM_GUARDRAILS_FACTORY_PROPERTY("cassandra.custom_guardrails_factory_class"),
-    
+
+    /**
+     * Used to support directory creation for different file system and remote/local conversion
+     */
+    CUSTOM_STORAGE_PROVIDER("cassandra.custom_storage_provider"),
+
+    /** Watcher used when opening sstables to discover extra components, eg. archive component */
+    CUSTOM_SSTABLE_WATCHER("cassandra.custom_sstable_watcher"),
+
+    /**
+     * Whether to disable auto-compaction
+     */
+    DISABLED_AUTO_COMPACTION_PROPERTY("cassandra.disabled_auto_compaction"),
+
     /** Which class to use for dynamic snitch severity values */
     DYNAMIC_SNITCH_SEVERITY_PROVIDER("cassandra.dynamic_snitch_severity_provider");
 
@@ -414,6 +447,19 @@ public enum CassandraRelevantProperties
         {
             throw new ConfigurationException(String.format("Invalid value for system property: " +
                                                            "expected integer value but got '%s'", value));
+        }
+    };
+
+    private static final PropertyConverter<Double> DOUBLE_CONVERTER = value ->
+    {
+        try
+        {
+            return Double.parseDouble(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system property: " +
+                                                           "expected double value but got '%s'", value));
         }
     };
 

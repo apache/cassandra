@@ -48,7 +48,7 @@ public class CommitLogTestReplayer extends CommitLogReplayer
 
     public void examineCommitLog() throws IOException
     {
-        replayFiles(new File(DatabaseDescriptor.getCommitLogLocation()).tryList());
+        replayFiles(DatabaseDescriptor.getCommitLogLocation().tryList());
     }
 
     private class CommitLogTestReader extends CommitLogReader

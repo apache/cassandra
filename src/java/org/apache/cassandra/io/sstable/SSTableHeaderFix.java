@@ -835,7 +835,7 @@ public abstract class SSTableHeaderFix
 
     private void writeNewMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> newMetadata)
     {
-        String file = desc.filenameFor(Component.STATS);
+        File file = desc.fileFor(Component.STATS);
         info.accept(String.format("  Writing new metadata file %s", file));
         try
         {

@@ -95,7 +95,7 @@ public class SerializationHeaderTest
                 Descriptor descriptor = new Descriptor(BigFormat.latestVersion, dir, schema.keyspace, schema.name, id.get(), SSTableFormat.Type.BIG);
 
                 SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
-                try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
+                try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, TableMetadataRef.forOfflineTools(schema));
                      SSTableWriter sstableWriter = BigTableWriter.create(TableMetadataRef.forOfflineTools(schema), descriptor, 1, 0L, null, false, 0, header, Collections.emptyList(),  txn))
                 {
                     ColumnMetadata cd = schema.getColumn(v);

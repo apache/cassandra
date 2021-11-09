@@ -42,6 +42,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.*;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -70,25 +71,41 @@ public class Tracker
     private final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<>();
 
     public final ColumnFamilyStore cfstore;
+    public final TableMetadataRef metadata;
     final AtomicReference<View> view;
     public final boolean loadsstables;
 
     /**
-     * @param columnFamilyStore
+     * @param columnFamilyStore column family store for the table
      * @param memtable Initial Memtable. Can be null.
      * @param loadsstables true to indicate to load SSTables (TODO: remove as this is only accessed from 2i)
      */
     public Tracker(ColumnFamilyStore columnFamilyStore, Memtable memtable, boolean loadsstables)
     {
-        this.cfstore = columnFamilyStore;
+        this.cfstore = Objects.requireNonNull(columnFamilyStore);
+        this.metadata = columnFamilyStore.metadata;
         this.view = new AtomicReference<>();
         this.loadsstables = loadsstables;
         this.reset(memtable);
     }
 
-    public static Tracker newDummyTracker()
+    /**
+     * @param metadata metadata reference for the table
+     * @param memtable Initial Memtable. Can be null.
+     * @param loadsstables true to indicate to load SSTables (TODO: remove as this is only accessed from 2i)
+     */
+    public Tracker(TableMetadataRef metadata, Memtable memtable, boolean loadsstables)
     {
-        return new Tracker(null, null, false);
+        this.cfstore = null;
+        this.metadata = Objects.requireNonNull(metadata);
+        this.view = new AtomicReference<>();
+        this.loadsstables = loadsstables;
+        this.reset(memtable);
+    }
+
+    public static Tracker newDummyTracker(TableMetadataRef metadata)
+    {
+        return new Tracker(metadata, null, false);
     }
 
     public LifecycleTransaction tryModify(SSTableReader sstable, OperationType operationType)
@@ -265,7 +282,7 @@ public class Tracker
      */
     public Throwable dropSSTables(final Predicate<SSTableReader> remove, OperationType operationType, Throwable accumulate)
     {
-        try (LogTransaction txnLogs = new LogTransaction(operationType))
+        try (AbstractLogTransaction txnLogs = ILogTransactionsFactory.instance.createLogTransaction(operationType, metadata))
         {
             Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
@@ -277,7 +294,7 @@ public class Tracker
 
             // It is important that any method accepting/returning a Throwable never throws an exception, and does its best
             // to complete the instructions given to it
-            List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();
+            List<AbstractLogTransaction.Obsoletion> obsoletions = new ArrayList<>();
             accumulate = prepareForObsoletion(removed, txnLogs, obsoletions, this, accumulate);
             try
             {
@@ -305,6 +322,18 @@ public class Tracker
         return accumulate;
     }
 
+    /**
+     * Unload all sstables from current tracker without deleting files
+     */
+    public void unloadSSTables()
+    {
+        Pair<View, View> result = apply(view -> {
+            Set<SSTableReader> toUnload = copyOf(filter(view.sstables, notIn(view.compacting)));
+            return updateLiveSet(toUnload, emptySet()).apply(view);
+        });
+
+        release(selfRefs(result.left.sstables));
+    }
 
     /**
      * Removes every SSTable in the directory from the Tracker's view.

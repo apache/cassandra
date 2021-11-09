@@ -47,6 +47,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     private final CompactionParams params;
     private final CompactionParams metadataParams;
     private final UnifiedCompactionStrategy strategy;
+    private final boolean enableAutoCompaction;
 
     AtomicBoolean enabled;
 
@@ -54,13 +55,15 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
                                BackgroundCompactions backgroundCompactions,
                                CompactionParams params,
                                CompactionParams metadataParams,
-                               boolean enabled)
+                               boolean enabled,
+                               boolean enableAutoCompaction)
     {
         this.factory = factory;
         this.params = params;
         this.metadataParams = metadataParams;
         this.strategy = new UnifiedCompactionStrategy(factory, backgroundCompactions, params.options());
         this.enabled = new AtomicBoolean(enabled);
+        this.enableAutoCompaction = enableAutoCompaction;
 
         factory.getCompactionLogger().strategyCreated(this.strategy);
 
@@ -87,7 +90,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     @Override
     public boolean isEnabled()
     {
-        return enabled.get() && strategy.isActive;
+        return enableAutoCompaction && enabled.get() && strategy.isActive;
     }
 
     @Override
@@ -99,7 +102,8 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     public static CompactionStrategyContainer create(@Nullable CompactionStrategyContainer previous,
                                                      CompactionStrategyFactory strategyFactory,
                                                      CompactionParams compactionParams,
-                                                     CompactionStrategyContainer.ReloadReason reason)
+                                                     CompactionStrategyContainer.ReloadReason reason,
+                                                     boolean enableAutoCompaction)
     {
         boolean enabled = CompactionStrategyFactory.enableCompactionOnReload(previous, compactionParams, reason);
         BackgroundCompactions backgroundCompactions;
@@ -124,7 +128,8 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
                                               backgroundCompactions,
                                               compactionParams,
                                               metadataParams,
-                                              enabled);
+                                              enabled,
+                                              enableAutoCompaction);
     }
 
     @Override
@@ -132,7 +137,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
                                               CompactionParams compactionParams,
                                               ReloadReason reason)
     {
-        return create(previous, factory, compactionParams, reason);
+        return create(previous, factory, compactionParams, reason, enableAutoCompaction);
     }
 
     private static CompactionParams createMetadataParams(@Nullable CompactionStrategyContainer previous,

@@ -523,7 +523,7 @@ public class PartitionIndexTest
                 list.add(partitioner.decorateKey(ByteBufferUtil.bytes(longString + "D")));
                 list.add(partitioner.decorateKey(ByteBufferUtil.bytes(longString + "E")));
 
-                try (FileHandle.Builder fhBuilder = new FileHandle.Builder(file.path())
+                try (FileHandle.Builder fhBuilder = new FileHandle.Builder(file)
                                                     .bufferSize(PageAware.PAGE_SIZE)
                                                     .withChunkCache(ChunkCache.instance);
                      PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder)
@@ -924,7 +924,7 @@ public class PartitionIndexTest
 
     protected FileHandle.Builder makeHandle(File file)
     {
-        return new FileHandle.Builder(file.path())
+        return new FileHandle.Builder(file)
                .bufferSize(PageAware.PAGE_SIZE)
                .mmapped(accessMode == Config.DiskAccessMode.mmap)
                .withChunkCache(ChunkCache.instance);

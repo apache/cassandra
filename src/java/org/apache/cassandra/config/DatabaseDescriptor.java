@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.*;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -35,6 +36,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.io.storage.StorageProvider;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +62,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.guardrails.GuardrailsConfig;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy;
 import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
@@ -128,6 +129,13 @@ public class DatabaseDescriptor
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
+
+    private static File[] dataDirectories = new File[0];
+    private static File localSystemDataFileDirectory;
+    private static File commitlogDirectory;
+    private static File hintsDirectory;
+    private static File savedCachesDirectory;
+    private static File cdcRawDirectory;
 
     private static long preparedStatementsCacheSizeInMB;
 
@@ -229,6 +237,8 @@ public class DatabaseDescriptor
         applySnitch();
 
         applyEncryptionContext();
+
+        createAllDirectories();
     }
 
     /**
@@ -1414,29 +1424,30 @@ public class DatabaseDescriptor
             if (conf.data_file_directories.length == 0)
                 throw new ConfigurationException("At least one DataFileDirectory must be specified", false);
 
-            for (String dataFileDirectory : conf.data_file_directories)
-                FileUtils.createDirectory(dataFileDirectory);
+            dataDirectories = new File[conf.data_file_directories.length];
+            for (int i = 0; i < conf.data_file_directories.length; i++)
+                dataDirectories[i] = StorageProvider.instance.createDirectory(conf.data_file_directories[i], StorageProvider.DirectoryType.DATA);
 
             if (conf.local_system_data_file_directory != null)
-                FileUtils.createDirectory(conf.local_system_data_file_directory);
+                localSystemDataFileDirectory = StorageProvider.instance.createDirectory(conf.local_system_data_file_directory, StorageProvider.DirectoryType.LOCAL_SYSTEM_DATA);
 
             if (conf.commitlog_directory == null)
                 throw new ConfigurationException("commitlog_directory must be specified", false);
-            FileUtils.createDirectory(conf.commitlog_directory);
+            commitlogDirectory = StorageProvider.instance.createDirectory(conf.commitlog_directory, StorageProvider.DirectoryType.COMMITLOG);
 
             if (conf.hints_directory == null)
                 throw new ConfigurationException("hints_directory must be specified", false);
-            FileUtils.createDirectory(conf.hints_directory);
+            hintsDirectory = StorageProvider.instance.createDirectory(conf.hints_directory, StorageProvider.DirectoryType.HINTS);
 
             if (conf.saved_caches_directory == null)
                 throw new ConfigurationException("saved_caches_directory must be specified", false);
-            FileUtils.createDirectory(conf.saved_caches_directory);
+            savedCachesDirectory = StorageProvider.instance.createDirectory(conf.saved_caches_directory, StorageProvider.DirectoryType.SAVED_CACHES);
 
             if (conf.cdc_enabled)
             {
                 if (conf.cdc_raw_directory == null)
                     throw new ConfigurationException("cdc_raw_directory must be specified", false);
-                FileUtils.createDirectory(conf.cdc_raw_directory);
+                cdcRawDirectory = StorageProvider.instance.createDirectory(conf.cdc_raw_directory, StorageProvider.DirectoryType.CDC);
             }
         }
         catch (ConfigurationException e)
@@ -1863,7 +1874,13 @@ public class DatabaseDescriptor
      */
     public static boolean useSpecificLocationForLocalSystemData()
     {
-        return conf.local_system_data_file_directory != null;
+        return localSystemDataFileDirectory != null;
+    }
+
+    @VisibleForTesting
+    public static void setSpecificLocationForLocalSystemData(File systemDir)
+    {
+        localSystemDataFileDirectory = systemDir;
     }
 
     /**
@@ -1874,13 +1891,12 @@ public class DatabaseDescriptor
      *
      * @return the locations where should be stored the local system keyspaces data
      */
-    public static String[] getLocalSystemKeyspacesDataFileLocations()
+    public static File[] getLocalSystemKeyspacesDataFileLocations()
     {
         if (useSpecificLocationForLocalSystemData())
-            return new String[] {conf.local_system_data_file_directory};
+            return new File[] {localSystemDataFileDirectory};
 
-        return conf.data_file_directories.length == 0  ? conf.data_file_directories
-                                                       : new String[] {conf.data_file_directories[0]};
+        return dataDirectories.length == 0  ? dataDirectories : new File[] {dataDirectories[0]};
     }
 
     /**
@@ -1888,9 +1904,9 @@ public class DatabaseDescriptor
      *
      * @return the locations where the non local system keyspaces data should be stored.
      */
-    public static String[] getNonLocalSystemKeyspacesDataFileLocations()
+    public static File[] getNonLocalSystemKeyspacesDataFileLocations()
     {
-        return conf.data_file_directories;
+        return dataDirectories;
     }
 
     /**
@@ -1898,12 +1914,18 @@ public class DatabaseDescriptor
      *
      * @return the list of all the directories where the data files can be stored.
      */
-    public static String[] getAllDataFileLocations()
+    public static File[] getAllDataFileLocations()
     {
-        if (conf.local_system_data_file_directory == null)
-            return conf.data_file_directories;
+        if (!useSpecificLocationForLocalSystemData())
+            return dataDirectories;
 
-        return ArrayUtils.addFirst(conf.data_file_directories, conf.local_system_data_file_directory);
+        return ArrayUtils.addFirst(dataDirectories, localSystemDataFileDirectory);
+    }
+
+    @VisibleForTesting
+    public static void setDataDirectories(File[] newDataDirectories)
+    {
+        dataDirectories = newDataDirectories;
     }
 
     /**
@@ -1912,18 +1934,18 @@ public class DatabaseDescriptor
      */
     public static long getDataFileDirectoriesMinTotalSpaceInGB()
     {
-        String[] dataDirectories = getAllDataFileLocations();
+        File[] dataDirectories = getAllDataFileLocations();
         if (dataDirectories.length == 0)
         {
             return 0L;
         }
 
         Multiset<FileStore> fileStores = HashMultiset.create();
-        for (String dir : dataDirectories)
+        for (File dir : dataDirectories)
         {
             try
             {
-                fileStores.add(Files.getFileStore(new File(dir).toPath()));
+                fileStores.add(Files.getFileStore(dir.toPath()));
             }
             catch (IOException ioe)
             {
@@ -1950,15 +1972,15 @@ public class DatabaseDescriptor
         }).min().orElse(0L) * fileStores.size();
     }
 
-    public static String getCommitLogLocation()
+    public static File getCommitLogLocation()
     {
-        return conf.commitlog_directory;
+        return commitlogDirectory;
     }
 
     @VisibleForTesting
-    public static void setCommitLogLocation(String value)
+    public static void setCommitLogLocation(File commitLogLocation)
     {
-        conf.commitlog_directory = value;
+        commitlogDirectory = commitLogLocation;
     }
 
     public static ParameterizedClass getCommitLogCompression()
@@ -2034,9 +2056,9 @@ public class DatabaseDescriptor
         conf.commitlog_segment_size_in_mb = sizeMegabytes;
     }
 
-    public static String getSavedCachesLocation()
+    public static File getSavedCachesLocation()
     {
-        return conf.saved_caches_directory;
+        return savedCachesDirectory;
     }
 
     public static Set<InetAddressAndPort> getSeeds()
@@ -2511,14 +2533,14 @@ public class DatabaseDescriptor
 
     public static File getHintsDirectory()
     {
-        return new File(conf.hints_directory);
+        return hintsDirectory;
     }
 
     public static File getSerializedCachePath(CacheType cacheType, String version, String extension)
     {
         String name = cacheType.toString()
                 + (version == null ? "" : '-' + version + '.' + extension);
-        return new File(conf.saved_caches_directory, name);
+        return new File(savedCachesDirectory, name);
     }
 
     public static int getDynamicUpdateInterval()
@@ -2821,6 +2843,26 @@ public class DatabaseDescriptor
         return conf.streaming_connections_per_host;
     }
 
+    public static boolean supportsSSTableReadMeter()
+    {
+        return conf.storage_flags.supports_sstable_read_meter;
+    }
+
+    public static boolean supportsBlacklistingDirectory()
+    {
+        return conf.storage_flags.supports_blacklisting_directory;
+    }
+
+    public static boolean supportsHardlinksForEntireSSTableStreaming()
+    {
+        return conf.storage_flags.supports_hardlinks_for_entire_sstable_streaming;
+    }
+
+    public static boolean nettyZerocopyEnabled()
+    {
+        return conf.netty_zerocopy_enabled;
+    }
+
     public static boolean streamEntireSSTables()
     {
         return conf.stream_entire_sstables;
@@ -3092,9 +3134,9 @@ public class DatabaseDescriptor
         conf.cdc_enabled = cdc_enabled;
     }
 
-    public static String getCDCLogLocation()
+    public static File getCDCLogLocation()
     {
-        return conf.cdc_raw_directory;
+        return cdcRawDirectory;
     }
 
     public static int getCDCSpaceInMB()

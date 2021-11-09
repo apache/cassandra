@@ -128,7 +128,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         }
         catch (IOException ioe)
         {
-            throw new FSReadError(ioe, getPath());
+            throw new FSReadError(ioe, getFile());
         }
     }
 
@@ -138,7 +138,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
-        ChannelProxy channel = new ChannelProxy(input.getPath());
+        ChannelProxy channel = new ChannelProxy(input.getFile());
         try
         {
             return new EncryptedChecksummedDataInput(channel, cipher, compressor, position);

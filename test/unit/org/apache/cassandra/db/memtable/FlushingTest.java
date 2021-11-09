@@ -96,7 +96,7 @@ public class FlushingTest extends CQLTester
     public void testAbortingFlushRunnablesWithoutStarting() throws Throwable
     {
         // abort without starting
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH, cfs.metadata))
         {
             List<Flushing.FlushRunnable> flushRunnables = Flushing.flushRunnables(cfs, memtable, ranges, locations, txn);
             assertNotNull(flushRunnables);
@@ -133,7 +133,7 @@ public class FlushingTest extends CQLTester
     public void testAbortingFlushRunnablesAfterStarting() throws Throwable
     {
         // abort after starting
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH, cfs.metadata))
         {
             List<Flushing.FlushRunnable> flushRunnables = Flushing.flushRunnables(cfs, memtable, ranges, locations, txn);
 
@@ -158,7 +158,7 @@ public class FlushingTest extends CQLTester
     public void testAbortingFlushRunnablesBeforeStarting() throws Throwable
     {
         // abort before starting
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH, cfs.metadata))
         {
             List<Flushing.FlushRunnable> flushRunnables = Flushing.flushRunnables(cfs, memtable, ranges, locations, txn);
 

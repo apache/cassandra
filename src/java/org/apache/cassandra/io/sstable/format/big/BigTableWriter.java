@@ -115,18 +115,18 @@ public class BigTableWriter extends SSTableWriter
         {
             final CompressionParams compressionParams = compressionFor(lifecycleNewTracker.opType(), metadata);
 
-            dataFile = new CompressedSequentialWriter(new File(getFilename()),
-                                             descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                             new File(descriptor.filenameFor(Component.DIGEST)),
+            dataFile = new CompressedSequentialWriter(getDataFile(),
+                                             descriptor.fileFor(Component.COMPRESSION_INFO),
+                                             descriptor.fileFor(Component.DIGEST),
                                              writerOption,
                                              compressionParams,
                                              metadataCollector);
         }
         else
         {
-            dataFile = new ChecksummedSequentialWriter(new File(getFilename()),
-                    new File(descriptor.filenameFor(Component.CRC)),
-                    new File(descriptor.filenameFor(Component.DIGEST)),
+            dataFile = new ChecksummedSequentialWriter(getDataFile(),
+                                                       descriptor.fileFor(Component.CRC),
+                                                       descriptor.fileFor(Component.DIGEST),
                     writerOption);
         }
         dbuilder = SSTableReaderBuilder.defaultDataHandleBuilder(descriptor).compressed(compression);
@@ -195,7 +195,7 @@ public class BigTableWriter extends SSTableWriter
     {
         assert decoratedKey != null : "Keys must not be null"; // empty keys ARE allowed b/c of indexed column values
         if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) >= 0)
-            throw new RuntimeException("Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename());
+            throw new RuntimeException("Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getDataFile());
         return (lastWrittenKey == null) ? 0 : dataFile.position();
     }
 
@@ -270,7 +270,7 @@ public class BigTableWriter extends SSTableWriter
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, dataFile.getPath());
+            throw new FSWriteError(e, dataFile.getFile());
         }
     }
 
@@ -343,7 +343,7 @@ public class BigTableWriter extends SSTableWriter
         assert boundary.indexLength > 0 && boundary.dataLength > 0;
         // open the reader early
         IndexSummary indexSummary = iwriter.summary.build(metadata().partitioner, boundary);
-        long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
+        long indexFileLength = descriptor.fileFor(Component.PRIMARY_INDEX).length();
         int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
         FileHandle ifile = iwriter.builder.bufferSize(indexBufferSize).complete(boundary.indexLength);
         if (compression)
@@ -393,7 +393,7 @@ public class BigTableWriter extends SSTableWriter
         StatsMetadata stats = statsMetadata();
         // finalize in-memory state for the reader
         IndexSummary indexSummary = iwriter.summary.build(metadata().partitioner);
-        long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
+        long indexFileLength = descriptor.fileFor(Component.PRIMARY_INDEX).length();
         int dataBufferSize = optimizationStrategy.bufferSize(stats.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
         int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
         FileHandle ifile = iwriter.builder.bufferSize(indexBufferSize).complete();
@@ -464,7 +464,7 @@ public class BigTableWriter extends SSTableWriter
 
     private void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
     {
-        File file = new File(desc.filenameFor(Component.STATS));
+        File file = desc.fileFor(Component.STATS);
         try (SequentialWriter out = new SequentialWriter(file, writerOption))
         {
             desc.getMetadataSerializer().serialize(components, out, desc.version);
@@ -504,7 +504,7 @@ public class BigTableWriter extends SSTableWriter
 
         IndexWriter(long keyCount)
         {
-            indexFile = new SequentialWriter(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), writerOption);
+            indexFile = new SequentialWriter(descriptor.fileFor(Component.PRIMARY_INDEX), writerOption);
             builder = SSTableReaderBuilder.defaultIndexHandleBuilder(descriptor, Component.PRIMARY_INDEX);
             summary = new IndexSummaryBuilder(keyCount, metadata().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             bf = FilterFactory.getFilter(keyCount, metadata().params.bloomFilterFpChance);
@@ -530,7 +530,7 @@ public class BigTableWriter extends SSTableWriter
             }
             catch (IOException e)
             {
-                throw new FSWriteError(e, indexFile.getPath());
+                throw new FSWriteError(e, indexFile.getFile());
             }
             long indexEnd = indexFile.position();
 
@@ -547,7 +547,7 @@ public class BigTableWriter extends SSTableWriter
         {
             if (components.contains(Component.FILTER))
             {
-                String path = descriptor.filenameFor(Component.FILTER);
+                File path = descriptor.fileFor(Component.FILTER);
                 try (FileOutputStreamPlus stream = new FileOutputStreamPlus(path))
                 {
                     // bloom filter
@@ -582,7 +582,7 @@ public class BigTableWriter extends SSTableWriter
             // truncate index file
             long position = indexFile.position();
             indexFile.prepareToCommit();
-            FileUtils.truncate(indexFile.getPath(), position);
+            FileUtils.truncate(indexFile.getFile(), position);
 
             // save summary
             summary.prepareToCommit();

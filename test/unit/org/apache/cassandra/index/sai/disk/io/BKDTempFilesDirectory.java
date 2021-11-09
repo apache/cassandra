@@ -71,7 +71,7 @@ public class BKDTempFilesDirectory extends Directory
     {
         final File indexInput = getTmpFileByName(name);
         
-        try (FileHandle.Builder builder = new FileHandle.Builder(indexInput.path()))
+        try (FileHandle.Builder builder = new FileHandle.Builder(indexInput))
         {
             final FileHandle handle = builder.complete();
             final RandomAccessReader reader = handle.createReader();
@@ -141,8 +141,7 @@ public class BKDTempFilesDirectory extends Directory
     private File getTmpFileByName(String name)
     {
         assert name.endsWith(Descriptor.TMP_EXT);
-        final File file = new File(name);
-//        final File file = new File(delegate.descriptor.directory, name);
+        final File file = new File(delegate.descriptor.directory, name);
         if (file.exists())
         {
             return file;

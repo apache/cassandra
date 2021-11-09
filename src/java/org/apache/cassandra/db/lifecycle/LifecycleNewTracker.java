@@ -33,6 +33,14 @@ public interface LifecycleNewTracker
      */
     void trackNew(SSTable table);
 
+    /**
+     * Track new index files attached to the given sstable. Used by CNDB to upload new archive file
+     *
+     * @param table on which index files should be tracked
+     */
+    default void trackNewAttachedIndexFiles(SSTable table)
+    {
+    }
 
     /**
      * Called when a new table is no longer required, so that this table can be untracked by a transaction.

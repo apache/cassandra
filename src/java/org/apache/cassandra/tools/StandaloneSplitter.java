@@ -107,7 +107,7 @@ public class StandaloneSplitter
                 Iterator<Component> iter = components.iterator();
                 while (iter.hasNext()) {
                     Component component = iter.next();
-                    if (!(new File(desc.filenameFor(component)).exists()))
+                    if (!(desc.fileFor(component).exists()))
                         iter.remove();
                 }
                 parsedFilenames.put(desc, components);

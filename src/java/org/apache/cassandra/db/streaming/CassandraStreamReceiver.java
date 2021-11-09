@@ -78,7 +78,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         this.session = session;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
         // this should be revisited at a later date, so that LifecycleTransaction manages all sstable state changes
-        this.txn = LifecycleTransaction.offline(OperationType.STREAM);
+        this.txn = LifecycleTransaction.offline(OperationType.STREAM, cfs.metadata);
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
     }

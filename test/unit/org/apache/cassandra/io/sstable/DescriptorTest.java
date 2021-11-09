@@ -95,7 +95,7 @@ public class DescriptorTest
 
     private void checkFromFilename(Descriptor original)
     {
-        File file = new File(original.filenameFor(Component.DATA));
+        File file = original.fileFor(Component.DATA);
 
         Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
         Descriptor desc = pair.left;

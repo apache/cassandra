@@ -24,6 +24,8 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
@@ -371,5 +373,36 @@ public class FileTest
     {
         Assert.assertTrue(new File("somewhere/../").isAncestorOf(new File("somewhere")));
         Assert.assertTrue(new File("../").isAncestorOf(new File("")));
+    }
+
+    @Test
+    public void testCopy() throws IOException
+    {
+        File file = new File(dir, "a");
+        file.toJavaIOFile().createNewFile();
+        Assert.assertTrue(file.exists());
+
+        File newFile = new File(dir, "b");
+        Assert.assertFalse(newFile.exists());
+
+        file.copy(newFile, StandardCopyOption.COPY_ATTRIBUTES);
+        Assert.assertTrue(newFile.exists());
+    }
+
+    @Test
+    public void testResolve()
+    {
+        File file = new File("somewhere/a/");
+        Assert.assertEquals(new File("somewhere/a/b"), file.resolve(new File("b")));
+        Assert.assertEquals(new File("somewhere/a/b"), file.resolve("b"));
+
+        Assert.assertEquals(new File("somewhere/b"), file.resolveSibling("b"));
+    }
+
+    @Test
+    public void testRelative()
+    {
+        File file = new File("somewhere/a/");
+        Assert.assertEquals(new File("../b"), file.relativize(new File("somewhere/b")));
     }
 }

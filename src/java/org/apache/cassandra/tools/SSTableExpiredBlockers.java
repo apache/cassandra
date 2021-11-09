@@ -77,7 +77,7 @@ public class SSTableExpiredBlockers
                 }
                 catch (Throwable t)
                 {
-                    out.println("Couldn't open sstable: " + sstable.getKey().filenameFor(Component.DATA)+" ("+t.getMessage()+")");
+                    out.println("Couldn't open sstable: " + sstable.getKey().fileFor(Component.DATA)+" ("+t.getMessage()+")");
                 }
             }
         }

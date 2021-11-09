@@ -103,6 +103,7 @@ public abstract class Controller
      * This parameter is intended to modify the shape of the LSM by taking into account the survival ratio of data, for now it is fixed to one.
      */
     static final double DEFAULT_SURVIVAL_FACTOR = Double.parseDouble(System.getProperty(PREFIX + "survival_factor", "1"));
+    final static double[] DEFAULT_SURVIVAL_FACTORS = new double[] { DEFAULT_SURVIVAL_FACTOR };
 
     /**
      * Either true or false. This parameter determines which controller will be used.
@@ -130,9 +131,25 @@ public abstract class Controller
     static final int DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS = 60 * 10;
     static final String EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION = "expired_sstable_check_frequency_seconds";
 
+    /**
+     * Either true or false. This parameter determines whether L0 will use
+     * shards or not. If L0 does not use shards then:
+     * - all flushed sstables use an ordinary writer, not a sharded writer
+     * - the arena selector disregards the first token of L0 sstables, placing
+     *   them all in a unique shard.
+     */
+    final static String L0_SHARDS_ENABLED_OPTION = "l0_shards_enabled";
+    final static boolean DEFAULT_L0_SHARDS_ENABLED = System.getProperty(PREFIX + L0_SHARDS_ENABLED_OPTION) == null
+                                                     || Boolean.getBoolean(PREFIX + L0_SHARDS_ENABLED_OPTION);
+
+    /**
+     * True if L0 data may be coming from different replicas.
+     */
+    public final static String SHARED_STORAGE = "shared_storage";
+
     protected final MonotonicClock clock;
     protected final Environment env;
-    protected final double survivalFactor;
+    protected final double[] survivalFactors;
     protected final long dataSetSizeMB;
     protected final int numShards;
     protected final long shardSizeMB;
@@ -143,12 +160,15 @@ public abstract class Controller
     protected final int maxSSTablesToCompact;
     protected final long expiredSSTableCheckFrequency;
     protected final boolean ignoreOverlapsInExpirationCheck;
+    protected final boolean l0ShardsEnabled;
+
+    protected final CompactionAggregatePrioritizer prioritizer;
     @Nullable protected volatile CostsCalculator calculator;
     @Nullable private volatile Metrics metrics;
 
     Controller(MonotonicClock clock,
                Environment env,
-               double survivalFactor,
+               double[] survivalFactors,
                long dataSetSizeMB,
                int numShards,
                long minSstableSizeMB,
@@ -156,11 +176,13 @@ public abstract class Controller
                double maxSpaceOverhead,
                int maxSSTablesToCompact,
                long expiredSSTableCheckFrequency,
-               boolean ignoreOverlapsInExpirationCheck)
+               boolean ignoreOverlapsInExpirationCheck,
+               boolean l0ShardsEnabled,
+               CompactionAggregatePrioritizer prioritizer)
     {
         this.clock = clock;
         this.env = env;
-        this.survivalFactor = survivalFactor;
+        this.survivalFactors = survivalFactors;
         this.dataSetSizeMB = dataSetSizeMB;
         this.numShards = numShards;
         this.shardSizeMB = (int) Math.ceil((double) dataSetSizeMB / numShards);
@@ -195,6 +217,8 @@ public abstract class Controller
                     "Set it to 'true' to enable aggressive SSTable expiration.");
         }
         this.ignoreOverlapsInExpirationCheck = ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION && ignoreOverlapsInExpirationCheck;
+        this.l0ShardsEnabled = l0ShardsEnabled;
+        this.prioritizer = prioritizer;
     }
 
     @VisibleForTesting
@@ -228,11 +252,31 @@ public abstract class Controller
     }
 
     /**
-     * @return the survival factor o
+     * @return whether L0 should use shards
      */
-    public double getSurvivalFactor()
+    public boolean areL0ShardsEnabled()
     {
-        return survivalFactor;
+        return l0ShardsEnabled;
+    }
+
+    /**
+     * @return compaction aggregate prioritizer for current strategy
+     */
+    public CompactionAggregatePrioritizer aggregatePrioritizer()
+    {
+        return prioritizer;
+    }
+
+    /**
+     * @return the survival factor o
+     * @param index
+     */
+    public double getSurvivalFactor(int index)
+    {
+        if (index < 0)
+            throw new IllegalArgumentException("Index should be >= 0: " + index);
+
+        return index < survivalFactors.length ? survivalFactors[index] : survivalFactors[survivalFactors.length - 1];
     }
 
     /**
@@ -347,7 +391,7 @@ public abstract class Controller
         if (calculator != null)
             throw new IllegalStateException("Already started");
 
-        startup(strategy, new CostsCalculator(env, strategy, executorService, survivalFactor));
+        startup(strategy, new CostsCalculator(env, strategy, executorService, survivalFactors[0]));
     }
 
     @VisibleForTesting
@@ -416,7 +460,7 @@ public abstract class Controller
      */
     public int readAmplification(long length, int scalingParameter)
     {
-        double o = getSurvivalFactor();
+        double o = getSurvivalFactor(0);
         long m = getFlushSizeBytes();
 
         int F = scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter;
@@ -446,7 +490,7 @@ public abstract class Controller
      */
     public int writeAmplification(long length, int scalingParameter)
     {
-        double o = getSurvivalFactor();
+        double o = getSurvivalFactor(0);
         long m = getFlushSizeBytes();
 
         int F = scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter;
@@ -475,7 +519,7 @@ public abstract class Controller
      */
     private int maxBucketIndex(long totalLength, int fanout)
     {
-        double o = getSurvivalFactor();
+        double o = getSurvivalFactor(0);
         long m = getFlushSizeBytes();
         return Math.max(0, (int) Math.floor((Math.log(totalLength) - Math.log(m)) / (Math.log(fanout) - Math.log(o))));
     }
@@ -517,12 +561,27 @@ public abstract class Controller
         boolean ignoreOverlapsInExpirationCheck = options.containsKey(ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION)
                 ? Boolean.parseBoolean(options.get(ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION))
                 : DEFAULT_ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION;
+        boolean l0ShardsEnabled = options.containsKey(L0_SHARDS_ENABLED_OPTION)
+                                  ? Boolean.parseBoolean(options.get(L0_SHARDS_ENABLED_OPTION))
+                                  : DEFAULT_L0_SHARDS_ENABLED;
+
+        // Multiple data directories normally indicate multiple disks and we cannot compact sstables together if they belong to
+        // different disks (or else loosing a disk may result in resurrected data due to lost tombstones). Because UCS sharding
+        // subsumes disk sharding, it is not safe to disable shards on L0 if there are multiple data directories.
+        if (!l0ShardsEnabled && DatabaseDescriptor.getAllDataFileLocations().length > 1)
+            throw new IllegalArgumentException("Disabling shards on L0 is not supported with multiple data directories since shards also separate sstables in different directories");
 
         Environment env = new RealEnvironment(realm);
 
+        // For remote storage, the sstables on L0 are created by the different replicas, and therefore it is likely
+        // that there are RF identical copies, so here we adjust the survival factor for L0
+        double[] survivalFactors = System.getProperty(PREFIX + SHARED_STORAGE) == null || !Boolean.getBoolean(PREFIX + SHARED_STORAGE)
+                                   ? DEFAULT_SURVIVAL_FACTORS
+                                   : new double[] { DEFAULT_SURVIVAL_FACTOR / realm.getKeyspaceReplicationFactor(), DEFAULT_SURVIVAL_FACTOR };
+
         return adaptive
                ? AdaptiveController.fromOptions(env,
-                                                DEFAULT_SURVIVAL_FACTOR,
+                                                survivalFactors,
                                                 dataSetSizeMb,
                                                 numShards,
                                                 sstableSizeMb,
@@ -531,9 +590,11 @@ public abstract class Controller
                                                 maxSSTablesToCompact,
                                                 expiredSSTableCheckFrequency,
                                                 ignoreOverlapsInExpirationCheck,
+                                                l0ShardsEnabled,
+                                                CompactionAggregatePrioritizer.instance,
                                                 options)
                : StaticController.fromOptions(env,
-                                              DEFAULT_SURVIVAL_FACTOR,
+                                              survivalFactors,
                                               dataSetSizeMb,
                                               numShards,
                                               sstableSizeMb,
@@ -542,6 +603,8 @@ public abstract class Controller
                                               maxSSTablesToCompact,
                                               expiredSSTableCheckFrequency,
                                               ignoreOverlapsInExpirationCheck,
+                                              l0ShardsEnabled,
+                                              CompactionAggregatePrioritizer.instance,
                                               options);
     }
 
@@ -719,6 +782,22 @@ public abstract class Controller
         // result in the same buckets, but for negative W or hybrid strategies this may cause temporary overcompaction.
         // If this is a concern, the flush size override should be used to avoid it until DB-4401.
         return Math.max(1 << 20, getFlushSizeBytes()) * (1.0 - 0.9 / F) / getNumShards();
+    }
+
+    public long getMaxLevelSize(int index, long minSize)
+    {
+        int fanout = getFanout(index);
+        double survivalFactor = getSurvivalFactor(index);
+        double baseSize = minSize;
+        if (minSize == 0)
+            baseSize = getBaseSstableSize(fanout);
+
+        return (long) Math.floor(baseSize * fanout * survivalFactor);
+    }
+
+    public long getMaxL0Size()
+    {
+        return getMaxLevelSize(0, 0);
     }
 
     public double maxThroughput()

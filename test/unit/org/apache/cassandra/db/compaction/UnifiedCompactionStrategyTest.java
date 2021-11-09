@@ -21,7 +21,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -33,6 +35,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -40,10 +43,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SortedLocalRanges;
+import org.apache.cassandra.db.compaction.unified.CompactionAggregatePrioritizer;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.dht.IPartitioner;
@@ -62,6 +67,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 /**
@@ -125,12 +131,16 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         long minimalSizeBytes = 2 << 20;
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
         when(controller.getScalingParameter(anyInt())).thenReturn(4);
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(1);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
         when(controller.random()).thenCallRealMethod();
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -204,10 +214,12 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         Controller controller = Mockito.mock(Controller.class);
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
         when(controller.getNumShards()).thenReturn(1);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
 
         when(controller.getScalingParameter(anyInt())).thenAnswer(answer -> {
             int index = answer.getArgument(0);
@@ -215,8 +227,9 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         });
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
 
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.random()).thenCallRealMethod();
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -434,10 +447,13 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getScalingParameter(anyInt())).thenReturn(W);
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(numShards);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getMaxSpaceOverhead()).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSstableSizeBytes);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
 
         if (maxSSTablesToCompact >= numSSTables)
             when(controller.maxConcurrentCompactions()).thenReturn(levels * (W < 0 ? 1 : F)); // make sure the work is assigned to different levels
@@ -589,14 +605,17 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getScalingParameter(anyInt())).thenReturn(W);
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(numShards);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getMaxSpaceOverhead()).thenReturn(maxSpaceOverhead);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSstableSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(maxCount);
         when(controller.maxCompactionSpaceBytes()).thenCallRealMethod();
         when(controller.maxThroughput()).thenReturn(maxThroughput);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
         // Calculate the minimum shard size such that the top bucket compactions won't be considered "oversized" and
         // all will be allowed to run. The calculation below assumes (1) that compactions are considered "oversized"
         // if they are more than 1/2 of the max shard size; (2) that mockSSTables uses 15% less than the max SSTable
@@ -790,7 +809,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenasList.addAll(mockArenas(0, 2, true, null, boundaries, sstables, buckets)); // repaired
         arenasList.addAll(mockArenas(1, 2, true, null, boundaries, sstables, buckets)); // repaired, next disk
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
     }
 
     @Test
@@ -815,7 +834,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
 
         List<PartitionPosition> boundaries = makeBoundaries(numShards, 1);
         List<ArenaSpecs> arenas = mockArenas(0, 1, true, null, boundaries, sstables, buckets);
-        testGetBucketsMultipleArenas(arenas, W, m, boundaries);
+        testGetBucketsMultipleArenas(arenas, W, m, boundaries, true);
     }
 
     @Test
@@ -844,7 +863,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenas.addAll(mockArenas(0, 2, true, null, boundaries, sstables, buckets));
         arenas.addAll(mockArenas(1, 2, true, null, boundaries, sstables, buckets));
 
-        testGetBucketsMultipleArenas(arenas, W, m, boundaries);
+        testGetBucketsMultipleArenas(arenas, W, m, boundaries, true);
     }
 
     @Test
@@ -882,7 +901,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
 
         }
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
     }
 
     @Test
@@ -914,7 +933,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenasList.addAll(mockArenas(0, 1, true, null, boundaries, sstables2, buckets2)); // repaired
         arenasList.addAll(mockArenas(0, 1, false, null, boundaries, sstables1, buckets1)); // unrepaired
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
     }
 
     @Test
@@ -949,10 +968,10 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenasList.addAll(mockArenas(0, 2, false, null, boundaries, sstables1, buckets1));  // unrepaired, first disk
         arenasList.addAll(mockArenas(1, 2, false, null, boundaries, sstables2, buckets2));  // unrepaired, second disk
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
     }
 
-    private void testGetBucketsMultipleArenas(List<ArenaSpecs> arenaSpecs, int W, int m, List<PartitionPosition> shards)
+    private void testGetBucketsMultipleArenas(List<ArenaSpecs> arenaSpecs, int W, int m, List<PartitionPosition> shards, boolean l0ShardsEnabled)
     {
         long minimalSizeBytes = m << 20;
 
@@ -961,12 +980,16 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getScalingParameter(anyInt())).thenReturn(W);
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getMaxL0Size()).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.getNumShards()).thenReturn(shards.size());
+        when(controller.areL0ShardsEnabled()).thenReturn(l0ShardsEnabled);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
         when(controller.random()).thenCallRealMethod();
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -1103,13 +1126,16 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getScalingParameter(anyInt())).thenReturn(0);
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(numShards);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
         when(controller.random()).thenCallRealMethod();
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -1223,16 +1249,20 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
     {
         Controller controller = Mockito.mock(Controller.class);
         long minimalSizeBytes = 2 << 20;
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
         when(controller.getScalingParameter(anyInt())).thenReturn(3); // T=5
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(numShards);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
+        when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
         when(controller.random()).thenCallRealMethod();
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -1273,17 +1303,22 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
     {
         Controller controller = Mockito.mock(Controller.class);
         long minimalSizeBytes = 2 << 20;
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
         when(controller.getScalingParameter(anyInt())).thenReturn(2);
         when(controller.getFanout(anyInt())).thenCallRealMethod();
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(1);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
+        when(controller.maxSSTablesToCompact()).thenReturn(1000);
+
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
         when(controller.random()).thenCallRealMethod();
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
         strategy.startup();
@@ -1327,6 +1362,95 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
     }
 
     @Test
+    public void testPrioritizeLocallyAvailableSSTables()
+    {
+        Set<SSTableReader> sstables0 = new HashSet<>(createSSTalesWithDiskIndex(realm.getPartitioner(), 0));
+        Set<SSTableReader> sstables1 = new HashSet<>(createSSTalesWithDiskIndex(realm.getPartitioner(), 1));
+        Set<SSTableReader> sstables = Sets.union(sstables0, sstables1);
+        dataTracker.addInitialSSTables(sstables);
+
+        for (SSTableReader sstable : sstables)
+        {
+            long onDiskLength;
+            if (sstables1.contains(sstable))
+                onDiskLength = sstable.onDiskLength();
+            else
+                onDiskLength = 0L;
+            when(sstable.onDiskLength()).thenReturn(onDiskLength);
+        }
+
+        Controller controller = Mockito.mock(Controller.class);
+        long minimalSizeBytes = 2 << 20;
+        when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
+        when(controller.getScalingParameter(anyInt())).thenReturn(0);
+        when(controller.getFanout(anyInt())).thenCallRealMethod();
+        when(controller.getThreshold(anyInt())).thenCallRealMethod();
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
+        when(controller.getNumShards()).thenReturn(1);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
+        when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
+        when(controller.maxConcurrentCompactions()).thenReturn(1);
+        when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
+        when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
+        when(controller.maxSSTablesToCompact()).thenReturn(2);
+        when(controller.aggregatePrioritizer()).thenReturn(new CompactionAggregatePrioritizer() {
+            @Override
+            public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)
+            {
+                pending.sort(Comparator.comparingLong(a -> ((CompactionAggregate.UnifiedAggregate) a).sstables.stream().mapToLong(CompactionSSTable::onDiskLength).sum()).reversed());
+                return pending;
+            }
+
+            @Override
+            public IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random)
+            {
+                return aggregateIndexes;
+            }
+        });
+        when(controller.random()).thenCallRealMethod();
+
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
+        Collection<AbstractCompactionTask> tasks = strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds());
+
+        assertEquals(1, tasks.size());
+        Set<SSTableReader> compacting = tasks.iterator().next().transaction.getCompacting();
+        assertEquals(2, compacting.size());
+        assertEquals(new HashSet<>(sstables1), compacting);
+    }
+
+    private Set<SSTableReader> createSSTalesWithDiskIndex(IPartitioner partitioner, int diskIndex)
+    {
+        Set<SSTableReader> mockSSTables = new HashSet<>();
+        Map<Long, Integer> sstablesMap = mapFromPair(Pair.create(4 * ONE_MB, 2));
+        Token min = partitioner.getMinimumToken();
+        Token max = partitioner.getMaximumToken();
+        ByteBuffer bb = ByteBuffer.allocate(0);
+        int ttl = 0;
+        UUID pendingRepair = null;
+        sstablesMap.forEach((size, num) -> {
+            Token first = min.getPartitioner().split(min, max, 0.01 + random.nextDouble() * 0.98);
+
+            for (int i = 0; i < num; i++)
+            {
+                mockSSTables.add(mockSSTable(0,
+                                             size,
+                                             FBUtilities.nowInSeconds(),
+                                             0.0,
+                                             new BufferDecoratedKey(first, bb),
+                                             new BufferDecoratedKey(max, bb),
+                                             diskIndex,
+                                             false,
+                                             pendingRepair,
+                                             ttl
+                ));
+                first = first.increaseSlightly();
+            }
+        });
+        return mockSSTables;
+    }
+
+    @Test
     public void testPending()
     {
         Controller controller = Mockito.mock(Controller.class);
@@ -1336,15 +1460,19 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.maxSSTablesToCompact()).thenReturn(10); // same as fanout
 
         long minimalSizeBytes = 2 << 20;
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
-        when(controller.getSurvivalFactor()).thenReturn(1.0);
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards()).thenReturn(1);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
         when(controller.random()).thenCallRealMethod();
+        when(controller.aggregatePrioritizer()).thenReturn(CompactionAggregatePrioritizer.instance);
+
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
         strategy.startup();
 

@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +85,7 @@ public class CassandraStreamWriter
 
         AsyncStreamingOutputPlus out = (AsyncStreamingOutputPlus) output;
         try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
-            ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
+            ChecksumValidator validator = sstable.descriptor.fileFor(Component.CRC).exists()
                                           ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
                                           : null)
         {
@@ -115,7 +114,7 @@ public class CassandraStreamWriter
                     start += lastBytesRead;
                     bytesRead += lastBytesRead;
                     progress += (lastBytesRead - transferOffset);
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                    session.progress(sstable.descriptor.fileFor(Component.DATA).toString(), ProgressInfo.Direction.OUT, progress, totalSize);
                     transferOffset = 0;
                 }
 

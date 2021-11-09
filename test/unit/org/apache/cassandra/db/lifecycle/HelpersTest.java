@@ -164,11 +164,11 @@ public class HelpersTest
     public void testMarkObsolete()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        LogTransaction txnLogs = new LogTransaction(OperationType.UNKNOWN);
+        AbstractLogTransaction txnLogs = ILogTransactionsFactory.instance.createLogTransaction(OperationType.UNKNOWN, cfs.metadata);
         Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         Iterable<SSTableReader> readersToKeep = Lists.newArrayList(MockSchema.sstable(3, cfs), MockSchema.sstable(4, cfs));
 
-        List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();
+        List<AbstractLogTransaction.Obsoletion> obsoletions = new ArrayList<>();
         Helpers.prepareForObsoletion(readers, txnLogs, obsoletions, null, null);
         assertNotNull(obsoletions);
         assertEquals(2, obsoletions.size());
@@ -191,7 +191,7 @@ public class HelpersTest
     public void testObsoletionPerformance()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        LogTransaction txnLogs = new LogTransaction(OperationType.UNKNOWN);
+        AbstractLogTransaction txnLogs = ILogTransactionsFactory.instance.createLogTransaction(OperationType.UNKNOWN, cfs.metadata);
         List<SSTableReader> readers = new ArrayList<>();
 
         for (int i = 0; i < 10000; i++)

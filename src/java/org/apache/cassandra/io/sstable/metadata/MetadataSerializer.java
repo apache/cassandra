@@ -124,7 +124,7 @@ public class MetadataSerializer implements IMetadataSerializer
     {
         Map<MetadataType, MetadataComponent> components;
         logger.trace("Load metadata for {}", descriptor);
-        File statsFile = new File(descriptor.filenameFor(Component.STATS));
+        File statsFile = descriptor.fileFor(Component.STATS);
         if (!statsFile.exists())
         {
             logger.trace("No sstable stats for {}", descriptor);
@@ -224,7 +224,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
         if (actualChecksum != expectedChecksum)
         {
-            String filename = descriptor.filenameFor(Component.STATS);
+            File filename = descriptor.fileFor(Component.STATS);
             throw new CorruptSSTableException(new IOException("Checksums do not match for " + filename), filename);
         }
     }
@@ -233,7 +233,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException
     {
         if (logger.isTraceEnabled() )
-            logger.trace("Mutating {} to {}", descriptor.filenameFor(Component.STATS), description);
+            logger.trace("Mutating {} to {}", descriptor.fileFor(Component.STATS), description);
 
         mutate(descriptor, transform);
     }
@@ -242,7 +242,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
         if (logger.isTraceEnabled())
-            logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
+            logger.trace("Mutating {} to level {}", descriptor.fileFor(Component.STATS), newLevel);
 
         mutate(descriptor, stats -> stats.mutateLevel(newLevel));
     }
@@ -252,7 +252,7 @@ public class MetadataSerializer implements IMetadataSerializer
     {
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
-                         descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
+                         descriptor.fileFor(Component.STATS), newRepairedAt, newPendingRepair);
 
         mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
     }
@@ -268,7 +268,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
-        String filePath = descriptor.tmpFilenameFor(Component.STATS);
+        File filePath = descriptor.tmpFileFor(Component.STATS);
         try (DataOutputStreamPlus out = new FileOutputStreamPlus(filePath))
         {
             serialize(currentComponents, out, descriptor.version);
@@ -281,8 +281,8 @@ public class MetadataSerializer implements IMetadataSerializer
         }
         // we cant move a file on top of another file in windows:
         if (FBUtilities.isWindows)
-            FileUtils.delete(descriptor.filenameFor(Component.STATS));
-        FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
+            descriptor.fileFor(Component.STATS).tryDelete();
+        filePath.move(descriptor.fileFor(Component.STATS));
 
     }
 

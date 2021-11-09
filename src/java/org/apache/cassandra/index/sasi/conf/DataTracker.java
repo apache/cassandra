@@ -145,7 +145,7 @@ public class DataTracker
             if (sstable.isMarkedCompacted())
                 continue;
 
-            File indexFile = new File(sstable.descriptor.filenameFor(columnIndex.getComponent()));
+            File indexFile = sstable.descriptor.fileFor(columnIndex.getComponent());
             if (!indexFile.exists())
                 continue;
 
