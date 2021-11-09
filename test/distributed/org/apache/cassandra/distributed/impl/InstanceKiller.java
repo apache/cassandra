@@ -28,9 +28,10 @@ public class InstanceKiller extends JVMStabilityInspector.Killer
     private static final AtomicLong KILL_ATTEMPTS = new AtomicLong(0);
 
     private final Consumer<Boolean> onKill;
+
     public InstanceKiller(Consumer<Boolean> onKill)
     {
-        this.onKill = onKill;
+        this.onKill = onKill != null ? onKill : ignore -> {};
     }
 
     public static long getKillAttempts()
@@ -47,8 +48,7 @@ public class InstanceKiller extends JVMStabilityInspector.Killer
     protected void killCurrentJVM(Throwable t, boolean quiet)
     {
         KILL_ATTEMPTS.incrementAndGet();
-        if (onKill != null)
-            onKill.accept(quiet);
+        onKill.accept(quiet);
         // the bad part is that System.exit kills the JVM, so all code which calls kill won't hit the
         // next line; yet in in-JVM dtests System.exit is not desirable, so need to rely on a runtime exception
         // as a means to try to stop execution
