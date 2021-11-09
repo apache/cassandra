@@ -38,7 +38,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Server;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.INativeLibrary;
 
 /**
  * Handles native transport server lifecycle and associated resources. Lazily initialized.
@@ -161,7 +161,7 @@ public class NativeTransportService
     {
         final boolean enableEpoll = Boolean.parseBoolean(System.getProperty("cassandra.native.epoll.enabled", "true"));
 
-        if (enableEpoll && !Epoll.isAvailable() && NativeLibrary.osType == NativeLibrary.OSType.LINUX)
+        if (enableEpoll && !Epoll.isAvailable() && INativeLibrary.instance.isOS(INativeLibrary.OSType.LINUX))
             logger.warn("epoll not available", Epoll.unavailabilityCause());
 
         return enableEpoll && Epoll.isAvailable();

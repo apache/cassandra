@@ -20,6 +20,8 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.After;
@@ -34,12 +36,12 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState.Action;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState;
-import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional.AbstractTransactional.State;
+import org.awaitility.Awaitility;
 
 import static com.google.common.base.Predicates.in;
 import static com.google.common.collect.ImmutableList.copyOf;
@@ -77,7 +79,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     public void testUpdates() // (including obsoletion)
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        Tracker tracker = Tracker.newDummyTracker();
+        Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         SSTableReader[] readers = readersArray(0, 3, cfs);
         SSTableReader[] readers2 = readersArray(0, 4, cfs);
         SSTableReader[] readers3 = readersArray(0, 4, cfs);
@@ -141,7 +143,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     public void testCancellation()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        Tracker tracker = Tracker.newDummyTracker();
+        Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         List<SSTableReader> readers = readers(0, 3, cfs);
         tracker.addInitialSSTables(readers);
         LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
@@ -185,7 +187,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     public void testSplit()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        Tracker tracker = Tracker.newDummyTracker();
+        Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         List<SSTableReader> readers = readers(0, 4, cfs);
         tracker.addInitialSSTables(readers);
         LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
@@ -206,6 +208,19 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
             failed = true;
         }
         Assert.assertTrue(failed);
+    }
+
+    @Test
+    public void testRescheduleFailedDeletions()
+    {
+        AtomicLong counter = new AtomicLong(0);
+        LogTransaction.failedDeletions.add(counter::incrementAndGet);
+
+        LifecycleTransaction.rescheduleFailedDeletions();
+        Awaitility.await("failed deletion").atMost(10, TimeUnit.SECONDS)
+                  .until(() -> counter.get() == 1);
+
+        Assert.assertEquals(0, LogTransaction.failedDeletions.size());
     }
 
     private static void testBadUpdate(LifecycleTransaction txn, SSTableReader update, boolean original)
@@ -252,7 +267,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
 
     protected TestableTransaction newTest()
     {
-        LogTransaction.waitForDeletions();
+        LifecycleTransaction.waitForDeletions();
         SSTableReader.resetTidying();
         return new TxnTest();
     }

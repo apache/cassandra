@@ -59,6 +59,7 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
@@ -245,5 +246,20 @@ public class SchemaKeyspaceTest
         String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.COLUMNS);
         executeOnceInternal(query, testKS, testTable);
         SchemaKeyspace.fetchNonSystemKeyspaces();
+    }
+
+    @Test
+    public void testIsKeyspaceWithLocalStrategy()
+    {
+        assertTrue(Schema.isKeyspaceWithLocalStrategy("system"));
+        assertTrue(Schema.isKeyspaceWithLocalStrategy(Schema.instance.getKeyspaceMetadata("system")));
+        assertFalse(Schema.isKeyspaceWithLocalStrategy("non_existing"));
+
+        SchemaLoader.createKeyspace("local_ks", KeyspaceParams.local());
+        SchemaLoader.createKeyspace("simple_ks", KeyspaceParams.simple(3));
+
+        assertTrue(Schema.isKeyspaceWithLocalStrategy("local_ks"));
+        assertTrue(Schema.isKeyspaceWithLocalStrategy(Schema.instance.getKeyspaceMetadata("local_ks")));
+        assertFalse(Schema.isKeyspaceWithLocalStrategy("simple_ks"));
     }
 }

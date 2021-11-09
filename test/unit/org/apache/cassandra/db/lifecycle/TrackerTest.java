@@ -84,7 +84,7 @@ public class TrackerTest
     public void testTryModify()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        Tracker tracker = Tracker.newDummyTracker();
+        Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, true, cfs), MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         tracker.addInitialSSTables(copyOf(readers));
         Assert.assertNull(tracker.tryModify(ImmutableList.of(MockSchema.sstable(0, cfs)), OperationType.COMPACTION));
@@ -107,7 +107,7 @@ public class TrackerTest
     public void testApply()
     {
         final ColumnFamilyStore cfs = MockSchema.newCFS();
-        final Tracker tracker = Tracker.newDummyTracker();
+        final Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         final View resultView = ViewTest.fakeView(0, 0, cfs);
         final AtomicInteger count = new AtomicInteger();
         tracker.apply(new Predicate<View>()
@@ -198,9 +198,9 @@ public class TrackerTest
     public void testDropSSTables()
     {
         testDropSSTables(false);
-        LogTransaction.waitForDeletions();
+        LifecycleTransaction.waitForDeletions();
         testDropSSTables(true);
-        LogTransaction.waitForDeletions();
+        LifecycleTransaction.waitForDeletions();
     }
 
     private void testDropSSTables(boolean invalidate)
@@ -223,7 +223,7 @@ public class TrackerTest
             else
             {
                 tracker.dropSSTables();
-                LogTransaction.waitForDeletions();
+                LifecycleTransaction.waitForDeletions();
             }
             Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
             Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
@@ -347,7 +347,7 @@ public class TrackerTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         SSTableReader r1 = MockSchema.sstable(0, cfs), r2 = MockSchema.sstable(1, cfs);
-        Tracker tracker = Tracker.newDummyTracker();
+        Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
         tracker.notifyAdded(singleton(r1), false);

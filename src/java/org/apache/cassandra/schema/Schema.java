@@ -809,4 +809,26 @@ public class Schema implements SchemaProvider
                : Collections.emptyMap();
     }
 
+    /**
+     * @return whether or not the keyspace is a really system one (w/ LocalStrategy, unmodifiable, hardcoded)
+     * or it's having {@link LocalStrategy}
+     */
+    public static boolean isKeyspaceWithLocalStrategy(String keyspaceName)
+    {
+        KeyspaceMetadata ksm = instance.getKeyspaceMetadata(keyspaceName);
+        return SchemaConstants.isLocalSystemKeyspace(keyspaceName) ||
+               (ksm != null && ksm.params.replication.klass.equals(LocalStrategy.class));
+    }
+
+    /**
+     * Equivalent to {@link #isKeyspaceWithLocalStrategy(String)} but uses the provided keyspace metadata instead
+     * of getting the metadata from the schema manager
+     *
+     * @param keyspace the keyspace metadata to check
+     * @return if the provided keyspace uses local replication strategy
+     */
+    public static boolean isKeyspaceWithLocalStrategy(KeyspaceMetadata keyspace)
+    {
+        return SchemaConstants.isLocalSystemKeyspace(keyspace.name) || keyspace.params.replication.klass.equals(LocalStrategy.class);
+    }
 }

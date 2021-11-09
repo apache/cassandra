@@ -166,7 +166,7 @@ public class Verifier implements Closeable
             }
             catch (Throwable t)
             {
-                outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup " + sstable.descriptor.filenameFor(Component.SUMMARY));
+                outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup " + sstable.descriptor.fileFor(Component.SUMMARY));
                 outputHandler.warn(t);
             markAndThrow(t, false);
             }
@@ -215,7 +215,7 @@ public class Verifier implements Closeable
         {
             validator = null;
 
-            if (new File(sstable.descriptor.filenameFor(Component.DIGEST)).exists())
+            if (sstable.descriptor.fileFor(Component.DIGEST).exists())
             {
                 validator = DataIntegrityMetadata.fileDigestValidator(sstable.descriptor);
                 validator.validate();
@@ -425,7 +425,7 @@ public class Verifier implements Closeable
 
     private void deserializeIndexSummary(SSTableReader sstable) throws IOException
     {
-        File file = new File(sstable.descriptor.filenameFor(Component.SUMMARY));
+        File file = sstable.descriptor.fileFor(Component.SUMMARY);
         TableMetadata metadata = realm.metadata();
         try (DataInputStream iStream = new DataInputStream(Files.newInputStream(file.toPath())))
         {
@@ -442,10 +442,10 @@ public class Verifier implements Closeable
 
     private void deserializeBloomFilter(SSTableReader sstable) throws IOException
     {
-        Path bfPath = Paths.get(sstable.descriptor.filenameFor(Component.FILTER));
-        if (Files.exists(bfPath))
+        File bfPath = sstable.descriptor.fileFor(Component.FILTER);
+        if (bfPath.exists())
         {
-            try (FileInputStreamPlus stream = new File(bfPath).newInputStream();
+            try (FileInputStreamPlus stream = bfPath.newInputStream();
                  IFilter bf = BloomFilter.serializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
             {
             }

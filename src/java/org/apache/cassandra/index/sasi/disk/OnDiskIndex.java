@@ -144,7 +144,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
             FileChannel channel = index.newReadChannel();
             indexSize = channel.size();
-            indexFile = new MappedBuffer(new ChannelProxy(indexPath, channel));
+            indexFile = new MappedBuffer(new ChannelProxy(index, channel));
         }
         catch (IOException e)
         {

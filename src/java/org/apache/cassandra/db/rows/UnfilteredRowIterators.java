@@ -28,6 +28,7 @@ import org.apache.cassandra.db.transform.FilteredRows;
 import org.apache.cassandra.db.transform.MoreRows;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
@@ -296,12 +297,12 @@ public abstract class UnfilteredRowIterators
      * This is mainly used by scrubber to detect problems in sstables.
      *
      * @param iterator the partition to check.
-     * @param filename the name of the file the data is comming from.
+     * @param file the data is comming from.
      * @return an iterator that returns the same data than {@code iterator} but that
      * checks said data and throws a {@code CorruptedSSTableException} if it detects
      * invalid data.
      */
-    public static UnfilteredRowIterator withValidation(UnfilteredRowIterator iterator, final String filename)
+    public static UnfilteredRowIterator withValidation(UnfilteredRowIterator iterator, final File file)
     {
         class Validator extends Transformation
         {
@@ -334,7 +335,7 @@ public abstract class UnfilteredRowIterators
                 }
                 catch (MarshalException me)
                 {
-                    throw new CorruptSSTableException(me, filename);
+                    throw new CorruptSSTableException(me, file);
                 }
             }
         }

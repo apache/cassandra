@@ -184,7 +184,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     protected class Index
     {
         @VisibleForTesting
-        protected final String outputFile;
+        protected final File outputFile;
 
         private final ColumnIndex columnIndex;
         private final AbstractAnalyzer analyzer;
@@ -199,7 +199,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         public Index(ColumnIndex columnIndex)
         {
             this.columnIndex = columnIndex;
-            this.outputFile = descriptor.filenameFor(columnIndex.getComponent());
+            this.outputFile = descriptor.fileFor(columnIndex.getComponent());
             this.analyzer = columnIndex.getAnalyzer();
             this.segments = new HashSet<>();
             this.maxMemorySize = maxMemorySize(columnIndex);
@@ -326,7 +326,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     OnDiskIndexBuilder builder = newIndexBuilder();
                     builder.finish(Pair.create(combinedMin, combinedMax),
-                                   new File(outputFile),
+                                   outputFile,
                                    new CombinedTermIterator(parts));
                 }
                 catch (Exception | FSError e)

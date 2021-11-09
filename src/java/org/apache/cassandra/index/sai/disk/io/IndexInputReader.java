@@ -34,7 +34,7 @@ public class IndexInputReader extends IndexInput
 
     private IndexInputReader(RandomAccessReader input, Runnable doOnClose)
     {
-        super(input.getPath());
+        super(input.getFile().toString());
         this.input = input;
         this.doOnClose = doOnClose;
     }
@@ -76,7 +76,7 @@ public class IndexInputReader extends IndexInput
         }
         catch (CorruptBlockException ex)
         {
-            throw new CorruptIndexException(input.getPath(), "Corrupted block", ex);
+            throw new CorruptIndexException(input.getFile().toString(), "Corrupted block", ex);
         }
     }
 
@@ -93,7 +93,7 @@ public class IndexInputReader extends IndexInput
         }
         catch (CorruptBlockException ex)
         {
-            throw new CorruptIndexException(input.getPath(), "Corrupted block", ex);
+            throw new CorruptIndexException(input.getFile().toString(), "Corrupted block", ex);
         }
     }
 
@@ -110,7 +110,7 @@ public class IndexInputReader extends IndexInput
         }
         catch (CorruptBlockException ex)
         {
-            throw new CorruptIndexException(input.getPath(), "Corrupted block", ex);
+            throw new CorruptIndexException(input.getFile().toString(), "Corrupted block", ex);
         }
     }
 
@@ -127,7 +127,7 @@ public class IndexInputReader extends IndexInput
         }
         catch (CorruptBlockException ex)
         {
-            throw new CorruptIndexException(input.getPath(), "Corrupted block", ex);
+            throw new CorruptIndexException(input.getFile().toString(), "Corrupted block", ex);
         }
     }
 

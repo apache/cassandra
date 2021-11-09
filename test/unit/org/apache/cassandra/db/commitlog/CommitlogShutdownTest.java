@@ -93,6 +93,6 @@ public class CommitlogShutdownTest
         CommitLog.instance.shutdownBlocking();
 
         // the shutdown should block until all logs except the currently active one and perhaps a new, empty one are gone
-        Assert.assertTrue(new File(DatabaseDescriptor.getCommitLogLocation()).tryList().length <= 2);
+        Assert.assertTrue(DatabaseDescriptor.getCommitLogLocation().tryList().length <= 2);
     }
 }

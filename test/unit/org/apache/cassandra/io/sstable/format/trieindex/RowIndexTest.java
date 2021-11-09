@@ -199,7 +199,7 @@ public class RowIndexTest
     {
         complete();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(file.path())
+        try (FileHandle.Builder builder = new FileHandle.Builder(file)
                                           .mmapped(accessMode == Config.DiskAccessMode.mmap))
         {
             fh = builder.complete();

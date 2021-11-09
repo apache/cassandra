@@ -461,7 +461,7 @@ public class MappedBufferTest
 
         file.getFD().sync();
 
-        try (MappedBuffer buffer = new MappedBuffer(new ChannelProxy(tmp.absolutePath(), file.getChannel())))
+        try (MappedBuffer buffer = new MappedBuffer(new ChannelProxy(tmp, file.getChannel())))
         {
             Assert.assertEquals(numValues * 8, buffer.limit());
             Assert.assertEquals(numValues * 8, buffer.capacity());
@@ -530,7 +530,7 @@ public class MappedBufferTest
 
         try
         {
-            return new MappedBuffer(new ChannelProxy(testFile.absolutePath(), file.getChannel()), numPageBits);
+            return new MappedBuffer(new ChannelProxy(testFile, file.getChannel()), numPageBits);
         }
         finally
         {

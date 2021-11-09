@@ -156,7 +156,7 @@ public class MockSchema
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
-            File file = new File(descriptor.filenameFor(component));
+            File file = descriptor.fileFor(component);
             file.createFileIfNotExists();
         }
         // .complete() with size to make sstable.onDiskLength work
@@ -167,7 +167,7 @@ public class MockSchema
             {
                 try
                 {
-                    File file = new File(descriptor.filenameFor(Component.DATA));
+                    File file = descriptor.fileFor(Component.DATA);
                     try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
                     {
                         raf.setLength(size);
@@ -261,9 +261,8 @@ public class MockSchema
     public static void cleanup()
     {
         // clean up data directory which are stored as data directory/keyspace/data files
-        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
+        for (File dir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            File dir = new File(dirName);
             if (!dir.exists())
                 continue;
             String[] children = dir.tryListNames();

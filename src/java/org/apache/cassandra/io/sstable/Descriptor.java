@@ -30,6 +30,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
+import org.apache.cassandra.io.storage.StorageProvider;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
@@ -63,6 +64,9 @@ public class Descriptor
     public final SSTableId id;
     public final SSTableFormat.Type formatType;
     private final int hashCode;
+
+    private final String baseFileURI;
+    private final String filenamePart;
 
     /**
      * A descriptor that assumes CURRENT_VERSION.
@@ -98,6 +102,12 @@ public class Descriptor
         this.formatType = formatType;
 
         hashCode = Objects.hashCode(version, this.directory, id, ksname, cfname, formatType);
+
+        filenamePart = version.toString() + separator + id + separator + formatType.name;
+        String locationURI = directory.toUri().toString();
+        if (!locationURI.endsWith(java.io.File.separator))
+            locationURI = locationURI + java.io.File.separatorChar;
+        baseFileURI = locationURI + filenamePart;
     }
 
     public Descriptor withGeneration(SSTableId newId)
@@ -112,12 +122,8 @@ public class Descriptor
 
     public File tmpFileFor(Component component)
     {
-        return new File(tmpFilenameFor(component));
-    }
-
-    public String tmpFilenameFor(Component component)
-    {
-        return filenameFor(component) + TMP_EXT;
+        File file = StorageProvider.instance.getLocalPath(fileFor(component));
+        return file.resolveSibling(file.name() + TMP_EXT);
     }
 
     /**
@@ -127,7 +133,7 @@ public class Descriptor
     {
         // Use UUID to handle concurrent streamings on the same sstable.
         // TMP_EXT allows temp file to be removed by {@link ColumnFamilyStore#scrubDataDirectories}
-        return String.format("%s.%s%s", filenameFor(component), UUIDGen.getTimeUUID(), TMP_EXT);
+        return String.format("%s.%s%s", fileFor(component), UUIDGen.getTimeUUID(), TMP_EXT);
     }
 
     public String filenameFor(Component component)
@@ -137,7 +143,7 @@ public class Descriptor
 
     public File fileFor(Component component)
     {
-        return new File(filenameFor(component));
+        return component.getFile(baseFileURI);
     }
 
     public String baseFilename()
@@ -155,6 +161,11 @@ public class Descriptor
         buff.append(separator).append(formatType.name);
     }
 
+    public String baseFileUri()
+    {
+        return baseFileURI;
+    }
+
     public String relativeFilenameFor(Component component)
     {
         final StringBuilder buff = new StringBuilder();
@@ -163,9 +174,7 @@ public class Descriptor
             buff.append(directory.name()).append(File.pathSeparator());
         }
 
-        appendFileName(buff);
-        buff.append(separator).append(component.name());
-        return buff.toString();
+        return buff.append(filenamePart).append(separator).append(component.name()).toString();
     }
 
     public SSTableFormat getFormat()
@@ -354,7 +363,7 @@ public class Descriptor
     @Override
     public String toString()
     {
-        return baseFilename();
+        return baseFileUri();
     }
 
     @Override

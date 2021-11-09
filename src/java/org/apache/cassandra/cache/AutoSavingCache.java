@@ -425,7 +425,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
         private void deleteOldCacheFiles()
         {
-            File savedCachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+            File savedCachesDir = DatabaseDescriptor.getSavedCachesLocation();
             assert savedCachesDir.exists() && savedCachesDir.isDirectory();
             File[] files = savedCachesDir.tryList();
             if (files != null)

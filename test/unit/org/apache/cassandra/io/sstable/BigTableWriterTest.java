@@ -83,7 +83,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
         private TestableBTW(Descriptor desc, SSTableTxnWriter sw)
         {
             super(sw);
-            this.file = new File(desc.filenameFor(Component.DATA));
+            this.file = desc.fileFor(Component.DATA);
             this.descriptor = desc;
             this.writer = sw;
 
@@ -128,13 +128,13 @@ public class BigTableWriterTest extends AbstractTransactionalTest
         private void assertExists(Component ... components)
         {
             for (Component component : components)
-                Assert.assertTrue(new File(descriptor.filenameFor(component)).exists());
+                Assert.assertTrue(descriptor.fileFor(component).exists());
         }
 
         private void assertNotExists(Component ... components)
         {
             for (Component component : components)
-                Assert.assertFalse(component.toString(), new File(descriptor.filenameFor(component)).exists());
+                Assert.assertFalse(component.toString(), descriptor.fileFor(component).exists());
         }
     }
 

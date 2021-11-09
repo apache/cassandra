@@ -147,13 +147,22 @@ public class IndexViewManager
         update(toRemove, Collections.emptyList(), false, false);
     }
 
-    public void invalidate()
+    /**
+     * Called when index is dropped. Mark all {@link SSTableIndex} as released and per-column index files
+     * will be removed when in-flight queries completed and {@code obsolete} is true.
+     *
+     * @param obsolete true if index files should be deleted after invalidate; false otherwise.
+     */
+    public void invalidate(boolean obsolete)
     {
         View currentView = view.get();
 
         for (SSTableIndex index : currentView)
         {
-            index.markObsolete();
+            if (obsolete)
+                index.markObsolete();
+            else
+                index.release();
         }
 
         view.set(new View(context, Collections.emptyList()));

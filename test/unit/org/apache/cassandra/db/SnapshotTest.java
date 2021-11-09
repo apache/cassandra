@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 
@@ -27,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
@@ -40,7 +40,7 @@ public class SnapshotTest extends CQLTester
         getCurrentColumnFamilyStore().forceBlockingFlush(UNIT_TESTS);
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
         {
-            File toc = new File(sstable.descriptor.filenameFor(Component.TOC));
+            File toc = sstable.descriptor.fileFor(Component.TOC);
             Files.write(toc.toPath(), new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
         }
         getCurrentColumnFamilyStore().snapshot("hello");

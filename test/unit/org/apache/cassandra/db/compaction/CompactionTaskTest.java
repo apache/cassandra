@@ -222,7 +222,7 @@ public class CompactionTaskTest
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         Assert.assertEquals(4, sstables.size());
 
-        Tracker tracker = Tracker.newDummyTracker();
+        Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         tracker.addInitialSSTables(sstables);
         tracker.apply(updateCompacting(Collections.emptySet(), sstables));
         try (LifecycleTransaction txn = new LifecycleTransaction(tracker, OperationType.COMPACTION, sstables))

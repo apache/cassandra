@@ -119,13 +119,15 @@ public interface CompactionStrategyContainer extends CompactionStrategy, INotifi
      * @param strategyFactory the factory instance responsible for creating the CSM
      * @param compactionParams the new compaction parameters
      * @param reason the reason for creating a new container
+     * @param enableAutoCompaction true if auto compaction should be enabled
      *
      * @return a new {@link CompactionStrategyContainer} with newly loaded parameters
      */
     static CompactionStrategyContainer create(@Nullable CompactionStrategyContainer previous,
                                               CompactionStrategyFactory strategyFactory,
                                               CompactionParams compactionParams,
-                                              CompactionStrategyContainer.ReloadReason reason)
+                                              CompactionStrategyContainer.ReloadReason reason,
+                                              boolean enableAutoCompaction)
     {
         throw new UnsupportedOperationException("Implementations of CompactionStrategyContainer must implement static create method");
     }

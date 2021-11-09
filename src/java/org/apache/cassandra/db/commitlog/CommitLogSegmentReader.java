@@ -163,14 +163,14 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             if (end != 0 || filecrc != 0)
             {
                 String msg = String.format("Encountered bad header at position %d of commit log %s, with invalid CRC. " +
-                             "The end of segment marker should be zero.", offset, reader.getPath());
+                             "The end of segment marker should be zero.", offset, reader.getFile());
                 throw new SegmentReadException(msg, true);
             }
             return -1;
         }
         else if (end < offset || end > reader.length())
         {
-            String msg = String.format("Encountered bad header at position %d of commit log %s, with bad position but valid CRC", offset, reader.getPath());
+            String msg = String.format("Encountered bad header at position %d of commit log %s, with bad position but valid CRC", offset, reader.getFile());
             throw new SegmentReadException(msg, false);
         }
         return end;
@@ -295,7 +295,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
                uncompressedBuffer = new byte[(int) (1.2 * uncompressedLength)];
             int count = compressor.uncompress(compressedBuffer, 0, compressedLength, uncompressedBuffer, 0);
             nextLogicalStart += SYNC_MARKER_SIZE;
-            FileDataInput input = new FileSegmentInputStream(ByteBuffer.wrap(uncompressedBuffer, 0, count), reader.getPath(), nextLogicalStart);
+            FileDataInput input = new FileSegmentInputStream(ByteBuffer.wrap(uncompressedBuffer, 0, count), reader.getFile(), nextLogicalStart);
             nextLogicalStart += uncompressedLength;
             return new SyncSegment(input, startPosition, nextSectionStartPosition, (int)nextLogicalStart, tolerateSegmentErrors(nextSectionStartPosition, reader.length()));
         }
@@ -341,7 +341,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             }
             catch (IOException ioe)
             {
-                throw new FSReadError(ioe, reader.getPath());
+                throw new FSReadError(ioe, reader.getFile());
             }
 
             chunkProvider = () -> {
@@ -355,7 +355,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
                 }
                 catch (IOException e)
                 {
-                    throw new FSReadError(e, reader.getPath());
+                    throw new FSReadError(e, reader.getFile());
                 }
             };
         }
@@ -367,7 +367,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             currentSegmentEndPosition = nextSectionStartPosition - 1;
 
             nextLogicalStart += SYNC_MARKER_SIZE;
-            FileDataInput input = new EncryptedFileSegmentInputStream(reader.getPath(), nextLogicalStart, 0, totalPlainTextLength, chunkProvider);
+            FileDataInput input = new EncryptedFileSegmentInputStream(reader.getFile(), nextLogicalStart, 0, totalPlainTextLength, chunkProvider);
             nextLogicalStart += totalPlainTextLength;
             return new SyncSegment(input, startPosition, nextSectionStartPosition, (int)nextLogicalStart, tolerateSegmentErrors(nextSectionStartPosition, reader.length()));
         }

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -50,6 +49,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.sstable.format.ScrubPartitionIterator;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.tracing.Tracing;
@@ -68,7 +68,7 @@ public class BigTableReader extends SSTableReader
     @Override
     public boolean hasIndex()
     {
-        return new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).exists();
+        return descriptor.fileFor(Component.PRIMARY_INDEX).exists();
     }
 
     public BigTableReader(SSTableReaderBuilder builder)
@@ -249,10 +249,10 @@ public class BigTableReader extends SSTableReader
         // is lesser than the first key of next interval (and in that case we must return the position of the first key
         // of the next interval).
         int i = 0;
-        String path = null;
+        File path = null;
         try (FileDataInput in = ifile.createReader(sampledPosition))
         {
-            path = in.getPath();
+            path = in.getFile();
             while (!in.isEOF())
             {
                 i++;
@@ -300,7 +300,7 @@ public class BigTableReader extends SSTableReader
                             {
                                 DecoratedKey keyInDisk = decorateKey(ByteBufferUtil.readWithShortLength(fdi));
                                 if (!keyInDisk.equals(key))
-                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
+                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getFile()));
                             }
                         }
 

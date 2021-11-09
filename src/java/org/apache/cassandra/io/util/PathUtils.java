@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.*;
+import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
@@ -403,6 +404,22 @@ public final class PathUtils
         }
     }
 
+    /**
+     * Copy a file to a target file
+     */
+    public static void copy(Path from, Path to, StandardCopyOption option)
+    {
+        logger.trace("Copying {} to {}", from, to);
+        try
+        {
+            Files.copy(from, to, option);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(String.format("Failed to copy %s to %s", from, to), e);
+        }
+    }
+
     // true if can determine exists, false if any exception occurs
     public static boolean exists(Path path)
     {
@@ -509,6 +526,41 @@ public final class PathUtils
         if (parent == file)
             return toRealPath(file);
         return toRealPath(parent).resolve(parent.relativize(file));
+    }
+
+    /**
+     * @param path to check file szie
+     * @return file size or 0 if failed to get file size
+     */
+    public static long size(Path path)
+    {
+        try
+        {
+            return Files.size(path);
+        }
+        catch (IOException e)
+        {
+            // it's possible that between the time that the caller has checked if the file exists and the time it retrieves the creation time,
+            // the file is actually deleted. File.length() returns a positive value only if the file is valid, otherwise it returns 0L, here
+            // we do the same
+            return 0;
+        }
+    }
+
+    /**
+     * @param pathOrURI path or uri in string
+     * @return nio Path
+     */
+    public static Path getPath(String pathOrURI)
+    {
+        try
+        {
+            return Paths.get(URI.create(pathOrURI));
+        }
+        catch (IllegalArgumentException ex)
+        {
+            return Paths.get(pathOrURI);
+        }
     }
 
     private static Path toRealPath(Path path)

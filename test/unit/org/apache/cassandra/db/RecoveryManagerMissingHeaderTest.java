@@ -112,7 +112,7 @@ public class RecoveryManagerMissingHeaderTest
         keyspace2.getColumnFamilyStore("Standard3").clearUnsafe();
 
         // nuke the header
-        for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).tryList())
+        for (File file : DatabaseDescriptor.getCommitLogLocation().tryList())
         {
             if (file.name().endsWith(".header"))
                 FileUtils.deleteWithConfirm(file);

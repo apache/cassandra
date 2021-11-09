@@ -3682,7 +3682,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return getCanonicalPaths(DatabaseDescriptor.getAllDataFileLocations());
     }
 
-    private String[] getCanonicalPaths(String[] paths)
+    private String[] getCanonicalPaths(File[] paths)
     {
         String[] locations = new String[paths.length];
         for (int i = 0; i < paths.length; i++)
@@ -4079,9 +4079,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             tag = "";
 
         Set<String> keyspaces = new HashSet<>();
-        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
+        for (File dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            for(String keyspaceDir : new File(dataDir).tryListNames())
+            for(String keyspaceDir : dataDir.tryListNames())
             {
                 // Only add a ks if it has been specified as a param, assuming params were actually provided.
                 if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))

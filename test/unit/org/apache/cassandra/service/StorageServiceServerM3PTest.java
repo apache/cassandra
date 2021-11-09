@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -28,6 +26,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 
@@ -54,10 +53,10 @@ public class StorageServiceServerM3PTest
         mkdirs();
         cleanup();
         StorageService.instance.initServer(0);
-        for (String path : DatabaseDescriptor.getAllDataFileLocations())
+        for (File file : DatabaseDescriptor.getAllDataFileLocations())
         {
             // verify that storage directories are there.
-            assertTrue(new File(path).exists());
+            assertTrue(file.exists());
         }
         // a proper test would be to call decommission here, but decommission() mixes both shutdown and datatransfer
         // calls.  This test is only interested in the shutdown-related items which a properly handled by just

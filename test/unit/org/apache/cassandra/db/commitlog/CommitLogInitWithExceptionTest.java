@@ -27,6 +27,7 @@ import org.apache.cassandra.CassandraIsolatedJunit4ClassRunner;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -76,7 +77,7 @@ public class CommitLogInitWithExceptionTest
 
     private static class MockCommitLogSegmentMgr extends CommitLogSegmentManagerStandard {
 
-        public MockCommitLogSegmentMgr(CommitLog commitLog, String storageDirectory)
+        public MockCommitLogSegmentMgr(CommitLog commitLog, File storageDirectory)
         {
             super(commitLog, storageDirectory);
         }

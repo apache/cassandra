@@ -85,7 +85,7 @@ public class AdaptiveController extends Controller
     public AdaptiveController(MonotonicClock clock,
                               Environment env,
                               int W,
-                              double survivalFactor,
+                              double[] survivalFactors,
                               long dataSetSizeMB,
                               int numShards,
                               long minSstableSizeMB,
@@ -94,13 +94,15 @@ public class AdaptiveController extends Controller
                               int maxSSTablesToCompact,
                               long expiredSSTableCheckFrequency,
                               boolean ignoreOverlapsInExpirationCheck,
+                              boolean l0ShardsEnabled,
+                              CompactionAggregatePrioritizer prioritizer,
                               int intervalSec,
                               int minW,
                               int maxW,
                               double threshold,
                               int minCost)
     {
-        super(clock, env, survivalFactor, dataSetSizeMB, numShards, minSstableSizeMB, flushSizeOverrideMB, maxSpaceOverhead, maxSSTablesToCompact, expiredSSTableCheckFrequency, ignoreOverlapsInExpirationCheck);
+        super(clock, env, survivalFactors, dataSetSizeMB, numShards, minSstableSizeMB, flushSizeOverrideMB, maxSpaceOverhead, maxSSTablesToCompact, expiredSSTableCheckFrequency, ignoreOverlapsInExpirationCheck, l0ShardsEnabled, prioritizer);
 
         this.W = W;
         this.intervalSec = intervalSec;
@@ -111,7 +113,7 @@ public class AdaptiveController extends Controller
     }
 
     static Controller fromOptions(Environment env,
-                                  double survivalFactor,
+                                  double[] survivalFactors,
                                   long dataSetSizeMB,
                                   int numShards,
                                   long minSstableSizeMB,
@@ -120,6 +122,8 @@ public class AdaptiveController extends Controller
                                   int maxSSTablesToCompact,
                                   long expiredSSTableCheckFrequency,
                                   boolean ignoreOverlapsInExpirationCheck,
+                                  boolean l0ShardsEnabled,
+                                  CompactionAggregatePrioritizer prioritizer,
                                   Map<String, String> options)
     {
         int W = options.containsKey(STARTING_SCALING_PARAMETER) ? Integer.parseInt(options.get(STARTING_SCALING_PARAMETER)) : DEFAULT_STARTING_SCALING_PARAMETER;
@@ -129,7 +133,7 @@ public class AdaptiveController extends Controller
         double threshold = options.containsKey(THRESHOLD) ? Double.parseDouble(options.get(THRESHOLD)) : DEFAULT_THRESHOLD;
         int minCost = options.containsKey(MIN_COST) ? Integer.parseInt(options.get(MIN_COST)) : DEFAULT_MIN_COST;
 
-        return new AdaptiveController(MonotonicClock.preciseTime, env, W, survivalFactor, dataSetSizeMB, numShards, minSstableSizeMB, flushSizeOverrideMB, maxSpaceOverhead, maxSSTablesToCompact, expiredSSTableCheckFrequency, ignoreOverlapsInExpirationCheck, intervalSec, minW, maxW, threshold, minCost);
+        return new AdaptiveController(MonotonicClock.preciseTime, env, W, survivalFactors, dataSetSizeMB, numShards, minSstableSizeMB, flushSizeOverrideMB, maxSpaceOverhead, maxSSTablesToCompact, expiredSSTableCheckFrequency, ignoreOverlapsInExpirationCheck, l0ShardsEnabled, prioritizer, intervalSec, minW, maxW, threshold, minCost);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -189,12 +193,6 @@ public class AdaptiveController extends Controller
     public int getScalingParameter(int index)
     {
         return W;
-    }
-
-    @Override
-    public double getSurvivalFactor()
-    {
-        return survivalFactor;
     }
 
     @Override
@@ -339,6 +337,6 @@ public class AdaptiveController extends Controller
     @Override
     public String toString()
     {
-        return String.format("m: %d, o: %f, W: %d - %s", minSstableSizeMB, survivalFactor, W, calculator);
+        return String.format("m: %d, o: %s, W: %d - %s", minSstableSizeMB, Arrays.toString(survivalFactors), W, calculator);
     }
 }

@@ -22,7 +22,7 @@ import java.io.IOException;
 
 public interface FileDataInput extends RewindableDataInput, Closeable
 {
-    String getPath();
+    File getFile();
 
     boolean isEOF() throws IOException;
 

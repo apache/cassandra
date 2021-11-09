@@ -98,14 +98,14 @@ public class MetadataTest extends NdiRandomizedTest
         final IndexComponents components = newIndexComponents();
         final IndexOutputWriter output = writeRandomBytes(components);
 
-        final File indexFile = new File(output.getPath());
+        final File indexFile = output.getFile();
         final long length = indexFile.length();
         assertTrue(length > 0);
         final File renamed = new File(temporaryFolder.newFile());
-        FileUtils.renameWithConfirm(indexFile, renamed);
-        assertFalse(new File(output.getPath()).exists());
+        indexFile.move(renamed);
+        assertFalse(output.getFile().exists());
 
-        try (FileOutputStream outputStream = new FileOutputStream(output.getPath());
+        try (FileOutputStream outputStream = new FileOutputStream(output.getFile().toJavaIOFile());
              RandomAccessFile input = new RandomAccessFile(renamed.toJavaIOFile(), "r"))
         {
             // skip last byte when copying
@@ -123,14 +123,14 @@ public class MetadataTest extends NdiRandomizedTest
         final IndexComponents components = newIndexComponents();
         final IndexOutputWriter output = writeRandomBytes(components);
 
-        final File indexFile = new File(output.getPath());
+        final File indexFile = output.getFile();
         final long length = indexFile.length();
         assertTrue(length > 0);
         final File renamed = new File(temporaryFolder.newFile());
-        FileUtils.renameWithConfirm(indexFile, renamed);
-        assertFalse(new File(output.getPath()).exists());
+        indexFile.move(renamed);
+        assertFalse(output.getFile().exists());
 
-        try (FileOutputStream outputStream = new FileOutputStream(output.getPath());
+        try (FileOutputStream outputStream = new FileOutputStream(output.getFile().toJavaIOFile());
              RandomAccessFile file = new RandomAccessFile(renamed.toJavaIOFile(), "r"))
         {
             // copy most of the file untouched

@@ -102,6 +102,16 @@ public class StorageServiceServerTest
     }
 
     @Test
+    public void testRegularMode() throws ConfigurationException
+    {
+        for (File path : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            // verify that storage directories are there.
+            assertTrue(path.exists());
+        }
+    }
+
+    @Test
     public void testGetAllRangesEmpty()
     {
         List<Token> toks = Collections.emptyList();

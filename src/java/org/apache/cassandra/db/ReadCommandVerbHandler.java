@@ -41,7 +41,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     public void doVerb(Message<ReadCommand> message)
     {
-        if (StorageService.instance.isBootstrapMode())
+        ColumnFamilyStore cfs = Keyspace.openAndGetStore(message.payload.metadata());
+        if (!cfs.isReadyToServeData())
         {
             throw new RuntimeException("Cannot service reads while bootstrapping!");
         }

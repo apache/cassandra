@@ -33,6 +33,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.net.MessagingService;
@@ -95,7 +96,7 @@ public class CommitLogDescriptorTest
         // Put some extra data in the stream.
         buf.putDouble(0.1);
         buf.flip();
-        FileDataInput input = new FileSegmentInputStream(buf, "input", 0);
+        FileDataInput input = new FileSegmentInputStream(buf, new File("input"), 0);
         CommitLogDescriptor read = CommitLogDescriptor.readHeader(input, neverEnabledEncryption);
         Assert.assertEquals("Descriptor length", length, input.getFilePointer());
         Assert.assertEquals("Descriptors", desc, read);

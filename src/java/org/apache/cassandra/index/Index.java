@@ -291,6 +291,16 @@ public interface Index
     public Callable<?> getInvalidateTask();
 
     /**
+     * Return a task which unload the index, indicating it should no longer be considered usable.
+     * This should include an clean up and releasing of resources required without removing files.
+     * @return task to be executed by the index manager to invalidate the index.
+     */
+    default Callable<?> getUnloadTask()
+    {
+        return () -> null;
+    }
+
+    /**
      * Return a task to truncate the index with the specified truncation timestamp.
      * Called when the base table is truncated.
      * @param truncatedAt timestamp of the truncation operation. This will be the same timestamp used
@@ -754,6 +764,12 @@ public interface Index
          * should dispose of any resources tied to the lifecycle of the {@link Group}.
          */
         default void invalidate() { }
+
+        /**
+         * Called when the table associated with this group has been unloaded. Implementations
+         * should dispose of any resources tied to the lifecycle of the {@link Group} without removing index files.
+         */
+        default void unload() { }
 
         /**
          * Returns the SSTable-attached {@link Component}s created by this index group.

@@ -74,6 +74,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.lifecycle.AbstractLogTransaction;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -102,6 +103,7 @@ import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.IndexSummaryBuilder;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableWatcher;
 import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -134,7 +136,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -480,6 +482,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
+        components = SSTableWatcher.instance.discoverComponents(descriptor, components);
+
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
@@ -493,7 +497,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
         catch (IOException e)
         {
-            throw new CorruptSSTableException(e, descriptor.filenameFor(Component.STATS));
+            throw new CorruptSSTableException(e, descriptor.fileFor(Component.STATS));
         }
 
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
@@ -539,6 +543,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                       boolean validate,
                                       boolean isOffline)
     {
+        components = SSTableWatcher.instance.discoverComponents(descriptor, components);
+
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
         assert !validate || components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
@@ -557,7 +563,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
         catch (Throwable t)
         {
-            throw new CorruptSSTableException(t, descriptor.filenameFor(Component.STATS));
+            throw new CorruptSSTableException(t, descriptor.fileFor(Component.STATS));
         }
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
@@ -705,7 +711,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                                   Set<Component> actualComponents)
     throws CorruptSSTableException, FSReadError
     {
-        File tocFile = new File(descriptor.filenameFor(Component.TOC));
+        File tocFile = descriptor.fileFor(Component.TOC);
         if (tocFile.exists())
         {
             try
@@ -713,8 +719,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 Set<Component> expectedComponents = readTOC(descriptor, false);
                 if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
                 {
-                    String compressionInfoFileName = descriptor.filenameFor(Component.COMPRESSION_INFO);
-                    throw new CorruptSSTableException(new NoSuchFileException(compressionInfoFileName), compressionInfoFileName);
+                    File compressionInfoFileName = descriptor.fileFor(Component.COMPRESSION_INFO);
+                    throw new CorruptSSTableException(new NoSuchFileException(compressionInfoFileName.toString()), compressionInfoFileName);
                 }
             }
             catch (IOException e)
@@ -821,9 +827,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public static void saveSummary(Descriptor descriptor, DecoratedKey first, DecoratedKey last, IndexSummary summary)
     {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        File summariesFile = descriptor.fileFor(Component.SUMMARY);
         if (summariesFile.exists())
-            FileUtils.deleteWithConfirm(summariesFile);
+            summariesFile.delete();
 
         try (DataOutputStreamPlus oStream = new FileOutputStreamPlus(summariesFile))
         {
@@ -843,7 +849,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
     {
-        File filterFile = new File(descriptor.filenameFor(Component.FILTER));
+        File filterFile = descriptor.fileFor(Component.FILTER);
         try (DataOutputStreamPlus stream = new FileOutputStreamPlus(filterFile))
         {
             BloomFilter.serializer.serialize((BloomFilter) filter, stream);
@@ -1601,7 +1607,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      *
      * multiple times is usually buggy (see exceptions in Tracker.unmarkCompacting and removeOldSSTablesSize).
      */
-    public void markObsolete(Runnable tidier)
+    public void markObsolete(AbstractLogTransaction.ReaderTidier tidier)
     {
         if (logger.isTraceEnabled())
             logger.trace("Marking {} compacted", getFilename());
@@ -1725,7 +1731,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         for (Component component : components)
         {
-            File sourceFile = new File(descriptor.filenameFor(component));
+            File sourceFile = descriptor.fileFor(component);
             if (!sourceFile.exists())
                 continue;
             if (null != limiter)
@@ -2229,14 +2235,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 }
                 catch (RuntimeException | Error ex)
                 {
-                    logger.error("Failed to run on-close listeners for sstable " + descriptor.baseFilename(), ex);
+                    logger.error("Failed to run on-close listeners for sstable " + descriptor.baseFileUri(), ex);
                     exceptions = ex;
                 }
 
                 Throwable closeExceptions = Throwables.close(null, closables);
                 if (closeExceptions != null)
                 {
-                    logger.error("Failed to close some sstable components of " + descriptor.baseFilename(), closeExceptions);
+                    logger.error("Failed to close some sstable components of " + descriptor.baseFileUri(), closeExceptions);
                     exceptions = Throwables.merge(exceptions, closeExceptions);
                 }
 
@@ -2246,7 +2252,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 }
                 catch (RuntimeException | Error ex)
                 {
-                    logger.error("Failed to release the global ref of " + descriptor.baseFilename(), ex);
+                    logger.error("Failed to release the global ref of " + descriptor.baseFileUri(), ex);
                     exceptions = Throwables.merge(exceptions, ex);
                 }
 
@@ -2287,7 +2293,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // sstable have been released
         private WeakReference<ScheduledFuture<?>> readMeterSyncFuture = NULL;
         // shared state managing if the logical sstable has been compacted; this is used in cleanup
-        private volatile Runnable obsoletion;
+        private volatile AbstractLogTransaction.ReaderTidier obsoletion;
 
         GlobalTidy(final SSTableReader reader)
         {
@@ -2305,6 +2311,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (SchemaConstants.isLocalSystemKeyspace(desc.ksname) || DatabaseDescriptor.isClientOrToolInitialized())
             {
                 readMeter = null;
+                readMeterSyncFuture = NULL;
+                return;
+            }
+
+            if (!DatabaseDescriptor.supportsSSTableReadMeter())
+            {
+                readMeter = new RestorableMeter();
                 readMeterSyncFuture = NULL;
                 return;
             }
@@ -2339,11 +2352,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             lookup.remove(desc);
 
             if (obsoletion != null)
-                obsoletion.run();
+                obsoletion.commit();
 
             // don't ideally want to dropPageCache for the file until all instances have been released
-            NativeLibrary.trySkipCache(desc.filenameFor(Component.DATA), 0, 0);
-            NativeLibrary.trySkipCache(desc.filenameFor(Component.PRIMARY_INDEX), 0, 0);
+            INativeLibrary.instance.trySkipCache(desc.fileFor(Component.DATA), 0, 0);
+            INativeLibrary.instance.trySkipCache(desc.fileFor(Component.PRIMARY_INDEX), 0, 0);
         }
 
         public String name()
@@ -2543,9 +2556,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             logger.error(message);
             throw new RuntimeException(message);
         }
-        if (new File(newDescriptor.filenameFor(Component.DATA)).exists())
+        if (newDescriptor.fileFor(Component.DATA).exists())
         {
-            String msg = String.format("File %s already exists, can't move the file there", newDescriptor.filenameFor(Component.DATA));
+            String msg = String.format("File %s already exists, can't move the file there", newDescriptor.fileFor(Component.DATA));
             logger.error(msg);
             throw new RuntimeException(msg);
         }

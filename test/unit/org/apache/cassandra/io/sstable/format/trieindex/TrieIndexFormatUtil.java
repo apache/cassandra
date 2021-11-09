@@ -47,7 +47,7 @@ public class TrieIndexFormatUtil
         {
             File f = FileUtils.createTempFile("empty-index", "db");
             try (SequentialWriter writer = new SequentialWriter(f);
-                 FileHandle.Builder fhBuilder = new FileHandle.Builder(f.path());
+                 FileHandle.Builder fhBuilder = new FileHandle.Builder(f);
                  PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder))
             {
                 builder.complete();

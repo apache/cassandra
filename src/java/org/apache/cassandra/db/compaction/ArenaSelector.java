@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.compaction.unified.Controller;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
  * Arena selector, used by UnifiedCompactionStrategy to distribute SSTables to separate compaction arenas.
@@ -41,11 +43,13 @@ import org.apache.cassandra.db.PartitionPosition;
 public class ArenaSelector implements Comparator<CompactionSSTable>
 {
     private final EquivClassSplitter[] classSplitters;
+    final Controller controller;
     final List<PartitionPosition> shardBoundaries;
     final DiskBoundaries diskBoundaries;
 
-    public ArenaSelector(DiskBoundaries diskBoundaries, List<PartitionPosition> shardBoundaries)
+    public ArenaSelector(Controller controller, DiskBoundaries diskBoundaries, List<PartitionPosition> shardBoundaries)
     {
+        this.controller = controller;
         this.shardBoundaries = shardBoundaries;
         this.diskBoundaries = diskBoundaries;
 
@@ -84,6 +88,18 @@ public class ArenaSelector implements Comparator<CompactionSSTable>
         return Arrays.stream(classSplitters)
                      .map(e -> e.name(t))
                      .collect(Collectors.joining("-"));
+    }
+
+    /**
+     * Return the shard for an sstable, which may be fixed to zero for L0 sstables if shards are disabled on L0
+     */
+    public int shardFor(CompactionSSTable ssTableReader)
+    {
+        // If shards on L0 are disabled and the size of the sstable is less than the max L0 size, always pick the fist shard
+        if (!controller.areL0ShardsEnabled() && shardAdjustedSize(ssTableReader) < controller.getMaxL0Size())
+            return 0;
+
+        return shardFor(ssTableReader.getFirst());
     }
 
     /**
@@ -197,13 +213,13 @@ public class ArenaSelector implements Comparator<CompactionSSTable>
         @Override
         public int compare(CompactionSSTable a, CompactionSSTable b)
         {
-            return Integer.compare(shardFor(a.getFirst()), shardFor(b.getFirst()));
+            return Integer.compare(shardFor(a), shardFor(b));
         }
 
         @Override
         public String name(CompactionSSTable ssTableReader)
         {
-            return "shard_" + shardFor(ssTableReader.getFirst());
+            return "shard_" + shardFor(ssTableReader);
         }
     }
 

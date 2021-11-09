@@ -330,7 +330,7 @@ public class ColumnFamilyStoreTest
             Descriptor existing = liveSSTable.descriptor;
             Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing), KEYSPACE2, CF_STANDARD1, liveSSTable.descriptor.id, liveSSTable.descriptor.formatType);
             for (Component c : liveSSTable.components)
-                assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
+                assertTrue("Cannot find backed-up file:" + desc.fileFor(c), desc.fileFor(c).exists());
         }
     }
 
@@ -519,12 +519,12 @@ public class ColumnFamilyStoreTest
         assertThat(baseTableFile).isNotEqualTo(indexTableFile);
         assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).parent())).isTrue();
 
-        Set<String> originalFiles = new HashSet<>();
+        Set<File> originalFiles = new HashSet<>();
         Iterables.toList(cfs.concatWithIndexes()).stream()
-                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.filenameFor(Component.DATA)))
+                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.fileFor(Component.DATA)))
                  .forEach(originalFiles::add);
-        assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(indexTableFile))).isTrue();
-        assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(baseTableFile))).isTrue();
+        assertThat(originalFiles.stream().anyMatch(f -> f.toString().endsWith(indexTableFile))).isTrue();
+        assertThat(originalFiles.stream().anyMatch(f -> f.toString().endsWith(baseTableFile))).isTrue();
     }
 
     @Test
@@ -558,9 +558,9 @@ public class ColumnFamilyStoreTest
         assertEquals(1, ssTables.size());
         SSTableReader ssTable = ssTables.iterator().next();
 
-        String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
-        String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
-        new File(dataFileName).tryMove(new File(tmpDataFileName));
+        File dataFileName = ssTable.descriptor.fileFor(Component.DATA);
+        File tmpDataFile = ssTable.descriptor.tmpFileFor(Component.DATA);
+        dataFileName.tryMove(tmpDataFile);
 
         ssTable.selfRef().release();
 

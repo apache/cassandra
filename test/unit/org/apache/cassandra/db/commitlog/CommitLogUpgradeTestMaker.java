@@ -139,7 +139,7 @@ public class CommitLogUpgradeTestMaker
             FileUtils.deleteRecursive(dataDir);
 
         dataDir.tryCreateDirectories();
-        for (File f : new File(DatabaseDescriptor.getCommitLogLocation()).tryList())
+        for (File f : DatabaseDescriptor.getCommitLogLocation().tryList())
             FileUtils.createHardLink(f, new File(dataDir, f.name()));
 
         Properties prop = new Properties();

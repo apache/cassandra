@@ -89,7 +89,7 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
             catch (Throwable t)
             {
                 transaction.abort();
-                throw new CorruptSSTableException(t, sstable.descriptor.filenameFor(Component.DATA));
+                throw new CorruptSSTableException(t, sstable.descriptor.fileFor(Component.DATA));
             }
             strategy.metadataChanged(metadataBefore, sstable);
         }
