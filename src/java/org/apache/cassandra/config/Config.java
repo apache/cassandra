@@ -366,7 +366,7 @@ public class Config
 
     public volatile boolean key_cache_migrate_during_compaction = true;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
-    public DataStorage key_cache_size;
+    public DataStorage key_cache_size = null;
     public volatile int key_cache_save_period = 14400;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
@@ -377,7 +377,7 @@ public class Config
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
     
     @Replaces(oldName = "counter_cache_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
-    public DataStorage counter_cache_size;
+    public DataStorage counter_cache_size = null;
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
@@ -453,7 +453,7 @@ public class Config
      *
      */
     @Replaces(oldName = "prepared_statements_cache_size_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
-    public DataStorage prepared_statements_cache_size;
+    public DataStorage prepared_statements_cache_size = null;
 
     @Replaces(oldName = "enable_user_defined_functions", deprecated = true)
     public boolean user_defined_functions_enabled = false;

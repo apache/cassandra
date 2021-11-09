@@ -1,25 +1,25 @@
-##
-## Warning!
-## Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
-##
+#
+# Warning!
+# Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
+#
 cluster_name: Test Cluster
 # memtable_allocation_type: heap_buffers
 memtable_allocation_type: offheap_objects
 commitlog_sync: batch
-commitlog_segment_size_in_mb: 5
+commitlog_segment_size_in_mb: 32
 commitlog_directory: build/test/cassandra/commitlog
-## commitlog_compression:
-## - class_name: LZ4Compressor
+# commitlog_compression:
+# - class_name: LZ4Compressor
 cdc_raw_directory: build/test/cassandra/cdc_raw
 cdc_enabled: false
 hints_directory: build/test/cassandra/hints
 partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
 listen_address: 127.0.0.1
 storage_port: 7012
-ssl_storage_port: 7011
+ssl_storage_port: 17012
 start_native_transport: true
 native_transport_port: 9042
-column_index_size_in_kb: 4
+column_index_size_in_kb: 64
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
@@ -38,14 +38,28 @@ server_encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 concurrent_compactors: 4
-compaction_throughput_mb_per_sec: 0
+compaction_throughput_mb_per_sec: 64
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
-row_cache_size_in_mb: 16
-#enable_user_defined_functions: true
-enable_scripted_user_defined_functions: true
-prepared_statements_cache_size_mb: 1
+row_cache_size_in_mb: 0
+enable_user_defined_functions: false
+enable_scripted_user_defined_functions: false
+prepared_statements_cache_size_mb:
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
-stream_throughput_outbound_megabits_per_sec: 200000000
-enable_sasi_indexes: true
-enable_materialized_views: true
+stream_throughput_outbound_megabits_per_sec: 200
+enable_sasi_indexes: false
+enable_materialized_views: false
+enable_drop_compact_storage: false
+file_cache_enabled: true
+auto_hints_cleanup_enabled: true
+track_warnings:
+    enabled: true
+    coordinator_read_size:
+        warn_threshold: 1024kb
+        abort_threshold: 4096kb
+    local_read_size:
+        warn_threshold: 4096kb
+        abort_threshold: 8192kb
+    row_index_size:
+        warn_threshold: 4096kb
+        abort_threshold: 8192kb
