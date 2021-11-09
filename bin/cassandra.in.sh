@@ -30,10 +30,17 @@ CLASSPATH="$CASSANDRA_CONF"
 # compiled classes. NOTE: This isn't needed by the startup script,
 # it's just used here in constructing the classpath.
 if [ -d $CASSANDRA_HOME/build ] ; then
-    #cassandra_bin="$CASSANDRA_HOME/build/classes/main"
-    cassandra_bin=`ls -1 $CASSANDRA_HOME/build/apache-cassandra*.jar`
+    jars_cnt="`ls -1 $CASSANDRA_HOME/build/apache-cassandra*.jar | grep -v 'javadoc.jar' | grep -v 'sources.jar' | wc -l | xargs echo`"
+    if [ "$jars_cnt" -gt 1 ]; then
+        dir="`cd $CASSANDRA_HOME/build; pwd`"
+        echo "There are JAR artifacts for multiple versions in the $dir directory. Please clean the project with 'ant realclean' and build it again." 1>&2
+        exit 1
+    fi
 
-    CLASSPATH="$CLASSPATH:$cassandra_bin"
+    if [ "$jars_cnt" = "1" ]; then
+        cassandra_bin="`ls -1 $CASSANDRA_HOME/build/apache-cassandra*.jar | grep -v javadoc | grep -v sources`"
+        CLASSPATH="$CLASSPATH:$cassandra_bin"
+    fi
 fi
 
 # the default location for commitlogs, sstables, and saved caches
