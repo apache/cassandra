@@ -94,10 +94,10 @@ public class StorageServiceServerTest
     @Test
     public void testRegularMode() throws ConfigurationException
     {
-        for (String path : DatabaseDescriptor.getAllDataFileLocations())
+        for (File path : DatabaseDescriptor.getAllDataFileLocations())
         {
             // verify that storage directories are there.
-            assertTrue(new File(path).exists());
+            assertTrue(path.exists());
         }
     }
 

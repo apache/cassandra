@@ -101,7 +101,7 @@ public class SSTableReaderBench extends AbstractSSTableBench
         nonpkeys = prepareDecoratedKeys(P_KEYS, P_KEYS * 2, KEY_SIZE);
         ckeys = prepareBuffers(0, C_KEYS, KEY_SIZE);
 
-        txn = LifecycleTransaction.offline(OperationType.WRITE);
+        txn = LifecycleTransaction.offline(OperationType.WRITE, table.metadata);
         sstw = prepareTable(getFormat(formatName), table, txn);
     }
 

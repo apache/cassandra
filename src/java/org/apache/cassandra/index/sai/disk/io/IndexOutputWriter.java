@@ -24,6 +24,7 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.store.IndexOutput;
 
@@ -36,7 +37,7 @@ public class IndexOutputWriter extends IndexOutput
 
     IndexOutputWriter(SequentialWriter out)
     {
-        super(out.getPath(), out.getPath());
+        super(out.getFile().toString(), out.getFile().name());
         this.out = out;
     }
 
@@ -45,9 +46,9 @@ public class IndexOutputWriter extends IndexOutput
         this.out.skipBytes(length);
     }
 
-    public String getPath()
+    public File getFile()
     {
-        return out.getPath();
+        return out.getFile();
     }
 
     @Override
@@ -96,7 +97,7 @@ public class IndexOutputWriter extends IndexOutput
     public String toString()
     {
         return MoreObjects.toStringHelper(this)
-                          .add("path", out.getPath())
+                          .add("path", out.getFile())
                           .add("bytesWritten", getFilePointer())
                           .add("crc", getChecksum())
                           .toString();

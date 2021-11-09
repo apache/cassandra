@@ -1159,4 +1159,58 @@ public class FBUtilities
             // ignore
         }
     }
+
+    /**
+     * A class containing some debug methods to be added and removed manually when debugging problems
+     * like failing unit tests.
+     */
+    public static final class Debug
+    {
+        public static final class ThreadInfo
+        {
+            private final String name;
+            private final boolean isDaemon;
+            private final StackTraceElement[] stack;
+
+            public ThreadInfo()
+            {
+                this(Thread.currentThread());
+            }
+
+            public ThreadInfo(Thread thread)
+            {
+                this.name =  thread.getName();
+                this.isDaemon = thread.isDaemon();
+                this.stack = thread.getStackTrace();
+            }
+
+        }
+
+        public static String getStackTrace()
+        {
+            return getStackTrace(new ThreadInfo());
+        }
+
+        public static String getStackTrace(Thread thread)
+        {
+            return getStackTrace(new ThreadInfo(thread));
+        }
+
+        public static String getStackTrace(ThreadInfo threadInfo)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Thread ")
+              .append(threadInfo.name)
+              .append(" (")
+              .append(threadInfo.isDaemon ? "daemon" : "non-daemon")
+              .append(")")
+              .append("\n");
+            for (StackTraceElement element : threadInfo.stack)
+            {
+                sb.append(element);
+                sb.append("\n");
+            }
+            return sb.toString();
+        }
+    }
 }

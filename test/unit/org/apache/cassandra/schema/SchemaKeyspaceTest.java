@@ -47,6 +47,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SchemaKeyspaceTest
@@ -186,5 +187,20 @@ public class SchemaKeyspaceTest
         String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.COLUMNS);
         executeOnceInternal(query, testKS, testTable);
         SchemaKeyspace.fetchNonSystemKeyspaces();
+    }
+
+    @Test
+    public void testIsKeyspaceWithLocalStrategy()
+    {
+        assertTrue(SchemaManager.isKeyspaceWithLocalStrategy("system"));
+        assertTrue(SchemaManager.isKeyspaceWithLocalStrategy(SchemaManager.instance.getKeyspaceMetadata("system")));
+        assertFalse(SchemaManager.isKeyspaceWithLocalStrategy("non_existing"));
+
+        SchemaLoader.createKeyspace("local_ks", KeyspaceParams.local());
+        SchemaLoader.createKeyspace("simple_ks", KeyspaceParams.simple(3));
+
+        assertTrue(SchemaManager.isKeyspaceWithLocalStrategy("local_ks"));
+        assertTrue(SchemaManager.isKeyspaceWithLocalStrategy(SchemaManager.instance.getKeyspaceMetadata("local_ks")));
+        assertFalse(SchemaManager.isKeyspaceWithLocalStrategy("simple_ks"));
     }
 }

@@ -61,7 +61,7 @@ public class StartupChecksTest
         for (File dataDir : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             FileUtils.deleteRecursive(dataDir);
 
-        File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
+        File dataDir = DatabaseDescriptor.getAllDataFileLocations()[0];
         sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
 

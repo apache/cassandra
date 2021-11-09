@@ -315,18 +315,18 @@ public class SSTableMetadataViewer
         }
     }
 
-    private void printSStableMetadata(String fname, boolean scan) throws IOException
+    private void printSStableMetadata(File dataFile, boolean scan) throws IOException
     {
-        Descriptor descriptor = Descriptor.fromFilename(fname);
+        Descriptor descriptor = Descriptor.fromFilename(dataFile);
         Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer()
                 .deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
         StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
         CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
         CompressionMetadata compression = null;
-        File compressionFile = new File(descriptor.filenameFor(Component.COMPRESSION_INFO));
+        File compressionFile = descriptor.fileFor(Component.COMPRESSION_INFO);
         if (compressionFile.exists())
-            compression = CompressionMetadata.create(fname);
+            compression = CompressionMetadata.create(dataFile);
         SerializationHeader.Component header = (SerializationHeader.Component) metadata
                 .get(MetadataType.HEADER);
 
@@ -466,7 +466,7 @@ public class SSTableMetadataViewer
     private void printMinMaxToken(Descriptor descriptor, IPartitioner partitioner, AbstractType<?> keyType)
             throws IOException
     {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        File summariesFile = descriptor.fileFor(Component.SUMMARY);
         if (!summariesFile.exists())
             return;
 
@@ -533,7 +533,7 @@ public class SSTableMetadataViewer
             File sstable = new File(fname);
             if (sstable.exists())
             {
-                metawriter.printSStableMetadata(sstable.absolutePath(), fullScan);
+                metawriter.printSStableMetadata(sstable, fullScan);
             }
             else
             {

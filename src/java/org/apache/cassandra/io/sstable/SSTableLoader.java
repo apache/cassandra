@@ -185,7 +185,7 @@ public class SSTableLoader implements StreamEventHandler
         Set<Component> components = new HashSet<>();
         for (Component component : lookFor)
         {
-            if (new File(desc.filenameFor(component)).exists())
+            if (desc.fileFor(component).exists())
                 components.add(component);
         }
         return components;
@@ -268,7 +268,7 @@ public class SSTableLoader implements StreamEventHandler
     {
         StringBuilder builder = new StringBuilder();
         for (SSTableReader sstable : sstables)
-            builder.append(sstable.descriptor.filenameFor(Component.DATA)).append(" ");
+            builder.append(sstable.descriptor.fileFor(Component.DATA)).append(" ");
         return builder.toString();
     }
 

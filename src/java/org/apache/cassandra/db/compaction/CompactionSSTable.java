@@ -220,7 +220,7 @@ public interface CompactionSSTable
      */
     default long getCreationTimeFor(Component component)
     {
-        return new File(getDescriptor().filenameFor(component)).lastModified();
+        return getDescriptor().fileFor(component).lastModified();
     }
 
     /**

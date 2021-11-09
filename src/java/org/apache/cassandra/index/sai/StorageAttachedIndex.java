@@ -444,7 +444,20 @@ public class StorageAttachedIndex implements Index
             for (SSTableIndex sstableIndex : context.getView().getIndexes())
                 sstableIndex.getSSTable().unregisterComponents(toRemove, baseCfs.getTracker());
 
-            context.invalidate();
+            context.invalidate(true);
+            return null;
+        };
+    }
+
+    @Override
+    public Callable<?> getUnloadTask()
+    {
+        return () ->
+        {
+            // mark index as invalid, in-progress SSTableIndexWriters will abort
+            valid = false;
+
+            context.invalidate(false);
             return null;
         };
     }

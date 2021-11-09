@@ -124,12 +124,12 @@ public class CompressedInputStreamTest
         // write compressed data file of longs
         File parentDir = new File(tempFolder.newFolder());
         Descriptor desc = new Descriptor(parentDir, "ks", "cf", new SequenceBasedSSTableUniqueIdentifier(1));
-        File tmp = new File(desc.filenameFor(Component.DATA));
+        File tmp = desc.fileFor(Component.DATA);
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         CompressionParams param = CompressionParams.snappy(32, minCompressRatio);
         Map<Long, Long> index = new HashMap<Long, Long>();
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp,
-                                                                                desc.filenameFor(Component.COMPRESSION_INFO),
+                                                                                desc.fileFor(Component.COMPRESSION_INFO),
                                                                                 null,
                                                                                 SequentialWriterOption.DEFAULT,
                                                                                 param, collector))
@@ -142,7 +142,7 @@ public class CompressedInputStreamTest
             writer.finish();
         }
 
-        CompressionMetadata comp = CompressionMetadata.create(tmp.absolutePath());
+        CompressionMetadata comp = CompressionMetadata.create(tmp);
         List<SSTableReader.PartitionPositionBounds> sections = new ArrayList<>();
         for (long l : valuesToCheck)
         {

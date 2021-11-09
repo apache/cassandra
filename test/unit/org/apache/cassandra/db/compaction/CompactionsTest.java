@@ -286,7 +286,7 @@ public class CompactionsTest
         SSTableReader sstable = sstables.iterator().next();
 
         SSTableUniqueIdentifier prevGeneration = sstable.descriptor.generation;
-        String file = new File(sstable.descriptor.filenameFor(Component.DATA)).absolutePath();
+        String file = sstable.descriptor.fileFor(Component.DATA).absolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
         // wait until user defined compaction finishes

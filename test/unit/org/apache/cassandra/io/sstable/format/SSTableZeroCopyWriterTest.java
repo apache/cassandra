@@ -150,7 +150,7 @@ public class SSTableZeroCopyWriterTest
         Descriptor desc = store.newSSTableDescriptor(dir);
         TableMetadataRef metadata = SchemaManager.instance.getTableMetadataRef(desc);
 
-        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM, metadata);
         Set<Component> componentsToWrite = desc.getFormat().requiredComponents();
 
         SSTableZeroCopyWriter btzcw = new SSTableZeroCopyWriter(desc, metadata, txn, componentsToWrite);
@@ -198,7 +198,7 @@ public class SSTableZeroCopyWriterTest
     private Pair<DataInputPlus, Long> getSSTableComponentData(SSTableReader sstable, Component component,
                                                               Function<ByteBuffer, DataInputPlus> bufferMapper)
     {
-        FileHandle componentFile = new FileHandle.Builder(sstable.descriptor.filenameFor(component))
+        FileHandle componentFile = new FileHandle.Builder(sstable.descriptor.fileFor(component))
                                    .bufferSize(1024).complete();
         ByteBuffer buffer = ByteBuffer.allocate((int) componentFile.channel.size());
         componentFile.channel.read(buffer, 0);

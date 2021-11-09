@@ -40,6 +40,7 @@ import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.io.sstable.StorageHandler;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.slf4j.Logger;
@@ -91,7 +92,6 @@ import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.SSTableUniqueIdentifierFactory;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
@@ -112,6 +112,7 @@ import org.json.simple.JSONObject;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLED_AUTO_COMPACTION_PROPERTY;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 import static org.apache.cassandra.utils.Throwables.perform;
@@ -119,7 +120,6 @@ import static org.apache.cassandra.utils.Throwables.perform;
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner, CompactionRealm
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
-
     /*
     We keep a pool of threads for each data directory, size of each pool is memtable_flush_writers.
     When flushing we start a Flush runnable in the flushExecutor. Flush calculates how to split the
@@ -232,6 +232,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     /* This is used to generate the next index for a SSTable */
     private final java.util.function.Supplier<? extends SSTableUniqueIdentifier> fileIndexGenerator;
 
+    private final StorageHandler storageHandler;
     public final SecondaryIndexManager indexManager;
     public final TableViews viewManager;
 
@@ -287,6 +288,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         ExecutorUtils.shutdownAndWait(timeout, unit, executors);
     }
 
+    public boolean isReadyToServeData()
+    {
+        return storageHandler.isReady();
+    }
+
     public void reload()
     {
         // metadata object has been mutated directly. make all the members jibe with new settings.
@@ -320,7 +326,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private void reloadCompactionStrategy(CompactionParams compactionParams, CompactionStrategyContainer.ReloadReason reason)
     {
         CompactionStrategyContainer previous = strategyContainer;
-        strategyContainer = strategyFactory.reload(strategyContainer, compactionParams, reason);
+        strategyContainer = strategyFactory.reload(strategyContainer, compactionParams, reason, !storageHandler.isRemote());
         if (strategyContainer != previous)
         {
             getTracker().subscribe(strategyContainer);
@@ -418,7 +424,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         this.keyspace = keyspace;
         this.metadata = metadata;
-        this.directories = directories;
         name = columnFamilyName;
         minCompactionThreshold = new DefaultValue<>(metadata.get().params.compaction.minCompactionThreshold());
         maxCompactionThreshold = new DefaultValue<>(metadata.get().params.compaction.maxCompactionThreshold());
@@ -441,21 +446,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // be notified on the initial loading.
         data.subscribe(StorageService.instance.sstablesTracker);
 
+        /**
+         * When creating a CFS offline we change the default logic needed by CASSANDRA-8671
+         * and link the passed directories to be picked up by the compaction strategy
+         */
+        if (offline)
+            this.directories = directories;
+        else
+            this.directories = new Directories(metadata.get());
+
+        storageHandler = StorageHandler.create(metadata, directories, data);
+
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
-        if (data.loadsstables)
-        {
-            Directories.SSTableLister sstableFiles = directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
-            sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata);
-            data.addInitialSSTablesWithoutUpdatingSize(sstables);
-        }
+        if (loadSSTables)
+            sstables = storageHandler.loadInitialSSTables();
 
         // compaction strategy should be created after the CFS has been prepared
         this.strategyFactory = new CompactionStrategyFactory(this);
         this.strategyContainer = strategyFactory.reload(null,
                                                         metadata.get().params.compaction,
-                                                        CompactionStrategyContainer.ReloadReason.FULL);
+                                                        CompactionStrategyContainer.ReloadReason.FULL,
+                                                        !storageHandler.isRemote());
         getTracker().subscribe(strategyContainer);
+
+        if (!strategyContainer.isEnabled() || DISABLED_AUTO_COMPACTION_PROPERTY.getBoolean())
+        {
+            logger.info("Strategy driven background compactions for {} are disabled: strategy container={}, {}={}",
+                        metadata, strategyContainer.isEnabled(), DISABLED_AUTO_COMPACTION_PROPERTY.getKey(),
+                        DISABLED_AUTO_COMPACTION_PROPERTY.getBoolean());
+            this.strategyContainer.disable();
+        }
 
         // create the private ColumnFamilyStores for the secondary column indexes
         indexManager = new SecondaryIndexManager(this);
@@ -466,7 +487,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         metric = new TableMetrics(this, memtableFactory.createMemtableMetrics(metadata));
 
-        if (data.loadsstables)
+        if (data.loadsstables && sstables != null)
         {
             data.updateInitialSSTableSize(sstables);
         }
@@ -549,6 +570,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return metric;
     }
 
+    @Override
+    public int getKeyspaceReplicationFactor()
+    {
+        return keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+    }
+
     public Directories getDirectories()
     {
         return directories;
@@ -604,10 +631,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
     public void invalidate()
     {
-        invalidate(true);
+        invalidate(true, true);
     }
 
     public void invalidate(boolean expectMBean)
+    {
+        invalidate(expectMBean, true);
+    }
+
+    public void invalidate(boolean expectMBean, boolean dropData)
     {
         // disable and cancel in-progress compactions before invalidating
         valid = false;
@@ -629,9 +661,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         strategyContainer.shutdown();
         SystemKeyspace.removeTruncationRecord(metadata.id);
 
-        data.dropSSTables();
-        LifecycleTransaction.waitForDeletions();
-        indexManager.dropAllIndexes();
+        storageHandler.runWithReloadingDisabled(() -> {
+            if (dropData)
+            {
+                data.dropSSTables();
+
+                indexManager.dropAllIndexes();
+            }
+            else
+            {
+                // In CNDB, because of multi-tenancy, we might just unload a CFS without deleting the data as
+                // a tenant can be moved to a different set of nodes, which will then need to read data from remote storage
+                data.unloadSSTables();
+
+                indexManager.unloadAllIndexes();
+            }
+
+            storageHandler.unload();
+
+            if (dropData)
+            {
+                LifecycleTransaction.waitForDeletions(); // just in case an index had a reference on the sstable
+            }
+        });
 
         invalidateCaches();
     }
@@ -726,7 +778,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 }
             }
 
-            File dataFile = new File(desc.filenameFor(Component.DATA));
+            File dataFile = desc.fileFor(Component.DATA);
             if (components.contains(Component.DATA) && dataFile.length() > 0)
                 // everything appears to be in order... moving on.
                 continue;
@@ -735,15 +787,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             logger.warn("Removing orphans for {}: {}", desc, components);
             for (Component component : components)
             {
-                File file = new File(desc.filenameFor(component));
+                File file = desc.fileFor(component);
                 if (file.exists())
-                    FileUtils.deleteWithConfirm(desc.filenameFor(component));
+                    desc.fileFor(component).delete();
             }
         }
 
         // cleanup incomplete saved caches
         Pattern tmpCacheFilePattern = Pattern.compile(metadata.keyspace + '-' + metadata.name + "-(Key|Row)Cache.*\\.tmp$");
-        File dir = new File(DatabaseDescriptor.getSavedCachesLocation());
+        File dir = DatabaseDescriptor.getSavedCachesLocation();
 
         if (dir.exists())
         {
@@ -1153,7 +1205,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             long maxBytesOnDisk = 0;
             long minBytesOnDisk = Long.MAX_VALUE;
             List<SSTableReader> sstables = new ArrayList<>();
-            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH, metadata))
             {
                 List<Flushing.FlushRunnable> flushRunnables = null;
                 List<SSTableMultiWriter> flushResults = null;
@@ -2378,6 +2430,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         final long truncatedAt;
         final CommitLogPosition replayAfter;
 
+        // This is a no-op on local storage, but on remote storage where compaction runs offline, this
+        // ensures that any live sstables created by the compaction process before it was interrupted,
+        // will actually be obsoleted by one of the writers - since all writers must be running for
+        // a truncate to run, then at least one writer per token range will load sstables created by compaction
+        storageHandler.reloadSSTables(StorageHandler.ReloadReason.TRUNCATION);
+
         if ((keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
             || snapshot) // need sstable for snapshot
         {
@@ -2427,7 +2485,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             }
         };
 
-        runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true, AbstractTableOperation.StopTrigger.TRUNCATE);
+        storageHandler.runWithReloadingDisabled(() -> {
+            runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true, AbstractTableOperation.StopTrigger.TRUNCATE);
+        });
 
         viewManager.build();
         logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
@@ -2623,8 +2683,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return getLiveSSTables().stream()
                                 .filter(s -> !compacting.contains(s) && !s.descriptor.version.isLatestVersion())
                                 .sorted((o1, o2) -> {
-                                    File f1 = new File(o1.descriptor.filenameFor(Component.DATA));
-                                    File f2 = new File(o2.descriptor.filenameFor(Component.DATA));
+                                    File f1 = o1.descriptor.fileFor(Component.DATA);
+                                    File f2 = o2.descriptor.fileFor(Component.DATA);
                                     return Longs.compare(f1.lastModified(), f2.lastModified());
                                 }).collect(Collectors.toList());
     }
@@ -3117,7 +3177,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         private final boolean useSpecificExecutorForSystemKeyspaces;
 
         public PerDiskFlushExecutors(int flushWriters,
-                                     String[] locationsForNonSystemKeyspaces,
+                                     File[] locationsForNonSystemKeyspaces,
                                      boolean useSpecificLocationForSystemKeyspaces)
         {
             ExecutorService[] flushExecutors = createPerDiskFlushWriters(locationsForNonSystemKeyspaces.length, flushWriters);

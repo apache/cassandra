@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -35,6 +36,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.lifecycle.AbstractLogTransaction;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -331,7 +333,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public void markObsolete(Runnable tidier)
+    public void markObsolete(AbstractLogTransaction.ReaderTidier tidier)
     {
         delegate.markObsolete(tidier);
     }
@@ -703,9 +705,15 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public List<String> getAllFilePaths()
+    public Set<Component> getComponents()
     {
-        return delegate.getAllFilePaths();
+        return delegate.getComponents();
+    }
+
+    @Override
+    public int getComponentSize()
+    {
+        return delegate.getComponentSize();
     }
 
     @Override

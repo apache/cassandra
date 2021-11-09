@@ -22,6 +22,8 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Iterables;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -36,6 +38,30 @@ import static org.junit.Assert.assertEquals;
 
 public class GroupComponentsTest extends SAITester
 {
+    @Test
+    public void testInvalidateWithoutObsolete() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int primary key, value int)");
+        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        execute("INSERT INTO %s (pk) VALUES (1)");
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
+        StorageAttachedIndex index = (StorageAttachedIndex) group.getIndexes().iterator().next();
+        SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
+
+        Set<Component> components = group.getLiveComponents(sstable, getIndexesFromGroup(group));
+        assertEquals(5, components.size());
+
+        // index files are released but not removed
+        cfs.invalidate(true, false);
+        Assert.assertTrue(index.getContext().getView().getIndexes().isEmpty());
+        for (Component component : components)
+            Assert.assertTrue(sstable.descriptor.fileFor(component).exists());
+    }
+
     @Test
     public void getLiveComponentsForEmptyIndex() throws Throwable
     {

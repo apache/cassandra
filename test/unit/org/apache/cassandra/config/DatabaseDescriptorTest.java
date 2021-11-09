@@ -41,6 +41,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -607,10 +608,10 @@ public class DatabaseDescriptorTest
     @Test
     public void testDataFileDirectoriesMinTotalSpaceInGB() throws IOException
     {
-        DatabaseDescriptor.getRawConfig().data_file_directories = new String[]{};
+        DatabaseDescriptor.setDataDirectories(new File[] {});
         assertEquals(0L, DatabaseDescriptor.getDataFileDirectoriesMinTotalSpaceInGB());
 
-        DatabaseDescriptor.getRawConfig().data_file_directories = new String[] { temporaryFolder.newFolder("data").toString() };
+        DatabaseDescriptor.setDataDirectories(new File[] { new File(temporaryFolder.newFolder("data"))});
         assertTrue(DatabaseDescriptor.getDataFileDirectoriesMinTotalSpaceInGB() > 0);
 
         Multiset<FileStore> fileStoreMultiset = HashMultiset.create();

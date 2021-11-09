@@ -243,7 +243,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                              currentBoundaries.getPositions(),
                                                                              controller.getNumShards(),
                                                                              realm.getPartitioner());
-            arenaSelector = new ArenaSelector(currentBoundaries, shardBoundaries);
+            arenaSelector = new ArenaSelector(controller, currentBoundaries, shardBoundaries);
             // Note: this can just as well be done without the synchronization (races would be benign, just doing some
             // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
         }
@@ -526,6 +526,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                            int[] perLevel,
                                            long spaceAvailable)
     {
+        pending = controller.aggregatePrioritizer().maybeSort(pending);
+
         int perLevelCount = totalCount / levelCount;   // each level has this number of tasks reserved for it
         int remainder = totalCount % levelCount;       // and the remainder is distributed randomly, up to 1 per level
 
@@ -565,7 +567,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         if (!list.isEmpty())
         {
             // Randomize the list.
-            Collections.shuffle(list, controller.random());
+            list = controller.aggregatePrioritizer().maybeRandomize(list, controller.random());
 
             // Calculate how many new ones we can add in each level, and how many we can assign randomly.
             int remaining = totalCount;
@@ -830,18 +832,13 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         Bucket(Controller controller, int index, long minSize)
         {
             this.index = index;
-            this.survivalFactor = controller.getSurvivalFactor();
+            this.survivalFactor = controller.getSurvivalFactor(index);
             this.scalingParameter = controller.getScalingParameter(index);
             this.fanout = controller.getFanout(index);
             this.threshold = controller.getThreshold(index);
             this.sstables = new ArrayList<>(threshold);
             this.min = minSize;
-
-            double baseSize = minSize;
-            if (minSize == 0)
-                baseSize = controller.getBaseSstableSize(fanout);
-
-            this.max = (long) Math.floor(baseSize * fanout * controller.getSurvivalFactor());
+            this.max = controller.getMaxLevelSize(index, this.min);
         }
 
         void add(CompactionSSTable sstable)

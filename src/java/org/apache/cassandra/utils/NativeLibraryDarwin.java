@@ -40,7 +40,7 @@ import com.sun.jna.Pointer;
  * unavailable simply because of one native defined method not supported
  * on the runtime operating system.
  * @see org.apache.cassandra.utils.NativeLibraryWrapper
- * @see NativeLibrary
+ * @see INativeLibrary
  */
 public class NativeLibraryDarwin implements NativeLibraryWrapper
 {

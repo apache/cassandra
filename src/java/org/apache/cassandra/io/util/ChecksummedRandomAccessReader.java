@@ -31,7 +31,7 @@ public final class ChecksummedRandomAccessReader
         {
             DataIntegrityMetadata.ChecksumValidator validator = new DataIntegrityMetadata.ChecksumValidator(ChecksumType.CRC32,
                                                                                                             RandomAccessReader.open(crcFile),
-                                                                                                            file.path());
+                                                                                                            file);
             Rebufferer rebufferer = new ChecksummedRebufferer(channel, validator);
             return new RandomAccessReader.RandomAccessReaderWithOwnChannel(rebufferer);
         }

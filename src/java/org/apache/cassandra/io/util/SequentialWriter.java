@@ -37,7 +37,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
 public class SequentialWriter extends BufferedDataOutputStreamPlus implements Transactional
 {
     // absolute path to the given file
-    private final String filePath;
+    private final File file;
 
     // Offset for start of buffer relative to underlying file
     protected long bufferOffset;
@@ -166,7 +166,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this.strictFlushing = strictFlushing;
         this.fchannel = (FileChannel)channel;
 
-        this.filePath = file.absolutePath();
+        this.file = file;
 
         this.option = option;
     }
@@ -194,7 +194,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, getPath());
+            throw new FSWriteError(e, getFile());
         }
     }
 
@@ -248,7 +248,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, getPath());
+            throw new FSWriteError(e, getFile());
         }
         if (runPostFlush != null)
             runPostFlush.run();
@@ -321,13 +321,13 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         }
         catch (IOException e)
         {
-            throw new FSReadError(e, getPath());
+            throw new FSReadError(e, getFile());
         }
     }
 
-    public String getPath()
+    public File getFile()
     {
-        return filePath;
+        return file;
     }
 
     protected void resetBuffer()
@@ -377,7 +377,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         }
         catch (IOException e)
         {
-            throw new FSReadError(e, getPath());
+            throw new FSReadError(e, getFile());
         }
 
         bufferOffset = truncateTarget;
@@ -398,7 +398,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, getPath());
+            throw new FSWriteError(e, getFile());
         }
     }
 

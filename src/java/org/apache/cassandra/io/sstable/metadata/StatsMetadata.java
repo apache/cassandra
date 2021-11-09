@@ -45,7 +45,6 @@ import org.apache.cassandra.io.sstable.UnsupportedSSTableException;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.serializers.AbstractTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -581,7 +580,7 @@ public class StatsMetadata extends MetadataComponent
                                                                     "Files copied over using partial zero-copy " +
                                                                     "streaming in DSE are not currently supported.", in),
                                                       null,
-                                                      in instanceof FileDataInput ? new File(((FileDataInput) in).getPath()) : null);
+                                                      in instanceof FileDataInput ? ((FileDataInput) in).getFile() : null);
             }
 
             if (version.hasIncrementalNodeSyncMetadata())

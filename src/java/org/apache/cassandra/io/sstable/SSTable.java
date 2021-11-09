@@ -24,7 +24,6 @@ import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -124,17 +123,17 @@ public abstract class SSTable
         logger.info("Deleting sstable: {}", desc);
         // remove the DATA component first if it exists
         if (components.contains(Component.DATA))
-            FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
+            FileUtils.deleteWithConfirm(desc.fileFor(Component.DATA));
         for (Component component : components)
         {
             if (component.equals(Component.DATA) || component.equals(Component.SUMMARY))
                 continue;
 
-            FileUtils.deleteWithConfirm(desc.filenameFor(component));
+            FileUtils.deleteWithConfirm(desc.fileFor(component));
         }
 
         if (components.contains(Component.SUMMARY))
-            FileUtils.delete(desc.filenameFor(Component.SUMMARY));
+            FileUtils.delete(desc.fileFor(Component.SUMMARY));
 
         return true;
     }
@@ -142,6 +141,11 @@ public abstract class SSTable
     public TableMetadata metadata()
     {
         return metadata.get();
+    }
+
+    public TableMetadataRef metadataRef()
+    {
+        return metadata;
     }
 
     public IPartitioner getPartitioner()
@@ -167,7 +171,12 @@ public abstract class SSTable
 
     public String getFilename()
     {
-        return descriptor.filenameFor(Component.DATA);
+        return getDataFile().path();
+    }
+
+    public File getDataFile()
+    {
+        return descriptor.fileFor(Component.DATA);
     }
 
     public String getColumnFamilyName()
@@ -185,12 +194,14 @@ public abstract class SSTable
         return descriptor.generation;
     }
 
-    public List<String> getAllFilePaths()
+    public Set<Component> getComponents()
     {
-        List<String> ret = new ArrayList<>(components.size());
-        for (Component component : components)
-            ret.add(descriptor.filenameFor(component));
-        return ret;
+        return components;
+    }
+
+    public int getComponentSize()
+    {
+        return components.size();
     }
 
     /**
@@ -244,6 +255,7 @@ public abstract class SSTable
         {
             try
             {
+                SSTableWatcher.instance.discoverComponents(desc);
                 return readTOC(desc);
             }
             catch (FileNotFoundException | NoSuchFileException e)
@@ -271,7 +283,7 @@ public abstract class SSTable
         for (Component.Type componentType : knownTypes)
         {
             Component component = new Component(componentType);
-            if (new File(desc.filenameFor(component)).exists())
+            if (desc.fileFor(component).exists())
                 components.add(component);
         }
         return components;
@@ -303,7 +315,7 @@ public abstract class SSTable
         long bytes = 0;
         for (Component component : components)
         {
-            bytes += new File(descriptor.filenameFor(component)).length();
+            bytes += descriptor.fileFor(component).length();
         }
         return bytes;
     }
@@ -333,14 +345,14 @@ public abstract class SSTable
      */
     protected static Set<Component> readTOC(Descriptor descriptor, boolean skipMissing) throws IOException
     {
-        File tocFile = new File(descriptor.filenameFor(Component.TOC));
+        File tocFile = descriptor.fileFor(Component.TOC);
         List<String> componentNames = Files.readAllLines(tocFile.toPath());
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
         for (String componentName : componentNames)
         {
             Component component = new Component(Component.Type.fromRepresentation(componentName), componentName);
-            if (skipMissing && !new File(descriptor.filenameFor(component)).exists())
-                logger.error("Missing component: {}", descriptor.filenameFor(component));
+            if (skipMissing && !descriptor.fileFor(component).exists())
+                logger.error("Missing component: {}", descriptor.fileFor(component));
             else
                 components.add(component);
         }
@@ -363,7 +375,7 @@ public abstract class SSTable
      */
     protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
     {
-        File tocFile = new File(descriptor.filenameFor(Component.TOC));
+        File tocFile = descriptor.fileFor(Component.TOC);
         try (PrintWriter w = new PrintWriter(tocFile.newWriter(APPEND)))
         {
             for (Component component : components)

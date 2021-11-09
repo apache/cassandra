@@ -85,9 +85,10 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         return bufferHolder.offset() + buffer.position();
     }
 
-    public String getPath()
+    @Override
+    public File getFile()
     {
-        return getChannel().filePath();
+        return getChannel().getFile();
     }
 
     public ChannelProxy getChannel()
@@ -206,7 +207,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
         if (newPosition > length())
             throw new IllegalArgumentException(String.format("Unable to seek to position %d in %s (%d bytes) in read-only mode",
-                                                         newPosition, getPath(), length()));
+                                                             newPosition, getFile(), length()));
         reBufferAt(newPosition);
     }
 

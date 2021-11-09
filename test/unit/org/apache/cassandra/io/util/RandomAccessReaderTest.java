@@ -141,7 +141,7 @@ public class RandomAccessReaderTest
         Parameters params = new Parameters(SIZE, 1 << 20); // 1MB
 
 
-        try (ChannelProxy channel = new ChannelProxy("abc", new FakeFileChannel(SIZE));
+        try (ChannelProxy channel = new ChannelProxy(new File("abc"), new FakeFileChannel(SIZE));
              FileHandle.Builder builder = new FileHandle.Builder(channel)
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize);
              FileHandle fh = builder.complete();
@@ -289,14 +289,14 @@ public class RandomAccessReaderTest
     private static void testReadFully(Parameters params) throws IOException
     {
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f)
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             builder.mmapped(params.mmappedRegions);
             try (FileHandle fh = builder.complete();
                  RandomAccessReader reader = fh.createReader())
             {
-                assertEquals(f.absolutePath(), reader.getPath());
+                assertEquals(f.absolutePath(), reader.getFile().path());
                 assertEquals(f.length(), reader.length());
                 assertEquals(f.length(), reader.bytesRemaining());
                 assertEquals(Math.min(Integer.MAX_VALUE, f.length()), reader.available());
@@ -330,11 +330,11 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path());
+        try (FileHandle.Builder builder = new FileHandle.Builder(f);
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
-            assertEquals(f.absolutePath(), reader.getPath());
+            assertEquals(f.absolutePath(), reader.getFile().path());
             assertEquals(expected.length(), reader.length());
 
             ByteBuffer b = ByteBufferUtil.read(reader, expected.length());
@@ -361,7 +361,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path());
+        try (FileHandle.Builder builder = new FileHandle.Builder(f);
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
@@ -441,7 +441,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path()))
+        try (FileHandle.Builder builder = new FileHandle.Builder(f))
         {
             final Runnable worker = () ->
             {
@@ -518,7 +518,7 @@ public class RandomAccessReaderTest
     {
         Parameters params = new Parameters(8192, 4096);
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f)
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             builder.mmapped(params.mmappedRegions);
@@ -536,7 +536,7 @@ public class RandomAccessReaderTest
     {
         Parameters params = new Parameters(8192, 4096);
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f)
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             try (FileHandle fh = builder.complete();
@@ -551,7 +551,7 @@ public class RandomAccessReaderTest
     private static void testSkipBytes(Parameters params, int expectationMultiples) throws IOException
     {
         final File f = writeFile(params);
-        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
+        try (FileHandle.Builder builder = new FileHandle.Builder(f)
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
             builder.mmapped(params.mmappedRegions);

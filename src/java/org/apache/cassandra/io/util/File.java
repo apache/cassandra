@@ -226,6 +226,47 @@ public class File implements Comparable<File>
         PathUtils.rename(toPathForRead(), to.toPathForWrite());
     }
 
+    public void copy(File target, StandardCopyOption options)
+    {
+        PathUtils.copy(toPathForRead(), target.toPathForWrite(), options);
+    }
+
+    /**
+     * Constructs a relative path between this path and a given path.
+     */
+    public File relativize(File other)
+    {
+        Path relative = toPathForRead().relativize(other.toPathForRead());
+        return new File(relative);
+    }
+
+    /**
+     * Resolves give path against this path's parent path
+     */
+    public File resolveSibling(String path)
+    {
+        Path sibling = toPathForRead().resolveSibling(path);
+        return new File(sibling);
+    }
+
+    /**
+     * Resolves give path against this path
+     */
+    public File resolve(String path)
+    {
+        Path sibling = toPathForRead().resolve(path);
+        return new File(sibling);
+    }
+
+    /**
+     * Resolves give path against this path
+     */
+    public File resolve(File path)
+    {
+        Path sibling = toPathForRead().resolve(path.toPathForRead());
+        return new File(sibling);
+    }
+
     /**
      * @return the length of the file if it exists and if we can read it; 0 otherwise.
      */
@@ -539,6 +580,11 @@ public class File implements Comparable<File>
         if (this.path == null || that.path == null)
             return this.path == null && that.path == null ? 0 : this.path == null ? -1 : 1;
         return this.path.compareTo(that.path);
+    }
+
+    public URI toUri()
+    {
+        return Objects.requireNonNull(path).toUri();
     }
 
     public java.io.File toJavaIOFile()

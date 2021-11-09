@@ -74,7 +74,7 @@ public abstract class AbstractCommitLogSegmentManager
      */
     private volatile CommitLogSegment allocatingFrom = null;
 
-    final String storageDirectory;
+    final File storageDirectory;
 
     /**
      * Tracks commitlog size, in multiples of the segment size.  We need to do this so we can "promise" size
@@ -93,7 +93,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     private volatile SimpleCachedBufferPool bufferPool;
 
-    AbstractCommitLogSegmentManager(final CommitLog commitLog, String storageDirectory)
+    AbstractCommitLogSegmentManager(final CommitLog commitLog, File storageDirectory)
     {
         this.commitLog = commitLog;
         this.storageDirectory = storageDirectory;

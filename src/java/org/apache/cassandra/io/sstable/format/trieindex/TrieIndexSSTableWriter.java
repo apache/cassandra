@@ -121,7 +121,7 @@ public class TrieIndexSSTableWriter extends SSTableWriter
             final CompressionParams compressionParams = compressionFor(lifecycleNewTracker.opType(), metadata);
 
             dataFile = new CompressedSequentialWriter(getFile(),
-                                                      descriptor.filenameFor(Component.COMPRESSION_INFO),
+                                                      descriptor.fileFor(Component.COMPRESSION_INFO),
                                                       descriptor.fileFor(Component.DIGEST),
                                                       WRITER_OPTION,
                                                       compressionParams,
@@ -410,7 +410,7 @@ public class TrieIndexSSTableWriter extends SSTableWriter
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, dataFile.getPath());
+            throw new FSWriteError(e, dataFile.getFile());
         }
     }
 
@@ -461,7 +461,7 @@ public class TrieIndexSSTableWriter extends SSTableWriter
                 }
                 catch (IOException e)
                 {
-                    throw new FSWriteError(e, rowIndexFile.getPath());
+                    throw new FSWriteError(e, rowIndexFile.getFile());
                 }
 
                 if (logger.isTraceEnabled())
@@ -543,7 +543,7 @@ public class TrieIndexSSTableWriter extends SSTableWriter
             }
             catch (IOException e)
             {
-                throw new FSWriteError(e, partitionIndexFile.getPath());
+                throw new FSWriteError(e, partitionIndexFile.getFile());
             }
         }
 
@@ -556,7 +556,7 @@ public class TrieIndexSSTableWriter extends SSTableWriter
             }
             catch (IOException e)
             {
-                throw new FSReadError(e, partitionIndexFile.getPath());
+                throw new FSReadError(e, partitionIndexFile.getFile());
             }
         }
 

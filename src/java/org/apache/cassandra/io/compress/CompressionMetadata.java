@@ -65,7 +65,7 @@ public class CompressionMetadata
     public final long compressedFileLength;
     private final Memory chunkOffsets;
     private final long chunkOffsetsSize;
-    public final String indexFilePath;
+    public final File indexFilePath;
     public final CompressionParams parameters;
 
     /**
@@ -79,12 +79,12 @@ public class CompressionMetadata
      *
      * @return metadata about given compressed file.
      */
-    public static CompressionMetadata create(String dataFilePath)
+    public static CompressionMetadata create(File dataFilePath)
     {
-        return createWithLength(dataFilePath, new File(dataFilePath).length());
+        return createWithLength(dataFilePath, dataFilePath.length());
     }
 
-    public static CompressionMetadata createWithLength(String dataFilePath, long compressedLength)
+    public static CompressionMetadata createWithLength(File dataFilePath, long compressedLength)
     {
         return new CompressionMetadata(Descriptor.fromFilename(dataFilePath), compressedLength);
     }
@@ -92,15 +92,15 @@ public class CompressionMetadata
     @VisibleForTesting
     public CompressionMetadata(Descriptor desc, long compressedLength)
     {
-        this(desc.filenameFor(Component.COMPRESSION_INFO), compressedLength, desc.version.hasMaxCompressedLength());
+        this(desc.fileFor(Component.COMPRESSION_INFO), compressedLength, desc.version.hasMaxCompressedLength());
     }
 
     @VisibleForTesting
-    public CompressionMetadata(String indexFilePath, long compressedLength, boolean hasMaxCompressedSize)
+    public CompressionMetadata(File indexFilePath, long compressedLength, boolean hasMaxCompressedSize)
     {
         this.indexFilePath = indexFilePath;
 
-        try (FileInputStreamPlus stream = new File(indexFilePath).newInputStream())
+        try (FileInputStreamPlus stream = indexFilePath.newInputStream())
         {
             String compressorName = stream.readUTF();
             int optionCount = stream.readInt();
@@ -142,7 +142,7 @@ public class CompressionMetadata
 
     // do not call this constructor directly, unless used in testing
     @VisibleForTesting
-    public CompressionMetadata(String filePath, CompressionParams parameters, Memory offsets, long offsetsSize, long dataLength, long compressedLength)
+    public CompressionMetadata(File filePath, CompressionParams parameters, Memory offsets, long offsetsSize, long dataLength, long compressedLength)
     {
         this.indexFilePath = filePath;
         this.parameters = parameters;
@@ -329,7 +329,7 @@ public class CompressionMetadata
     {
         // path to the file
         private final CompressionParams parameters;
-        private final String filePath;
+        private final File filePath;
         private int maxCount = 100;
         private SafeMemory offsets = new SafeMemory(maxCount * 8L);
         private int count = 0;
@@ -337,13 +337,13 @@ public class CompressionMetadata
         // provided by user when setDescriptor
         private long dataLength, chunkCount;
 
-        private Writer(CompressionParams parameters, String path)
+        private Writer(CompressionParams parameters, File path)
         {
             this.parameters = parameters;
             filePath = path;
         }
 
-        public static Writer open(CompressionParams parameters, String path)
+        public static Writer open(CompressionParams parameters, File path)
         {
             return new Writer(parameters, path);
         }

@@ -23,13 +23,10 @@ import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -85,7 +82,7 @@ import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Mx4jTool;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.WindowsTimer;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -253,7 +250,7 @@ public class CassandraDaemon
 
         logSystemInfo();
 
-        NativeLibrary.tryMlockall();
+        INativeLibrary.instance.tryMlockall();
 
         CommitLog.instance.start();
 
@@ -511,47 +508,41 @@ public class CassandraDaemon
         //     the system keyspace location configured by the user (upgrade to 4.0)
         //  3) The system data are stored in the first data location and need to be moved to
         //     the system keyspace location configured by the user (system_data_file_directory has been configured)
-        Path target = Paths.get(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
+        File target = DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0];
 
-        String[] nonLocalSystemKeyspacesFileLocations = DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations();
-        String[] sources = DatabaseDescriptor.useSpecificLocationForLocalSystemData() ? nonLocalSystemKeyspacesFileLocations
+        File[] nonLocalSystemKeyspacesFileLocations = DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations();
+        File[] sources = DatabaseDescriptor.useSpecificLocationForLocalSystemData() ? nonLocalSystemKeyspacesFileLocations
                                                                                       : Arrays.copyOfRange(nonLocalSystemKeyspacesFileLocations,
                                                                                                            1,
                                                                                                            nonLocalSystemKeyspacesFileLocations.length);
 
-        for (String source : sources)
+        for (File dataFileLocation : sources)
         {
-            Path dataFileLocation = Paths.get(source);
-
-            if (!Files.exists(dataFileLocation))
+            if (!dataFileLocation.exists())
                 continue;
 
-            try (Stream<Path> locationChildren = Files.list(dataFileLocation))
+            List<File> keyspaceDirectories = new ArrayList<>();
+            dataFileLocation.forEach(f -> {
+                if (SchemaConstants.isLocalSystemKeyspace(f.name()))
+                    keyspaceDirectories.add(f);
+            });
+
+            for (File keyspaceDirectory : keyspaceDirectories)
             {
-                Path[] keyspaceDirectories = locationChildren.filter(p -> SchemaConstants.isLocalSystemKeyspace(p.getFileName().toString()))
-                                                             .toArray(Path[]::new);
+                List<File> tableDirectories = new ArrayList<>();
+                keyspaceDirectory.forEach(f -> {
+                    if (f.isDirectory() && !SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS.contains(f.name()))
+                        tableDirectories.add(f);
+                });
 
-                for (Path keyspaceDirectory : keyspaceDirectories)
+                for (File tableDirectory : tableDirectories)
                 {
-                    try (Stream<Path> keyspaceChildren = Files.list(keyspaceDirectory))
-                    {
-                        Path[] tableDirectories = keyspaceChildren.filter(Files::isDirectory)
-                                                                  .filter(p -> !SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS
-                                                                                              .contains(p.getFileName()
-                                                                                                         .toString()))
-                                                                  .toArray(Path[]::new);
+                    FileUtils.moveRecursively(tableDirectory, target.resolve(dataFileLocation.relativize(tableDirectory)));
+                }
 
-                        for (Path tableDirectory : tableDirectories)
-                        {
-                            FileUtils.moveRecursively(tableDirectory,
-                                                      target.resolve(dataFileLocation.relativize(tableDirectory)));
-                        }
-
-                        if (!SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspaceDirectory.getFileName().toString()))
-                        {
-                            FileUtils.deleteDirectoryIfEmpty(keyspaceDirectory);
-                        }
-                    }
+                if (!SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspaceDirectory.name()))
+                {
+                    FileUtils.deleteDirectoryIfEmpty(keyspaceDirectory);
                 }
             }
         }
@@ -913,12 +904,12 @@ public class CassandraDaemon
     {
         public boolean isAvailable()
         {
-            return NativeLibrary.isAvailable();
+            return INativeLibrary.instance.isAvailable();
         }
 
         public boolean isMemoryLockable()
         {
-            return NativeLibrary.jnaMemoryLockable();
+            return INativeLibrary.instance.jnaMemoryLockable();
         }
     }
 

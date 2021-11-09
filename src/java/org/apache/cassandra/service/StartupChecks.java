@@ -64,7 +64,7 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
@@ -282,7 +282,7 @@ public class StartupChecks
         public void execute() throws StartupException
         {
             // Fail-fast if the native library could not be linked.
-            if (!NativeLibrary.isAvailable())
+            if (!INativeLibrary.instance.isAvailable())
                 throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "The native library could not be initialized properly. ");
         }
     };
@@ -345,29 +345,28 @@ public class StartupChecks
     public static final StartupCheck checkDataDirs = () ->
     {
         // check all directories(data, commitlog, saved cache) for existence and permission
-        Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
+        Iterable<File> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
                                                  Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                                DatabaseDescriptor.getSavedCachesLocation(),
-                                                               DatabaseDescriptor.getHintsDirectory().absolutePath()));
-        for (String dataDir : dirs)
+                                                               DatabaseDescriptor.getHintsDirectory()));
+        for (File dir : dirs)
         {
-            logger.debug("Checking directory {}", dataDir);
-            File dir = new File(dataDir);
+            logger.debug("Checking directory {}", dir);
 
             // check that directories exist.
             if (!dir.exists())
             {
-                logger.warn("Directory {} doesn't exist", dataDir);
+                logger.warn("Directory {} doesn't exist", dir);
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.tryCreateDirectories())
                     throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                               "Has no permission to create directory "+ dataDir);
+                                               "Has no permission to create directory "+ dir);
             }
 
             // if directories exist verify their permissions
-            if (!Directories.verifyFullPermissions(dir, dataDir))
+            if (!Directories.verifyFullPermissions(dir))
                 throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                           "Insufficient permissions on directory " + dataDir);
+                                           "Insufficient permissions on directory " + dir);
         }
     };
 
@@ -412,11 +411,11 @@ public class StartupChecks
                 }
             };
 
-            for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
+            for (File dataDir : DatabaseDescriptor.getAllDataFileLocations())
             {
                 try
                 {
-                    Files.walkFileTree(new File(dataDir).toPath(), sstableVisitor);
+                    Files.walkFileTree(dataDir.toPath(), sstableVisitor);
                 }
                 catch (IOException e)
                 {

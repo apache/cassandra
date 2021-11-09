@@ -159,7 +159,7 @@ public class CommitLog implements CommitLogMBean
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
         // archiving pass, which we should not treat as serious.
-        for (File file : new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter))
+        for (File file : segmentManager.storageDirectory.tryList(unmanagedFilesFilter))
         {
             archiver.maybeArchive(file.path(), file.name());
             archiver.maybeWaitForArchiving(file.name());
@@ -169,7 +169,7 @@ public class CommitLog implements CommitLogMBean
         archiver.maybeRestoreArchive();
 
         // List the files again as archiver may have added segments.
-        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
+        File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
         int replayed = 0;
         if (files.length == 0)
         {
@@ -482,7 +482,7 @@ public class CommitLog implements CommitLogMBean
         segmentManager.stopUnsafe(deleteSegments);
         CommitLogSegment.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
+            for (File f : DatabaseDescriptor.getCDCLogLocation().tryList())
                 FileUtils.deleteWithConfirm(f);
     }
 

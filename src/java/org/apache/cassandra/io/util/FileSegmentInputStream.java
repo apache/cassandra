@@ -26,19 +26,20 @@ import java.nio.ByteBuffer;
  */
 public class FileSegmentInputStream extends DataInputBuffer implements FileDataInput
 {
-    private final String filePath;
+    private final File file;
     private final long offset;
 
-    public FileSegmentInputStream(ByteBuffer buffer, String filePath, long offset)
+    public FileSegmentInputStream(ByteBuffer buffer, File file, long offset)
     {
         super(buffer, false);
-        this.filePath = filePath;
+        this.file = file;
         this.offset = offset;
     }
 
-    public String getPath()
+    @Override
+    public File getFile()
     {
-        return filePath;
+        return file;
     }
 
     private long size()
@@ -61,7 +62,7 @@ public class FileSegmentInputStream extends DataInputBuffer implements FileDataI
         if (pos < 0 || pos > size())
             throw new IllegalArgumentException(String.format("Unable to seek to position %d in %s (%d bytes) in partial mode",
                                                              pos,
-                                                             getPath(),
+                                                             getFile(),
                                                              size()));
 
 

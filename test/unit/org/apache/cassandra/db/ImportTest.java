@@ -236,7 +236,7 @@ public class ImportTest extends CQLTester
             sstable.selfRef().release();
             for (File f : sstable.descriptor.directory.tryList())
             {
-                if (f.toString().contains(sstable.descriptor.baseFilename()))
+                if (f.toUri().toString().contains(sstable.descriptor.baseFileUri()))
                 {
                     System.out.println("move " + f.toPath() + " to " + backupdir);
                     File moveFileTo = new File(backupdir, f.name());
@@ -314,8 +314,8 @@ public class ImportTest extends CQLTester
 
         getCurrentColumnFamilyStore().clearUnsafe();
 
-        String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        File filenameToCorrupt = sstableToCorrupt.descriptor.fileFor(Component.STATS);
+        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt.toJavaIOFile(), "rw"))
         {
             file.seek(0);
             file.writeBytes(StringUtils.repeat('z', 2));
@@ -574,8 +574,8 @@ public class ImportTest extends CQLTester
         sstables.forEach(s -> s.selfRef().release());
         // corrupt the sstable which is still in the data directory
         SSTableReader sstableToCorrupt = sstables.iterator().next();
-        String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        File filenameToCorrupt = sstableToCorrupt.descriptor.fileFor(Component.STATS);
+        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt.toJavaIOFile(), "rw"))
         {
             file.seek(0);
             file.writeBytes(StringUtils.repeat('z', 2));
@@ -615,7 +615,7 @@ public class ImportTest extends CQLTester
         assertEquals(20, rowCount);
         assertEquals(expectedFiles, getCurrentColumnFamilyStore().getLiveSSTables());
         for (SSTableReader sstable : expectedFiles)
-            assertTrue(new File(sstable.descriptor.filenameFor(Component.DATA)).exists());
+            assertTrue(sstable.descriptor.fileFor(Component.DATA).exists());
         getCurrentColumnFamilyStore().truncateBlocking();
         LifecycleTransaction.waitForDeletions();
         for (File f : sstableToCorrupt.descriptor.directory.tryList()) // clean up the corrupt files which truncate does not handle

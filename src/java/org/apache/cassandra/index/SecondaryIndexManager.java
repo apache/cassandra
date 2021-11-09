@@ -841,6 +841,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         indexGroups.forEach((key, group) -> group.invalidate());
     }
 
+    /**
+     * unload all indexes without removing index data
+     */
+    public void unloadAllIndexes()
+    {
+        executeAllBlocking(indexes.values().stream(), Index::getUnloadTask, null);
+        indexGroups.forEach((key, group) -> group.unload());
+    }
+
     @VisibleForTesting
     public void invalidateAllIndexesBlocking()
     {
