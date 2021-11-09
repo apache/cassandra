@@ -41,8 +41,6 @@ import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.
 
 public class PEMBasedSslContextFactoryTest
 {
-    private Map<String,Object> commonConfig = new HashMap<>();
-
     private static final String private_key =
     "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" +
     "MIIE6jAcBgoqhkiG9w0BDAEDMA4ECOWqSzq5PBIdAgIFxQSCBMjXsCK30J0aT3J/\n" +
@@ -95,7 +93,6 @@ public class PEMBasedSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
-
     private static final String unencrypted_private_key =
     "-----BEGIN PRIVATE KEY-----\n" +
     "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCOSZVf8dLj1xLw\n" +
@@ -147,7 +144,6 @@ public class PEMBasedSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
-
     private static final String trusted_certificates =
     "-----BEGIN CERTIFICATE-----\n" +
     "MIIDkTCCAnmgAwIBAgIETxH5JDANBgkqhkiG9w0BAQsFADB5MRAwDgYDVQQGEwdV\n" +
@@ -171,6 +167,7 @@ public class PEMBasedSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
+    private Map<String, Object> commonConfig = new HashMap<>();
 
     @Before
     public void setup()
@@ -180,29 +177,29 @@ public class PEMBasedSslContextFactoryTest
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
-    private void addKeyStoreOptions(Map<String,Object> config)
+    private void addKeyStoreOptions(Map<String, Object> config)
     {
         config.put(ENCODED_KEY.getKeyName(), private_key);
         config.put(KEY_PASSWORD.getKeyName(), "cassandra");
     }
 
-    private void addUnencryptedKeyStoreOptions(Map<String,Object> config)
+    private void addUnencryptedKeyStoreOptions(Map<String, Object> config)
     {
         config.put(ENCODED_KEY.getKeyName(), unencrypted_private_key);
     }
 
-    private void addFileBaseTrustStoreOptions(Map<String,Object> config)
+    private void addFileBaseTrustStoreOptions(Map<String, Object> config)
     {
         config.put("truststore", "test/conf/cassandra_ssl_test.truststore.pem");
     }
 
-    private void addFileBaseKeyStoreOptions(Map<String,Object> config)
+    private void addFileBaseKeyStoreOptions(Map<String, Object> config)
     {
         config.put("keystore", "test/conf/cassandra_ssl_test.keystore.pem");
         config.put("keystore_password", "cassandra");
     }
 
-    private void addFileBaseUnencryptedKeyStoreOptions(Map<String,Object> config)
+    private void addFileBaseUnencryptedKeyStoreOptions(Map<String, Object> config)
     {
         config.put("keystore", "test/conf/cassandra_ssl_test.unencrypted_keystore.pem");
     }
@@ -228,7 +225,7 @@ public class PEMBasedSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildTrustManagerFactoryWithInvalidTruststoreFile() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.remove("encoded_certificates");
         config.put("truststore", "/this/is/probably/not/a/file/on/your/test/machine");
@@ -241,7 +238,7 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildTrustManagerFactoryWithBadPassword() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put("truststore_password", "HomeOfBadPasswords");
 
@@ -253,7 +250,7 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildTrustManagerFactoryHappyPath() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
@@ -265,7 +262,7 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildFileBasedTrustManagerFactoryHappyPath() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.remove("encoded_certificates");
         addFileBaseTrustStoreOptions(config);
@@ -279,7 +276,7 @@ public class PEMBasedSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildKeyManagerFactoryWithInvalidKeystoreFile() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put("keystore", "/this/is/probably/not/a/file/on/your/test/machine");
 
@@ -291,7 +288,7 @@ public class PEMBasedSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildKeyManagerFactoryWithBadPassword() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addKeyStoreOptions(config);
         config.put("keystore_password", "HomeOfBadPasswords");
@@ -303,7 +300,7 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildKeyManagerFactoryHappyPath() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         PEMBasedSslContextFactory sslContextFactory1 = new PEMBasedSslContextFactory(config);
@@ -327,10 +324,10 @@ public class PEMBasedSslContextFactoryTest
     @Test(expected = IllegalArgumentException.class)
     public void buildKeyManagerFactoryWithConflictingPasswordConfigs() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addKeyStoreOptions(config);
-        config.put("keystore_password", config.get("keyPassword")+"-conflict");
+        config.put("keystore_password", config.get("keyPassword") + "-conflict");
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
         sslContextFactory.buildKeyManagerFactory();
@@ -339,7 +336,7 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildKeyManagerFactoryWithMatchingPasswordConfigs() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addKeyStoreOptions(config);
         config.put("keystore_password", config.get("keyPassword"));
@@ -351,7 +348,7 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildFileBasedKeyManagerFactoryHappyPath() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         PEMBasedSslContextFactory sslContextFactory1 = new PEMBasedSslContextFactory(config);
@@ -375,12 +372,12 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildKeyManagerFactoryWithUnencryptedKey() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addUnencryptedKeyStoreOptions(config);
 
         Assert.assertTrue("Unencrypted Key test must not specify a key password",
-                          StringUtils.isEmpty((String)config.get(KEY_PASSWORD.getKeyName())));
+                          StringUtils.isEmpty((String) config.get(KEY_PASSWORD.getKeyName())));
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
         sslContextFactory.buildKeyManagerFactory();
@@ -389,23 +386,24 @@ public class PEMBasedSslContextFactoryTest
     @Test
     public void buildKeyManagerFactoryWithFileBasedUnencryptedKey() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addFileBaseUnencryptedKeyStoreOptions(config);
 
         Assert.assertTrue("Unencrypted Key test must not specify a key password",
-                          StringUtils.isEmpty((String)config.get(KEY_PASSWORD.getKeyName())));
+                          StringUtils.isEmpty((String) config.get(KEY_PASSWORD.getKeyName())));
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
         sslContextFactory.buildKeyManagerFactory();
     }
 
     //@Test
-    public void testDisableOpenSslForInJvmDtests() {
+    public void testDisableOpenSslForInJvmDtests()
+    {
         // The configuration name below is hard-coded intentionally to make sure we don't break the contract without
         // changing the documentation appropriately
-        System.setProperty("cassandra.disable_tcactive_openssl","true");
-        Map<String,Object> config = new HashMap<>();
+        System.setProperty("cassandra.disable_tcactive_openssl", "true");
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
