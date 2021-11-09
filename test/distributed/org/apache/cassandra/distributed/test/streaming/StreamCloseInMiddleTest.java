@@ -141,7 +141,7 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
 
     private static void assertStreamingFailed(IInvokableInstance node, boolean expectedEntireSSTable, long mark)
     {
-        // make sure zero-copy streaming was done; only way to know is by checking debug logs on the recieving end
+        // make sure zero-copy streaming was done; only way to know is by checking debug logs on the receiving end
         LogResult<List<String>> logs = node.logs().grep(mark, "Incoming stream entireSSTable=");
         Assertions.assertThat(logs.getResult()).isNotEmpty();
         Pattern pattern = Pattern.compile("entireSSTable=(.*?)\\s");
