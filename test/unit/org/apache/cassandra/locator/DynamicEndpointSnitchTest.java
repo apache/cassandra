@@ -20,8 +20,8 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -60,6 +60,22 @@ public class DynamicEndpointSnitchTest
             rlist.add(ReplicaUtils.full(endpoint));
         }
         return rlist.build();
+    }
+
+    @Test
+    public void testDynamicSnitchSetSeverity()
+    {
+        // do this because SS needs to be initialized before DES can work properly.
+        DatabaseDescriptor.setDynamicBadnessThreshold(0.1);
+        StorageService.instance.unsafeInitialize();
+        SimpleSnitch ss = new SimpleSnitch();
+
+        DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+        double origSeverity = dsnitch.getSeverity();
+        double updSeverity = origSeverity + 1.0d;
+        dsnitch.setSeverity(updSeverity);
+        Assert.assertEquals(updSeverity, dsnitch.getSeverity(), 0.0d);
+        dsnitch.setSeverity(origSeverity);
     }
 
     @Test
