@@ -19,6 +19,7 @@ package org.apache.cassandra.streaming;
 
 import java.io.EOFException;
 import java.net.SocketTimeoutException;
+import java.nio.channels.ClosedChannelException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -35,6 +36,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +57,6 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
-import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -634,9 +635,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * after completion or because the peer was down, otherwise sends a {@link SessionFailedMessage} and closes
      * the session as {@link State#FAILED}.
      */
-    public synchronized Future onError(Throwable e)
+    public synchronized Future onError(Throwable error)
     {
-        boolean isEofException = e instanceof EOFException;
+        boolean isEofException = Throwables.anyCauseMatches(error, e -> e instanceof EOFException || e instanceof ClosedChannelException);
         if (isEofException)
         {
             if (state.finalState)
@@ -650,13 +651,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 logger.error("[Stream #{}] Socket closed before session completion, peer {} is probably down.",
                              planId(),
                              peer.getHostAddressAndPort(),
-                             e);
+                             error);
 
                 return closeSession(State.FAILED);
             }
         }
 
-        logError(e);
+        logError(error);
         // send session failure message
         if (channel.connected())
             channel.sendControlMessage(new SessionFailedMessage());
