@@ -31,6 +31,7 @@ public class ObjectSizes
 {
     private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
                                                               .ignoreKnownSingletons();
+    private static final MemoryMeter omitSharedMeter = meter.omitSharedBufferOverhead();
 
     private static final long EMPTY_HEAP_BUFFER_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     private static final long EMPTY_BYTE_ARRAY_SIZE = measure(new byte[0]);
@@ -213,6 +214,18 @@ public class ObjectSizes
     public static long measureDeep(Object pojo)
     {
         return meter.measureDeep(pojo);
+    }
+
+    /**
+     * @param pojo the object to measure
+     * @return The size on the heap of the instance and all retained heap referenced by it, excluding portions of
+     * ByteBuffer that are not directly referenced by it but including any other referenced that may also be retained
+     * by other objects. This also includes bytes referenced in direct byte buffers, and may double-count memory if
+     * it is referenced by multiple ByteBuffer copies.
+     */
+    public static long measureDeepOmitShared(Object pojo)
+    {
+        return omitSharedMeter.measureDeep(pojo);
     }
 
     /**
