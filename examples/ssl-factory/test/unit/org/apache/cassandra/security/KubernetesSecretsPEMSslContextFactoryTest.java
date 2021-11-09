@@ -48,46 +48,8 @@ import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.C
 public class KubernetesSecretsPEMSslContextFactoryTest
 {
     private static final Logger logger = LoggerFactory.getLogger(KubernetesSecretsPEMSslContextFactoryTest.class);
-
-    private Map<String, Object> commonConfig = new HashMap<>();
     private final static String truststoreUpdatedTimestampFilepath = "build/test/conf/cassandra_truststore_last_updatedtime";
     private final static String keystoreUpdatedTimestampFilepath = "build/test/conf/cassandra_keystore_last_updatedtime";
-
-    private static class KubernetesSecretsPEMSslContextFactoryForTestOnly extends KubernetesSecretsPEMSslContextFactory
-    {
-
-        public KubernetesSecretsPEMSslContextFactoryForTestOnly()
-        {
-        }
-
-        public KubernetesSecretsPEMSslContextFactoryForTestOnly(Map<String, Object> config)
-        {
-            super(config);
-        }
-
-        /*
-         * This is overriden to first give priority to the input map configuration since we should not be setting env
-         * variables from the unit tests. However, if the input map configuration doesn't have the value for the
-         * given key then fallback to loading from the real environment variables.
-         */
-        @Override
-        String getValueFromEnv(String envVarName, String defaultValue)
-        {
-            String envVarValue = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
-            if (StringUtils.isEmpty(envVarValue))
-            {
-                logger.info("Configuration doesn't have env variable {}. Will use parent's implementation", envVarName);
-                return super.getValueFromEnv(envVarName, defaultValue);
-            }
-            else
-            {
-                logger.info("Configuration has env variable {} with value {}. Will use that.",
-                            envVarName, envVarValue);
-                return envVarValue;
-            }
-        }
-    }
-
     private static final String private_key =
     "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" +
     "MIIE6jAcBgoqhkiG9w0BDAEDMA4ECOWqSzq5PBIdAgIFxQSCBMjXsCK30J0aT3J/\n" +
@@ -140,7 +102,6 @@ public class KubernetesSecretsPEMSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
-
     private static final String unencrypted_private_key =
     "-----BEGIN PRIVATE KEY-----\n" +
     "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCOSZVf8dLj1xLw\n" +
@@ -192,7 +153,6 @@ public class KubernetesSecretsPEMSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
-
     private static final String trusted_certificates =
     "-----BEGIN CERTIFICATE-----\n" +
     "MIIDkTCCAnmgAwIBAgIETxH5JDANBgkqhkiG9w0BAQsFADB5MRAwDgYDVQQGEwdV\n" +
@@ -216,6 +176,7 @@ public class KubernetesSecretsPEMSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
+    private Map<String, Object> commonConfig = new HashMap<>();
 
     @BeforeClass
     public static void prepare()
@@ -347,7 +308,7 @@ public class KubernetesSecretsPEMSslContextFactoryTest
         // Make sure that new factory object preforms the fresh private key expiry check
 
         KubernetesSecretsPEMSslContextFactory kubernetesSecretsSslContextFactory3 =
-         new KubernetesSecretsPEMSslContextFactoryForTestOnly(config);
+        new KubernetesSecretsPEMSslContextFactoryForTestOnly(config);
         Assert.assertFalse(kubernetesSecretsSslContextFactory3.checkedExpiry);
         kubernetesSecretsSslContextFactory3.buildKeyManagerFactory();
         Assert.assertTrue(kubernetesSecretsSslContextFactory3.checkedExpiry);
@@ -431,6 +392,41 @@ public class KubernetesSecretsPEMSslContextFactoryTest
         catch (IOException e)
         {
             logger.warn("Failed to write to filePath {} from the mounted volume", filePath, e);
+        }
+    }
+
+    private static class KubernetesSecretsPEMSslContextFactoryForTestOnly extends KubernetesSecretsPEMSslContextFactory
+    {
+
+        public KubernetesSecretsPEMSslContextFactoryForTestOnly()
+        {
+        }
+
+        public KubernetesSecretsPEMSslContextFactoryForTestOnly(Map<String, Object> config)
+        {
+            super(config);
+        }
+
+        /*
+         * This is overriden to first give priority to the input map configuration since we should not be setting env
+         * variables from the unit tests. However, if the input map configuration doesn't have the value for the
+         * given key then fallback to loading from the real environment variables.
+         */
+        @Override
+        String getValueFromEnv(String envVarName, String defaultValue)
+        {
+            String envVarValue = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
+            if (StringUtils.isEmpty(envVarValue))
+            {
+                logger.info("Configuration doesn't have env variable {}. Will use parent's implementation", envVarName);
+                return super.getValueFromEnv(envVarName, defaultValue);
+            }
+            else
+            {
+                logger.info("Configuration has environment variable {} with value {}. Will use that.",
+                            envVarName, envVarValue);
+                return envVarValue;
+            }
         }
     }
 }

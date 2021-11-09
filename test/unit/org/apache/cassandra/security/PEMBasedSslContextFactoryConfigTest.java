@@ -38,7 +38,8 @@ public class PEMBasedSslContextFactoryConfigTest
     }
 
     @AfterClass
-    public static void tearDownDatabaseDescriptor() {
+    public static void tearDownDatabaseDescriptor()
+    {
         System.clearProperty("cassandra.config");
     }
 
@@ -54,7 +55,7 @@ public class PEMBasedSslContextFactoryConfigTest
         Assert.assertEquals(config.client_encryption_options.ssl_context_factory.class_name,
                             config.client_encryption_options.sslContextFactoryInstance.getClass().getName());
         PEMBasedSslContextFactory sslContextFactory =
-        (PEMBasedSslContextFactory)config.client_encryption_options.sslContextFactoryInstance;
+        (PEMBasedSslContextFactory) config.client_encryption_options.sslContextFactoryInstance;
         sslContextFactory.buildKeyManagerFactory();
         sslContextFactory.buildTrustManagerFactory();
     }
@@ -71,7 +72,7 @@ public class PEMBasedSslContextFactoryConfigTest
         Assert.assertEquals(config.server_encryption_options.ssl_context_factory.class_name,
                             config.server_encryption_options.sslContextFactoryInstance.getClass().getName());
         PEMBasedSslContextFactory sslContextFactory =
-        (PEMBasedSslContextFactory)config.server_encryption_options.sslContextFactoryInstance;
+        (PEMBasedSslContextFactory) config.server_encryption_options.sslContextFactoryInstance;
         sslContextFactory.buildKeyManagerFactory();
         sslContextFactory.buildTrustManagerFactory();
     }

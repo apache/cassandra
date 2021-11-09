@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * Custom {@link ISslContextFactory} implementation based on Kubernetes Secrets. It allows the keystore and
  * truststore paths to be configured from the K8 secrets via volumeMount and passwords via K8 secrets environment
  * variables. The official Kubernetes Secret Spec can be found <a href="https://kubernetes.io/docs/concepts/configuration/secret/ ">here</a>.
- *
+ * <p>
  * When keystore or truststore is updated, this implementation can detect that based on updated K8 secrets
  * at the mounted paths ({@code KEYSTORE_UPDATED_TIMESTAMP_PATH} for the keystore and {@code
  * TRUSTSTORE_UPDATED_TIMESTAMP_PATH} for the truststore. The values in those paths are expected to be numeric values.
@@ -39,14 +39,14 @@ import org.slf4j.LoggerFactory;
  * as well, as far as the comparison of those values can be done in a consistent/predictable manner. Again, those
  * values do not have to necessarily reflect actual file's update timestamps, using the actual file's timestamps is
  * just one of the valid options to signal updates.
- *
+ * <p>
  * Defaults:
  * <pre>
  *     private key password = cassandra
  *     keystore updated timestamp path = /etc/my-ssl-store/keystore-last-updatedtime
  *     truststore updated timestamp path = /etc/my-ssl-store/truststore-last-updatedtime
  * </pre>
- *
+ * <p>
  * Customization: In order to customize the K8s secret configuration, override appropriate values in the below Cassandra
  * configuration. The similar configuration can be applied to {@code client_encryption_options}.
  * <pre>
@@ -61,7 +61,7 @@ import org.slf4j.LoggerFactory;
  *           TRUSTED_CERTIFICATES_ENV_VAR: TRUSTED_CERTIFICATES
  *           TRUSTSTORE_UPDATED_TIMESTAMP_PATH: /etc/my-ssl-store/truststore-last-updatedtime
  * </pre>
- *
+ * <p>
  * Below is the corresponding sample YAML configuration for K8 env.
  * <pre>
  * apiVersion: v1
@@ -120,18 +120,10 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
     static final String DEFAULT_TRUSTED_CERTIFICATES_ENV_VAR_NAME = "TRUSTED_CERTIFICATES";
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesSecretsPEMSslContextFactory.class);
-
-    public interface PEMConfigKey {
-        String PRIVATE_KEY_ENV_VAR = "PRIVATE_KEY_ENV_VAR";
-        String PRIVATE_KEY_PASSWORD_ENV_VAR = "PRIVATE_KEY_PASSWORD_ENV_VAR";
-        String TRUSTED_CERTIFICATE_ENV_VAR = "TRUSTED_CERTIFICATE_ENV_VAR";
-    }
-
     private String pemEncodedKey;
     private String keyPassword;
     private String pemEncodedCertificates;
     private PEMBasedSslContextFactory pemBasedSslContextFactory;
-
     public KubernetesSecretsPEMSslContextFactory()
     {
         pemBasedSslContextFactory = new PEMBasedSslContextFactory();
@@ -157,7 +149,8 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
     }
 
     @Override
-    public synchronized void initHotReloading() {
+    public synchronized void initHotReloading()
+    {
         // No-op
     }
 
@@ -179,5 +172,12 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
         return pemBasedSslContextFactory.buildTrustManagerFactory();
+    }
+
+    public interface PEMConfigKey
+    {
+        String PRIVATE_KEY_ENV_VAR = "PRIVATE_KEY_ENV_VAR";
+        String PRIVATE_KEY_PASSWORD_ENV_VAR = "PRIVATE_KEY_PASSWORD_ENV_VAR";
+        String TRUSTED_CERTIFICATE_ENV_VAR = "TRUSTED_CERTIFICATE_ENV_VAR";
     }
 }
