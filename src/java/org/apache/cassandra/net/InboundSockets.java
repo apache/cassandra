@@ -99,15 +99,28 @@ class InboundSockets
                     throw new IllegalStateException();
                 binding = InboundConnectionInitiator.bind(settings, connections, pipelineInjector);
             }
-
-            return binding.addListener(ignore -> {
+            // isOpen is defined as "listen.isOpen", but this is set AFTER the binding future is set
+            // to make sure the future returned does not complete until listen is set, need a new
+            // future to replicate "Future.map" behavior.
+            AsyncChannelPromise promise = new AsyncChannelPromise(binding.channel());
+            binding.addListener(f -> {
+                if (!f.isSuccess())
+                {
+                    synchronized (this)
+                    {
+                        binding = null;
+                    }
+                    promise.setFailure(f.cause());
+                    return;
+                }
                 synchronized (this)
                 {
-                    if (binding.isSuccess())
-                        listen = binding.channel();
+                    listen = binding.channel();
                     binding = null;
                 }
+                promise.setSuccess(null);
             });
+            return promise;
         }
 
         /**
