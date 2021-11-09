@@ -1,4 +1,5 @@
 4.1
+ * Introduce separate rate limiting settings for entire SSTable streaming (CASSANDRA-17065)
  * Implement Virtual Tables for Auth Caches (CASSANDRA-16914)
  * Actively update auth cache in the background (CASSANDRA-16957)
  * Add unix time conversion functions (CASSANDRA-17029)

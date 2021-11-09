@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.FileRegion;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.handler.ssl.SslHandler;
@@ -204,15 +205,38 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     @VisibleForTesting
     long writeFileToChannelZeroCopy(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
+        if (!limiter.isRateLimited())
+            return writeFileToChannelZeroCopyUnthrottled(file);
+        else
+            return writeFileToChannelZeroCopyThrottled(file, limiter, batchSize, lowWaterMark, highWaterMark);
+    }
+
+    private long writeFileToChannelZeroCopyUnthrottled(FileChannel file) throws IOException
+    {
+        final long length = file.size();
+
+        if (logger.isTraceEnabled())
+            logger.trace("Writing {} bytes", length);
+
+        ChannelPromise promise = beginFlush(length, 0, length);
+        final DefaultFileRegion defaultFileRegion = new DefaultFileRegion(file, 0, length);
+        channel.writeAndFlush(defaultFileRegion, promise);
+
+        return length;
+    }
+
+    private long writeFileToChannelZeroCopyThrottled(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    {
         final long length = file.size();
         long bytesTransferred = 0;
 
         final SharedFileChannel sharedFile = SharedDefaultFileRegion.share(file);
         try
         {
+            int toWrite;
             while (bytesTransferred < length)
             {
-                int toWrite = (int) min(batchSize, length - bytesTransferred);
+                toWrite = (int) min(batchSize, length - bytesTransferred);
 
                 limiter.acquire(toWrite);
                 ChannelPromise promise = beginFlush(toWrite, lowWaterMark, highWaterMark);

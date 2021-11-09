@@ -92,7 +92,7 @@ public abstract class AsyncChannelOutputPlus extends BufferedDataOutputStreamPlu
      * <p>
      * If this method returns normally, the ChannelPromise MUST be writtenAndFlushed, or else completed exceptionally.
      */
-    protected ChannelPromise beginFlush(int byteCount, int lowWaterMark, int highWaterMark) throws IOException
+    protected ChannelPromise beginFlush(long byteCount, long lowWaterMark, long highWaterMark) throws IOException
     {
         waitForSpace(byteCount, lowWaterMark, highWaterMark);
 
@@ -125,18 +125,18 @@ public abstract class AsyncChannelOutputPlus extends BufferedDataOutputStreamPlu
      *
      * If we currently have lowWaterMark or fewer bytes flushing, we are good to go.
      * If our new write will not take us over our highWaterMark, we are good to go.
-     * Otherwise we wait until either of these conditions are met.
+     * Otherwise, we wait until either of these conditions are met.
      *
      * This may only be invoked by the writer thread, never by the eventLoop.
      *
      * @throws IOException if a prior asynchronous flush failed
      */
-    private void waitForSpace(int bytesToWrite, int lowWaterMark, int highWaterMark) throws IOException
+    private void waitForSpace(long bytesToWrite, long lowWaterMark, long highWaterMark) throws IOException
     {
         // decide when we would be willing to carry on writing
         // we are always writable if we have lowWaterMark or fewer bytes, no matter how many bytes we are flushing
         // our callers should not be supplying more than (highWaterMark - lowWaterMark) bytes, but we must work correctly if they do
-        int wakeUpWhenFlushing = highWaterMark - bytesToWrite;
+        long wakeUpWhenFlushing = highWaterMark - bytesToWrite;
         waitUntilFlushed(max(lowWaterMark, wakeUpWhenFlushing), lowWaterMark);
         flushing += bytesToWrite;
     }
@@ -147,7 +147,7 @@ public abstract class AsyncChannelOutputPlus extends BufferedDataOutputStreamPlu
      *
      * This may only be invoked by the writer thread, never by the eventLoop.
      */
-    void waitUntilFlushed(int wakeUpWhenExcessBytesWritten, int signalWhenExcessBytesWritten) throws IOException
+    void waitUntilFlushed(long wakeUpWhenExcessBytesWritten, long signalWhenExcessBytesWritten) throws IOException
     {
         // we assume that we are happy to wake up at least as early as we will be signalled; otherwise we will never exit
         assert signalWhenExcessBytesWritten <= wakeUpWhenExcessBytesWritten;

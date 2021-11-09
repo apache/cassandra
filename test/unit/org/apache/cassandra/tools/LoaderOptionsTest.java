@@ -17,12 +17,18 @@
  */
 
 package org.apache.cassandra.tools;
+
+import java.io.IOException;
 import java.nio.file.Paths;
-import org.apache.cassandra.io.util.File;
+
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.File;
+
 import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 // LoaderOptionsTester for custom configuration
 public class LoaderOptionsTest
@@ -59,8 +65,41 @@ public class LoaderOptionsTest
                 "--ssl-alg", "SunX509", "--store-type", "JKS", "--ssl-protocol", "TLS",
                 sstableDirName("legacy_sstables", "legacy_ma_simple") };
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
-        options = LoaderOptions.builder().parseArgs(args).build();
         assertEquals("test.jks", options.clientEncOptions.keystore);
+    }
+
+    @Test
+    public void testEntireSSTableDefaultSettings()
+    {
+        LoaderOptions options = LoaderOptions.builder().build();
+        assertEquals(0, options.entireSSTableThrottle);
+        assertEquals(0, options.entireSSTableInterDcThrottle);
+    }
+
+    @Test
+    public void testEntireSSTableSettings() throws IOException
+    {
+        // Default Cassandra config
+        File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
+        String[] args = { "-e", "350", "-eidct", "600", "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
+        LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
+        assertNotNull(options.entireSSTableThrottle);
+        assertEquals(350, options.entireSSTableThrottle);
+        assertNotNull(options.entireSSTableInterDcThrottle);
+        assertEquals(600, options.entireSSTableInterDcThrottle);
+    }
+
+    @Test
+    public void testEntireSSTableSettingsWithLongSettingNames() throws IOException
+    {
+        // Use long names for the args, i.e. entire-sstable-throttle
+        File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
+        String[] args = new String[]{ "--entire-sstable-throttle", "350", "--entire-sstable-inter-dc-throttle", "600", "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
+        LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
+        assertNotNull(options.entireSSTableThrottle);
+        assertEquals(350, options.entireSSTableThrottle);
+        assertNotNull(options.entireSSTableInterDcThrottle);
+        assertEquals(600, options.entireSSTableInterDcThrottle);
     }
 }
 

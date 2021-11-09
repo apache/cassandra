@@ -1884,6 +1884,16 @@ public class DatabaseDescriptor
         conf.stream_throughput_outbound_megabits_per_sec = value;
     }
 
+    public static int getEntireSSTableStreamThroughputOutboundMegabitsPerSec()
+    {
+        return conf.entire_sstable_stream_throughput_outbound_megabits_per_sec;
+    }
+
+    public static void setEntireSSTableStreamThroughputOutboundMegabitsPerSec(int value)
+    {
+        conf.entire_sstable_stream_throughput_outbound_megabits_per_sec = value;
+    }
+
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
     {
         return conf.inter_dc_stream_throughput_outbound_megabits_per_sec;
@@ -1892,6 +1902,16 @@ public class DatabaseDescriptor
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
         conf.inter_dc_stream_throughput_outbound_megabits_per_sec = value;
+    }
+
+    public static int getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec()
+    {
+        return conf.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec;
+    }
+
+    public static void setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(int value)
+    {
+        conf.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = value;
     }
 
     /**

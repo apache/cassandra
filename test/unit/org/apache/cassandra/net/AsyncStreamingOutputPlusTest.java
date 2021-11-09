@@ -105,7 +105,7 @@ public class AsyncStreamingOutputPlusTest
                 buffer.putLong(1);
                 buffer.putLong(2);
                 buffer.flip();
-            }, new StreamManager.StreamRateLimiter(FBUtilities.getBroadcastAddressAndPort()));
+            }, StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort()));
 
             assertEquals(40, out.position());
             assertEquals(40, out.flushed());
@@ -119,8 +119,26 @@ public class AsyncStreamingOutputPlusTest
     }
 
     @Test
-    public void testWriteFileToChannelZeroCopy() throws IOException
+    public void testWriteFileToChannelEntireSSTableNoThrottling() throws IOException
     {
+        // Disable throttling by setting entire SSTable throughput and entire SSTable inter-DC throughput to 0
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(0);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(0);
+        StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
+        StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
+
+        testWriteFileToChannel(true);
+    }
+
+    @Test
+    public void testWriteFileToChannelEntireSSTable() throws IOException
+    {
+        // Enable entire SSTable throttling by setting it to 200 Mbps
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(200);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(200);
+        StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
+        StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
+
         testWriteFileToChannel(true);
     }
 
@@ -136,7 +154,8 @@ public class AsyncStreamingOutputPlusTest
         int length = (int) file.length();
 
         EmbeddedChannel channel = new TestChannel(4);
-        StreamManager.StreamRateLimiter limiter = new StreamManager.StreamRateLimiter(FBUtilities.getBroadcastAddressAndPort());
+        StreamManager.StreamRateLimiter limiter = zeroCopy ? StreamManager.getEntireSSTableRateLimiter(FBUtilities.getBroadcastAddressAndPort())
+                                                           : StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort());
 
         try (RandomAccessFile raf = new RandomAccessFile(file.path(), "r");
              FileChannel fileChannel = raf.getChannel();

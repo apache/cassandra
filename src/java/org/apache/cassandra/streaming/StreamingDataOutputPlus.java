@@ -58,6 +58,8 @@ public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
     interface RateLimiter
     {
         void acquire(int bytes);
+
+        boolean isRateLimited();
     }
 
     /**

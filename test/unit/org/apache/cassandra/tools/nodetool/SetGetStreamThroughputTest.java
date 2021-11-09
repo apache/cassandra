@@ -101,6 +101,10 @@ public class SetGetStreamThroughputTest extends CQLTester
     {
         ToolResult tool = invokeNodetool("getstreamthroughput");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Current stream throughput: " + expected + " Mb/s");
+
+        if (expected > 0)
+            assertThat(tool.getStdout()).contains("Current stream throughput: " + expected + " Mb/s");
+        else
+            assertThat(tool.getStdout()).contains("Current stream throughput: unlimited");
     }
 }
