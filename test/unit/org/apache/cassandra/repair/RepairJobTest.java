@@ -83,7 +83,7 @@ import static org.junit.Assert.fail;
 
 public class RepairJobTest
 {
-    private static final long TEST_TIMEOUT_S = 10;
+    private static final long TEST_TIMEOUT_S = 60;
     private static final long THREAD_TIMEOUT_MILLIS = 100;
     private static final IPartitioner PARTITIONER = ByteOrderedPartitioner.instance;
     private static final IPartitioner MURMUR3_PARTITIONER = Murmur3Partitioner.instance;
@@ -265,7 +265,8 @@ public class RepairJobTest
         ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
 
         // Immediately following execution the internal execution queue should still retain the trees
-        assertThat(ObjectSizes.measureDeep(session)).isGreaterThan(singleTreeSize);
+        long withRetainedTrees = ObjectSizes.measureDeep(session);
+        assertThat(withRetainedTrees).isGreaterThan(singleTreeSize);
         // unblock syncComplete callback, session should remove trees
         future.complete(null);
 
@@ -279,7 +280,8 @@ public class RepairJobTest
             if (ObjectSizes.measureDeep(session) < 0.8 * singleTreeSize)
                 break;
         }
-
+        
+        assertThat(ObjectSizes.measureDeep(session)).isLessThan(withRetainedTrees);
         assertThat(millisUntilFreed).isLessThan(TEST_TIMEOUT_S * 1000);
 
         List<SyncStat> results = syncResults.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
