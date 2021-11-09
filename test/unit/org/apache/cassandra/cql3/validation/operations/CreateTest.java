@@ -661,6 +661,18 @@ public class CreateTest extends CQLTester
                            currentTable()),
                    row(map()));
 
+        // Use templates defined in test/cassandra.yaml
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = {'template' : 'skiplist'};");
+        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("template", "skiplist")));
+
         assertThrowsConfigurationException("The 'class' option must not be empty. To use default implementation, remove option.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = { 'class' : '' };");
@@ -684,6 +696,14 @@ public class CreateTest extends CQLTester
         assertThrowsConfigurationException("Could not create memtable factory for type " + InvalidMemtableFactoryField.class.getName() +  " and options {}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = { 'class' : '" + InvalidMemtableFactoryField.class.getName() + "' };");
+
+        assertThrowsConfigurationException("Memtable template unknown not found.",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'template' : 'unknown' };");
+
+        assertThrowsConfigurationException("When a memtable template is specified no other parameters can be given, was {template=skiplist, invalid=throw}",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'template' : 'skiplist', 'invalid' : 'throw' };");
     }
 
     @Test

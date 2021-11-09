@@ -61,3 +61,9 @@ local_read_size_warn_threshold: 4096KiB
 local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
+
+memtable_templates:
+    skiplist:
+        class: SkipListMemtable
+memtable:
+    template: skiplist

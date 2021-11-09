@@ -42,32 +42,13 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public final class MemtableParams
 {
-    public enum Option
-    {
-        CLASS;
-
-        @Override
-        public String toString()
-        {
-            return name().toLowerCase();
-        }
-    }
-
-    public static final MemtableParams DEFAULT = new MemtableParams();
-
     public final Memtable.Factory factory;
     public final ImmutableMap<String, String> options;
 
-    private MemtableParams()
+    private MemtableParams(Memtable.Factory factory, ImmutableMap<String, String> options)
     {
-        this.options = ImmutableMap.of();
-        this.factory = SkipListMemtableFactory.INSTANCE;
-    }
-
-    public MemtableParams(Map<String, String> options)
-    {
-        this.options = ImmutableMap.copyOf(options);
-        this.factory = getMemtableFactory(options);
+        this.options = options;
+        this.factory = factory;
     }
 
     private static Memtable.Factory getMemtableFactory(Map<String, String> options)
@@ -111,13 +92,27 @@ public final class MemtableParams
     public static MemtableParams fromMap(Map<String, String> map)
     {
         if (map == null || map.isEmpty())
-        {
-            map = DatabaseDescriptor.getMemtableOptions();
-            if (map == null || map.isEmpty())
-                return DEFAULT;
-        }
+            return DEFAULT;
 
-        return new MemtableParams(map);
+        MemtableParams byTemplate = getTemplate(map);
+        if (byTemplate != null)
+            return byTemplate;
+
+        return new MemtableParams(getMemtableFactory(map), ImmutableMap.copyOf(map));
+    }
+
+    private static MemtableParams getTemplate(Map<String, String> map)
+    {
+        String template = map.get(TEMPLATE_OPTION);
+        if (template == null)
+            return null;
+
+        if (map.size() != 1)
+            throw new ConfigurationException("When a memtable template is specified no other parameters can be given, was " + map);
+        MemtableParams params = templates.get(template);
+        if (params == null)
+            throw new ConfigurationException("Memtable template " + template + " not found.");
+        return params;
     }
 
     public Map<String, String> asMap()
@@ -150,5 +145,50 @@ public final class MemtableParams
     public int hashCode()
     {
         return factory.hashCode();
+    }
+
+    public enum Option
+    {
+        CLASS;
+
+        @Override
+        public String toString()
+        {
+            return name().toLowerCase();
+        }
+    }
+
+    public static final String TEMPLATE_OPTION = "template";
+    public static final Map<String, MemtableParams> templates;
+    public static final MemtableParams DEFAULT;
+    static {
+        templates = parseTemplates(DatabaseDescriptor.getMemtableTemplates());
+        DEFAULT = new MemtableParams(getDefaultFactory(DatabaseDescriptor.getMemtableDefault()), ImmutableMap.of());
+    }
+
+    private static Map<String, MemtableParams> parseTemplates(Map<String, Map<String, String>> templateDefinition)
+    {
+        if (templateDefinition == null)
+            return ImmutableMap.of();
+
+        Map<String, MemtableParams> templates = new HashMap<>(templateDefinition.size());
+        for (Map.Entry<String, Map<String, String>> definition : templateDefinition.entrySet())
+        {
+            String template = definition.getKey();
+            templates.put(template, new MemtableParams(getMemtableFactory(definition.getValue()),
+                                                       ImmutableMap.of(TEMPLATE_OPTION, template)));
+        }
+        return templates;
+    }
+
+    private static Memtable.Factory getDefaultFactory(Map<String, String> defaultOptions)
+    {
+        if (defaultOptions == null || defaultOptions.isEmpty())
+            return SkipListMemtableFactory.INSTANCE;
+        MemtableParams byTemplate = getTemplate(defaultOptions);
+        if (byTemplate != null)
+            return byTemplate.factory;
+        else
+            return getMemtableFactory(defaultOptions);
     }
 }

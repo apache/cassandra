@@ -613,6 +613,18 @@ public class AlterTest extends CQLTester
                            currentTable()),
                    row(map()));
 
+        // Use templates defined in test/cassandra.yaml
+        alterTable("ALTER TABLE %s"
+                    + " WITH memtable = {'template' : 'skiplist'};");
+        assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("template", "skiplist")));
+
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must not be empty. To use default implementation, remove option.",
                                         "ALTER TABLE %s"
@@ -627,6 +639,16 @@ public class AlterTest extends CQLTester
                                         "Options {invalid=throw} not expected.",
                                         "ALTER TABLE %s"
                                         + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "', 'invalid' : 'throw' };");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Memtable template unknown not found.",
+                                        "ALTER TABLE %s"
+                                        + " WITH memtable = { 'template' : 'unknown' };");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "When a memtable template is specified no other parameters can be given, was {template=skiplist, invalid=throw}",
+                                        "ALTER TABLE %s"
+                                        + " WITH memtable = { 'template' : 'skiplist', 'invalid' : 'throw' };");
     }
 
     @Test
