@@ -310,9 +310,12 @@ public class MessagingServiceTest
     @Test
     public void listenOptionalSecureConnection() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withOptional(true);
-        listen(serverEncryptionOptions, false);
+        for (int i = 0; i < 500; i++) // test used to be flaky, so run in a loop to make sure stable (see CASSANDRA-17033)
+        {
+            ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
+                                                              .withOptional(true);
+            listen(serverEncryptionOptions, false);
+        }
     }
 
     @Test
@@ -339,8 +342,8 @@ public class MessagingServiceTest
         InboundSockets connections = new InboundSockets(settings);
         try
         {
-            connections.open().await();
-            Assert.assertTrue(connections.isListening());
+            connections.open().sync();
+            Assert.assertTrue("connections is not listening", connections.isListening());
 
             Set<InetAddressAndPort> expect = new HashSet<>();
             expect.add(InetAddressAndPort.getByAddressOverrideDefaults(listenAddress, DatabaseDescriptor.getStoragePort()));
