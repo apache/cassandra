@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.streaming;
 
-import java.io.IOException;
 import java.util.Objects;
 
 import com.google.common.base.Preconditions;
