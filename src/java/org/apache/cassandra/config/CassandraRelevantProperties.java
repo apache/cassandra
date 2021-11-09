@@ -225,7 +225,10 @@ public enum CassandraRelevantProperties
     /**
      * Which class to use for creating guardrails
      */
-    CUSTOM_GUARDRAILS_FACTORY_PROPERTY("cassandra.custom_guardrails_factory_class");
+    CUSTOM_GUARDRAILS_FACTORY_PROPERTY("cassandra.custom_guardrails_factory_class"),
+    
+    /** Which class to use for dynamic snitch severity values */
+    DYNAMIC_SNITCH_SEVERITY_PROVIDER("cassandra.dynamic_snitch_severity_provider");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
