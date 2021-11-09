@@ -259,13 +259,17 @@ public class RepairJobTest
         // SyncTasks themselves should not contain significant memory
         SyncTaskListAssert.assertThat(syncTasks).hasSizeLessThan(0.2 * singleTreeSize);
 
+        // Remember the size of the session before we've executed any tasks
+        long sizeBeforeExecution = ObjectSizes.measureDeep(session);
+
         // block syncComplete execution until test has verified session still retains the trees
         CompletableFuture<?> future = new CompletableFuture<>();
         session.registerSyncCompleteCallback(future::get);
         ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
 
         // Immediately following execution the internal execution queue should still retain the trees
-        assertThat(ObjectSizes.measureDeep(session)).isGreaterThan(singleTreeSize);
+        long sizeDuringExecution = ObjectSizes.measureDeep(session);
+        assertThat(sizeDuringExecution).isGreaterThan(sizeBeforeExecution + (syncTasks.size() * singleTreeSize));
         // unblock syncComplete callback, session should remove trees
         future.complete(null);
 
@@ -274,9 +278,8 @@ public class RepairJobTest
         long millisUntilFreed;
         for (millisUntilFreed = 0; millisUntilFreed < TEST_TIMEOUT_S * 1000; millisUntilFreed += THREAD_TIMEOUT_MILLIS)
         {
-            // The measured size of the syncingTasks, and result of the computation should be much smaller
             TimeUnit.MILLISECONDS.sleep(THREAD_TIMEOUT_MILLIS);
-            if (ObjectSizes.measureDeep(session) < 0.8 * singleTreeSize)
+            if (ObjectSizes.measureDeep(session) < (sizeDuringExecution - (syncTasks.size() * singleTreeSize)))
                 break;
         }
 
