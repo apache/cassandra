@@ -271,7 +271,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     private void updateScores() // this is expensive
     {
-        if (!StorageService.instance.isGossipActive())
+        if (!DynamicSnitchSeverityProvider.instance.isReady())
             return;
         if (!registered)
         {
@@ -361,22 +361,15 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public void setSeverity(double severity)
     {
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, StorageService.instance.valueFactory.severity(severity));
+        DynamicSnitchSeverityProvider.instance.setSeverity(FBUtilities.getBroadcastAddressAndPort(), severity);
     }
 
     private double getSeverity(InetAddressAndPort endpoint)
     {
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null)
-            return 0.0;
-
-        VersionedValue event = state.getApplicationState(ApplicationState.SEVERITY);
-        if (event == null)
-            return 0.0;
-
-        return Double.parseDouble(event.value);
+        return DynamicSnitchSeverityProvider.instance.getSeverity(endpoint);
     }
 
+    @Override
     public double getSeverity()
     {
         return getSeverity(FBUtilities.getBroadcastAddressAndPort());
