@@ -17,20 +17,39 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 final class WritetimeOrTTLSelector extends Selector
 {
+    protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
+    {
+        protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
+            ColumnMetadata column = metadata.getColumn(columnName);
+            int idx = in.readInt();
+            boolean isWritetime = in.readBoolean();
+            return new WritetimeOrTTLSelector(column, idx, isWritetime);
+        }
+    };
+
     private final ColumnMetadata column;
     private final int idx;
     private final boolean isWritetime;
@@ -131,8 +150,47 @@ final class WritetimeOrTTLSelector extends Selector
 
     private WritetimeOrTTLSelector(ColumnMetadata column, int idx, boolean isWritetime)
     {
+        super(Kind.WRITETIME_OR_TTL_SELECTOR);
         this.column = column;
         this.idx = idx;
         this.isWritetime = isWritetime;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof WritetimeOrTTLSelector))
+            return false;
+
+        WritetimeOrTTLSelector s = (WritetimeOrTTLSelector) o;
+
+        return Objects.equal(column, s.column)
+            && Objects.equal(idx, s.idx)
+            && Objects.equal(isWritetime, s.isWritetime);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(column, idx, isWritetime);
+    }
+
+    @Override
+    protected int serializedSize(int version)
+    {
+        return ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes)
+                + TypeSizes.sizeof(idx)
+                + TypeSizes.sizeof(isWritetime);
+    }
+
+    @Override
+    protected void serialize(DataOutputPlus out, int version) throws IOException
+    {
+        ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
+        out.writeInt(idx);
+        out.writeBoolean(isWritetime);
     }
 }

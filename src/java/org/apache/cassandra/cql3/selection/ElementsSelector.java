@@ -17,17 +17,24 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.selection.SimpleSelector.SimpleSelectorFactory;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -38,8 +45,9 @@ abstract class ElementsSelector extends Selector
 {
     protected final Selector selected;
 
-    protected ElementsSelector(Selector selected)
+    protected ElementsSelector(Kind kind,Selector selected)
     {
+        super(kind);
         this.selected = selected;
     }
 
@@ -234,14 +242,25 @@ abstract class ElementsSelector extends Selector
         return selected.isTerminal();
     }
 
-    private static class ElementSelector extends ElementsSelector
+    static class ElementSelector extends ElementsSelector
     {
+        protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
+        {
+            protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+            {
+                Selector selected = Selector.serializer.deserialize(in, version, metadata);
+                ByteBuffer key = ByteBufferUtil.readWithVIntLength(in);
+
+                return new ElementSelector(selected, key);
+            }
+        };
+
         private final CollectionType<?> type;
         private final ByteBuffer key;
 
         private ElementSelector(Selector selected, ByteBuffer key)
         {
-            super(selected);
+            super(Kind.ELEMENT_SELECTOR, selected);
             assert selected.getType() instanceof MapType || selected.getType() instanceof SetType : "this shouldn't have passed validation in Selectable";
             this.type = (CollectionType<?>) selected.getType();
             this.key = key;
@@ -275,10 +294,60 @@ abstract class ElementsSelector extends Selector
         {
             return String.format("%s[%s]", selected, keyType(type).getString(key));
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (!(o instanceof ElementSelector))
+                return false;
+
+            ElementSelector s = (ElementSelector) o;
+
+            return Objects.equal(selected, s.selected)
+                && Objects.equal(key, s.key);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(selected, key);
+        }
+
+        @Override
+        protected int serializedSize(int version)
+        {
+            return TypeSizes.sizeofWithVIntLength(key) + serializer.serializedSize(selected, version);
+        }
+
+        @Override
+        protected void serialize(DataOutputPlus out, int version) throws IOException
+        {
+            serializer.serialize(selected, out, version);
+            ByteBufferUtil.serializedSizeWithVIntLength(key);
+        }
     }
 
-    private static class SliceSelector extends ElementsSelector
+    static class SliceSelector extends ElementsSelector
     {
+        protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
+        {
+            protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+            {
+                Selector selected = Selector.serializer.deserialize(in, version, metadata);
+
+                boolean isFromUnset = in.readBoolean();
+                ByteBuffer from = isFromUnset ? ByteBufferUtil.UNSET_BYTE_BUFFER : ByteBufferUtil.readWithVIntLength(in);
+
+                boolean isToUnset = in.readBoolean();
+                ByteBuffer to = isToUnset ? ByteBufferUtil.UNSET_BYTE_BUFFER : ByteBufferUtil.readWithVIntLength(in);
+
+                return new SliceSelector(selected, from, to);
+            }
+        };
+
         private final CollectionType<?> type;
 
         // Note that neither from nor to can be null, but they can both be ByteBufferUtil.UNSET_BYTE_BUFFER to represent no particular bound
@@ -287,7 +356,7 @@ abstract class ElementsSelector extends Selector
 
         private SliceSelector(Selector selected, ByteBuffer from, ByteBuffer to)
         {
-            super(selected);
+            super(Kind.SLICE_SELECTOR, selected);
             assert selected.getType() instanceof MapType || selected.getType() instanceof SetType : "this shouldn't have passed validation in Selectable";
             assert from != null && to != null : "We can have unset buffers, but not nulls";
             this.type = (CollectionType<?>) selected.getType();
@@ -326,6 +395,58 @@ abstract class ElementsSelector extends Selector
             return fromUnset && toUnset
                  ? selected.toString()
                  : String.format("%s[%s..%s]", selected, fromUnset ? "" : keyType(type).getString(from), toUnset ? "" : keyType(type).getString(to));
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (!(o instanceof SliceSelector))
+                return false;
+
+            SliceSelector s = (SliceSelector) o;
+
+            return Objects.equal(selected, s.selected)
+                && Objects.equal(from, s.from)
+                && Objects.equal(to, s.to);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(selected, from, to);
+        }
+
+        @Override
+        protected int serializedSize(int version)
+        {
+            int size = serializer.serializedSize(selected, version) + 2;
+
+            if (!isUnset(from))
+                size += TypeSizes.sizeofWithVIntLength(from);
+
+            if (!isUnset(to))
+                size += TypeSizes.sizeofWithVIntLength(to);
+
+            return size;
+        }
+
+        @Override
+        protected void serialize(DataOutputPlus out, int version) throws IOException
+        {
+            serializer.serialize(selected, out, version);
+
+            boolean isFromUnset = isUnset(from);
+            out.writeBoolean(isFromUnset);
+            if (!isFromUnset)
+                ByteBufferUtil.serializedSizeWithVIntLength(from);
+
+            boolean isToUnset = isUnset(to);
+            out.writeBoolean(isToUnset);
+            if (!isToUnset)
+                ByteBufferUtil.serializedSizeWithVIntLength(to);
         }
     }
 }

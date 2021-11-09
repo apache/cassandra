@@ -17,15 +17,23 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -35,6 +43,20 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 final class ListSelector extends Selector
 {
+    protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
+    {
+        protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            ListType<?> type = (ListType<?>) readType(metadata, in);
+            int size = (int) in.readUnsignedVInt();
+            List<Selector> elements = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+                elements.add(serializer.deserialize(in, version, metadata));
+
+            return new ListSelector(type, elements);
+        }
+    };
+
     /**
      * The list type.
      */
@@ -114,7 +136,48 @@ final class ListSelector extends Selector
 
     private ListSelector(AbstractType<?> type, List<Selector> elements)
     {
+        super(Kind.LIST_SELECTOR);
         this.type = type;
         this.elements = elements;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof ListSelector))
+            return false;
+
+        ListSelector s = (ListSelector) o;
+
+        return Objects.equal(type, s.type)
+            && Objects.equal(elements, s.elements);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(type, elements);
+    }
+
+    @Override
+    protected int serializedSize(int version)
+    {
+        int size = sizeOf(type) + TypeSizes.sizeofUnsignedVInt(elements.size());
+        for (int i = 0, m = elements.size(); i < m; i++)
+            size += serializer.serializedSize(elements.get(i), version);
+
+        return size;
+    }
+
+    @Override
+    protected void serialize(DataOutputPlus out, int version) throws IOException
+    {
+        writeType(out, type);
+        out.writeUnsignedVInt(elements.size());
+        for (int i = 0, m = elements.size(); i < m; i++)
+            serializer.serialize(elements.get(i), out, version);
     }
 }

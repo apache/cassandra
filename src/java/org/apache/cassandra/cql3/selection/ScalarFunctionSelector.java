@@ -27,6 +27,15 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFunction>
 {
+    protected static final SelectorDeserializer deserializer = new AbstractFunctionSelectorDeserializer()
+    {
+        @Override
+        protected Selector newFunctionSelector(Function function, List<Selector> argSelectors)
+        {
+            return new ScalarFunctionSelector(function, argSelectors);
+        }
+    };
+
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)
@@ -53,6 +62,6 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
 
     ScalarFunctionSelector(Function fun, List<Selector> argSelectors)
     {
-        super((ScalarFunction) fun, argSelectors);
+        super(Kind.SCALAR_FUNCTION_SELECTOR, (ScalarFunction) fun, argSelectors);
     }
 }

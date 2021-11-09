@@ -17,17 +17,24 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.schema.CQLTypeParser;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -38,6 +45,50 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 public abstract class Selector
 {
+    protected static abstract class SelectorDeserializer
+    {
+        protected abstract Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException;
+
+        protected final AbstractType<?> readType(TableMetadata metadata, DataInputPlus in) throws IOException
+        {
+            KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
+            return readType(keyspace, in);
+        }
+
+        protected final AbstractType<?> readType(KeyspaceMetadata keyspace, DataInputPlus in) throws IOException
+        {
+            String cqlType = in.readUTF();
+            return CQLTypeParser.parse(keyspace.name, cqlType, keyspace.types);
+        }
+    }
+
+    /**
+     * The <code>Selector</code> kinds.
+     */
+    public static enum Kind
+    {
+        SIMPLE_SELECTOR(SimpleSelector.deserializer),
+        TERM_SELECTOR(TermSelector.deserializer),
+        WRITETIME_OR_TTL_SELECTOR(WritetimeOrTTLSelector.deserializer),
+        LIST_SELECTOR(ListSelector.deserializer),
+        SET_SELECTOR(SetSelector.deserializer),
+        MAP_SELECTOR(MapSelector.deserializer),
+        TUPLE_SELECTOR(TupleSelector.deserializer),
+        USER_TYPE_SELECTOR(UserTypeSelector.deserializer),
+        FIELD_SELECTOR(FieldSelector.deserializer),
+        SCALAR_FUNCTION_SELECTOR(ScalarFunctionSelector.deserializer),
+        AGGREGATE_FUNCTION_SELECTOR(AggregateFunctionSelector.deserializer),
+        ELEMENT_SELECTOR(ElementsSelector.ElementSelector.deserializer),
+        SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer);
+
+        private final SelectorDeserializer deserializer;
+
+        Kind(SelectorDeserializer deserializer)
+        {
+            this.deserializer = deserializer;
+        }
+    }
+
     /**
      * A factory for <code>Selector</code> instances.
      */
@@ -174,6 +225,50 @@ public abstract class Selector
         abstract void addFetchedColumns(ColumnFilter.Builder builder);
     }
 
+    public static class Serializer
+    {
+        public void serialize(Selector selector, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeByte(selector.kind().ordinal());
+            selector.serialize(out, version);
+        }
+
+        public Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            Kind kind = Kind.values()[in.readUnsignedByte()];
+            return kind.deserializer.deserialize(in, version, metadata);
+        }
+
+        public int serializedSize(Selector selector, int version)
+        {
+            return TypeSizes.sizeof((byte) selector.kind().ordinal()) + selector.serializedSize(version);
+        }
+    }
+
+    /**
+     * The {@code Selector} serializer.
+     */
+    public static final Serializer serializer = new Serializer();
+
+    /**
+     * The {@code Selector} kind.
+     */
+    private final Kind kind;
+
+    /**
+     * Returns the {@code Selector} kind.
+     * @return the {@code Selector} kind
+     */
+    public final Kind kind()
+    {
+        return kind;
+    }
+
+    protected Selector(Kind kind)
+    {
+        this.kind = kind;
+    }
+
     /**
      * Add to the provided builder the column (and potential subselections) to fetch for this
      * selection.
@@ -220,5 +315,19 @@ public abstract class Selector
     public boolean isTerminal()
     {
         return false;
+    }
+
+    protected abstract int serializedSize(int version);
+
+    protected abstract void serialize(DataOutputPlus out, int version) throws IOException;
+
+    protected static void writeType(DataOutputPlus out, AbstractType<?> type) throws IOException
+    {
+        out.writeUTF(type.asCQL3Type().toString());
+    }
+
+    protected static int sizeOf(AbstractType<?> type)
+    {
+        return TypeSizes.sizeof(type.asCQL3Type().toString());
     }
 }

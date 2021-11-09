@@ -17,27 +17,96 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.PartialScalarFunction;
 import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+
+import static java.util.stream.Collectors.joining;
 
 abstract class AbstractFunctionSelector<T extends Function> extends Selector
 {
+    protected static abstract class AbstractFunctionSelectorDeserializer extends SelectorDeserializer
+    {
+        protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        {
+            FunctionName name = new FunctionName(in.readUTF(), in.readUTF());
+
+            KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
+
+            int numberOfArguments = (int) in.readUnsignedVInt();
+            List<AbstractType<?>> argTypes = new ArrayList<>(numberOfArguments);
+            for (int i = 0; i < numberOfArguments; i++)
+            {
+                argTypes.add(readType(keyspace, in));
+            }
+
+            Optional<Function> optional = Schema.instance.findFunction(name, argTypes);
+
+            if (!optional.isPresent())
+                throw new IOException(String.format("Unknown serialized function %s(%s)",
+                                                    name,
+                                                    argTypes.stream()
+                                                            .map(p -> p.asCQL3Type().toString())
+                                                            .collect(joining(", "))));
+
+            Function function = optional.get();
+
+            boolean isPartial = in.readBoolean();
+            if (isPartial)
+            {
+                int bitset = (int) in.readUnsignedVInt();
+                List<ByteBuffer> partialParameters = new ArrayList<>(numberOfArguments);
+                for (int i = 0; i < numberOfArguments; i++)
+                {
+                    ByteBuffer parameter = ((bitset & 1) == 1) ? ByteBufferUtil.readWithVIntLength(in)
+                                                               : Function.UNRESOLVED;
+                    partialParameters.add(parameter);
+                    bitset >>= 1;
+                }
+
+                function = ((ScalarFunction) function).partialApplication(ProtocolVersion.CURRENT, partialParameters);
+            }
+
+            int numberOfRemainingArguments = (int) in.readUnsignedVInt();
+            List<Selector> argSelectors = new ArrayList<>(numberOfRemainingArguments);
+            for (int i = 0; i < numberOfRemainingArguments; i++)
+            {
+                argSelectors.add(Selector.serializer.deserialize(in, version, metadata));
+            }
+
+            return newFunctionSelector(function, argSelectors);
+        }
+
+        protected abstract Selector newFunctionSelector(Function function, List<Selector> argSelectors);
+    };
+    
     protected final T fun;
 
     /**
@@ -162,8 +231,9 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         };
     }
 
-    protected AbstractFunctionSelector(T fun, List<Selector> argSelectors)
+    protected AbstractFunctionSelector(Kind kind, T fun, List<Selector> argSelectors)
     {
+        super(kind);
         this.fun = fun;
         this.argSelectors = argSelectors;
         this.args = Arrays.asList(new ByteBuffer[argSelectors.size()]);
@@ -195,6 +265,28 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
     }
 
     @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof AbstractFunctionSelector))
+            return false;
+
+        AbstractFunctionSelector<?> s = (AbstractFunctionSelector<?>) o;
+
+        return Objects.equal(fun.name(), s.fun.name())
+            && Objects.equal(fun.argTypes(), s.fun.argTypes())
+            && Objects.equal(argSelectors, s.argSelectors);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(fun.name(), fun.argTypes(), argSelectors);
+    }
+
+    @Override
     public String toString()
     {
         return new StrBuilder().append(fun.name())
@@ -202,5 +294,97 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                                .appendWithSeparators(argSelectors, ", ")
                                .append(")")
                                .toString();
+    }
+
+    @Override
+    protected int serializedSize(int version)
+    {
+        boolean isPartial = fun instanceof PartialScalarFunction;
+        Function function = isPartial ? ((PartialScalarFunction) fun).getFunction() : fun;
+
+        FunctionName name = function.name();
+        int size =  TypeSizes.sizeof(name.keyspace) + TypeSizes.sizeof(name.name);
+
+        List<AbstractType<?>> argTypes = function.argTypes();
+        size += TypeSizes.sizeofUnsignedVInt(argTypes.size());
+        for (int i = 0, m = argTypes.size(); i < m; i++)
+        {
+            size += sizeOf(argTypes.get(i));
+        }
+
+        size += TypeSizes.sizeof(isPartial);
+
+        if (isPartial)
+        {
+            List<ByteBuffer> partialParameters = ((PartialScalarFunction) fun).getPartialParameters();
+
+            // We use a bitset to track the position of the unresolved arguments
+            size += TypeSizes.sizeofUnsignedVInt(computeBitSet(partialParameters));
+
+            for (int i = 0, m = partialParameters.size(); i < m; i++)
+            {
+                ByteBuffer buffer = partialParameters.get(i);
+                if (buffer != Function.UNRESOLVED)
+                    size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
+            }
+        }
+
+        int numberOfRemainingArguments = argSelectors.size();
+        size += TypeSizes.sizeofUnsignedVInt(numberOfRemainingArguments);
+        for (int i = 0; i < numberOfRemainingArguments; i++)
+            size += serializer.serializedSize(argSelectors.get(i), version);
+
+        return size;
+    }
+
+    @Override
+    protected void serialize(DataOutputPlus out, int version) throws IOException
+    {
+        boolean isPartial = fun instanceof PartialScalarFunction;
+        Function function = isPartial ? ((PartialScalarFunction) fun).getFunction() : fun;
+
+        FunctionName name = function.name();
+        out.writeUTF(name.keyspace);
+        out.writeUTF(name.name);
+
+        List<AbstractType<?>> argTypes = function.argTypes();
+        int numberOfArguments = argTypes.size();
+        out.writeUnsignedVInt(numberOfArguments);
+
+        for (int i = 0; i < numberOfArguments; i++)
+            writeType(out, argTypes.get(i));
+
+        out.writeBoolean(isPartial);
+
+        if (isPartial)
+        {
+            List<ByteBuffer> partialParameters = ((PartialScalarFunction) fun).getPartialParameters();
+
+            // We use a bitset to track the position of the unresolved arguments
+            out.writeUnsignedVInt(computeBitSet(partialParameters));
+
+            for (int i = 0, m = partialParameters.size(); i < m; i++)
+            {
+                ByteBuffer buffer = partialParameters.get(i);
+                if (buffer != Function.UNRESOLVED)
+                    ByteBufferUtil.writeWithVIntLength(buffer, out);
+            }
+        }
+
+        int numberOfRemainingArguments = argSelectors.size();
+        out.writeUnsignedVInt(numberOfRemainingArguments);
+        for (int i = 0; i < numberOfRemainingArguments; i++)
+            serializer.serialize(argSelectors.get(i), out, version);
+    }
+
+    private int computeBitSet(List<ByteBuffer> partialParameters)
+    {
+        int bitset = 0;
+        for (int i = 0, m = partialParameters.size(); i < m; i++)
+        {
+            if (partialParameters.get(i) != Function.UNRESOLVED)
+                bitset |= 1 << i;
+        }
+        return bitset;
     }
 }

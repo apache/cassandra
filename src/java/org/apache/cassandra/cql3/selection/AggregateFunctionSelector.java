@@ -27,6 +27,15 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 final class AggregateFunctionSelector extends AbstractFunctionSelector<AggregateFunction>
 {
+    protected static final SelectorDeserializer deserializer = new AbstractFunctionSelectorDeserializer()
+    {
+        @Override
+        protected Selector newFunctionSelector(Function function, List<Selector> argSelectors)
+        {
+            return new AggregateFunctionSelector(function, argSelectors);
+        }
+    };
+
     private final AggregateFunction.Aggregate aggregate;
 
     public boolean isAggregate()
@@ -59,7 +68,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
 
     AggregateFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
     {
-        super((AggregateFunction) fun, argSelectors);
+        super(Kind.AGGREGATE_FUNCTION_SELECTOR, (AggregateFunction) fun, argSelectors);
 
         this.aggregate = this.fun.newAggregate();
     }
