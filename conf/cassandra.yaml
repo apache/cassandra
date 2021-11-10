@@ -947,9 +947,6 @@ request_timeout_in_ms: 10000
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
 # internode_streaming_tcp_user_timeout_in_ms: 300000
 
-# The maximum continuous period a connection may be unwritable in application space
-# internode_application_timeout_in_ms: 30000
-
 # Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 # and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
 # size of the message being sent or received.
@@ -1314,42 +1311,6 @@ compaction_large_partition_warning_threshold_mb: 100
 # early. Any value size larger than this threshold will result into marking an SSTable
 # as corrupted. This should be positive and less than 2048.
 # max_value_size_in_mb: 256
-
-# Coalescing Strategies #
-# Coalescing multiples messages turns out to significantly boost message processing throughput (think doubling or more).
-# On bare metal, the floor for packet processing throughput is high enough that many applications won't notice, but in
-# virtualized environments, the point at which an application can be bound by network packet processing can be
-# surprisingly low compared to the throughput of task processing that is possible inside a VM. It's not that bare metal
-# doesn't benefit from coalescing messages, it's that the number of packets a bare metal network interface can process
-# is sufficient for many applications such that no load starvation is experienced even without coalescing.
-# There are other benefits to coalescing network messages that are harder to isolate with a simple metric like messages
-# per second. By coalescing multiple tasks together, a network thread can process multiple messages for the cost of one
-# trip to read from a socket, and all the task submission work can be done at the same time reducing context switching
-# and increasing cache friendliness of network message processing.
-# See CASSANDRA-8692 for details.
-
-# Strategy to use for coalescing messages in OutboundTcpConnection.
-# Can be fixed, movingaverage, timehorizon, disabled (default).
-# You can also specify a subclass of CoalescingStrategies.CoalescingStrategy by name.
-# otc_coalescing_strategy: DISABLED
-
-# How many microseconds to wait for coalescing. For fixed strategy this is the amount of time after the first
-# message is received before it will be sent with any accompanying messages. For moving average this is the
-# maximum amount of time that will be waited as well as the interval at which messages must arrive on average
-# for coalescing to be enabled.
-# otc_coalescing_window_us: 200
-
-# Do not try to coalesce messages if we already got that many messages. This should be more than 2 and less than 128.
-# otc_coalescing_enough_coalesced_messages: 8
-
-# How many milliseconds to wait between two expiration runs on the backlog (queue) of the OutboundTcpConnection.
-# Expiration is done if messages are piling up in the backlog. Droppable messages are expired to free the memory
-# taken by expired messages. The interval should be between 0 and 1000, and in most installations the default value
-# will be appropriate. A smaller value could potentially expire messages slightly sooner at the expense of more CPU
-# time and queue contention while iterating the backlog of messages.
-# An interval of 0 disables any wait time, which is the behavior of former Cassandra versions.
-#
-# otc_backlog_expiration_interval_ms: 200
 
 # Track a metric per keyspace indicating whether replication achieved the ideal consistency
 # level for writes without timing out. This is different from the consistency level requested by
