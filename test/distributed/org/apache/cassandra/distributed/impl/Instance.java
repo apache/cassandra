@@ -438,27 +438,31 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void receiveMessage(IMessage imessage)
     {
-        sync(() -> {
-            // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
-            try
+        sync(() -> receiveMessageWithInvokingThread(imessage)).run();
+    }
+
+    @Override
+    public void receiveMessageWithInvokingThread(IMessage imessage)
+    {
+        // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
+        try
+        {
+            MessageIn message = deserializeMessage(imessage);
+            if (message == null)
             {
-                MessageIn message = deserializeMessage(imessage);
-                if (message == null)
-                {
-                    // callback expired; nothing to do
-                    return;
-                }
-                if (message.version <= MessagingService.current_version)
-                {
-                    MessagingService.instance().receive(message, imessage.id());
-                }
-                // else ignore message
+                // callback expired; nothing to do
+                return;
             }
-            catch (Throwable t)
+            if (message.version <= MessagingService.current_version)
             {
-                throw new RuntimeException("Exception occurred on node " + broadcastAddress(), t);
+                MessagingService.instance().receive(message, imessage.id());
             }
-        }).run();
+            // else ignore message
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Exception occurred on node " + broadcastAddress(), t);
+        }
     }
 
     public int getMessagingVersion()
@@ -603,7 +607,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static Config loadConfig(IInstanceConfig overrides)
     {
-        Map<String,Object> params = ((InstanceConfig) overrides).getParams();
+        Map<String,Object> params = overrides.getParams();
         boolean check = true;
         if (overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK) != null)
             check = (boolean) overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK);
