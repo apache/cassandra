@@ -464,50 +464,45 @@ public class RangeStreamer
                  //With transient replication and strict consistency this is to get the full data from a full replica and
                  //transient data from the transient replica losing data
                  EndpointsForRange sources;
-                 if (useStrictConsistency)
+                 //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
+                 //So we need to be careful to only be strict when endpoints == RF
+                 boolean isStrictConsistencyApplicable = useStrictConsistency && (oldEndpoints.size() == strat.getReplicationFactor().allReplicas);
+                 if (isStrictConsistencyApplicable)
                  {
                      EndpointsForRange strictEndpoints;
-                     //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
-                     //So we need to be careful to only be strict when endpoints == RF
-                     if (oldEndpoints.size() == strat.getReplicationFactor().allReplicas)
+
+                     //Start with two sets of who replicates the range before and who replicates it after
+                     EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
+                     logger.debug("Old endpoints {}", oldEndpoints);
+                     logger.debug("New endpoints {}", newEndpoints);
+
+                     // Remove new endpoints from old endpoints based on address
+                     strictEndpoints = oldEndpoints.without(newEndpoints.endpoints());
+
+                     if (strictEndpoints.size() > 1)
+                         throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
+
+                     //We have to check the source filters here to see if they will remove any replicas
+                     //required for strict consistency
+                     if (!all(strictEndpoints, testSourceFilters))
+                         throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
+
+                     //If we are transitioning from transient to full and and the set of replicas for the range is not changing
+                     //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
+                     //since we are already a transient replica and the existing replica remains.
+                     //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
+                     //So it's an error if we don't find what we need.
+                     if (strictEndpoints.isEmpty() && toFetch.isTransient())
+                         throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
+
+                     if (!any(strictEndpoints, isSufficient))
                      {
-                         //Start with two sets of who replicates the range before and who replicates it after
-                         EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
-                         logger.debug("Old endpoints {}", oldEndpoints);
-                         logger.debug("New endpoints {}", newEndpoints);
-
-                         // Remove new endpoints from old endpoints based on address
-                         strictEndpoints = oldEndpoints.without(newEndpoints.endpoints());
-
-                         if (strictEndpoints.size() > 1)
-                             throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
-
-                         //We have to check the source filters here to see if they will remove any replicas
-                         //required for strict consistency
-                         if (!all(strictEndpoints, testSourceFilters))
-                             throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
-
-                         //If we are transitioning from transient to full and and the set of replicas for the range is not changing
-                         //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
-                         //since we are already a transient replica and the existing replica remains.
-                         //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
-                         //So it's an error if we don't find what we need.
-                         if (strictEndpoints.isEmpty() && toFetch.isTransient())
-                             throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
-
-                         if (!any(strictEndpoints, isSufficient))
-                         {
-                             // need an additional replica; include all our filters, to ensure we include a matching node
-                             Optional<Replica> fullReplica = Iterables.<Replica>tryFind(oldEndpoints, and(isSufficient, testSourceFilters)).toJavaUtil();
-                             if (fullReplica.isPresent())
-                                 strictEndpoints = Endpoints.concat(strictEndpoints, EndpointsForRange.of(fullReplica.get()));
-                             else
-                                 throw new IllegalStateException("Couldn't find any matching sufficient replica out of " + buildErrorMessage(sourceFilters, oldEndpoints));
-                         }
-                     }
-                     else
-                     {
-                         strictEndpoints = sorted.apply(oldEndpoints.filter(and(isSufficient, testSourceFilters)));
+                         // need an additional replica; include all our filters, to ensure we include a matching node
+                         Optional<Replica> fullReplica = Iterables.<Replica>tryFind(oldEndpoints, and(isSufficient, testSourceFilters)).toJavaUtil();
+                         if (fullReplica.isPresent())
+                             strictEndpoints = Endpoints.concat(strictEndpoints, EndpointsForRange.of(fullReplica.get()));
+                         else
+                             throw new IllegalStateException("Couldn't find any matching sufficient replica out of " + buildErrorMessage(sourceFilters, oldEndpoints));
                      }
 
                      sources = strictEndpoints;
