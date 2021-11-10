@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
@@ -124,8 +125,10 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
      * @return KeyManagerFactory built from the file based keystore.
      * @throws SSLException if any issues encountered during the build process
      */
+    @Override
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
+
         try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
         {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(
@@ -134,16 +137,7 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
             ks.load(ksf, keystore_password.toCharArray());
             if (!checkedExpiry)
             {
-                for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
-                {
-                    String alias = aliases.nextElement();
-                    if (ks.getCertificate(alias).getType().equals("X.509"))
-                    {
-                        Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
-                        if (expires.before(new Date()))
-                            logger.warn("Certificate for {} expired on {}", alias, expires);
-                    }
-                }
+                checkExpiredCerts(ks);
                 checkedExpiry = true;
             }
             kmf.init(ks, keystore_password.toCharArray());
@@ -161,6 +155,7 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
      * @return TrustManagerFactory from the file based truststore
      * @throws SSLException if any issues encountered during the build process
      */
+    @Override
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
         try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
@@ -178,10 +173,29 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
         }
     }
 
+    protected boolean checkExpiredCerts(KeyStore ks) throws KeyStoreException
+    {
+        boolean hasExpiredCerts = false;
+        for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
+        {
+            String alias = aliases.nextElement();
+            if (ks.getCertificate(alias).getType().equals("X.509"))
+            {
+                Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
+                if (expires.before(new Date()))
+                {
+                    hasExpiredCerts = true;
+                    logger.warn("Certificate for {} expired on {}", alias, expires);
+                }
+            }
+        }
+        return hasExpiredCerts;
+    }
+
     /**
      * Helper class for hot reloading SSL Contexts
      */
-    private static class HotReloadableFile
+    protected static class HotReloadableFile
     {
         private final File file;
         private volatile long lastModTime;
