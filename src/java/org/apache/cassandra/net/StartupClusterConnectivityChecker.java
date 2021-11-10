@@ -33,7 +33,6 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,6 +120,8 @@ public class StartupClusterConnectivityChecker
                         TimeUnit.NANOSECONDS.toSeconds(timeoutNanos));
         }
 
+        // The threshold is 3 because for each peer we want to have 3 acks,
+        // one for small message connection, one for large message connnection and one for alive event from gossip.
         AckMap acks = new AckMap(3, peers);
         Map<String, CountDownLatch> dcToRemainingPeers = new HashMap<>(datacenterToPeers.size());
         for (String datacenter: datacenterToPeers.keys())
@@ -248,12 +249,12 @@ public class StartupClusterConnectivityChecker
             this.threshold = threshold;
             acks = new ConcurrentHashMap<>();
             for (InetAddressAndPort peer : initialPeers)
-                initForPeer(peer);
+                initOrGetCounter(peer);
         }
 
         boolean incrementAndCheck(InetAddressAndPort address)
         {
-            return initForPeer(address).incrementAndGet() == threshold;
+            return initOrGetCounter(address).incrementAndGet() == threshold;
         }
 
         /**
@@ -271,7 +272,7 @@ public class StartupClusterConnectivityChecker
         }
 
         // init the counter for the peer just in case
-        private AtomicInteger initForPeer(InetAddressAndPort address)
+        private AtomicInteger initOrGetCounter(InetAddressAndPort address)
         {
             return acks.computeIfAbsent(address, addr -> new AtomicInteger(0));
         }
