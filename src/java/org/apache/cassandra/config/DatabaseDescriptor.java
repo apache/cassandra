@@ -3138,6 +3138,17 @@ public class DatabaseDescriptor
         conf.cdc_enabled = cdc_enabled;
     }
 
+    public static boolean shouldCDCBlockWrites()
+    {
+        return conf.cdc_block_writes;
+    }
+
+    public static void setCDCBlockWrites(boolean val)
+    {
+        Thread.dumpStack();
+        conf.cdc_block_writes = val;
+    }
+
     public static String getCDCLogLocation()
     {
         return conf.cdc_raw_directory;

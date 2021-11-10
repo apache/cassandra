@@ -65,31 +65,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @Test
     public void testCDCWriteFailure() throws Throwable
     {
-        createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
-        CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
-        TableMetadata cfm = currentTableMetadata();
-
-        // Confirm that logic to check for whether or not we can allocate new CDC segments works
-        Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
-        try
-        {
-            DatabaseDescriptor.setCDCSpaceInMB(32);
-            // Spin until we hit CDC capacity and make sure we get a CDCWriteException
-            try
-            {
-                // Should trigger on anything < 20:1 compression ratio during compressed test
-                for (int i = 0; i < 100; i++)
-                {
-                    new RowUpdateBuilder(cfm, 0, i)
-                        .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-                        .build().apply();
-                }
-                Assert.fail("Expected CDCWriteException from full CDC but did not receive it.");
-            }
-            catch (CDCWriteException e)
-            {
-                // expected, do nothing
-            }
+        testWithCDCSpaceInMb(32, () -> {
+            createTableAndBulkWrite();
             expectCurrentCDCState(CDCState.FORBIDDEN);
 
             // Confirm we can create a non-cdc table and write to it even while at cdc capacity
@@ -97,6 +74,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             execute("INSERT INTO %s (idx, data) VALUES (1, '1');");
 
             // Confirm that, on flush+recyle, we see files show up in cdc_raw
+            CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
             Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
             CommitLog.instance.forceRecycleAllSegments();
             cdcMgr.awaitManagementTasksCompletion();
@@ -109,57 +87,55 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             // Update size tracker to reflect deleted files. Should flip flag on current allocatingFrom to allow.
             cdcMgr.updateCDCTotalSize();
             expectCurrentCDCState(CDCState.PERMITTED);
-        }
-        finally
-        {
-            DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
-        }
+        });
     }
 
     @Test
     public void testSegmentFlaggingOnCreation() throws Throwable
     {
-        CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
-        String ct = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
+        testSegmentFlaggingOnCreation0();
+    }
 
-        int origSize = DatabaseDescriptor.getCDCSpaceInMB();
-        try
-        {
-            DatabaseDescriptor.setCDCSpaceInMB(16);
-            TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(ct).metadata();
-            // Spin until we hit CDC capacity and make sure we get a CDCWriteException
-            try
-            {
-                for (int i = 0; i < 1000; i++)
-                {
-                    new RowUpdateBuilder(ccfm, 0, i)
-                        .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-                        .build().apply();
-                }
-                Assert.fail("Expected CDCWriteException from full CDC but did not receive it.");
-            }
-            catch (CDCWriteException e) { }
+    @Test
+    public void testSegmentFlaggingWithNonblockingOnCreation() throws Throwable
+    {
+        testWithNonblockingMode(this::testSegmentFlaggingOnCreation0);
+    }
 
-            expectCurrentCDCState(CDCState.FORBIDDEN);
-            CommitLog.instance.forceRecycleAllSegments();
-
-            cdcMgr.awaitManagementTasksCompletion();
-            // Delete all files in cdc_raw
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
-                f.tryDelete();
-            cdcMgr.updateCDCTotalSize();
-            // Confirm cdc update process changes flag on active segment
-            expectCurrentCDCState(CDCState.PERMITTED);
-
-            // Clear out archived CDC files
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList()) {
-                FileUtils.deleteWithConfirm(f);
-            }
+    @Test
+    public void testNonblockingShouldMaintainSteadyDiskUsage() throws Throwable
+    {
+        final int commitlogSize = DatabaseDescriptor.getCommitLogSegmentSize() / 1024 / 1024;
+        final int cdcSizeLimit = commitlogSize + 1;
+        // Clear out all CDC files
+        for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList()) {
+            FileUtils.deleteWithConfirm(f);
         }
-        finally
-        {
-            DatabaseDescriptor.setCDCSpaceInMB(origSize);
-        }
+        testWithNonblockingMode(() -> testWithCDCSpaceInMb(cdcSizeLimit, () -> {
+            CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
+            Assert.assertEquals(0, cdcMgr.updateCDCTotalSize());
+
+            createTableAndBulkWrite();
+
+            // Only the current commit log will be kept.
+            // The older ones are deleted immediately on creating a new segment due to exceeding size limit.
+            long actualSize = cdcMgr.updateCDCTotalSize();
+            Assert.assertTrue(actualSize <= cdcSizeLimit * 1024 * 1024);
+            Assert.assertTrue(actualSize >= DatabaseDescriptor.getCommitLogSegmentSize());
+        }));
+    }
+
+    @Test // switch from blocking to nonblocking, then back to blocking
+    public void testSwitchingCDCWriteModes() throws Throwable
+    {
+        String tableName = createTableAndBulkWrite();
+        expectCurrentCDCState(CDCState.FORBIDDEN);
+        testWithNonblockingMode(() -> {
+            bulkWrite(tableName);
+            expectCurrentCDCState(CDCState.CONTAINS);
+        });
+        bulkWrite(tableName);
+        expectCurrentCDCState(CDCState.FORBIDDEN);
     }
 
     @Test
@@ -187,30 +163,12 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     }
 
     @Test
-    public void testCompletedFlag() throws IOException
+    public void testCompletedFlag() throws Throwable
     {
-        createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
+        String tableName = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
         CommitLogSegment initialSegment = CommitLog.instance.segmentManager.allocatingFrom();
-        Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
 
-        DatabaseDescriptor.setCDCSpaceInMB(8);
-        try
-        {
-            for (int i = 0; i < 1000; i++)
-            {
-                new RowUpdateBuilder(currentTableMetadata(), 0, 1)
-                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-                .build().apply();
-            }
-        }
-        catch (CDCWriteException ce)
-        {
-            // pass. Expected since we'll have a file or two linked on restart of CommitLog due to replay
-        }
-        finally
-        {
-            DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
-        }
+        testWithCDCSpaceInMb(8, () -> bulkWrite(tableName));
 
         CommitLog.instance.forceRecycleAllSegments();
 
@@ -280,32 +238,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     }
 
     @Test
-    public void testReplayLogic() throws IOException
+    public void testReplayLogic() throws Throwable
     {
-        // Assert.assertEquals(0, new File(DatabaseDescriptor.getCDCLogLocation()).listFiles().length);
-        String table_name = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
-        Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
-
-        DatabaseDescriptor.setCDCSpaceInMB(8);
-        TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(table_name).metadata();
-        try
-        {
-            for (int i = 0; i < 1000; i++)
-            {
-                new RowUpdateBuilder(ccfm, 0, i)
-                    .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-                    .build().apply();
-            }
-            Assert.fail("Expected CDCWriteException from full CDC but did not receive it.");
-        }
-        catch (CDCWriteException e)
-        {
-            // pass
-        }
-        finally
-        {
-            DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
-        }
+        // Assert.assertEquals(0, new File(DatabaseDescriptor.getCDCLogLocation()).tryList().length);
+        testWithCDCSpaceInMb(8, this::createTableAndBulkWrite);
 
         CommitLog.instance.sync(true);
         CommitLog.instance.stopUnsafe(false);
@@ -448,5 +384,103 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             Assert.fail(String.format("Received unexpected CDCState on current allocatingFrom segment. Expected: %s. Received: %s",
                         expectedState, currentState));
         }
+    }
+
+    private void testWithNonblockingMode(Testable test) throws Throwable
+    {
+        boolean original = DatabaseDescriptor.shouldCDCBlockWrites();
+        CommitLog.instance.setCDCBlockWrites(false);
+        try
+        {
+            test.run();
+        }
+        catch (Throwable e)
+        {
+            e.printStackTrace();
+        }
+        finally
+        {
+            CommitLog.instance.setCDCBlockWrites(original);
+        }
+    }
+
+    private void testWithCDCSpaceInMb(int size, Testable test) throws Throwable
+    {
+        int origSize = DatabaseDescriptor.getCDCSpaceInMB();
+        DatabaseDescriptor.setCDCSpaceInMB(size);
+        try
+        {
+            test.run();
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCSpaceInMB(origSize);
+        }
+    }
+
+    private String createTableAndBulkWrite() throws Throwable
+    {
+        String tableName = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
+        bulkWrite(tableName);
+        return tableName;
+    }
+
+    private void bulkWrite(String tableName) throws Throwable
+    {
+        TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(tableName).metadata();
+        boolean blockWrites = DatabaseDescriptor.shouldCDCBlockWrites();
+        // Spin to make sure we hit CDC capacity
+        try
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                new RowUpdateBuilder(ccfm, 0, i)
+                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+                .build().applyFuture().get();
+            }
+            if (blockWrites)
+                Assert.fail("Expected CDCWriteException from full CDC but did not receive it.");
+        }
+        catch (CDCWriteException e)
+        {
+            if (!blockWrites)
+                Assert.fail("Excepted no CDCWriteException when not blocking writes but received it.");
+        }
+    }
+
+    private void testSegmentFlaggingOnCreation0() throws Throwable
+    {
+        testWithCDCSpaceInMb(16, () -> {
+            boolean blockWrites = DatabaseDescriptor.shouldCDCBlockWrites();
+
+            createTableAndBulkWrite();
+
+            CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
+            expectCurrentCDCState(blockWrites? CDCState.FORBIDDEN : CDCState.CONTAINS);
+
+            // When block writes, releasing CDC commit logs should update the CDC state to PERMITTED
+            if (blockWrites)
+            {
+                CommitLog.instance.forceRecycleAllSegments();
+
+                cdcMgr.awaitManagementTasksCompletion();
+                // Delete all files in cdc_raw
+                for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
+                    f.delete();
+                cdcMgr.updateCDCTotalSize();
+                // Confirm cdc update process changes flag on active segment
+                expectCurrentCDCState(CDCState.PERMITTED);
+            }
+
+            // Clear out archived CDC files
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList()) {
+                FileUtils.deleteWithConfirm(f);
+            }
+        });
+    }
+
+    private interface Testable
+    {
+        void run() throws Throwable;
     }
 }

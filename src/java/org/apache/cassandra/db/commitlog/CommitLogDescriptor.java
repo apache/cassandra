@@ -34,7 +34,9 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
@@ -51,6 +53,7 @@ public class CommitLogDescriptor
     private static final String SEPARATOR = "-";
     private static final String FILENAME_PREFIX = "CommitLog" + SEPARATOR;
     private static final String FILENAME_EXTENSION = ".log";
+    private static final String INDEX_FILENAME_SUFFIX = "_cdc.idx";
     // match both legacy and new version of commitlogs Ex: CommitLog-12345.log and CommitLog-4-12345.log.
     private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "((\\d+)(" + SEPARATOR + "\\d+)?)" + FILENAME_EXTENSION);
 
@@ -220,7 +223,20 @@ public class CommitLogDescriptor
 
     public String cdcIndexFileName()
     {
-        return FILENAME_PREFIX + version + SEPARATOR + id + "_cdc.idx";
+        return FILENAME_PREFIX + version + SEPARATOR + id + INDEX_FILENAME_SUFFIX;
+    }
+
+    /**
+     * Infer the corresponding cdc index file using its cdc commitlog file
+     * @param cdcFile
+     * @return cdc index file
+     */
+    public static File inferCdcIndexFile(File cdcFile)
+    {
+        Preconditions.checkArgument(isValid(cdcFile.name()), "Invalid commit log");
+        String cdcFileName = cdcFile.name();
+        String indexFileName = cdcFileName.substring(0, cdcFileName.length() - FILENAME_EXTENSION.length()) + INDEX_FILENAME_SUFFIX;
+        return new File(DatabaseDescriptor.getCDCLogLocation(), indexFileName);
     }
 
     /**

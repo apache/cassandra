@@ -84,4 +84,8 @@ public interface CommitLogMBean
      * @return A map between active log segments and the compression ratio achieved for each.
      */
     public Map<String, Double> getActiveSegmentCompressionRatios();
+
+    public boolean getCDCBlockWrites();
+
+    public void setCDCBlockWrites(boolean val);
 }

@@ -31,7 +31,7 @@ import org.apache.cassandra.io.util.File;
 
 public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
 {
-    protected volatile long size = 0;
+    private volatile long size = 0;
     protected final File path;
 
     public DirectorySizeCalculator(File path)
@@ -62,5 +62,13 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
     public long getAllocatedSize()
     {
         return size;
+    }
+
+    /**
+     * Reset the size to 0 in case that the size calculator is used multiple times
+     */
+    protected void resetSize()
+    {
+        size = 0;
     }
 }
