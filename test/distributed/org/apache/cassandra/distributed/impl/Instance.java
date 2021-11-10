@@ -470,40 +470,44 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void receiveMessage(IMessage imessage)
     {
-        sync(() -> {
-            Pair<MessageIn<Object>, Integer> deserialized = null;
-            try
-            {
-                deserialized = deserializeMessage(imessage);
-            }
-            catch (Throwable t)
-            {
-                throw new RuntimeException("Exception occurred on node " + broadcastAddress(), t);
-            }
+        sync(() -> receiveMessageWithInvokingThread(imessage)).run();
+    }
 
-            MessageIn<Object> message = deserialized.left;
-            int partial = deserialized.right;
+    @Override
+    public void receiveMessageWithInvokingThread(IMessage imessage)
+    {
+        Pair<MessageIn<Object>, Integer> deserialized = null;
+        try
+        {
+            deserialized = deserializeMessage(imessage);
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Exception occurred on node " + broadcastAddress(), t);
+        }
 
-            long timestamp = System.currentTimeMillis();
-            boolean isCrossNodeTimestamp = false;
+        MessageIn<Object> message = deserialized.left;
+        int partial = deserialized.right;
 
-            if (DatabaseDescriptor.hasCrossNodeTimeout())
-            {
-                long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
-                isCrossNodeTimestamp = (timestamp != crossNodeTimestamp);
-                timestamp = crossNodeTimestamp;
-            }
+        long timestamp = System.currentTimeMillis();
+        boolean isCrossNodeTimestamp = false;
 
-            if (message == null)
-            {
-                // callback expired; nothing to do
-                return;
-            }
-            if (message.version <= MessagingService.current_version)
-            {
-                MessagingService.instance().receive(message, imessage.id(), timestamp, isCrossNodeTimestamp);
-            }
-        }).run();
+        if (DatabaseDescriptor.hasCrossNodeTimeout())
+        {
+            long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+            isCrossNodeTimestamp = (timestamp != crossNodeTimestamp);
+            timestamp = crossNodeTimestamp;
+        }
+
+        if (message == null)
+        {
+            // callback expired; nothing to do
+            return;
+        }
+        if (message.version <= MessagingService.current_version)
+        {
+            MessagingService.instance().receive(message, imessage.id(), timestamp, isCrossNodeTimestamp);
+        }
     }
 
     public int getMessagingVersion()
@@ -648,7 +652,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static Config loadConfig(IInstanceConfig overrides)
     {
-        Map<String,Object> params = ((InstanceConfig) overrides).getParams();
+        Map<String,Object> params = overrides.getParams();
         boolean check = true;
         if (overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK) != null)
             check = (boolean) overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK);
