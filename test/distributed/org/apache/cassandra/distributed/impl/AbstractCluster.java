@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.impl;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
@@ -239,13 +240,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             IInvokableInstance instance;
             try
             {
-                instance = Instance.transferAdhoc((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
+                instance = Instance.transferAdhocPropagate((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
                                    .apply(config.forVersion(version.version), classLoader, root.getFileSystem());
             }
-            catch (NoSuchMethodError e)
+            catch (InvocationTargetException e)
             {
                 instance = Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
                                    .apply(config.forVersion(version.version), classLoader);
+            }
+            catch (IllegalAccessException e)
+            {
+                throw new RuntimeException(e);
             }
 
             if (instanceInitializer != null)

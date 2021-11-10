@@ -171,6 +171,18 @@ public class IsolatedExecutor implements IIsolatedExecutor
 
     public static <T extends Serializable> T transferAdhoc(T object, ClassLoader classLoader)
     {
+        try
+        {
+            return transferOneObjectAdhoc(object, classLoader, lookupDeserializeOneObject(classLoader));
+        }
+        catch (IllegalAccessException | InvocationTargetException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static <T extends Serializable> T transferAdhocPropagate(T object, ClassLoader classLoader) throws InvocationTargetException, IllegalAccessException
+    {
         return transferOneObjectAdhoc(object, classLoader, lookupDeserializeOneObject(classLoader));
     }
 
@@ -188,21 +200,14 @@ public class IsolatedExecutor implements IIsolatedExecutor
         };
     }
 
-    private static <T extends Serializable> T transferOneObjectAdhoc(T object, ClassLoader classLoader, Method deserializeOnInstance)
+    private static <T extends Serializable> T transferOneObjectAdhoc(T object, ClassLoader classLoader, Method deserializeOnInstance) throws IllegalAccessException, InvocationTargetException
     {
         byte[] bytes = serializeOneObject(object);
-        try
-        {
-            Object onInstance = deserializeOnInstance.invoke(null, bytes);
-            if (onInstance.getClass().getClassLoader() != classLoader)
-                throw new IllegalStateException(onInstance + " seemingly from wrong class loader: " + onInstance.getClass().getClassLoader() + ", but expected " + classLoader);
+        Object onInstance = deserializeOnInstance.invoke(null, bytes);
+        if (onInstance.getClass().getClassLoader() != classLoader)
+            throw new IllegalStateException(onInstance + " seemingly from wrong class loader: " + onInstance.getClass().getClassLoader() + ", but expected " + classLoader);
 
-            return (T) onInstance;
-        }
-        catch (IllegalAccessException | InvocationTargetException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return (T) onInstance;
     }
 
     private static Method lookupDeserializeOneObject(ClassLoader classLoader)
