@@ -162,7 +162,7 @@ network_authorizer: AllowAllNetworkAuthorizer
 # As the auth entries are whitelisting, once a permission is found you know it to be
 # valid. We default to false as the legacy behavior is to query at the table level then
 # move back up to the root. See CASSANDRA-17016 for details.
-# traverse_auth_from_root = false
+# traverse_auth_from_root: false
 
 # Validity period for roles cache (fetching granted roles can be an expensive
 # operation depending on the role manager, CassandraRoleManager is one example)
@@ -1006,20 +1006,20 @@ request_timeout_in_ms: 10000
 # See (CASSANDRA-14358) for details.
 #
 # The amount of time to wait for internode tcp connections to establish.
-# internode_tcp_connect_timeout_in_ms = 2000
+# internode_tcp_connect_timeout_in_ms: 2000
 #
 # The amount of time unacknowledged data is allowed on a connection before we throw out the connection
 # Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
 # (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
 # which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-# internode_tcp_user_timeout_in_ms = 30000
+# internode_tcp_user_timeout_in_ms: 30000
 
 # The amount of time unacknowledged data is allowed on a streaming connection.
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-# internode_streaming_tcp_user_timeout_in_ms = 300000
+# internode_streaming_tcp_user_timeout_in_ms: 300000
 
 # The maximum continuous period a connection may be unwritable in application space
-# internode_application_timeout_in_ms = 30000
+# internode_application_timeout_in_ms: 30000
 
 # Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 # and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
@@ -1074,34 +1074,34 @@ slow_query_log_timeout_in_ms: 500
 
 # Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
 # operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
-# enable_partition_denylist = false;
+# enable_partition_denylist: false
 
-# enable_denylist_writes = true;
-# enable_denylist_reads = true;
-# enable_denylist_range_reads = true;
+# enable_denylist_writes: true
+# enable_denylist_reads: true
+# enable_denylist_range_reads: true
 
 # The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
 # Note: this serves only as a fail-safe, as the usage pattern is expected to be "mutate state, refresh cache" on any
 # changes to the underlying denylist entries. See documentation for details.
-# denylist_refresh_seconds = 600;
+# denylist_refresh_seconds: 600
 
 # In the event of errors on attempting to load the denylist cache, retry on this interval.
-# denylist_initial_load_retry_seconds = 5;
+# denylist_initial_load_retry_seconds: 5
 
 # We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Nodes will warn above
 # this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering
 # ordering by partition key in case of overflow.
-# denylist_max_keys_per_table = 1000;
+# denylist_max_keys_per_table: 1000
 
 # We cap the total number of denylisted keys allowed in the cluster to keep things from growing unbounded.
 # Nodes will warn on initial cache load that there are too many keys and be direct the operator to trim down excess
 # entries to within the configured limits.
-# denylist_max_keys_total = 10000;
+# denylist_max_keys_total: 10000
 
 # Since the denylist in many ways serves to protect the health of the cluster from partitions operators have identified
 # as being in a bad state, we usually want more robustness than just CL.ONE on operations to/from these tables to
 # ensure that these safeguards are in place. That said, we allow users to configure this if they're so inclined.
-# denylist_consistency_level = ConsistencyLevel.QUORUM;
+# denylist_consistency_level: QUORUM
 
 # phi value that must be reached for a host to be marked down.
 # most users should never need to adjust this.
