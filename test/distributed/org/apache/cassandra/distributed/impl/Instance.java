@@ -396,22 +396,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void receiveMessage(IMessage message)
     {
-        sync(() -> {
-            if (message.version() > MessagingService.current_version)
-            {
-                throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
-                                                              this.config.num(),
-                                                              message.version(),
-                                                              MessagingService.current_version));
-            }
+        sync(() -> receiveMessageWithInvokingThread(message)).run();
+    }
 
-            Message<?> messageIn = deserializeMessage(message);
-            Message.Header header = messageIn.header;
-            TraceState state = Tracing.instance.initializeFromMessage(header);
-            if (state != null) state.trace("{} message received from {}", header.verb, header.from);
-            header.verb.stage.execute(() -> MessagingService.instance().inboundSink.accept(messageIn),
-                                      ExecutorLocals.create(state));
-        }).run();
+    @Override
+    public void receiveMessageWithInvokingThread(IMessage message)
+    {
+        if (message.version() > MessagingService.current_version)
+        {
+            throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
+                                                          this.config.num(),
+                                                          message.version(),
+                                                          MessagingService.current_version));
+        }
+
+        Message<?> messageIn = deserializeMessage(message);
+        Message.Header header = messageIn.header;
+        TraceState state = Tracing.instance.initializeFromMessage(header);
+        if (state != null) state.trace("{} message received from {}", header.verb, header.from);
+        header.verb.stage.execute(() -> MessagingService.instance().inboundSink.accept(messageIn),
+                                  ExecutorLocals.create(state));
     }
 
     public int getMessagingVersion()
@@ -599,7 +603,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private Config loadConfig(IInstanceConfig overrides)
     {
-        Map<String,Object> params = ((InstanceConfig) overrides).getParams();
+        Map<String,Object> params = overrides.getParams();
         boolean check = true;
         if (overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK) != null)
             check = (boolean) overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK);

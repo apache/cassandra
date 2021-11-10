@@ -199,7 +199,7 @@ public class InstanceConfig implements IInstanceConfig
         return this;
     }
 
-    private InstanceConfig forceSet(String fieldName, Object value)
+    public InstanceConfig forceSet(String fieldName, Object value)
     {
         if (value == null)
             value = NULL;
