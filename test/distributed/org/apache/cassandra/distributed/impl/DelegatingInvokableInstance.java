@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.impl;
 
 import java.io.Serializable;
 import java.net.InetSocketAddress;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
@@ -142,9 +141,21 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
+    public void postStartup()
+    {
+        delegateForStartup().postStartup();
+    }
+
+    @Override
     public void receiveMessage(IMessage message)
     {
         delegate().receiveMessage(message);
+    }
+
+    @Override
+    public void receiveMessageWithInvokingThread(IMessage message)
+    {
+        delegate().receiveMessageWithInvokingThread(message);
     }
 
     @Override
@@ -196,6 +207,18 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
+    public <I1, I2, I3> TriFunction<I1, I2, I3, Future<?>> async(TriConsumer<I1, I2, I3> consumer)
+    {
+        return delegate().async(consumer);
+    }
+
+    @Override
+    public <I1, I2, I3> TriConsumer<I1, I2, I3> sync(TriConsumer<I1, I2, I3> consumer)
+    {
+        return delegate().sync(consumer);
+    }
+
+    @Override
     public <I, O> Function<I, Future<O>> async(Function<I, O> f)
     {
         return delegate().async(f);
@@ -235,5 +258,28 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public <O> O callOnInstance(SerializableCallable<O> call)
     {
         return delegate().callOnInstance(call);
+    }
+
+    public <I1, I2, I3, I4, O> QuadFunction<I1, I2, I3, I4, Future<O>> async(QuadFunction<I1, I2, I3, I4, O> f)
+    {
+        return delegate().async(f);
+    }
+
+    @Override
+    public <I1, I2, I3, I4, O> QuadFunction<I1, I2, I3, I4, O> sync(QuadFunction<I1, I2, I3, I4, O> f)
+    {
+        return delegate().sync(f);
+    }
+
+    @Override
+    public <I1, I2, I3, I4, I5, O> QuintFunction<I1, I2, I3, I4, I5, Future<O>> async(QuintFunction<I1, I2, I3, I4, I5, O> f)
+    {
+        return delegate().async(f);
+    }
+
+    @Override
+    public <I1, I2, I3, I4, I5, O> QuintFunction<I1, I2, I3, I4, I5, O> sync(QuintFunction<I1, I2, I3, I4, I5, O> f)
+    {
+        return delegate().sync(f);
     }
 }
