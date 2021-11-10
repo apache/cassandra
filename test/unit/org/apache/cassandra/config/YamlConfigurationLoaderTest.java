@@ -57,9 +57,9 @@ public class YamlConfigurationLoaderTest
     {
         Map<String, Object> map = ImmutableMap.of("track_warnings", ImmutableMap.of(
         "enabled", true,
-        "coordinator_read_size", ImmutableMap.of("warn_threshold", 1024),
-        "local_read_size", ImmutableMap.of("abort_threshold", 1024),
-        "row_index_size", ImmutableMap.of("warn_threshold", 1024, "abort_threshold", 1024)
+        "coordinator_read_size", ImmutableMap.of("warn_threshold", "1024kb"),
+        "local_read_size", ImmutableMap.of("abort_threshold", "1024kb"),
+        "row_index_size", ImmutableMap.of("warn_threshold", "1024kb", "abort_threshold", "1024kb")
         ));
 
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
