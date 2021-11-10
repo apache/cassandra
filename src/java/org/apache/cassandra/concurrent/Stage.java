@@ -170,6 +170,7 @@ public enum Stage
     private static ExecutorPlus migrationStage(String jmxName, String jmxType, int numThreads, LocalAwareExecutorPlus.MaximumPoolSizeListener onSetMaximumPoolSize)
     {
         return executorFactory()
+               .localAware()
                .withJmx(jmxType)
                .sequential(jmxName);
     }

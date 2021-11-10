@@ -42,7 +42,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,9 +62,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        if (ClientWarn.instance.get() == null)
-            ClientWarn.instance.captureWarnings();
-        int previousNumWarnings = ClientWarn.instance.numWarnings();
         attrs.validate();
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
@@ -83,10 +79,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());
 
         Keyspaces res = schema.withAddedOrUpdated(newKeyspace);
-
-        int newNumWarnings = ClientWarn.instance.numWarnings();
-        if (newNumWarnings > previousNumWarnings)
-            clientWarnings.addAll(ClientWarn.instance.getWarnings().subList(previousNumWarnings, newNumWarnings));
 
         return res;
     }
