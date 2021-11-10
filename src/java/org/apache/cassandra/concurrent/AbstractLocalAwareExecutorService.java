@@ -32,8 +32,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.tracing.Tracing.isTracing;
-
 public abstract class AbstractLocalAwareExecutorService implements LocalAwareExecutorService
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractLocalAwareExecutorService.class);
@@ -98,7 +96,12 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
 
     protected <T> FutureTask<T> newTaskFor(Callable<T> callable)
     {
-        if (isTracing())
+        return newTaskFor(callable, ExecutorLocals.create());
+    }
+
+    protected <T> FutureTask<T> newTaskFor(Callable<T> callable, ExecutorLocals locals)
+    {
+        if (locals != null)
         {
             if (callable instanceof LocalSessionFutureTask)
                 return (LocalSessionFutureTask<T>) callable;
@@ -218,7 +221,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
 
     public void execute(Runnable command)
     {
-        addTask(newTaskFor(command, ExecutorLocals.create()));
+        addTask(newTaskFor(command, null, ExecutorLocals.create()));
     }
 
     public void execute(Runnable command, ExecutorLocals locals)
