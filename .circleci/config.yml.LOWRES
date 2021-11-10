@@ -15,12 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 version: 2
 jobs:
   build:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -95,7 +94,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_unit_tests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -184,7 +183,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_jvm_dtests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -273,7 +272,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   utests_long:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -316,7 +315,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   utests_compression:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -405,7 +404,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_dtests-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -463,7 +462,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_dtests-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -521,7 +520,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_upgradetests-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
