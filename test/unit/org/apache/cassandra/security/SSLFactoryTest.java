@@ -131,7 +131,7 @@ public class SSLFactoryTest
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
 
-            keystoreFile.setLastModified(System.currentTimeMillis() + 15000);
+            keystoreFile.trySetLastModified(System.currentTimeMillis() + 15000);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
             SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
