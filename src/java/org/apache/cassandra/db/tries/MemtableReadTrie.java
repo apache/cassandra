@@ -188,20 +188,67 @@ public class MemtableReadTrie<T> extends Trie<T>
 
     volatile int root;
 
-    final UnsafeBuffer buffer;
+    /*
+     EXPANDABLE DATA STORAGE
 
-    volatile AtomicReferenceArray<T> contentArray;
+     The tries will need more and more space in buffers and content lists as they grow. Instead of using ArrayList-like
+     reallocation with copying, which may be prohibitively expensive for large buffers, we use a sequence of
+     buffers/content arrays that double in size on every expansion.
 
-    MemtableReadTrie(UnsafeBuffer buffer, AtomicReferenceArray<T> contentArray, int root)
+     For a given address x the index of the buffer can be found with the following calculation:
+        index_of_most_significant_set_bit(x / min_size + 1)
+     (relying on sum (2^i) for i in [0, n-1] == 2^n - 1) which can be performed quickly on modern hardware.
+
+     Finding the offset within the buffer is then
+        x + min - (min << buffer_index)
+
+     The allocated space starts 256 bytes for the buffer and 16 entries for the content list.
+
+     Note that a buffer is not allowed to split 32-byte blocks (code assumes same buffer can be used for all bytes
+     inside the block).
+     */
+
+    static final int BUF_START_SHIFT = 8;
+    static final int BUF_START_SIZE = 1 << BUF_START_SHIFT;
+
+    static final int CONTENTS_START_SHIFT = 4;
+    static final int CONTENTS_START_SIZE = 1 << CONTENTS_START_SHIFT;
+
+    final UnsafeBuffer[] buffers;
+    final AtomicReferenceArray<T>[] contentArrays;
+
+    MemtableReadTrie(UnsafeBuffer[] buffers, AtomicReferenceArray<T>[] contentArrays, int root)
     {
-        this.buffer = buffer;
-        this.contentArray = contentArray;
+        this.buffers = buffers;
+        this.contentArrays = contentArrays;
         this.root = root;
     }
 
     /*
      Buffer, content list and block management
      */
+    int getChunkIdx(int pos, int minChunkShift, int minChunkSize)
+    {
+        return 31 - minChunkShift - Integer.numberOfLeadingZeros(pos + minChunkSize);
+    }
+
+    int inChunkPointer(int pos, int chunkIndex, int minChunkSize)
+    {
+        return pos + minChunkSize - (minChunkSize << chunkIndex);
+    }
+
+    UnsafeBuffer getChunk(int pos)
+    {
+        int leadBit = getChunkIdx(pos, BUF_START_SHIFT, BUF_START_SIZE);
+        return buffers[leadBit];
+    }
+
+    int inChunkPointer(int pos)
+    {
+        int leadBit = getChunkIdx(pos, BUF_START_SHIFT, BUF_START_SIZE);
+        return inChunkPointer(pos, leadBit, BUF_START_SIZE);
+    }
+
 
     /**
      * Pointer offset for a node pointer.
@@ -213,19 +260,25 @@ public class MemtableReadTrie<T> extends Trie<T>
 
     final int getUnsignedByte(int pos)
     {
-        return buffer.getByte(pos) & 0xFF;
+        return getChunk(pos).getByte(inChunkPointer(pos)) & 0xFF;
     }
 
     final int getUnsignedShort(int pos)
     {
-        return buffer.getShort(pos) & 0xFFFF;
+        return getChunk(pos).getShort(inChunkPointer(pos)) & 0xFFFF;
     }
 
-    final int getInt(int pos) { return buffer.getInt(pos); }
+    final int getInt(int pos)
+    {
+        return getChunk(pos).getInt(inChunkPointer(pos));
+    }
 
     T getContent(int index)
     {
-        return contentArray.get(index);
+        int leadBit = getChunkIdx(index, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
+        int ofs = inChunkPointer(index, leadBit, CONTENTS_START_SIZE);
+        AtomicReferenceArray<T> array = contentArrays[leadBit];
+        return array.get(ofs);
     }
 
     /*
@@ -512,17 +565,19 @@ public class MemtableReadTrie<T> extends Trie<T>
                 return advance();
 
             // Jump directly to the chain's child.
+            UnsafeBuffer chunk = getChunk(node);
+            int inChunkNode = inChunkPointer(node);
             int bytesJumped = chainBlockLength(node) - 1;   // leave the last byte for incomingTransition
             if (receiver != null && bytesJumped > 0)
-                receiver.addPathBytes(buffer, node, bytesJumped);
+                receiver.addPathBytes(chunk, inChunkNode, bytesJumped);
             depth += bytesJumped;    // descendInto will add one
-            node += bytesJumped;
+            inChunkNode += bytesJumped;
 
             // inChunkNode is now positioned on the last byte of the chain.
             // Consume it to be the new state's incomingTransition.
-            int transition = getUnsignedByte(node++);
+            int transition = chunk.getByte(inChunkNode++) & 0xFF;
             // inChunkNode is now positioned on the child pointer.
-            int child = getInt(node);
+            int child = chunk.getInt(inChunkNode);
             return descendInto(child, transition);
         }
 
@@ -696,6 +751,9 @@ public class MemtableReadTrie<T> extends Trie<T>
 
         private int nextValidSparseTransition(int node, int data)
         {
+            UnsafeBuffer chunk = getChunk(node);
+            int inChunkNode = inChunkPointer(node);
+
             // Peel off the next index.
             int index = data % SPARSE_CHILD_COUNT;
             data = data / SPARSE_CHILD_COUNT;
@@ -705,20 +763,22 @@ public class MemtableReadTrie<T> extends Trie<T>
                 addBacktrack(node, data, depth);
 
             // Follow the transition.
-            int child = getInt(node + SPARSE_CHILDREN_OFFSET + index * 4);
-            int transition = getUnsignedByte(node + SPARSE_BYTES_OFFSET + index);
+            int child = chunk.getInt(inChunkNode + SPARSE_CHILDREN_OFFSET + index * 4);
+            int transition = chunk.getByte(inChunkNode + SPARSE_BYTES_OFFSET + index) & 0xFF;
             return descendInto(child, transition);
         }
 
         private int getChainTransition(int node)
         {
             // No backtracking needed.
-            int transition = getUnsignedByte(node);
+            UnsafeBuffer chunk = getChunk(node);
+            int inChunkNode = inChunkPointer(node);
+            int transition = chunk.getByte(inChunkNode) & 0xFF;
             int next = node + 1;
             if (offset(next) <= CHAIN_MAX_OFFSET)
                 return descendIntoChain(next, transition);
             else
-                return descendInto(getInt(node + 1), transition);
+                return descendInto(chunk.getInt(inChunkNode + 1), transition);
         }
 
         private int descendInto(int child, int transition)
