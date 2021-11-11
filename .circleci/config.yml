@@ -21,10 +21,10 @@ jobs:
   j8_jvm_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 4
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -105,8 +105,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -133,7 +133,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -280,8 +280,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -305,10 +305,10 @@ jobs:
   j8_cqlsh-dtests-py2-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -331,7 +331,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_raw /tmp/all_dtest_tests_j8_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_raw > /tmp/all_dtest_tests_j8_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_with_vnodes > /tmp/split_dtest_tests_j8_with_vnodes.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_all_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_with_vnodes_renew_raw /tmp/all_dtest_tests_j8_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_renew_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_with_vnodes_reuse /tmp/all_dtest_tests_j8_with_vnodes_renew /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_with_vnodes)
         no_output_timeout: 15m
@@ -375,8 +375,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -403,7 +403,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -484,8 +484,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -513,7 +513,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -607,8 +607,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -632,10 +632,10 @@ jobs:
   j8_cqlsh-dtests-py38-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -658,7 +658,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_raw /tmp/all_dtest_tests_j8_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_raw > /tmp/all_dtest_tests_j8_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_without_vnodes > /tmp/split_dtest_tests_j8_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_all_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_without_vnodes_renew_raw /tmp/all_dtest_tests_j8_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_renew_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_without_vnodes_reuse /tmp/all_dtest_tests_j8_without_vnodes_renew /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_without_vnodes)
         no_output_timeout: 15m
@@ -702,8 +702,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -727,10 +727,10 @@ jobs:
   j11_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -753,7 +753,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_all_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_with_vnodes_renew_raw /tmp/all_dtest_tests_j11_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_renew_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_with_vnodes_reuse /tmp/all_dtest_tests_j11_with_vnodes_renew /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
@@ -797,8 +797,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -823,10 +823,10 @@ jobs:
   j11_cqlsh-dtests-py3-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -849,7 +849,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_all_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_without_vnodes_renew_raw /tmp/all_dtest_tests_j11_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_renew_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_without_vnodes_reuse /tmp/all_dtest_tests_j11_without_vnodes_renew /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
@@ -893,8 +893,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -919,10 +919,10 @@ jobs:
   j11_cqlsh-dtests-py38-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -945,7 +945,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_all_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_with_vnodes_renew_raw /tmp/all_dtest_tests_j11_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_renew_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_with_vnodes_reuse /tmp/all_dtest_tests_j11_with_vnodes_renew /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
@@ -989,8 +989,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1015,10 +1015,10 @@ jobs:
   j8_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1041,7 +1041,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_raw /tmp/all_dtest_tests_j8_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_raw > /tmp/all_dtest_tests_j8_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_with_vnodes > /tmp/split_dtest_tests_j8_with_vnodes.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_all_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_with_vnodes_renew_raw /tmp/all_dtest_tests_j8_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_renew_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_with_vnodes_reuse /tmp/all_dtest_tests_j8_with_vnodes_renew /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_with_vnodes)
         no_output_timeout: 15m
@@ -1085,8 +1085,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1110,10 +1110,10 @@ jobs:
   j8_cqlsh-dtests-py2-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1136,7 +1136,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_raw /tmp/all_dtest_tests_j8_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_raw > /tmp/all_dtest_tests_j8_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_without_vnodes > /tmp/split_dtest_tests_j8_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_all_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_without_vnodes_renew_raw /tmp/all_dtest_tests_j8_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_renew_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_without_vnodes_reuse /tmp/all_dtest_tests_j8_without_vnodes_renew /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_without_vnodes)
         no_output_timeout: 15m
@@ -1180,8 +1180,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1208,7 +1208,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1324,8 +1324,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1353,7 +1353,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1447,8 +1447,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1472,10 +1472,10 @@ jobs:
   j11_cqlsh-dtests-py2-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1498,7 +1498,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_all_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_with_vnodes_renew_raw /tmp/all_dtest_tests_j11_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_renew_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_with_vnodes_reuse /tmp/all_dtest_tests_j11_with_vnodes_renew /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
@@ -1542,8 +1542,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1568,10 +1568,10 @@ jobs:
   j11_dtests-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1616,7 +1616,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_all_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_with_vnodes_renew_raw /tmp/all_dtest_tests_j11_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_renew_raw > /tmp/all_dtest_tests_j11_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_with_vnodes_reuse /tmp/all_dtest_tests_j11_with_vnodes_renew /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
@@ -1641,8 +1641,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1667,10 +1667,10 @@ jobs:
   j8_dtests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1693,7 +1693,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_raw /tmp/all_dtest_tests_j8_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_raw > /tmp/all_dtest_tests_j8_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_without_vnodes > /tmp/split_dtest_tests_j8_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_all_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_without_vnodes_renew_raw /tmp/all_dtest_tests_j8_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_renew_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_without_vnodes_reuse /tmp/all_dtest_tests_j8_without_vnodes_renew /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_without_vnodes)
         no_output_timeout: 15m
@@ -1718,8 +1718,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1743,10 +1743,10 @@ jobs:
   j8_upgradetests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 100
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1769,7 +1769,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_upgradetests_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_upgradetests_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw /tmp/all_dtest_tests_j8_upgradetests_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw > /tmp/all_dtest_tests_j8_upgradetests_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_upgradetests_without_vnodes > /tmp/split_dtest_tests_j8_upgradetests_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_upgradetests_without_vnodes)***\"\n./run_dtests.py --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_upgradetests_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_all_raw > /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew_raw /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew_raw > /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_reuse /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_renew /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_upgradetests_without_vnodes)
         no_output_timeout: 15m
@@ -1794,8 +1794,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1857,8 +1857,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1885,7 +1885,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1966,8 +1966,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2075,8 +2075,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2174,8 +2174,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2200,10 +2200,10 @@ jobs:
   j11_cqlsh-dtests-py2-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2226,7 +2226,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_all_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_without_vnodes_renew_raw /tmp/all_dtest_tests_j11_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_renew_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_without_vnodes_reuse /tmp/all_dtest_tests_j11_without_vnodes_renew /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
@@ -2270,8 +2270,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2325,8 +2325,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2354,7 +2354,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2501,8 +2501,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2527,10 +2527,10 @@ jobs:
   j8_dtests-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2553,7 +2553,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_raw /tmp/all_dtest_tests_j8_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_raw > /tmp/all_dtest_tests_j8_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_with_vnodes > /tmp/split_dtest_tests_j8_with_vnodes.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_all_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_with_vnodes_renew_raw /tmp/all_dtest_tests_j8_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_renew_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_with_vnodes_reuse /tmp/all_dtest_tests_j8_with_vnodes_renew /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_with_vnodes)
         no_output_timeout: 15m
@@ -2578,8 +2578,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2603,10 +2603,10 @@ jobs:
   j11_cqlsh-dtests-py38-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2629,7 +2629,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_all_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_without_vnodes_renew_raw /tmp/all_dtest_tests_j11_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_renew_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_without_vnodes_reuse /tmp/all_dtest_tests_j11_without_vnodes_renew /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
@@ -2673,8 +2673,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2699,10 +2699,10 @@ jobs:
   j8_jvm_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2783,8 +2783,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2881,8 +2881,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2906,10 +2906,10 @@ jobs:
   j8_cqlsh-dtests-py3-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2932,7 +2932,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_raw /tmp/all_dtest_tests_j8_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_raw > /tmp/all_dtest_tests_j8_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_without_vnodes > /tmp/split_dtest_tests_j8_without_vnodes.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_all_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_without_vnodes_renew_raw /tmp/all_dtest_tests_j8_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_without_vnodes_renew_raw > /tmp/all_dtest_tests_j8_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_without_vnodes_reuse /tmp/all_dtest_tests_j8_without_vnodes_renew /tmp/split_dtest_tests_j8_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_without_vnodes)
         no_output_timeout: 15m
@@ -2976,8 +2976,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3001,10 +3001,10 @@ jobs:
   j8_cqlsh-dtests-py38-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3027,7 +3027,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j8_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j8_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_raw /tmp/all_dtest_tests_j8_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_raw > /tmp/all_dtest_tests_j8_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_with_vnodes > /tmp/split_dtest_tests_j8_with_vnodes.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.8/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j8_with_vnodes)***\"\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_with_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_all_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  mv /tmp/all_dtest_tests_j8_with_vnodes_renew_raw /tmp/all_dtest_tests_j8_with_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_reuse_raw > /tmp/all_dtest_tests_j8_with_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j8_with_vnodes_renew_raw > /tmp/all_dtest_tests_j8_with_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j8_with_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j8_with_vnodes_reuse /tmp/all_dtest_tests_j8_with_vnodes_renew /tmp/split_dtest_tests_j8_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j8_with_vnodes)
         no_output_timeout: 15m
@@ -3071,8 +3071,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3134,8 +3134,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3162,7 +3162,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3243,8 +3243,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3297,8 +3297,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3360,8 +3360,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3385,10 +3385,10 @@ jobs:
   j11_dtests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3433,7 +3433,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\nset +eo pipefail\necho \"***Collected DTests (j11_without_vnodes)***\"\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --pytest-options \"-m reuse_cluster\" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_reuse_raw --cassandra-dir=../cassandra\n./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_all_raw --cassandra-dir=../cassandra\ngrep -vf /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_all_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew_raw\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  mv /tmp/all_dtest_tests_j11_without_vnodes_renew_raw /tmp/all_dtest_tests_j11_without_vnodes_renew\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_reuse_raw > /tmp/all_dtest_tests_j11_without_vnodes_reuse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_renew_raw > /tmp/all_dtest_tests_j11_without_vnodes_renew\n  [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_reuse |cut -d \" \" -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_j11_without_vnodes_renew |cut -d \" \" -f 1` -ne 0 ]] || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_j11_without_vnodes_reuse /tmp/all_dtest_tests_j11_without_vnodes_renew /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
@@ -3458,8 +3458,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3487,7 +3487,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3568,8 +3568,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3596,7 +3596,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3743,8 +3743,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3838,8 +3838,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: git://github.com/bereng/cassandra-dtest.git
+    - DTEST_BRANCH: nodeReusage
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome

@@ -1495,24 +1495,26 @@ commands:
           # reminder: this code (along with all the steps) is independently executed on every circle container
           # so the goal here is to get the circleci script to return the tests *this* container will run
           # which we do via the `circleci` cli tool.
-
           cd cassandra-dtest
           source ~/env<<parameters.python_version>>/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-
           if [ -n '<<parameters.extra_env_args>>' ]; then
             export <<parameters.extra_env_args>>
           fi
-
+          set +eo pipefail
           echo "***Collected DTests (<<parameters.file_tag>>)***"
-          set -eo pipefail && ./run_dtests.py <<parameters.run_dtests_extra_args>> --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_<<parameters.file_tag>>_raw --cassandra-dir=../cassandra
+          ./run_dtests.py <<parameters.run_dtests_extra_args>> --pytest-options "-m reuse_cluster" --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_<<parameters.file_tag>>_reuse_raw --cassandra-dir=../cassandra
+          ./run_dtests.py <<parameters.run_dtests_extra_args>> --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_<<parameters.file_tag>>_all_raw --cassandra-dir=../cassandra
+          grep -vf /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse_raw /tmp/all_dtest_tests_<<parameters.file_tag>>_all_raw > /tmp/all_dtest_tests_<<parameters.file_tag>>_renew_raw
           if [ -z '<<parameters.tests_filter_pattern>>' ]; then
-            mv /tmp/all_dtest_tests_<<parameters.file_tag>>_raw /tmp/all_dtest_tests_<<parameters.file_tag>>
+            mv /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse_raw /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse
+            mv /tmp/all_dtest_tests_<<parameters.file_tag>>_renew_raw /tmp/all_dtest_tests_<<parameters.file_tag>>_renew
           else
-            grep -e '<<parameters.tests_filter_pattern>>' /tmp/all_dtest_tests_<<parameters.file_tag>>_raw > /tmp/all_dtest_tests_<<parameters.file_tag>> || { echo "Filter did not match any tests! Exiting build."; exit 0; }
+            grep -e '<<parameters.tests_filter_pattern>>' /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse_raw > /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse
+            grep -e '<<parameters.tests_filter_pattern>>' /tmp/all_dtest_tests_<<parameters.file_tag>>_renew_raw > /tmp/all_dtest_tests_<<parameters.file_tag>>_renew
+            [[ `wc -l /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse |cut -d " " -f 1` -ne 0 ]] || [[ `wc -l /tmp/all_dtest_tests_<<parameters.file_tag>>_renew |cut -d " " -f 1` -ne 0 ]] || { echo "Filter did not match any tests! Exiting build."; exit 0; }
           fi
-          set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_<<parameters.file_tag>> > /tmp/split_dtest_tests_<<parameters.file_tag>>.txt
-          cat /tmp/split_dtest_tests_<<parameters.file_tag>>.txt | tr '\n' ' ' > /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
+          set -eo pipefail && ./splitter.sh `expr $CIRCLE_NODE_INDEX + 1` $CIRCLE_NODE_TOTAL /tmp/all_dtest_tests_<<parameters.file_tag>>_reuse /tmp/all_dtest_tests_<<parameters.file_tag>>_renew /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
           cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt
 
   run_dtests:
