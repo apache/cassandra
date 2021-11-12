@@ -181,6 +181,11 @@ public enum CassandraRelevantProperties
     CLOCK_MONOTONIC_APPROX("cassandra.monotonic_clock.approx", null),
     CLOCK_MONOTONIC_PRECISE("cassandra.monotonic_clock.precise", null),
 
+    /*
+     * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
+     */
+    ENABLE_NODELOCAL_QUERIES("cassandra.enable_nodelocal_queries", "false"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

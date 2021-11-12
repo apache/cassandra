@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -103,13 +102,9 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.CASClientRequestMetrics;
-import org.apache.cassandra.metrics.CASClientWriteRequestMetrics;
-import org.apache.cassandra.metrics.ClientRequestMetrics;
-import org.apache.cassandra.metrics.ClientWriteRequestMetrics;
 import org.apache.cassandra.metrics.DenylistMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.metrics.ViewWriteMetrics;
 import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
@@ -144,6 +139,13 @@ import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.Message.out;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsForLevel;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.viewWriteMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetricsForLevel;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.*;
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
@@ -175,13 +177,7 @@ public class StorageProxy implements StorageProxyMBean
             return new AtomicInteger(0);
         }
     };
-    private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
-    private static final ClientWriteRequestMetrics writeMetrics = new ClientWriteRequestMetrics("Write");
-    private static final CASClientWriteRequestMetrics casWriteMetrics = new CASClientWriteRequestMetrics("CASWrite");
-    private static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
-    private static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
-    private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
-    private static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
+
     private static final DenylistMetrics denylistMetrics = new DenylistMetrics();
 
     private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
@@ -226,11 +222,6 @@ public class StorageProxy implements StorageProxyMBean
                                   .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
         };
 
-        for(ConsistencyLevel level : ConsistencyLevel.values())
-        {
-            readMetricsMap.put(level, new ClientRequestMetrics("Read-" + level.name()));
-            writeMetricsMap.put(level, new ClientWriteRequestMetrics("Write-" + level.name()));
-        }
 
         ReadRepairMetrics.init();
 
@@ -334,7 +325,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 long size = updates.dataSize();
                 casWriteMetrics.mutationSize.update(size);
-                writeMetricsMap.get(consistencyForPaxos).mutationSize.update(size);
+                writeMetricsForLevel(consistencyForPaxos).mutationSize.update(size);
 
                 // Apply triggers to cas updates. A consideration here is that
                 // triggers emit Mutations, and so a given trigger implementation
@@ -367,38 +358,38 @@ public class StorageProxy implements StorageProxyMBean
         catch (CasWriteTimeoutException wte)
         {
             casWriteMetrics.timeouts.mark();
-            writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
+            writeMetricsForLevel(consistencyForPaxos).timeouts.mark();
             throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, wte.contentions);
         }
         catch (ReadTimeoutException e)
         {
             casWriteMetrics.timeouts.mark();
-            writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
+            writeMetricsForLevel(consistencyForPaxos).timeouts.mark();
             throw e;
         }
         catch (ReadAbortException e)
         {
             casWriteMetrics.markAbort(e);
-            writeMetricsMap.get(consistencyForPaxos).markAbort(e);
+            writeMetricsForLevel(consistencyForPaxos).markAbort(e);
             throw e;
         }
         catch (WriteFailureException | ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
-            writeMetricsMap.get(consistencyForPaxos).failures.mark();
+            writeMetricsForLevel(consistencyForPaxos).failures.mark();
             throw e;
         }
         catch (UnavailableException e)
         {
             casWriteMetrics.unavailables.mark();
-            writeMetricsMap.get(consistencyForPaxos).unavailables.mark();
+            writeMetricsForLevel(consistencyForPaxos).unavailables.mark();
             throw e;
         }
         finally
         {
             final long latency = nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
-            writeMetricsMap.get(consistencyForPaxos).addNano(latency);
+            writeMetricsForLevel(consistencyForPaxos).addNano(latency);
         }
     }
 
@@ -867,7 +858,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (ex instanceof WriteFailureException)
                 {
                     writeMetrics.failures.mark();
-                    writeMetricsMap.get(consistencyLevel).failures.mark();
+                    writeMetricsForLevel(consistencyLevel).failures.mark();
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
                                   fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
@@ -875,7 +866,7 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     writeMetrics.timeouts.mark();
-                    writeMetricsMap.get(consistencyLevel).timeouts.mark();
+                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
                     WriteTimeoutException te = (WriteTimeoutException)ex;
                     Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
                 }
@@ -885,14 +876,14 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
-            writeMetricsMap.get(consistencyLevel).unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (OverloadedException e)
         {
             writeMetrics.unavailables.mark();
-            writeMetricsMap.get(consistencyLevel).unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
             Tracing.trace("Overloaded");
             throw e;
         }
@@ -900,7 +891,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             long latency = nanoTime() - startTime;
             writeMetrics.addNano(latency);
-            writeMetricsMap.get(consistencyLevel).addNano(latency);
+            writeMetricsForLevel(consistencyLevel).addNano(latency);
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
@@ -1095,7 +1086,7 @@ public class StorageProxy implements StorageProxyMBean
 
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
-        writeMetricsMap.get(consistencyLevel).mutationSize.update(size);
+        writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
 
         if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
@@ -1177,21 +1168,21 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
-            writeMetricsMap.get(consistency_level).unavailables.mark();
+            writeMetricsForLevel(consistency_level).unavailables.mark();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (WriteTimeoutException e)
         {
             writeMetrics.timeouts.mark();
-            writeMetricsMap.get(consistency_level).timeouts.mark();
+            writeMetricsForLevel(consistency_level).timeouts.mark();
             Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
         catch (WriteFailureException e)
         {
             writeMetrics.failures.mark();
-            writeMetricsMap.get(consistency_level).failures.mark();
+            writeMetricsForLevel(consistency_level).failures.mark();
             Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
@@ -1199,7 +1190,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             long latency = nanoTime() - startTime;
             writeMetrics.addNano(latency);
-            writeMetricsMap.get(consistency_level).addNano(latency);
+            writeMetricsForLevel(consistency_level).addNano(latency);
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
@@ -1766,7 +1757,7 @@ public class StorageProxy implements StorageProxyMBean
         if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(group.queries))
         {
             readMetrics.unavailables.mark();
-            readMetricsMap.get(consistencyLevel).unavailables.mark();
+            readMetricsForLevel(consistencyLevel).unavailables.mark();
             throw new IsBootstrappingException();
         }
 
@@ -1846,28 +1837,28 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.unavailables.mark();
             casReadMetrics.unavailables.mark();
-            readMetricsMap.get(consistencyLevel).unavailables.mark();
+            readMetricsForLevel(consistencyLevel).unavailables.mark();
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
             casReadMetrics.timeouts.mark();
-            readMetricsMap.get(consistencyLevel).timeouts.mark();
+            readMetricsForLevel(consistencyLevel).timeouts.mark();
             throw e;
         }
         catch (ReadAbortException e)
         {
             readMetrics.markAbort(e);
             casReadMetrics.markAbort(e);
-            readMetricsMap.get(consistencyLevel).markAbort(e);
+            readMetricsForLevel(consistencyLevel).markAbort(e);
             throw e;
         }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
             casReadMetrics.failures.mark();
-            readMetricsMap.get(consistencyLevel).failures.mark();
+            readMetricsForLevel(consistencyLevel).failures.mark();
             throw e;
         }
         finally
@@ -1875,7 +1866,7 @@ public class StorageProxy implements StorageProxyMBean
             long latency = nanoTime() - start;
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
-            readMetricsMap.get(consistencyLevel).addNano(latency);
+            readMetricsForLevel(consistencyLevel).addNano(latency);
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
 
@@ -1902,13 +1893,13 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             readMetrics.unavailables.mark();
-            readMetricsMap.get(consistencyLevel).unavailables.mark();
+            readMetricsForLevel(consistencyLevel).unavailables.mark();
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
-            readMetricsMap.get(consistencyLevel).timeouts.mark();
+            readMetricsForLevel(consistencyLevel).timeouts.mark();
             throw e;
         }
         catch (ReadAbortException e)
@@ -1919,14 +1910,14 @@ public class StorageProxy implements StorageProxyMBean
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
-            readMetricsMap.get(consistencyLevel).failures.mark();
+            readMetricsForLevel(consistencyLevel).failures.mark();
             throw e;
         }
         finally
         {
             long latency = nanoTime() - start;
             readMetrics.addNano(latency);
-            readMetricsMap.get(consistencyLevel).addNano(latency);
+            readMetricsForLevel(consistencyLevel).addNano(latency);
             // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
             for (ReadCommand command : group.queries)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
@@ -1936,7 +1927,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void recordReadRegularAbort(ConsistencyLevel consistencyLevel, Throwable cause)
     {
         readMetrics.markAbort(cause);
-        readMetricsMap.get(consistencyLevel).markAbort(cause);
+        readMetricsForLevel(consistencyLevel).markAbort(cause);
     }
 
     public static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair<?, ?>> repairs)

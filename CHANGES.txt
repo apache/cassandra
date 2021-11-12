@@ -57,6 +57,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Queries performed with NODE_LOCAL consistency level do not update request metrics (CASSANDRA-17052)
  * Fix multiple full sources can be select unexpectedly for bootstrap streaming (CASSANDRA-16945)
  * Fix cassandra.yaml formatting of parameters (CASSANDRA-17131)
  * Add backward compatibility for CQLSSTableWriter Date fields (CASSANDRA-17117)
