@@ -118,6 +118,11 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     /**
      * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
      */
+    Future<V> addCallback(BiConsumer<? super V, Throwable> callback, Executor executor);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
+     */
     Future<V> addCallback(FutureCallback<? super V> callback);
 
     /**
@@ -131,14 +136,35 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     Future<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure);
 
     /**
-     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
      */
-    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen);
+    Future<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure, Executor executor);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
+     */
+    default <T> Future<T> map(Function<? super V, ? extends T> mapper)
+    {
+        return map(mapper, null);
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
+     */
+    <T> Future<T> map(Function<? super V, ? extends T> mapper, Executor executor);
 
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      */
-    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, Executor executor);
+    default <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper)
+    {
+        return flatMap(flatMapper, null);
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, Executor executor);
 
     /**
      * Invoke {@code runnable} on completion, using {@code executor}.

@@ -27,6 +27,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Policy.Eviction;
 import com.github.benmanes.caffeine.cache.Weigher;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 
 /**
  * An adapter from a Caffeine cache to the ICache interface. This provides an on-heap cache using
@@ -54,7 +55,7 @@ public class CaffeineCache<K extends IMeasurableMemory, V extends IMeasurableMem
         Cache<K, V> cache = Caffeine.newBuilder()
                 .maximumWeight(weightedCapacity)
                 .weigher(weigher)
-                .executor(MoreExecutors.directExecutor())
+                .executor(ImmediateExecutor.INSTANCE)
                 .build();
         return new CaffeineCache<>(cache);
     }

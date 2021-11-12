@@ -35,9 +35,15 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 
 import io.netty.util.concurrent.GenericFutureListener;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
 {
+    static
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
+
     public static <V> Promise<V> cancelSuccess(Promise<V> promise)
     {
         success(promise, Promise::isCancellable, true);
@@ -117,20 +123,30 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
                 int id = count++;
                 return result -> { results.add(result); order.add(id); return ImmediateFuture.success(result); };
             }
+            public Function<V, V> getFunction()
+            {
+                int id = count++;
+                return result -> { results.add(result); order.add(id); return result; };
+            }
             public Function<V, Future<V>> getRecursiveAsyncFunction(Promise<V> promise)
             {
                 int id = count++;
-                return result -> { promise.andThenAsync(getAsyncFunction()); results.add(result); order.add(id); return ImmediateFuture.success(result); };
+                return result -> { promise.flatMap(getAsyncFunction()); results.add(result); order.add(id); return ImmediateFuture.success(result); };
             }
             public Function<V, Future<V>> getAsyncFailingFunction()
             {
                 int id = count++;
                 return result -> { results.add(result); order.add(id); return ImmediateFuture.failure(new RuntimeException()); };
             }
+            public Function<V, V> getFailingFunction()
+            {
+                int id = count++;
+                return result -> { results.add(result); order.add(id); throw new RuntimeException(); };
+            }
             public Function<V, Future<V>> getRecursiveAsyncFailingFunction(Promise<V> promise)
             {
                 int id = count++;
-                return result -> { promise.andThenAsync(getAsyncFailingFunction()); results.add(result); order.add(id); return ImmediateFuture.failure(new RuntimeException()); };
+                return result -> { promise.flatMap(getAsyncFailingFunction()); results.add(result); order.add(id); return ImmediateFuture.failure(new RuntimeException()); };
             }
             public FutureCallback<V> getCallback(Future<V> p)
             {
@@ -181,17 +197,26 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         promise.addListener(listeners.getRecursiveRunnable(promise), MoreExecutors.directExecutor());
         promise.addListener(listeners.getRecursive());
         promise.addCallback(listeners.getCallback(promise));
+        promise.addCallback(listeners.getCallback(promise), MoreExecutors.directExecutor());
         promise.addCallback(listeners.getRecursiveCallback(promise));
+        promise.addCallback(listeners.getRecursiveCallback(promise), MoreExecutors.directExecutor());
         promise.addCallback(listeners.getConsumer(), fail -> Assert.fail());
+        promise.addCallback(listeners.getConsumer(), fail -> Assert.fail(), MoreExecutors.directExecutor());
         promise.addCallback(listeners.getRecursiveConsumer(), fail -> Assert.fail());
-        promise.andThenAsync(listeners.getAsyncFunction()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getRecursiveAsyncFunction(promise)).addListener(listeners.get());
-        promise.andThenAsync(listeners.getRecursiveAsyncFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getAsyncFailingFunction()).addListener(listeners.getListenerToFailure(promise));
-        promise.andThenAsync(listeners.getAsyncFailingFunction(), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
-        promise.andThenAsync(listeners.getRecursiveAsyncFailingFunction(promise)).addListener(listeners.getListenerToFailure(promise));
-        promise.andThenAsync(listeners.getRecursiveAsyncFailingFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+        promise.addCallback(listeners.getRecursiveConsumer(), fail -> Assert.fail(), MoreExecutors.directExecutor());
+        promise.map(listeners.getFunction()).addListener(listeners.get());
+        promise.map(listeners.getFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.map(listeners.getFailingFunction()).addListener(listeners.getListenerToFailure(promise));
+        promise.map(listeners.getFailingFunction(), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getAsyncFunction()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getRecursiveAsyncFunction(promise)).addListener(listeners.get());
+        promise.flatMap(listeners.getRecursiveAsyncFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFailingFunction()).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getAsyncFailingFunction(), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getRecursiveAsyncFailingFunction(promise)).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getRecursiveAsyncFailingFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+
         success(promise, Promise::getNow, null);
         success(promise, Promise::isSuccess, false);
         success(promise, Promise::isDone, false);
@@ -224,17 +249,25 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         promise.addListener(listeners.getRecursiveRunnable(promise), MoreExecutors.directExecutor());
         promise.addListener(listeners.getRecursive());
         promise.addCallback(listeners.getCallback(promise));
+        promise.addCallback(listeners.getCallback(promise), MoreExecutors.directExecutor());
         promise.addCallback(listeners.getRecursiveCallback(promise));
+        promise.addCallback(listeners.getRecursiveCallback(promise), MoreExecutors.directExecutor());
         promise.addCallback(listeners.getConsumer(), fail -> Assert.fail());
+        promise.addCallback(listeners.getConsumer(), fail -> Assert.fail(), MoreExecutors.directExecutor());
         promise.addCallback(listeners.getRecursiveConsumer(), fail -> Assert.fail());
-        promise.andThenAsync(listeners.getAsyncFunction()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getRecursiveAsyncFunction(promise)).addListener(listeners.get());
-        promise.andThenAsync(listeners.getRecursiveAsyncFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getAsyncFailingFunction()).addListener(listeners.getListenerToFailure(promise));
-        promise.andThenAsync(listeners.getAsyncFailingFunction(), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
-        promise.andThenAsync(listeners.getRecursiveAsyncFailingFunction(promise)).addListener(listeners.getListenerToFailure(promise));
-        promise.andThenAsync(listeners.getRecursiveAsyncFailingFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+        promise.addCallback(listeners.getRecursiveConsumer(), fail -> Assert.fail(), MoreExecutors.directExecutor());
+        promise.map(listeners.getFunction()).addListener(listeners.get());
+        promise.map(listeners.getFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.map(listeners.getFailingFunction()).addListener(listeners.getListenerToFailure(promise));
+        promise.map(listeners.getFailingFunction(), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getAsyncFunction()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getRecursiveAsyncFunction(promise)).addListener(listeners.get());
+        promise.flatMap(listeners.getRecursiveAsyncFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFailingFunction()).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getAsyncFailingFunction(), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getRecursiveAsyncFailingFunction(promise)).addListener(listeners.getListenerToFailure(promise));
+        promise.flatMap(listeners.getRecursiveAsyncFailingFunction(promise), MoreExecutors.directExecutor()).addListener(listeners.getListenerToFailure(promise));
         success(promise, Promise::isSuccess, true);
         success(promise, Promise::isDone, true);
         success(promise, Promise::isCancelled, false);
@@ -292,7 +325,7 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
             }
             public Function<V, Future<V>> getRecursiveAsyncFunction()
             {
-                return result -> { promise.andThenAsync(getAsyncFunction()); return ImmediateFuture.success(result); };
+                return result -> { promise.flatMap(getAsyncFunction()); return ImmediateFuture.success(result); };
             }
             public FutureCallback<V> getCallback(Future<V> p)
             {
@@ -346,10 +379,10 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         promise.addCallback(listeners.getRecursiveCallback(promise));
         promise.addCallback(fail -> Assert.fail(), listeners.getConsumer());
         promise.addCallback(fail -> Assert.fail(), listeners.getRecursiveConsumer());
-        promise.andThenAsync(listeners.getAsyncFunction()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getRecursiveAsyncFunction()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getRecursiveAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFunction()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getRecursiveAsyncFunction()).addListener(listeners.get());
+        promise.flatMap(listeners.getRecursiveAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
         success(promise, Promise::isSuccess, false);
         success(promise, Promise::isDone, false);
         success(promise, Promise::isCancelled, false);
@@ -393,8 +426,8 @@ public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
         promise.addCallback(listeners.getRecursiveCallback(promise));
         promise.addCallback(fail -> Assert.fail(), listeners.getConsumer());
         promise.addCallback(fail -> Assert.fail(), listeners.getRecursiveConsumer());
-        promise.andThenAsync(listeners.getAsyncFunction()).addListener(listeners.get());
-        promise.andThenAsync(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFunction()).addListener(listeners.get());
+        promise.flatMap(listeners.getAsyncFunction(), MoreExecutors.directExecutor()).addListener(listeners.get());
         success(promise, Promise::isSuccess, false);
         success(promise, Promise::isDone, true);
         success(promise, Promise::isCancelled, false);

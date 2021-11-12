@@ -90,14 +90,25 @@ public class SyncFuture<V> extends AbstractFuture<V>
     }
 
     /**
+     * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    @Override
+    public <T> Future<T> map(Function<? super V, ? extends T> mapper, Executor executor)
+    {
+        return map(new SyncFuture<>(), mapper, executor);
+    }
+
+    /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
     {
-        return andThenAsync(new SyncFuture<>(), andThen, executor);
+        return flatMap(new SyncFuture<>(), flatMapper, executor);
     }
 
     /**

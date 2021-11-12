@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.antlr.runtime.*;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
@@ -97,7 +98,7 @@ public class QueryProcessor implements QueryHandler
     static
     {
         preparedStatements = Caffeine.newBuilder()
-                             .executor(MoreExecutors.directExecutor())
+                             .executor(ImmediateExecutor.INSTANCE)
                              .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
                              .weigher(QueryProcessor::measure)
                              .removalListener((key, prepared, cause) -> {

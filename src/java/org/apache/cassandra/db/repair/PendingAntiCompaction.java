@@ -372,7 +372,7 @@ public class PendingAntiCompaction
         }
 
         Future<List<AcquireResult>> acquisitionResults = FutureCombiner.successfulOf(tasks);
-        return acquisitionResults.andThenAsync(getAcquisitionCallback(prsId, tokenRanges));
+        return acquisitionResults.flatMap(getAcquisitionCallback(prsId, tokenRanges));
     }
 
     @VisibleForTesting

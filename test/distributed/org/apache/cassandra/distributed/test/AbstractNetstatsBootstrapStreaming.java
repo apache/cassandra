@@ -77,8 +77,10 @@ public abstract class AbstractNetstatsBootstrapStreaming extends AbstractNetstat
             final Future<?> startupRunnable = executorService.submit((Runnable) secondNode::startup);
             final Future<AbstractNetstatsStreaming.NetstatResults> netstatsFuture = executorService.submit(new NetstatsCallable(cluster.get(1)));
 
+            startupRunnable.get(3, MINUTES);
+            // 1m is a bit much, but should be fine on slower environments.  Node2 can't come up without streaming
+            // completing, so if node2 is up 1m is enough time for the nodetool watcher to yield
             final AbstractNetstatsStreaming.NetstatResults results = netstatsFuture.get(1, MINUTES);
-            startupRunnable.get(2, MINUTES);
 
             results.assertSuccessful();
 
