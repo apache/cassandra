@@ -37,6 +37,8 @@ import org.slf4j.LoggerFactory;
 import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -58,6 +60,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.*;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ENABLE_NODELOCAL_QUERIES;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -221,19 +224,67 @@ public class QueryProcessor implements QueryHandler
         statement.authorize(clientState);
         statement.validate(clientState);
 
-        ResultMessage result;
-        if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
-        {
-            assert Boolean.getBoolean("cassandra.enable_nodelocal_queries") : "Node local consistency level is highly dangerous and should be used only for debugging purposes";
-            assert statement instanceof SelectStatement : "Only SELECT statements are permitted for node-local execution";
-            logger.info("Statement {} executed with NODE_LOCAL consistency level.", statement);
-            result = statement.executeLocally(queryState, options);
-        }
-        else
-        {
-            result = statement.execute(queryState, options, queryStartNanoTime);
-        }
+        ResultMessage result = options.getConsistency() == ConsistencyLevel.NODE_LOCAL
+                             ? processNodeLocalStatement(statement, queryState, options)
+                             : statement.execute(queryState, options, queryStartNanoTime);
+
         return result == null ? new ResultMessage.Void() : result;
+    }
+
+    private ResultMessage processNodeLocalStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
+    {
+        if (!ENABLE_NODELOCAL_QUERIES.getBoolean())
+            throw new InvalidRequestException("NODE_LOCAL consistency level is highly dangerous and should be used only for debugging purposes");
+
+        if (statement instanceof BatchStatement || statement instanceof ModificationStatement)
+            return processNodeLocalWrite(statement, queryState, options);
+        else if (statement instanceof SelectStatement)
+            return processNodeLocalSelect((SelectStatement) statement, queryState, options);
+        else
+            throw new InvalidRequestException("NODE_LOCAL consistency level can only be used with BATCH, UPDATE, INSERT, DELETE, and SELECT statements");
+    }
+
+    private ResultMessage processNodeLocalWrite(CQLStatement statement, QueryState queryState, QueryOptions options)
+    {
+        ClientRequestMetrics  levelMetrics = ClientRequestsMetricsHolder.writeMetricsForLevel(ConsistencyLevel.NODE_LOCAL);
+        ClientRequestMetrics globalMetrics = ClientRequestsMetricsHolder.writeMetrics;
+
+        long startTime = nanoTime();
+        try
+        {
+            return statement.executeLocally(queryState, options);
+        }
+        finally
+        {
+            long latency = nanoTime() - startTime;
+             levelMetrics.addNano(latency);
+            globalMetrics.addNano(latency);
+        }
+    }
+
+    private ResultMessage processNodeLocalSelect(SelectStatement statement, QueryState queryState, QueryOptions options)
+    {
+        ClientRequestMetrics  levelMetrics = ClientRequestsMetricsHolder.readMetricsForLevel(ConsistencyLevel.NODE_LOCAL);
+        ClientRequestMetrics globalMetrics = ClientRequestsMetricsHolder.readMetrics;
+
+        if (StorageService.instance.isBootstrapMode() && !SchemaConstants.isLocalSystemKeyspace(statement.keyspace()))
+        {
+            levelMetrics.unavailables.mark();
+            globalMetrics.unavailables.mark();
+            throw new IsBootstrappingException();
+        }
+
+        long startTime = nanoTime();
+        try
+        {
+            return statement.executeLocally(queryState, options);
+        }
+        finally
+        {
+            long latency = nanoTime() - startTime;
+             levelMetrics.addNano(latency);
+            globalMetrics.addNano(latency);
+        }
     }
 
     public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState, long queryStartNanoTime)
