@@ -156,9 +156,9 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      */
-    default <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> andThen)
+    default <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper)
     {
-        return flatMap(andThen, null);
+        return flatMap(flatMapper, null);
     }
 
     /**
