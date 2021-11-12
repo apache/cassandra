@@ -57,7 +57,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     }
 
     @Override
-    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception
+    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
         Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, commonRanges, cfnames);
         return f.map(result -> {

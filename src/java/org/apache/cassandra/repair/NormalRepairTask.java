@@ -50,7 +50,7 @@ public class NormalRepairTask extends AbstractRepairTask
     }
 
     @Override
-    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception
+    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
         return runRepair(parentSession, false, executor, commonRanges, cfnames);
     }
