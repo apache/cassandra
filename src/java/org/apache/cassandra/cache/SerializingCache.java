@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Weigher;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
@@ -51,7 +52,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         this.cache = Caffeine.newBuilder()
                    .weigher(weigher)
                    .maximumWeight(capacity)
-                   .executor(MoreExecutors.directExecutor())
+                   .executor(ImmediateExecutor.INSTANCE)
                    .removalListener((key, mem, cause) -> {
                        if (cause.wasEvicted()) {
                            mem.unreference();

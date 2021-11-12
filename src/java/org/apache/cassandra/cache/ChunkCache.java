@@ -29,6 +29,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import com.github.benmanes.caffeine.cache.*;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.*;
@@ -143,7 +144,7 @@ public class ChunkCache
         metrics = new ChunkCacheMetrics(this);
         cache = Caffeine.newBuilder()
                         .maximumWeight(cacheSize)
-                        .executor(MoreExecutors.directExecutor())
+                        .executor(ImmediateExecutor.INSTANCE)
                         .weigher((key, buffer) -> ((Buffer) buffer).buffer.capacity())
                         .removalListener(this)
                         .recordStats(() -> metrics)

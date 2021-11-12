@@ -22,7 +22,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.FutureCallback;
@@ -151,7 +150,7 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
     static <F extends io.netty.util.concurrent.Future<?>> void notifyListener(Executor notifyExecutor, GenericFutureListener<F> listener, F future)
     {
         if (notifyExecutor == null) notifyListener(listener, future);
-        else notifyExecutor.execute(() -> notifyListener(listener, future));
+        else safeExecute(notifyExecutor, () -> notifyListener(listener, future));
     }
 
     /**
@@ -159,8 +158,22 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
      */
     static void notifyListener(@Nullable Executor notifyExecutor, Runnable listener)
     {
-        if (notifyExecutor == null) ImmediateExecutor.INSTANCE.execute(listener);
-        else notifyExecutor.execute(listener);
+        safeExecute(notifyExecutor, listener);
+    }
+
+    private static void safeExecute(@Nullable Executor notifyExecutor, Runnable runnable)
+    {
+        if (notifyExecutor == null)
+            notifyExecutor = ImmediateExecutor.INSTANCE;
+        try
+        {
+            notifyExecutor.execute(runnable);
+        }
+        catch (Exception | Error e)
+        {
+            // TODO: suboptimal package interdependency - move FutureTask etc here?
+            ExecutionFailure.handle(e);
+        }
     }
 
     /**
@@ -219,11 +232,13 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
     {
         final Future<V> future;
         final BiConsumer<? super V, Throwable> callback;
+        final Executor executor;
 
-        CallbackBiConsumerListener(Future<V> future, BiConsumer<? super V, Throwable> callback)
+        CallbackBiConsumerListener(Future<V> future, BiConsumer<? super V, Throwable> callback, Executor executor)
         {
             this.future = future;
             this.callback = callback;
+            this.executor = executor;
         }
 
         @Override
@@ -236,7 +251,7 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
         @Override
         void notifySelf(Executor notifyExecutor, Future<V> future)
         {
-            notifyListener(notifyExecutor, this);
+            notifyListener(executor == null ? notifyExecutor : executor, this);
         }
     }
 
@@ -269,12 +284,14 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
         final Future<V> future;
         final Consumer<? super V> onSuccess;
         final Consumer<? super Throwable> onFailure;
+        final Executor executor;
 
-        CallbackLambdaListener(Future<V> future, Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure)
+        CallbackLambdaListener(Future<V> future, Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure, Executor executor)
         {
             this.future = future;
             this.onSuccess = onSuccess;
             this.onFailure = onFailure;
+            this.executor = executor;
         }
 
         @Override
@@ -287,7 +304,7 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
         @Override
         void notifySelf(Executor notifyExecutor, Future future)
         {
-            notifyListener(notifyExecutor, this);
+            notifyListener(executor == null ? notifyExecutor : executor, this);
         }
     }
 

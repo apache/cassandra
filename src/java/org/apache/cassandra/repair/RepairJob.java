@@ -135,7 +135,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             }
 
             // When all snapshot complete, send validation requests
-            treeResponses = allSnapshotTasks.andThenAsync(endpoints -> {
+            treeResponses = allSnapshotTasks.flatMap(endpoints -> {
                 if (parallelismDegree == RepairParallelism.SEQUENTIAL)
                     return sendSequentialValidationRequest(endpoints);
                 else
@@ -149,7 +149,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
 
         // When all validations complete, submit sync tasks
-        Future<List<SyncStat>> syncResults = treeResponses.andThenAsync(session.optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing, taskExecutor);
+        Future<List<SyncStat>> syncResults = treeResponses.flatMap(session.optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing, taskExecutor);
 
         // When all sync complete, set the final result
         syncResults.addCallback(new FutureCallback<List<SyncStat>>()

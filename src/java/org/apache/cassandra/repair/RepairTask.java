@@ -15,22 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.repair;
 
-/**
- * This is a special exception which states "I know something failed but I don't have access to the failure". This
- * is mostly used to make sure the error notifications are clean and the history table has a meaningful exception.
- *
- * The expected behavior is that when this is thrown, this error should be ignored from history table and not used
- * for notifications
- */
-public class SomeRepairFailedException extends RuntimeException
-{
-    public static final SomeRepairFailedException INSTANCE = new SomeRepairFailedException();
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
-    private SomeRepairFailedException()
+public interface RepairTask
+{
+    String name();
+
+    Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception;
+
+    default Future<CoordinatedRepairResult> perform(ExecutorPlus executor)
     {
-        super(null, null, false, false);
+        try
+        {
+            return performUnsafe(executor);
+        }
+        catch (Exception | Error e)
+        {
+            JVMStabilityInspector.inspectThrowable(e);
+            return ImmediateFuture.failure(e);
+        }
     }
 }

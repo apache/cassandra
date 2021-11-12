@@ -24,6 +24,7 @@ import java.util.Map;
 
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.*;
 
@@ -42,7 +43,7 @@ public class StemmerFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(StemmerFactory.class);
     private static final LoadingCache<Class, Constructor<?>> STEMMER_CONSTRUCTOR_CACHE = Caffeine.newBuilder()
-            .executor(MoreExecutors.directExecutor())
+            .executor(ImmediateExecutor.INSTANCE)
             .build(new CacheLoader<Class, Constructor<?>>()
             {
                 public Constructor<?> load(Class aClass) throws Exception

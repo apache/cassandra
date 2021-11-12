@@ -51,14 +51,30 @@
  
     <module name="SuppressWithNearbyCommentFilter">
        <property name="commentFormat" value="checkstyle: permit system clock"/>
-       <property name="checkFormat" value="RegexpSinglelineJava"/>
+       <property name="idFormat" value="blockSystemClock"/>
        <property name="influenceFormat" value="0"/>
     </module>
  
     <module name="RegexpSinglelineJava">
-      <!-- To prevent static imports and System.nanoTime or System.currentTimeMillis -->
-      <property name="format" value="(newSingleThreadExecutor|newFixedThreadPool|newCachedThreadPool|newSingleThreadScheduledExecutor|newWorkStealingPool|newScheduledThreadPool|defaultThreadFactory)\(|System\.(currentTimeMillis|nanoTime)"/>
+      <!-- block system time -->
+      <property name="id" value="blockSystemClock"/>
+      <property name="format" value="System\.(currentTimeMillis|nanoTime)"/>
       <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid System for time, should use org.apache.cassandra.utils.Clock.Global or org.apache.cassandra.utils.Clock interface" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block normal executors -->
+      <property name="id" value="blockExecutors"/>
+      <property name="format" value="newSingleThreadExecutor|newFixedThreadPool|newCachedThreadPool|newSingleThreadScheduledExecutor|newWorkStealingPool|newScheduledThreadPool|defaultThreadFactory"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid creating an executor directly, should use org.apache.cassandra.concurrent.ExecutorFactory.Global#executorFactory" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block guavas directExecutor -->
+      <property name="id" value="blockGuavaDirectExecutor"/>
+      <property name="format" value="MoreExecutors\.directExecutor"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid MoreExecutors.directExecutor() in favor of ImmediateExecutor.INSTANCE" />
     </module>
     <module name="IllegalImport">
       <property name="illegalPkgs" value=""/>

@@ -20,7 +20,6 @@ package org.apache.cassandra.repair.consistent;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -31,6 +30,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Lists;
+
+import org.apache.cassandra.repair.CoordinatedRepairResult;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -106,29 +107,27 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         UUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
-        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<CoordinatedRepairResult>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
         };
 
         // coordinator sends prepare requests to create local session and perform anticompaction
-        AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
 
         // execute repair and start prepare phase
-        Future<Boolean> sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future<CoordinatedRepairResult> sessionResult = coordinator.execute(sessionSupplier);
         Assert.assertFalse(sessionResult.isDone());
-        Assert.assertFalse(hasFailures.get());
+
         // prepare completed
         prepareLatch.countDown();
         spyPrepare.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
         Assert.assertFalse(sessionResult.isDone());
-        Assert.assertFalse(hasFailures.get());
 
         // set result from local repair session
-        repairFuture.trySuccess(Lists.newArrayList(createResult(coordinator), createResult(coordinator), createResult(coordinator)));
+        repairFuture.trySuccess(CoordinatedRepairResult.success(Lists.newArrayList(createResult(coordinator), createResult(coordinator), createResult(coordinator))));
 
         // finalize phase
         finalizeLatch.countDown();
@@ -136,8 +135,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
 
         // commit phase
         spyCommit.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
-        Assert.assertTrue(sessionResult.get());
-        Assert.assertFalse(hasFailures.get());
+        Assert.assertFalse(sessionResult.get().hasFailed());
 
         // expect no other messages except from intercepted so far
         spyPrepare.interceptNoMsg(100, TimeUnit.MILLISECONDS);
@@ -197,19 +195,18 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         UUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
-        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<CoordinatedRepairResult>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
         };
 
         // coordinator sends prepare requests to create local session and perform anticompaction
-        AtomicBoolean proposeFailed = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
 
         // execute repair and start prepare phase
-        Future<Boolean> sessionResult = coordinator.execute(sessionSupplier, proposeFailed);
+        Future<CoordinatedRepairResult> sessionResult = coordinator.execute(sessionSupplier);
         prepareLatch.countDown();
         // prepare completed
         try
@@ -222,7 +219,8 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         }
         sendFailSessionExpectedSpy.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
         Assert.assertFalse(repairSubmitted.get());
-        Assert.assertTrue(proposeFailed.get());
+        Assert.assertTrue(sessionResult.isDone());
+        Assert.assertNotNull(sessionResult.cause());
         Assert.assertEquals(ConsistentSession.State.FAILED, coordinator.getState());
         Assert.assertFalse(ActiveRepairService.instance.consistent.local.isSessionInProgress(uuid));
     }
@@ -236,19 +234,18 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         UUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
-        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<CoordinatedRepairResult>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
         };
 
         // coordinator sends prepare requests to create local session and perform anticompaction
-        AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
 
         // execute repair and start prepare phase
-        Future<Boolean> sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future<CoordinatedRepairResult> sessionResult = coordinator.execute(sessionSupplier);
         try
         {
             sessionResult.get(1, TimeUnit.SECONDS);
@@ -266,7 +263,6 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         spyPrepare.expectMockedMessage(2).get(100, TimeUnit.MILLISECONDS);
         sendFailSessionUnexpectedSpy.interceptNoMsg(100, TimeUnit.MILLISECONDS);
         Assert.assertFalse(repairSubmitted.get());
-        Assert.assertFalse(hasFailures.get());
         Assert.assertEquals(ConsistentSession.State.PREPARING, coordinator.getState());
         Assert.assertFalse(ActiveRepairService.instance.consistent.local.isSessionInProgress(uuid));
     }

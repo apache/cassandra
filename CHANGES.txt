@@ -1,4 +1,5 @@
 4.1
+ * Refactor normal/preview/IR repair to standardize repair cleanup and error handling of failed RepairJobs (CASSANDRA-17069)
  * Log missing peers in StartupClusterConnectivityChecker (CASSANDRA-17130)
  * Introduce separate rate limiting settings for entire SSTable streaming (CASSANDRA-17065)
  * Implement Virtual Tables for Auth Caches (CASSANDRA-16914)
