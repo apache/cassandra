@@ -143,15 +143,15 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
      */
-    default <T> Future<T> map(Function<? super V, ? extends T> andThen)
+    default <T> Future<T> map(Function<? super V, ? extends T> mapper)
     {
-        return map(andThen, null);
+        return map(mapper, null);
     }
 
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
      */
-    <T> Future<T> map(Function<? super V, ? extends T> andThen, Executor executor);
+    <T> Future<T> map(Function<? super V, ? extends T> mapper, Executor executor);
 
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
@@ -164,7 +164,7 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      */
-    <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> andThen, Executor executor);
+    <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, Executor executor);
 
     /**
      * Invoke {@code runnable} on completion, using {@code executor}.

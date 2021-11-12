@@ -128,9 +128,9 @@ public class AsyncFuture<V> extends AbstractFuture<V>
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> map(Function<? super V, ? extends T> andThen, Executor executor)
+    public <T> Future<T> map(Function<? super V, ? extends T> mapper, Executor executor)
     {
-        return map(new AsyncFuture<>(), andThen, executor);
+        return map(new AsyncFuture<>(), mapper, executor);
     }
 
     /**
@@ -139,9 +139,9 @@ public class AsyncFuture<V> extends AbstractFuture<V>
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
     {
-        return flatMap(new AsyncFuture<>(), andThen, executor);
+        return flatMap(new AsyncFuture<>(), flatMapper, executor);
     }
 
     /**

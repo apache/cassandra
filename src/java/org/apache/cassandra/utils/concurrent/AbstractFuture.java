@@ -333,12 +333,12 @@ public abstract class AbstractFuture<V> implements Future<V>
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
-    protected <T> Future<T> map(AbstractFuture<T> result, Function<? super V, ? extends T> andThen, @Nullable Executor executor)
+    protected <T> Future<T> map(AbstractFuture<T> result, Function<? super V, ? extends T> mapper, @Nullable Executor executor)
     {
         addListener(() -> {
             try
             {
-                if (isSuccess()) result.trySet(andThen.apply(getNow()));
+                if (isSuccess()) result.trySet(mapper.apply(getNow()));
                 else result.tryFailure(cause());
             }
             catch (Throwable t)
@@ -355,12 +355,12 @@ public abstract class AbstractFuture<V> implements Future<V>
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
-    protected <T> Future<T> flatMap(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    protected <T> Future<T> flatMap(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
     {
         addListener(() -> {
             try
             {
-                if (isSuccess()) andThen.apply(getNow()).addListener(propagate(result));
+                if (isSuccess()) flatMapper.apply(getNow()).addListener(propagate(result));
                 else result.tryFailure(cause());
             }
             catch (Throwable t)

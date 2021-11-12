@@ -95,9 +95,9 @@ public class SyncFuture<V> extends AbstractFuture<V>
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> map(Function<? super V, ? extends T> andThen, Executor executor)
+    public <T> Future<T> map(Function<? super V, ? extends T> mapper, Executor executor)
     {
-        return map(new SyncFuture<>(), andThen, executor);
+        return map(new SyncFuture<>(), mapper, executor);
     }
 
     /**
@@ -106,9 +106,9 @@ public class SyncFuture<V> extends AbstractFuture<V>
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
     {
-        return flatMap(new SyncFuture<>(), andThen, executor);
+        return flatMap(new SyncFuture<>(), flatMapper, executor);
     }
 
     /**
