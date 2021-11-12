@@ -36,6 +36,7 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -52,6 +53,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -406,6 +409,23 @@ public class AutoRepairUtils
         }
         return true;
     }
+
+    public static boolean checkNodeContainsKeyspaceReplica(Keyspace ks)
+    {
+        AbstractReplicationStrategy replicationStrategy = ks.getReplicationStrategy();
+        boolean ksReplicaOnNode = true;
+        if (replicationStrategy instanceof NetworkTopologyStrategy)
+        {
+            Set<String> datacenters = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
+            String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+            if (!datacenters.contains(localDC))
+            {
+                ksReplicaOnNode = false;
+            }
+        }
+        return ksReplicaOnNode;
+    }
+
 
     public static boolean tableMaxRepairTimeExceeded(long startTime)
     {

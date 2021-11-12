@@ -242,7 +242,8 @@ public class AutoRepair
                     Tables tables = keyspace.getMetadata().tables;
                     Iterator<TableMetadata> iter = tables.iterator();
                     String keyspaceName = keyspace.getName();
-                    if (!AutoRepairUtils.shouldRepair(keyspaceName))
+                    if (!AutoRepairUtils.shouldRepair(keyspaceName) ||
+                        !AutoRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
                     {
                         continue;
                     }

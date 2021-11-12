@@ -19,9 +19,13 @@ package org.apache.cassandra.repair;
 
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.Datacenters;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.repair.AutoRepair;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import com.google.common.collect.Sets;
@@ -43,6 +47,9 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.apache.cassandra.repair.AutoRepairUtils.RepairTurn.*;
@@ -186,5 +193,37 @@ public class AutoRepairTest extends CQLTester
         long lastRepairTime3 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected lastRepairTime1 %d, and lastRepairTime3 %d to be not same",
                 lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime3);
+    }
+
+    @Test
+    public void testCheckNTSreplicationNodeInsideOutsideDC()
+    {
+        String ksname1 = "ks_nts1";
+        String ksname2 = "ks_nts2";
+        Map<String, String> configOptions1 = new HashMap<>();
+        configOptions1.put("datacenter1", "3");
+        configOptions1.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
+        KeyspaceMetadata meta1 = KeyspaceMetadata.create(ksname1, KeyspaceParams.create(false, configOptions1));
+        SchemaTestUtil.addOrUpdateKeyspace(meta1, false);
+        Map<String, String> configOptions2 = new HashMap<>();
+        configOptions2.put("datacenter2", "3");
+        configOptions2.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
+        KeyspaceMetadata meta2 = KeyspaceMetadata.create(ksname2, KeyspaceParams.create(false, configOptions2));
+        SchemaTestUtil.addOrUpdateKeyspace(meta2, false);
+
+        for (Keyspace ks : Keyspace.all()) {
+            if (ks.getName().equals(ksname1)) {
+                // case 1 :
+                // node reside in "datacenter1"
+                // keyspace has replica in "datacenter1"
+                Assert.assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+            }
+            else if (ks.getName().equals(ksname2)) {
+                // case 2 :
+                // node reside in "datacenter1"
+                // keyspace has replica in "datacenter2"
+                Assert.assertFalse(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+            }
+        }
     }
 }
