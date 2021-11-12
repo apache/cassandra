@@ -443,7 +443,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                     }
                     else
                     {
-                        success(task.getName() + " completed successfully");
+                        success(task.name() + " completed successfully");
                         ActiveRepairService.instance.cleanUp(parentSession, neighborsAndRanges.participants);
                     }
                 }

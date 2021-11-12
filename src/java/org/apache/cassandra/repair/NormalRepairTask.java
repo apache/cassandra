@@ -44,7 +44,7 @@ public class NormalRepairTask extends AbstractRepairTask
     }
 
     @Override
-    public String getName()
+    public String name()
     {
         return "Repair";
     }

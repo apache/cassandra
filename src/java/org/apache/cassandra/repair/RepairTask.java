@@ -24,7 +24,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 public interface RepairTask
 {
-    String getName();
+    String name();
 
     Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception;
 
