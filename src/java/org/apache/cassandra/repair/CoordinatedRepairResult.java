@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -71,9 +72,9 @@ public class CoordinatedRepairResult
             }
             else
             {
-                // guava doesn't keep track of the original, but FutureCombiner.successfulOf maintains order, so
+                // FutureCombiner.successfulOf doesn't keep track of the original, but maintains order, so
                 // can fetch the original session
-                failedRanges.addAll(ranges.get(index));
+                failedRanges.addAll(Objects.requireNonNull(ranges.get(index)));
             }
             index++;
         }
