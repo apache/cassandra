@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -55,6 +56,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 
 /**
@@ -208,7 +210,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public void flushAndFsyncBlockingly(Iterable<UUID> hostIds)
     {
-        Iterable<HintsStore> stores = transform(hostIds, catalog::get);
+        Iterable<HintsStore> stores = filter(transform(hostIds, catalog::getNullable), Objects::nonNull);
         writeExecutor.flushBufferPool(bufferPool, stores);
         writeExecutor.fsyncWritersBlockingly(stores);
     }
