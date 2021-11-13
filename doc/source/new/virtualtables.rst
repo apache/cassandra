@@ -203,19 +203,28 @@ The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed 
 
 Caches Virtual Table
 ********************
-The ``caches`` virtual table lists information about the caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details:
+The ``caches`` virtual table lists information about the caches. A query on the ``caches`` virtual table returns the following details:
 
 ::
 
  cqlsh:system_views> SELECT * FROM system_views.caches;
- name     | capacity_bytes | entry_count | hit_count | hit_ratio | recent_hit_rate_per_second | recent_request_rate_per_second | request_count | size_bytes
- ---------+----------------+-------------+-----------+-----------+----------------------------+--------------------------------+---------------+------------
-   chunks |      229638144 |          29 |       166 |      0.83 |                          5 |                              6 |           200 |     475136
- counters |       26214400 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
-     keys |       52428800 |          14 |       124 |  0.873239 |                          4 |                              4 |           142 |       1248
-     rows |              0 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
+ name                | capacity_bytes | entry_count | hit_count | hit_ratio | recent_hit_rate_per_second | recent_request_rate_per_second | request_count | size_bytes
+ --------------------+----------------+-------------+-----------+-----------+----------------------------+--------------------------------+---------------+------------
+              chunks |      229638144 |          29 |       166 |      0.83 |                          5 |                              6 |           200 |     475136
+            counters |       26214400 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
+         credentials |           1000 |           1 |         2 |         1 |                          0 |                              0 |             2 |          1
+     jmx_permissions |           1000 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
+                keys |       52428800 |          14 |       124 |  0.873239 |                          4 |                              4 |           142 |       1248
+ network_permissions |           1000 |           1 |        18 |         1 |                          2 |                              2 |            18 |          1
+         permissions |           1000 |           1 |         1 |         1 |                          0 |                              0 |             1 |          1
+               roles |           1000 |           1 |         9 |         1 |                          0 |                              0 |             9 |          1
+                rows |              0 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
 
- (4 rows)
+ (8 rows)
+
+.. NOTE::
+   * chunk cache is only available if it is enabled.
+   * auth caches are only available if corresponding authorizers and authenticators are used.
 
 Settings Virtual Table
 **********************

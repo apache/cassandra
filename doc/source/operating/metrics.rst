@@ -384,12 +384,19 @@ Name                         Description
 ============================ ===========
 ChunkCache                   In process uncompressed page cache.
 CounterCache                 Keeps hot counters in memory for performance.
+CredentialsCache             Auth cache for credentials.
+JmxPermissionsCache          Auth cache for JMX permissions.
 KeyCache                     Cache for partition to sstable offsets.
+NetworkPermissionsCache      Auth cache for network permissions.
+PermissionsCache             Auth cache for permissions.
+RolesCache                   Auth cache for roles.
 RowCache                     Cache for rows kept in memory.
 ============================ ===========
 
 .. NOTE::
-    Misses and MissLatency are only defined for the ChunkCache
+   * MissLatency is only defined for the ChunkCache.
+   * ChunkCache MBean is only available if the cache is enabled.
+   * AuthCache MBeans are only available if corresponding authorizers and authenticators are used.
 
 CQL Metrics
 ^^^^^^^^^^^

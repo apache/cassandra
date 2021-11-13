@@ -23,12 +23,27 @@ package org.apache.cassandra.cache;
 public interface CacheSize
 {
 
+    /**
+     * Returns the maximum total weighted or unweighted size (number of entries) of this cache, depending on how the
+     * cache was constructed.
+     */
     long capacity();
 
+    /**
+     * Specifies the maximum total size of this cache. This value may be interpreted as the weighted or unweighted
+     * (number of entries) threshold size based on how this cache was constructed.
+     */
     void setCapacity(long capacity);
 
+    /**
+     * Returns the approximate number of entries in this cache.
+     */
     int size();
 
+    /**
+     * Returns the approximate accumulated weight of entries in this cache. If this cache does not use a weighted size
+     * bound, then it equals to the approximate number of entries.
+     */
     long weightedSize();
 
 }

@@ -165,7 +165,7 @@ public class ChunkCache
         buffer.release();
     }
 
-    public void close()
+    public void clear()
     {
         cache.invalidateAll();
     }
