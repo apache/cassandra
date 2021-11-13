@@ -149,6 +149,30 @@ public abstract class MemoryUtil
         return Architecture.IS_UNALIGNED ? unsafe.getLong(address) : getLongByByte(address);
     }
 
+    public static long getStaticFieldOffset(Field field)
+    {
+        return unsafe.staticFieldOffset(field);
+    }
+
+    /**
+     * @param address the memory address to use for the new buffer
+     * @param length in bytes of the new buffer
+     * @param capacity in bytes of the new buffer
+     * @param order byte order of the new buffer
+     * @param attachment byte buffer attachment
+     * @return a new DirectByteBuffer setup with the address, length and order required
+     */
+    public static ByteBuffer allocateByteBuffer(long address, int length, int capacity, ByteOrder order, Object attachment)
+    {
+        ByteBuffer instance = getHollowDirectByteBuffer(order);
+        setDirectByteBuffer(instance, address, length, capacity);
+
+        if (attachment != null)
+            MemoryUtil.setAttachment(instance, attachment);
+
+        return instance;
+    }
+
     public static ByteBuffer getByteBuffer(long address, int length)
     {
         return getByteBuffer(address, length, ByteOrder.nativeOrder());
@@ -232,10 +256,20 @@ public abstract class MemoryUtil
 
     public static void setDirectByteBuffer(ByteBuffer instance, long address, int length)
     {
+        setDirectByteBuffer(instance, address, length, length);
+    }
+
+    public static void setDirectByteBuffer(ByteBuffer instance, long address, int length, int capacity)
+    {
         unsafe.putLong(instance, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, address);
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_POSITION_OFFSET, 0);
-        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, length);
+        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, capacity);
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, length);
+    }
+
+    public static void setObjectVolatile(Object o, long l, Object o1)
+    {
+        unsafe.putObjectVolatile(o, l, o1);
     }
 
     public static void setByteBufferCapacity(ByteBuffer instance, int capacity)
