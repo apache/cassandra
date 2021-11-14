@@ -53,11 +53,13 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     private final HashSet<String> clientWarnings = new HashSet<>();
 
     private final KeyspaceAttributes attrs;
+    private final boolean ifExists;
 
-    public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs)
+    public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifExists)
     {
         super(keyspaceName);
         this.attrs = attrs;
+        this.ifExists = ifExists;
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -66,7 +68,11 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+        {
+            if (!ifExists)
+                throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+            return schema;
+        }
 
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
 
@@ -195,16 +201,18 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     {
         private final String keyspaceName;
         private final KeyspaceAttributes attrs;
+        private final boolean ifExists;
 
-        public Raw(String keyspaceName, KeyspaceAttributes attrs)
+        public Raw(String keyspaceName, KeyspaceAttributes attrs, boolean ifExists)
         {
             this.keyspaceName = keyspaceName;
             this.attrs = attrs;
+            this.ifExists = ifExists;
         }
 
         public AlterKeyspaceStatement prepare(ClientState state)
         {
-            return new AlterKeyspaceStatement(keyspaceName, attrs);
+            return new AlterKeyspaceStatement(keyspaceName, attrs, ifExists);
         }
     }
 }

@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -671,7 +672,7 @@ public class AlterTest extends CQLTester
     {
         assertThrowsException(clazz, msg, () -> {alterKeyspaceMayThrow(stmt);});
     }
-    
+
     private void assertAlterTableThrowsException(Class<? extends Throwable> clazz, String msg, String stmt)
     {
         assertThrowsException(clazz, msg, () -> {alterTableMayThrow(stmt);});
@@ -782,5 +783,111 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
         assertInvalidMessage("Cannot add new column to a COMPACT STORAGE table",
                              "ALTER TABLE %s ADD column1 text");
+    }
+
+    @Test
+    public void testAlterTableWithoutCreateTableOrIfExistsClause()
+    {
+        String tbl1 = KEYSPACE + "." + createTableName();
+        assertAlterTableThrowsException(InvalidRequestException.class, String.format("Table '%s' doesn't exist", tbl1),
+                                        "ALTER TABLE %s ADD myCollection list<text>;");
+    }
+
+    @Test
+    public void testAlterTableWithoutCreateTableWithIfExists() throws Throwable
+    {
+        String tbl1 = KEYSPACE + "." + createTableName();
+        assertNull(execute(String.format("ALTER TABLE IF EXISTS %s ADD myCollection list<text>;", tbl1)));
+    }
+
+    @Test
+    public void testAlterTableWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE IF EXISTS %s ADD myCollection list<text>;");
+        execute("INSERT INTO %s (a, b, myCollection) VALUES (1, 2, ['first element']);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2, list("first element")));
+    }
+
+    @Test
+    public void testAlterTableAddColWithIfNotExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s ADD IF NOT EXISTS a int;");
+        execute("INSERT INTO %s (a, b) VALUES (1, 2);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2));
+    }
+
+    @Test
+    public void testAlterTableAddExistingColumnWithoutIfExists()
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        assertAlterTableThrowsException(InvalidRequestException.class,
+                                        String.format("Column with name '%s' already exists", "a"), "ALTER TABLE IF EXISTS %s ADD a int");
+    }
+
+    @Test
+    public void testAlterTableDropNotExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s DROP IF EXISTS myCollection");
+        execute("INSERT INTO %s (a, b) VALUES (1, 2);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2));
+    }
+
+    @Test
+    public void testAlterTableDropExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, myCollection list<text>, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s DROP IF EXISTS myCollection");
+        execute("INSERT INTO %s (a, b) VALUES (1, 2);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2));
+    }
+
+    @Test
+    public void testAlterTableRenameExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, myCollection list<text>, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s RENAME IF EXISTS a TO y AND b to z");
+        execute("INSERT INTO %s (y, z, myCollection) VALUES (1, 2, ['first element']);");
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2, list("first element")));
+    }
+
+    @Test
+    public void testAlterTypeWithIfExists() throws Throwable
+    {
+        // frozen UDT used directly in a partition key
+        String type1 = createType("CREATE TYPE %s (v1 int)");
+        String table1 = createTable("CREATE TABLE %s (pk frozen<" + type1 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen UDT used in a partition key
+        String type2 = createType("CREATE TYPE %s (v1 frozen<" + type1 + ">, v2 frozen<" + type1 + ">)");
+        String table2 = createTable("CREATE TABLE %s (pk frozen<" + type2 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen collection used in a partition key
+        String table3 = createTable("CREATE TABLE %s (pk frozen<list<frozen<" + type1 + ">>>, val int, PRIMARY KEY(pk));");
+
+        // assert that ALTER fails and that the error message contains all the names of the table referencing it
+        assertInvalidMessage(table1, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table2, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table3, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+    }
+
+    @Test
+    public void testAlterKeyspaceWithIfExists() throws Throwable
+    {
+        String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        execute("ALTER KEYSPACE IF EXISTS " + ks1 + " WITH durable_writes=true");
+
+        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                        row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
+
+        assertInvalidThrow(InvalidRequestException.class, "ALTER KEYSPACE ks1 WITH replication= { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
     }
 }
