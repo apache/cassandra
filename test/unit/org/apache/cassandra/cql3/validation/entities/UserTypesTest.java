@@ -24,6 +24,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.StorageService;
 
 public class UserTypesTest extends CQLTester
@@ -882,4 +883,21 @@ public class UserTypesTest extends CQLTester
     {
         return keyspace() + '.' + type1;
     }
+
+    @Test
+    public void testAlteringTypeWithIfNotExits() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, y frozen<" + columnType + ">)");
+        execute("ALTER TYPE " + columnType + " ADD IF NOT EXISTS a int");
+
+        execute("INSERT INTO %s (k, y) VALUES(?, ?)", 1, userType("a", 1));
+        assertRows(execute("SELECT * FROM %s"), row(1, userType("a", 1)));
+
+        assertInvalidThrowMessage(String.format("Cannot add field %s to type %s: a field with name %s already exists", "a", columnType, "a"),
+                                  InvalidRequestException.class,
+                                  "ALTER TYPE " + columnType + " ADD a int");
+    }
+
 }

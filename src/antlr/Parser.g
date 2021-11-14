@@ -918,9 +918,12 @@ dropTriggerStatement returns [DropTriggerStatement.Raw stmt]
  * ALTER KEYSPACE <KS> WITH <property> = <value>;
  */
 alterKeyspaceStatement returns [AlterKeyspaceStatement.Raw stmt]
-    @init { KeyspaceAttributes attrs = new KeyspaceAttributes(); }
-    : K_ALTER K_KEYSPACE ks=keyspaceName
-        K_WITH properties[attrs] { $stmt = new AlterKeyspaceStatement.Raw(ks, attrs); }
+    @init {
+     KeyspaceAttributes attrs = new KeyspaceAttributes();
+     boolean ifExists = false;
+    }
+    : K_ALTER K_KEYSPACE (K_IF K_EXISTS { ifExists = true; } )? ks=keyspaceName
+        K_WITH properties[attrs] { $stmt = new AlterKeyspaceStatement.Raw(ks, attrs, ifExists); }
     ;
 
 /**
@@ -931,17 +934,24 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement.Raw stmt]
  * ALTER TABLE <table> WITH <property> = <value>;
  */
 alterTableStatement returns [AlterTableStatement.Raw stmt]
-    : K_ALTER K_COLUMNFAMILY cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf); }
+    @init {
+        boolean ifExists = false;
+        boolean ifNotExists = false;
+    }
+    : K_ALTER K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )?
+      cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf, ifExists); }
       (
         K_ALTER id=cident K_TYPE v=comparatorType { $stmt.alter(id, v); }
 
-      | K_ADD  (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
-               | ('('  id1=ident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1); }
-                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn); } )* ')') )
+      | K_ADD ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+              (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b, ifNotExists);  }
+               | ('('  id1=ident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1, ifNotExists); }
+                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn, ifNotExists); } )* ')') )
 
-      | K_DROP (        id=ident { $stmt.drop(id);  }
-               | ('('  id1=ident { $stmt.drop(id1); }
-                 ( ',' idn=ident { $stmt.drop(idn); } )* ')') )
+      | K_DROP ( K_IF K_EXISTS { ifExists = true;} )?
+               (       id=ident { $stmt.drop(id, ifExists);  }
+               | ('('  id1=ident { $stmt.drop(id1, ifExists); }
+                 ( ',' idn=ident { $stmt.drop(idn, ifExists); } )* ')') )
                ( K_USING K_TIMESTAMP t=INTEGER { $stmt.timestamp(Long.parseLong(Constants.Literal.integer($t.text).getText())); } )?
 
       | K_RENAME id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1); }
@@ -976,11 +986,15 @@ alterMaterializedViewStatement returns [AlterViewStatement.Raw stmt]
  * ALTER TYPE <name> RENAME <field> TO <newtype> AND ...;
  */
 alterTypeStatement returns [AlterTypeStatement.Raw stmt]
-    : K_ALTER K_TYPE name=userTypeName { $stmt = new AlterTypeStatement.Raw(name); }
+    @init {
+        boolean ifExists = false;
+        boolean ifNotExists = false;
+    }
+    : K_ALTER K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=userTypeName { $stmt = new AlterTypeStatement.Raw(name, ifExists); }
       (
         K_ALTER   f=fident K_TYPE v=comparatorType { $stmt.alter(f, v); }
 
-      | K_ADD     f=fident v=comparatorType        { $stmt.add(f, v); }
+      | K_ADD (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?     f=fident v=comparatorType        { $stmt.add(f, v, ifNotExists); }
 
       | K_RENAME f1=fident K_TO toF1=fident        { $stmt.rename(f1, toF1); }
          ( K_AND fn=fident K_TO toFn=fident        { $stmt.rename(fn, toFn); } )*

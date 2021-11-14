@@ -49,10 +49,12 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 public abstract class AlterTypeStatement extends AlterSchemaStatement
 {
     protected final String typeName;
+    protected final boolean ifTypeExists;
 
-    public AlterTypeStatement(String keyspaceName, String typeName)
+    public AlterTypeStatement(String keyspaceName, String typeName, boolean ifTypeExists)
     {
         super(keyspaceName);
+        this.ifTypeExists = ifTypeExists;
         this.typeName = typeName;
     }
 
@@ -75,7 +77,10 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
                       : keyspace.types.getNullable(bytes(typeName));
 
         if (null == type)
+        {
+            if(ifTypeExists) return schema;
             throw ire("Type %s.%s doesn't exist", keyspaceName, typeName);
+        }
 
         return schema.withAddedOrUpdated(keyspace.withUpdatedUserType(apply(keyspace, type)));
     }
@@ -97,18 +102,23 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
     {
         private final FieldIdentifier fieldName;
         private final CQL3Type.Raw type;
+        private final boolean ifNotExists;
 
-        private AddField(String keyspaceName, String typeName, FieldIdentifier fieldName, CQL3Type.Raw type)
+        private AddField(String keyspaceName, String typeName, Raw.AddRawFields addRawFields, boolean ifTypeExists)
         {
-            super(keyspaceName, typeName);
-            this.fieldName = fieldName;
-            this.type = type;
+            super(keyspaceName, typeName, ifTypeExists);
+            this.fieldName = addRawFields.newFieldName;
+            this.type = addRawFields.newFieldType;
+            this.ifNotExists = addRawFields.ifNotExists;
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
         {
             if (userType.fieldPosition(fieldName) >= 0)
+            {
+                if (ifNotExists) return userType;
                 throw ire("Cannot add field %s to type %s: a field with name %s already exists", fieldName, userType.getCqlTypeName(), fieldName);
+            }
 
             AbstractType<?> fieldType = type.prepare(keyspaceName, keyspace.types).getType();
             if (fieldType.referencesUserType(userType.name))
@@ -142,9 +152,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
     {
         private final Map<FieldIdentifier, FieldIdentifier> renamedFields;
 
-        private RenameFields(String keyspaceName, String typeName, Map<FieldIdentifier, FieldIdentifier> renamedFields)
+        private RenameFields(String keyspaceName, String typeName, Map<FieldIdentifier, FieldIdentifier> renamedFields, boolean ifTypeExists)
         {
-            super(keyspaceName, typeName);
+            super(keyspaceName, typeName, ifTypeExists);
             this.renamedFields = renamedFields;
         }
 
@@ -186,9 +196,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
     private static final class AlterField extends AlterTypeStatement
     {
-        private AlterField(String keyspaceName, String typeName)
+        private AlterField(String keyspaceName, String typeName, boolean ifTypeExists)
         {
-            super(keyspaceName, typeName);
+            super(keyspaceName, typeName, ifTypeExists);
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
@@ -205,18 +215,24 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         }
 
         private final UTName name;
+        private final boolean ifTypeExists;
 
         private Kind kind;
 
         // ADD
-        private FieldIdentifier newFieldName;
-        private CQL3Type.Raw newFieldType;
+        private static class AddRawFields{
+            private FieldIdentifier newFieldName;
+            private CQL3Type.Raw newFieldType;
+            private boolean ifNotExists;
+        }
+        AddRawFields addRawFields = new AddRawFields();
 
         // RENAME
         private final Map<FieldIdentifier, FieldIdentifier> renamedFields = new HashMap<>();
 
-        public Raw(UTName name)
+        public Raw(UTName name, boolean ifExists)
         {
+            this.ifTypeExists = ifExists;
             this.name = name;
         }
 
@@ -227,19 +243,20 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case     ADD_FIELD: return new AddField(keyspaceName, typeName, newFieldName, newFieldType);
-                case RENAME_FIELDS: return new RenameFields(keyspaceName, typeName, renamedFields);
-                case   ALTER_FIELD: return new AlterField(keyspaceName, typeName);
+                case     ADD_FIELD: return new AddField(keyspaceName, typeName, addRawFields, ifTypeExists);
+                case RENAME_FIELDS: return new RenameFields(keyspaceName, typeName, renamedFields, ifTypeExists);
+                case   ALTER_FIELD: return new AlterField(keyspaceName, typeName, ifTypeExists);
             }
 
             throw new AssertionError();
         }
 
-        public void add(FieldIdentifier name, CQL3Type.Raw type)
+        public void add(FieldIdentifier name, CQL3Type.Raw type, boolean ifNotExists)
         {
             kind = Kind.ADD_FIELD;
-            newFieldName = name;
-            newFieldType = type;
+            addRawFields.ifNotExists = ifNotExists;
+            addRawFields.newFieldName = name;
+            addRawFields.newFieldType = type;
         }
 
         public void rename(FieldIdentifier from, FieldIdentifier to)

@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements.schema;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -77,11 +76,13 @@ import static org.apache.cassandra.schema.TableMetadata.Flag;
 public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     protected final String tableName;
+    private final boolean ifTableExists;
 
-    public AlterTableStatement(String keyspaceName, String tableName)
+    public AlterTableStatement(String keyspaceName, String tableName, boolean ifTableExists)
     {
         super(keyspaceName);
         this.tableName = tableName;
+        this.ifTableExists = ifTableExists;
     }
 
     public Keyspaces apply(Keyspaces schema) throws UnknownHostException
@@ -93,7 +94,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                             : keyspace.getTableOrViewNullable(tableName);
 
         if (null == table)
+        {
+            if (ifTableExists)
+                return schema;
+
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
+        }
 
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
@@ -131,9 +137,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
      */
     public static class AlterColumn extends AlterTableStatement
     {
-        AlterColumn(String keyspaceName, String tableName)
+        AlterColumn(String keyspaceName, String tableName, boolean ifTableExists)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
@@ -162,19 +168,19 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             }
         }
 
-        private final Collection<Column> newColumns;
+        private final Raw.AddRawColumns newRawColumns;
 
-        private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns)
+        private AddColumns(String keyspaceName, String tableName, Raw.AddRawColumns newRawColumns, boolean ifTableExists)
         {
-            super(keyspaceName, tableName);
-            this.newColumns = newColumns;
+            super(keyspaceName, tableName, ifTableExists);
+            this.newRawColumns = newRawColumns;
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
-            newColumns.forEach(c -> addColumn(keyspace, table, c, tableBuilder, viewsBuilder));
+            newRawColumns.columns.forEach(c -> addColumn(keyspace, table, c, newRawColumns.ifNotExists, tableBuilder, viewsBuilder));
             TableMetadata tableMetadata = tableBuilder.build();
             tableMetadata.validate();
 
@@ -185,6 +191,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private void addColumn(KeyspaceMetadata keyspace,
                                TableMetadata table,
                                Column column,
+                               boolean ifNotExists,
                                TableMetadata.Builder tableBuilder,
                                Views.Builder viewsBuilder)
         {
@@ -192,8 +199,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             AbstractType<?> type = column.type.prepare(keyspaceName, keyspace.types).getType();
             boolean isStatic = column.isStatic;
 
-            if (null != tableBuilder.getColumn(name))
+            if (null != tableBuilder.getColumn(name)) {
+                if(ifNotExists) return;
                 throw ire("Column with name '%s' already exists", name);
+            }
 
             if (table.isCompactTable())
                 throw ire("Cannot add new column to a COMPACT STORAGE table");
@@ -253,28 +262,30 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     // TODO: swap UDT refs with expanded tuples on drop
     private static class DropColumns extends AlterTableStatement
     {
-        private final Set<ColumnIdentifier> removedColumns;
+        private final Raw.DropRawColumns removedRawColumns;
         private final Long timestamp;
 
-        private DropColumns(String keyspaceName, String tableName, Set<ColumnIdentifier> removedColumns, Long timestamp)
+        private DropColumns(String keyspaceName, String tableName, Raw.DropRawColumns removedRawColumns, Long timestamp, boolean ifTableExists)
         {
-            super(keyspaceName, tableName);
-            this.removedColumns = removedColumns;
+            super(keyspaceName, tableName, ifTableExists);
+            this.removedRawColumns = removedRawColumns;
             this.timestamp = timestamp;
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder builder = table.unbuild();
-            removedColumns.forEach(c -> dropColumn(keyspace, table, c, builder));
+            removedRawColumns.droppedColumns.forEach(c -> dropColumn(keyspace, table, c, removedRawColumns.ifExists, builder));
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
         }
 
-        private void dropColumn(KeyspaceMetadata keyspace, TableMetadata table, ColumnIdentifier column, TableMetadata.Builder builder)
+        private void dropColumn(KeyspaceMetadata keyspace, TableMetadata table, ColumnIdentifier column, boolean ifExists, TableMetadata.Builder builder)
         {
             ColumnMetadata currentColumn = table.getColumn(column);
             if (null == currentColumn)
+            { if (ifExists) return;
                 throw ire("Column %s was not found in table '%s'", column, table);
+            }
 
             if (currentColumn.isPrimaryKeyColumn())
                 throw ire("Cannot drop PRIMARY KEY column %s", column);
@@ -319,9 +330,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private final Map<ColumnIdentifier, ColumnIdentifier> renamedColumns;
 
-        private RenameColumns(String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns)
+        private RenameColumns(String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns, boolean ifTableExists)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
             this.renamedColumns = renamedColumns;
         }
 
@@ -385,9 +396,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private final TableAttributes attrs;
 
-        private AlterOptions(String keyspaceName, String tableName, TableAttributes attrs)
+        private AlterOptions(String keyspaceName, String tableName, TableAttributes attrs, boolean ifTableExists)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
             this.attrs = attrs;
         }
 
@@ -427,9 +438,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private static final Logger logger = LoggerFactory.getLogger(AlterTableStatement.class);
         private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
-        private DropCompactStorage(String keyspaceName, String tableName)
+        private DropCompactStorage(String keyspaceName, String tableName, boolean ifTableExists)
         {
-            super(keyspaceName, tableName);
+            super(keyspaceName, tableName, ifTableExists);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
@@ -527,14 +538,30 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         private final QualifiedName name;
+        private final boolean ifTableExists;
 
         private Kind kind;
 
         // ADD
-        private final List<AddColumns.Column> addedColumns = new ArrayList<>();
+        private static final class AddRawColumns {
+            private final List<AddColumns.Column> columns;
+            private boolean ifNotExists;
+
+            public AddRawColumns() {
+                this.columns = new ArrayList<>();
+            }
+        }
+        AddRawColumns addRawColumns = new AddRawColumns();
 
         // DROP
-        private final Set<ColumnIdentifier> droppedColumns = new HashSet<>();
+        private static final class DropRawColumns {
+            private final Set<ColumnIdentifier> droppedColumns;
+            private boolean ifExists;
+
+            DropRawColumns() { this.droppedColumns = new HashSet<>(); }
+        }
+        DropRawColumns droppedRawColumns = new DropRawColumns();
+
         private Long timestamp = null; // will use execution timestamp if not provided by query
 
         // RENAME
@@ -543,9 +570,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         // OPTIONS
         public final TableAttributes attrs = new TableAttributes();
 
-        public Raw(QualifiedName name)
+        public Raw(QualifiedName name, boolean ifTableExists)
         {
             this.name = name;
+            this.ifTableExists = ifTableExists;
         }
 
         public AlterTableStatement prepare(ClientState state)
@@ -555,12 +583,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case          ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName);
-                case           ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns);
-                case          DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, timestamp);
-                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns);
-                case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs);
-                case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName);
+                case          ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName, ifTableExists);
+                case           ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addRawColumns, ifTableExists);
+                case          DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedRawColumns, timestamp, ifTableExists);
+                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists);
+                case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
+                case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
             }
 
             throw new AssertionError();
@@ -571,16 +599,18 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             kind = Kind.ALTER_COLUMN;
         }
 
-        public void add(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic)
+        public void add(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, boolean ifNotExists)
         {
             kind = Kind.ADD_COLUMNS;
-            addedColumns.add(new AddColumns.Column(name, type, isStatic));
+            addRawColumns.ifNotExists = ifNotExists;
+            addRawColumns.columns.add(new AddColumns.Column(name, type, isStatic));
         }
 
-        public void drop(ColumnIdentifier name)
+        public void drop(ColumnIdentifier name, boolean ifExists)
         {
             kind = Kind.DROP_COLUMNS;
-            droppedColumns.add(name);
+            droppedRawColumns.ifExists = ifExists;
+            droppedRawColumns.droppedColumns.add(name);
         }
 
         public void dropCompactStorage()
