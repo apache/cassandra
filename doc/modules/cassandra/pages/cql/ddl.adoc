@@ -211,7 +211,7 @@ For example:
 ----
 include::example$CQL/alter_ks.cql[]
 ----
-
+If the keyspace does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 The supported options are the same as for xref:cql/ddl.adoc#create-keyspace-statement[creating a keyspace].
 
 [[drop-keyspace-statement]]
@@ -729,6 +729,7 @@ Altering an existing table uses the `ALTER TABLE` statement:
 ----
 include::example$BNF/alter_table.bnf[]
 ----
+If the table does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 For example:
 
@@ -743,12 +744,14 @@ The `ALTER TABLE` statement can:
 * `ADD` a new column to a table. The primary key of a table cannot ever be altered.
 A new column, thus, cannot be part of the primary key. 
 Adding a column is a constant-time operation based on the amount of data in the table.
+If the new column already exists, the statement will return an error, unless `IF NOT EXISTS` is used in which case the operation is a no-op.
 * `DROP` a column from a table. This command drops both the column and all
 its content. Be aware that, while the column becomes immediately
 unavailable, its content are removed lazily during compaction. Because of this lazy removal,
 the command is a constant-time operation based on the amount of data in the table. 
 Also, it is important to know that once a column is dropped, a column with the same name can be re-added,
-unless the dropped column was a non-frozen column like a collection. 
+unless the dropped column was a non-frozen column like a collection.
+If the dropped column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [WARNING]
 .Warning
@@ -760,6 +763,11 @@ Cassandra allows the client to provide any timestamp on any table, it is
 theoretically possible to use another convention. Please be aware that
 if you do so, dropping a column will not correctly execute.
 ====
+
+* `RENAME` a primary key column of a table. Non primary key columns cannot be renamed.
+Furthermore, renaming a column to another name which already exists isn't allowed.
+It's important to keep in mind that renamed columns shouldn't have dependent seconday indexes.
+If the renamed column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 * Use `WITH` to change a table option. The xref:CQL/ddl.adoc#create-table-options[supported options]
 are the same as those used when creating a table, with the exception of `CLUSTERING ORDER`.

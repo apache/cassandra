@@ -323,7 +323,7 @@ another USE statement is issued or the connection terminates.
 _Syntax:_
 
 bc(syntax).. +
-::= ALTER KEYSPACE WITH  +
+::= ALTER KEYSPACE (IF EXISTS)? WITH  +
 p. +
 _Sample:_
 
@@ -713,12 +713,13 @@ haven’t) when creating a table.
 _Syntax:_
 
 bc(syntax).. +
-::= ALTER (TABLE | COLUMNFAMILY)
+::= ALTER (TABLE | COLUMNFAMILY) (IF EXISTS)?
 
-::= ADD  +
-| ADD ( ( , )* ) +
-| DROP  +
-| DROP ( ( , )* ) +
+::= ADD (IF NOT EXISTS)? +
+| ADD  (IF NOT EXISTS)? ( ( , )* ) +
+| DROP (IF EXISTS)?  +
+| DROP (IF EXISTS)? ( ( , )* ) +
+| RENAME (IF EXISTS)? TO (AND TO)* +
 | WITH ( AND )* +
 p. +
 _Sample:_
@@ -736,6 +737,7 @@ The `ALTER` statement is used to manipulate table definitions. It allows
 for adding new columns, dropping existing ones, or updating the table
 options. As with table creation, `ALTER COLUMNFAMILY` is allowed as an
 alias for `ALTER TABLE`.
+If the table does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 The `<tablename>` is the table name optionally preceded by the keyspace
 name. The `<instruction>` defines the alteration to perform:
@@ -743,13 +745,20 @@ name. The `<instruction>` defines the alteration to perform:
 * `ADD`: Adds a new column to the table. The `<identifier>` for the new
 column must not conflict with an existing column. Moreover, columns
 cannot be added to tables defined with the `COMPACT STORAGE` option.
+If the new column already exists, the statement will return an error, unless `IF NOT EXISTS` is used in which case the operation is a no-op.
 * `DROP`: Removes a column from the table. Dropped columns will
 immediately become unavailable in the queries and will not be included
 in compacted sstables in the future. If a column is readded, queries
 won’t return values written before the column was last dropped. It is
 assumed that timestamps represent actual time, so if this is not your
-case, you should NOT readd previously dropped columns. Columns can’t be
+case, you should NOT read previously dropped columns. Columns can’t be
 dropped from tables defined with the `COMPACT STORAGE` option.
+If the dropped column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
+* `RENAME` a primary key column of a table. Non primary key columns cannot be renamed.
+Furthermore, renaming a column to another name which already exists isn't allowed.
+It's important to keep in mind that renamed columns shouldn't have dependent seconday indexes.
+If the renamed column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
+
 * `WITH`: Allows to update the options of the table. The
 link:#createTableOptions[supported `<option>`] (and syntax) are the same
 as for the `CREATE TABLE` statement except that `COMPACT STORAGE` is not
@@ -1020,10 +1029,10 @@ keyspace.
 _Syntax:_
 
 bc(syntax).. +
-::= ALTER TYPE
+::= ALTER TYPE (IF EXISTS)?
 
-::= ADD  +
-| RENAME TO ( AND TO )* +
+::= ADD (IF NOT EXISTS)?  +
+| RENAME (IF EXISTS)? TO ( AND TO )* +
 p. +
 _Sample:_
 
@@ -1034,7 +1043,7 @@ ALTER TYPE address RENAME zip TO zipcode AND street_name TO street +
 p. +
 The `ALTER TYPE` statement is used to manipulate type definitions. It
 allows for adding new fields, renaming existing fields, or changing the
-type of existing fields.
+type of existing fields. If the type does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [[dropTypeStmt]]
 ==== DROP TYPE
@@ -1988,7 +1997,7 @@ CREATE ROLE IF NOT EXISTS other_role;
 _Syntax:_
 
 bc(syntax).. +
-::= ALTER ROLE ( WITH ( AND )* )?
+::= ALTER ROLE (IF EXISTS)? ( WITH ( AND )* )?
 
 ::= PASSWORD =  +
 | LOGIN =  +
@@ -2000,6 +2009,8 @@ _Sample:_
 
 bc(sample). +
 ALTER ROLE bob WITH PASSWORD = `PASSWORD_B' AND SUPERUSER = false;
+
+If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 Conditions on executing `ALTER ROLE` statements:
 
@@ -2159,7 +2170,7 @@ p.
 _Syntax:_
 
 bc(syntax).. +
-::= ALTER USER ( WITH PASSWORD )? ( )?
+::= ALTER USER (IF EXISTS)? ( WITH PASSWORD )? ( )?
 
 ::= SUPERUSER +
 | NOSUPERUSER +
@@ -2168,6 +2179,8 @@ p.
 bc(sample). +
 ALTER USER alice WITH PASSWORD `PASSWORD_A'; +
 ALTER USER bob SUPERUSER;
+
+If the user does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [[dropUserStmt]]
 ==== DROP USER

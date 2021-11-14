@@ -96,6 +96,7 @@ For example:
 ----
 include::example$CQL/alter_role.cql[]
 ----
+If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 USE `WITH HASHED PASSWORD` to provide the jBcrypt hashed password directly. See the `hash_password` tool.
 
@@ -281,7 +282,7 @@ Altering the options of a user uses the `ALTER USER` statement:
 ----
 include::example$BNF/alter_user_statement.bnf[]
 ----
-
+If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 For example:
 
 [source,cql]

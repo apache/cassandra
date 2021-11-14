@@ -24,6 +24,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.StorageService;
 
 public class UserTypesTest extends CQLTester
@@ -881,5 +882,36 @@ public class UserTypesTest extends CQLTester
     private String typeWithKs(String type1)
     {
         return keyspace() + '.' + type1;
+    }
+
+    @Test
+    public void testAlteringTypeWithIfNotExits() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, y frozen<" + columnType + ">)");
+        execute("ALTER TYPE " + columnType + " ADD IF NOT EXISTS a int");
+
+        execute("INSERT INTO %s (k, y) VALUES(?, ?)", 1, userType("a", 1));
+        assertRows(execute("SELECT * FROM %s"), row(1, userType("a", 1)));
+
+        assertInvalidThrowMessage(String.format("Cannot add field %s to type %s: a field with name %s already exists", "a", columnType, "a"),
+                                  InvalidRequestException.class,
+                                  "ALTER TYPE " + columnType + " ADD a int");
+    }
+
+    @Test
+    public void testAlteringTypeRenameWithIfExists() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, y frozen<" + columnType + ">)");
+        execute("ALTER TYPE " + columnType + " RENAME IF EXISTS a TO z AND b TO Y;");
+
+        execute("INSERT INTO %s (k, y) VALUES(?, ?)", 1, userType("z", 1));
+        assertRows(execute("SELECT * FROM %s"), row(1, userType("z", 1)));
+
+        assertInvalidThrowMessage(String.format("Unkown field %s in user type %s", "a", columnType),
+                                  InvalidRequestException.class,
+                                  "ALTER TYPE " + columnType + " RENAME a TO z;");
     }
 }

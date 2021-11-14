@@ -1390,21 +1390,21 @@ def idx_ks_idx_name_completer(ctxt, cass):
 
 
 syntax_rules += r'''
-<alterTableStatement> ::= "ALTER" wat=( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
+<alterTableStatement> ::= "ALTER" wat=( "COLUMNFAMILY" | "TABLE" ) ("IF" "EXISTS")? cf=<columnFamilyName>
                                <alterInstructions>
                         ;
-<alterInstructions> ::= "ADD" newcol=<cident> <storageType> ("static")?
-                      | "DROP" existcol=<cident>
+<alterInstructions> ::= "ADD" ("IF" "NOT" "EXISTS")? newcol=<cident> <storageType> ("static")?
+                      | "DROP" ("IF" "EXISTS")? existcol=<cident>
                       | "WITH" <cfamProperty> ( "AND" <cfamProperty> )*
-                      | "RENAME" existcol=<cident> "TO" newcol=<cident>
+                      | "RENAME" ("IF" "EXISTS")? existcol=<cident> "TO" newcol=<cident>
                          ( "AND" existcol=<cident> "TO" newcol=<cident> )*
                       ;
 
-<alterUserTypeStatement> ::= "ALTER" "TYPE" ut=<userTypeName>
+<alterUserTypeStatement> ::= "ALTER" "TYPE" ("IF" "EXISTS")? ut=<userTypeName>
                                <alterTypeInstructions>
                              ;
-<alterTypeInstructions> ::= "ADD" newcol=<cident> <storageType>
-                           | "RENAME" existcol=<cident> "TO" newcol=<cident>
+<alterTypeInstructions> ::= "ADD" ("IF" "NOT" "EXISTS")? newcol=<cident> <storageType>
+                           | "RENAME" ("IF" "EXISTS")? existcol=<cident> "TO" newcol=<cident>
                               ( "AND" existcol=<cident> "TO" newcol=<cident> )*
                            ;
 '''
@@ -1429,7 +1429,7 @@ explain_completion('alterTypeInstructions', 'newcol', '<new_field_name>')
 
 
 syntax_rules += r'''
-<alterKeyspaceStatement> ::= "ALTER" wat=( "KEYSPACE" | "SCHEMA" ) ks=<alterableKeyspaceName>
+<alterKeyspaceStatement> ::= "ALTER" wat=( "KEYSPACE" | "SCHEMA" ) ("IF" "EXISTS")? ks=<alterableKeyspaceName>
                                  "WITH" <property> ( "AND" <property> )*
                            ;
 '''
@@ -1443,7 +1443,7 @@ syntax_rules += r'''
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 
-<alterUserStatement> ::= "ALTER" "USER" <username>
+<alterUserStatement> ::= "ALTER" "USER" ("IF" "EXISTS")? <username>
                               ( "WITH" "PASSWORD" <stringLiteral> )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                        ;
@@ -1465,7 +1465,7 @@ syntax_rules += r'''
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                         ;
 
-<alterRoleStatement> ::= "ALTER" "ROLE" <rolename>
+<alterRoleStatement> ::= "ALTER" "ROLE" ("IF" "EXISTS")? <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                        ;
 

@@ -818,7 +818,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')
         self.trycompletions('ALTER KEYSPACE ', '', choices=[self.cqlsh.keyspace, 'system_auth',
-                                                            'system_distributed', 'system_traces'])
+                                                            'system_distributed', 'system_traces', 'IF'])
+        self.trycompletions('ALTER KEYSPACE I', immediate='F EXISTS ')
         self.trycompletions('ALTER KEYSPACE system_trac', "es WITH replication = {'class': '")
         self.trycompletions("ALTER KEYSPACE system_traces WITH replication = {'class': '", '',
                             choices=['NetworkTopologyStrategy', 'SimpleStrategy'])
@@ -886,3 +887,42 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             immediate='SPACE ')
         self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON KEYSPACE system_tr",
                             immediate='aces FROM ')
+
+    def test_complete_in_alter_table(self):
+        self.trycompletions('ALTER TABLE I', immediate='F EXISTS ')
+        self.trycompletions('ALTER TABLE IF', immediate=' EXISTS ')
+        self.trycompletions('ALTER TABLE ', choices=['IF', 'twenty_rows_table',
+                                                     'ascii_with_special_chars', 'users',
+                                                     'has_all_types', 'system.',
+                                                     'empty_composite_table', 'empty_table',
+                                                     'system_auth.', 'undefined_values_table',
+                                                     'dynamic_columns',
+                                                     'twenty_rows_composite_table',
+                                                     'utf8_with_special_chars',
+                                                     'system_traces.', 'songs', 'system_views.',
+                                                     'system_virtual_schema.',
+                                                     'system_schema.', 'system_distributed.',
+                                                     self.cqlsh.keyspace + '.'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ADD ', choices=['<new_column_name>', 'IF'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table DROP ', choices=['IF', '<quotedName>', '<identifier>'])
+
+    def test_complete_in_alter_type(self):
+        self.trycompletions('ALTER TYPE I', immediate='F EXISTS ')
+        self.trycompletions('ALTER TYPE ', choices=['IF', 'system_views.',
+                                                    'tags', 'system_traces.', 'system_distributed.',
+                                                    'phone_number', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                    'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
+                                                    ])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type ADD ', choices=['<new_field_name>', 'IF'])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type ADD IF NOT EXISTS ', choices=['<new_field_name>'])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+
+    def test_complete_in_alter_user(self):
+        self.trycompletions('ALTER USER ', choices=['<identifier>', 'IF', '<pgStringLiteral>', '<quotedStringLiteral>'])
+
+    def test_complete_in_alter_role(self):
+        self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])

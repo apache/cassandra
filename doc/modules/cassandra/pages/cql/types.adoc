@@ -457,13 +457,13 @@ statement:
 ----
 include::example$BNF/alter_udt_statement.bnf[]
 ----
-
+If the type does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 You can:
 
 * Add a new field to the type (`ALTER TYPE address ADD country text`).
 That new field will be `NULL` for any values of the type created before
-the addition.
-* Rename the fields of the type.
+the addition. If the new field exists, the statement will return an error, unless `IF NOT EXISTS` is used in which case the operation is a no-op.
+* Rename the fields of the type. If the field(s) does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [source,cql]
 ----
