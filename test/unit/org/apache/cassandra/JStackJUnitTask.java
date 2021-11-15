@@ -22,28 +22,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 
-import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.taskdefs.ExecuteWatchdog;
-import org.apache.tools.ant.taskdefs.optional.junit.JUnitTask;
+import org.apache.tools.ant.taskdefs.optional.junitlauncher.confined.JUnitLauncherTask;
 import org.apache.tools.ant.util.Watchdog;
 
-public class JStackJUnitTask extends JUnitTask
+public class JStackJUnitTask extends JUnitLauncherTask
 {
-    private Integer timeout;
-
-    public JStackJUnitTask() throws Exception
-    {
-    }
-
     @Override
-    public void setTimeout(Integer timeout)
-    {
-        this.timeout = timeout;
-        super.setTimeout(timeout);
-    }
-
-    @Override
-    public ExecuteWatchdog createWatchdog() throws BuildException
+    protected ExecuteWatchdog createExecuteWatchdog(long timeout)
     {
         return new JStackWatchDog(timeout);
     }
@@ -53,11 +39,6 @@ public class JStackJUnitTask extends JUnitTask
         private long pid;
 
         public JStackWatchDog(long timeout)
-        {
-            super(timeout);
-        }
-
-        public JStackWatchDog(int timeout)
         {
             super(timeout);
         }

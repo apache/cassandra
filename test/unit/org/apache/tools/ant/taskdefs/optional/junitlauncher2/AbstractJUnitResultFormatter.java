@@ -1,23 +1,25 @@
 /*
- *  Licensed to the Apache Software Foundation (ASF) under one or more
- *  contributor license agreements.  See the NOTICE file distributed with
- *  this work for additional information regarding copyright ownership.
- *  The ASF licenses this file to You under the Apache License, Version 2.0
- *  (the "License"); you may not use this file except in compliance with
- *  the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-package org.apache.tools.ant.taskdefs.optional.junitlauncher;
+package org.apache.tools.ant.taskdefs.optional.junitlauncher2;
 
 import org.apache.tools.ant.Project;
+import org.apache.tools.ant.taskdefs.optional.junitlauncher.TestExecutionContext;
+import org.apache.tools.ant.taskdefs.optional.junitlauncher.TestResultFormatter;
 import org.apache.tools.ant.util.FileUtils;
 import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.support.descriptor.ClassSource;
@@ -39,6 +41,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Contains some common behaviour that's used by our internal {@link TestResultFormatter}s
@@ -46,9 +49,16 @@ import java.util.Optional;
 abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
 
     protected TestExecutionContext context;
+    protected TestPlan testPlan;
+    protected boolean useLegacyReportingName = true;
 
     private SysOutErrContentStore sysOutStore;
     private SysOutErrContentStore sysErrStore;
+
+    @Override
+    public void testPlanExecutionStarted(final TestPlan testPlan) {
+        this.testPlan = testPlan;
+    }
 
     @Override
     public void sysOutAvailable(final byte[] data) {
@@ -83,7 +93,7 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
      * @return Returns true if there's any stdout data, that was generated during the
      * tests, is available for use. Else returns false.
      */
-    boolean hasSysOut() {
+    protected boolean hasSysOut() {
         return this.sysOutStore != null && this.sysOutStore.hasData();
     }
 
@@ -91,7 +101,7 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
      * @return Returns true if there's any stderr data, that was generated during the
      * tests, is available for use. Else returns false.
      */
-    boolean hasSysErr() {
+    protected boolean hasSysErr() {
         return this.sysErrStore != null && this.sysErrStore.hasData();
     }
 
@@ -102,7 +112,7 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
      * be called
      * @throws IOException If there's any I/O problem while creating the {@link Reader}
      */
-    Reader getSysOutReader() throws IOException {
+    protected Reader getSysOutReader() throws IOException {
         return this.sysOutStore.getReader();
     }
 
@@ -113,7 +123,7 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
      * be called
      * @throws IOException If there's any I/O problem while creating the {@link Reader}
      */
-    Reader getSysErrReader() throws IOException {
+    protected Reader getSysErrReader() throws IOException {
         return this.sysErrStore.getReader();
     }
 
@@ -136,7 +146,7 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
      * @param writer The {@link Writer} to use. Cannot be null.
      * @throws IOException If any I/O problem occurs during writing the data
      */
-    void writeSysErr(final Writer writer) throws IOException {
+    protected void writeSysErr(final Writer writer) throws IOException {
         Objects.requireNonNull(writer, "Writer cannot be null");
         this.writeFrom(this.sysErrStore, writer);
     }
@@ -175,6 +185,16 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
     }
 
     @Override
+    public void setUseLegacyReportingName(final boolean useLegacyReportingName) {
+        this.useLegacyReportingName = useLegacyReportingName;
+    }
+
+    protected String determineTestName(TestIdentifier testId) {
+        return useLegacyReportingName ? testId.getLegacyReportingName()
+                                      : testId.getDisplayName();
+    }
+
+    @Override
     public void close() throws IOException {
         FileUtils.close(this.sysOutStore);
         FileUtils.close(this.sysErrStore);
@@ -186,6 +206,38 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
                                                          + AbstractJUnitResultFormatter.this.getClass().getName(), t, Project.MSG_DEBUG));
     }
 
+    protected String determineTestSuiteName() {
+        // this is really a hack to try and match the expectations of the XML report in JUnit4.x
+        // world. In JUnit5, the TestPlan doesn't have a name and a TestPlan (for which this is a
+        // listener) can have numerous tests within it
+        final Set<TestIdentifier> roots = testPlan.getRoots();
+        if (roots.isEmpty()) {
+            return "UNKNOWN";
+        }
+        for (final TestIdentifier root : roots) {
+            final Optional<ClassSource> classSource = findFirstClassSource(root);
+            if (classSource.isPresent()) {
+                return classSource.get().getClassName();
+            }
+        }
+        return "UNKNOWN";
+    }
+
+    protected Optional<ClassSource> findFirstClassSource(final TestIdentifier root) {
+        if (root.getSource().isPresent()) {
+            final TestSource source = root.getSource().get();
+            if (source instanceof ClassSource) {
+                return Optional.of((ClassSource) source);
+            }
+        }
+        for (final TestIdentifier child : testPlan.getChildren(root)) {
+            final Optional<ClassSource> classSource = findFirstClassSource(child);
+            if (classSource.isPresent()) {
+                return classSource;
+            }
+        }
+        return Optional.empty();
+    }
 
     /*
     A "store" for sysout/syserr content that gets sent to the AbstractJUnitResultFormatter.

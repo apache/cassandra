@@ -1,22 +1,22 @@
 /*
- *  Licensed to the Apache Software Foundation (ASF) under one or more
- *  contributor license agreements.  See the NOTICE file distributed with
- *  this work for additional information regarding copyright ownership.
- *  The ASF licenses this file to You under the Apache License, Version 2.0
- *  (the "License"); you may not use this file except in compliance with
- *  the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-package org.apache.tools.ant.taskdefs.optional.junitlauncher;
+package org.apache.tools.ant.taskdefs.optional.junitlauncher2;
 
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.reporting.ReportEntry;
@@ -37,22 +37,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.tools.ant.taskdefs.optional.junitlauncher.TestResultFormatter;
+
 
 /**
  * A {@link TestResultFormatter} which prints a short statistic for each of the tests
  */
-class LegacyPlainResultFormatter extends AbstractJUnitResultFormatter implements TestResultFormatter {
+public class LegacyPlainResultFormatter extends org.apache.tools.ant.taskdefs.optional.junitlauncher2.AbstractJUnitResultFormatter implements TestResultFormatter {
 
     private OutputStream outputStream;
     private final Map<TestIdentifier, Stats> testIds = new ConcurrentHashMap<>();
-    private TestPlan testPlan;
     private BufferedWriter writer;
-    private boolean useLegacyReportingName = true;
-
-    @Override
-    public void testPlanExecutionStarted(final TestPlan testPlan) {
-        this.testPlan = testPlan;
-    }
 
     @Override
     public void testPlanExecutionFinished(final TestPlan testPlan) {
@@ -63,7 +58,9 @@ class LegacyPlainResultFormatter extends AbstractJUnitResultFormatter implements
                 continue;
             }
             final Stats stats = entry.getValue();
-            final StringBuilder sb = new StringBuilder("Tests run: ").append(stats.numTestsRun.get());
+            // TODO: am I really required?
+            final StringBuilder sb = new StringBuilder("Testsuite: ").append(super.determineTestSuiteName());
+            sb.append(", Tests run: ").append(stats.numTestsRun.get());
             sb.append(", Failures: ").append(stats.numTestsFailed.get());
             sb.append(", Skipped: ").append(stats.numTestsSkipped.get());
             sb.append(", Aborted: ").append(stats.numTestsAborted.get());
@@ -112,7 +109,7 @@ class LegacyPlainResultFormatter extends AbstractJUnitResultFormatter implements
         if (testIdentifier.isTest()) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Test: ");
-            sb.append(this.useLegacyReportingName ? testIdentifier.getLegacyReportingName() : testIdentifier.getDisplayName());
+            sb.append(determineTestName(testIdentifier));
             sb.append(" took ");
             stats.appendElapsed(sb);
             sb.append(" SKIPPED");
@@ -176,7 +173,7 @@ class LegacyPlainResultFormatter extends AbstractJUnitResultFormatter implements
         if (testIdentifier.isTest() && shouldReportExecutionFinished(testIdentifier, testExecutionResult)) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Test: ");
-            sb.append(this.useLegacyReportingName ? testIdentifier.getLegacyReportingName() : testIdentifier.getDisplayName());
+            sb.append(determineTestName(testIdentifier));
             if (stats != null) {
                 sb.append(" took ");
                 stats.appendElapsed(sb);
@@ -229,11 +226,6 @@ class LegacyPlainResultFormatter extends AbstractJUnitResultFormatter implements
     public void setDestination(final OutputStream os) {
         this.outputStream = os;
         this.writer = new BufferedWriter(new OutputStreamWriter(this.outputStream, StandardCharsets.UTF_8));
-    }
-
-    @Override
-    public void setUseLegacyReportingName(final boolean useLegacyReportingName) {
-        this.useLegacyReportingName = useLegacyReportingName;
     }
 
     protected boolean shouldReportExecutionFinished(final TestIdentifier testIdentifier, final TestExecutionResult testExecutionResult) {
