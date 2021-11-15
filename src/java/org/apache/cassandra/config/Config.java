@@ -158,7 +158,9 @@ public class Config
 
     public Integer internode_max_message_size_in_bytes;
 
+    @Replaces(oldName = "internode_send_buff_size_in_bytes", deprecated = true)
     public int internode_socket_send_buffer_size_in_bytes = 0;
+    @Replaces(oldName = "internode_recv_buff_size_in_bytes", deprecated = true)
     public int internode_socket_receive_buffer_size_in_bytes = 0;
 
     // TODO: derive defaults from system memory settings?

@@ -38,10 +38,14 @@ public class YamlConfigurationLoaderTest
         Map<String,Object> encryptionOptions = ImmutableMap.of("cipher_suites", Collections.singletonList("FakeCipher"),
                                                                "optional", false,
                                                                "enabled", true);
-        Map<String,Object> map = ImmutableMap.of("storage_port", storagePort,
-                                                 "commitlog_sync", commitLogSync,
-                                                 "seed_provider", seedProvider,
-                                                 "client_encryption_options", encryptionOptions);
+        Map<String,Object> map = new ImmutableMap.Builder<String, Object>()
+                                 .put("storage_port", storagePort)
+                                 .put("commitlog_sync", commitLogSync)
+                                 .put("seed_provider", seedProvider)
+                                 .put("client_encryption_options", encryptionOptions)
+                                 .put("internode_send_buff_size_in_bytes", 5)
+                                 .put("internode_recv_buff_size_in_bytes", 5)
+                                 .build();
 
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
         assertEquals(storagePort, config.storage_port); // Check a simple integer
@@ -49,5 +53,7 @@ public class YamlConfigurationLoaderTest
         assertEquals(seedProvider, config.seed_provider); // Check a parameterized class
         assertEquals(false, config.client_encryption_options.optional); // Check a nested object
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
+        assertEquals(5, config.internode_socket_send_buffer_size_in_bytes); // Check names backward compatibility (CASSANDRA-17141)
+        assertEquals(5, config.internode_socket_receive_buffer_size_in_bytes); // Check names backward compatibility (CASSANDRA-17141)
     }
 }
