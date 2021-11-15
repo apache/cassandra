@@ -773,12 +773,12 @@ rpc_keepalive: true
 # /proc/sys/net/ipv4/tcp_wmem
 # /proc/sys/net/ipv4/tcp_wmem
 # and 'man tcp'
-# internode_send_buff_size_in_bytes:
+# internode_socket_send_buffer_size_in_bytes:
 
 # Uncomment to set socket buffer size for internode communication
 # Note that when setting this, the buffer size is limited by net.core.wmem_max
 # and when not setting it it is defined by net.ipv4.tcp_wmem
-# internode_recv_buff_size_in_bytes:
+# internode_socket_receive_buffer_size_in_bytes:
 
 # Set to true to have Cassandra create a hard link to each sstable
 # flushed or streamed locally in a backups/ subdirectory of the

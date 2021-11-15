@@ -43,7 +43,12 @@ Upgrading
       confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
       for further details. You also need to regenerate passwords for users for who the password
       was created while the above property was set to be more than 30 otherwise they will not be able to log in.
-
+    - As part of the Internode Messaging improvement work in CASSANDRA-15066, internode_send_buff_size_in_bytes and
+      internode_recv_buff_size_in_bytes were renamed to internode_socket_send_buffer_size_in_bytes and
+      internode_socket_receive_buffer_size_in_bytes. To support upgrades pre-4.0, we add backward compatibility and
+      currently both old and new names should work. Cassandra 4.0.0 and Cassandra 4.0.1 work ONLY with the new names
+      (They weren't updated in cassandra.yaml though).
+      
 4.0
 ===
 
