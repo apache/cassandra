@@ -535,7 +535,7 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
                             if (!logs.getResult().isEmpty())
                             {
                                 // race condition detected...
-                                logger.warn("Test race condition detected where streaming started/stopped between calls to netstats");
+                                logger.info("Test race condition detected where streaming started/stopped between calls to netstats");
                                 sawAnyStreamingOutput = true;
                             }
                         }
