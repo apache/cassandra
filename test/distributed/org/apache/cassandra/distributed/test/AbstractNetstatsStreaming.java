@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
 
@@ -509,6 +510,7 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
 
             boolean sawAnyStreamingOutput = false;
 
+            long mark = 0;
             while (true)
             {
                 try
@@ -522,6 +524,20 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
                         if (result.getStdout().contains("Receiving") || result.getStdout().contains("Sending"))
                         {
                             sawAnyStreamingOutput = true;
+                        }
+                        else
+                        {
+                            // there is a race condition that streaming starts/stops between calls to netstats
+                            // to detect this, check to see if the node has completed a stream
+                            // expected log: [Stream (.*)?] All sessions completed
+                            LogResult<List<String>> logs = node.logs().grep(mark, "\\[Stream .*\\] All sessions completed");
+                            mark = logs.getMark();
+                            if (!logs.getResult().isEmpty())
+                            {
+                                // race condition detected...
+                                logger.info("Test race condition detected where streaming started/stopped between calls to netstats");
+                                sawAnyStreamingOutput = true;
+                            }
                         }
                     }
 
