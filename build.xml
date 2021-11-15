@@ -1340,6 +1340,10 @@
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
+      <!-- TODO: think whether showoutput is equal to printSummary or to BriefListener -->
+      <condition property="showoutput" value="true">
+        <istrue value="${showoutput}"/>
+      </condition>
       <taskdef name="junit-timeout" classname="org.apache.cassandra.JStackJUnitTask">
         <classpath>
           <pathelement location="${test.classes}"/>
@@ -1348,43 +1352,17 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
-      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
-        <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
-        <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
-        <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Djava.awt.headless=true"/>
-        <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
-        <jvmarg line="-javaagent:${build.lib}/jamm-${jamm.version}.jar ${additionalagent}" />
-        <jvmarg value="-ea"/>
-        <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
-        <jvmarg value="-Dcassandra.debugrefcount=true"/>
-        <jvmarg value="-Xss256k"/>
-        <!-- When we do classloader manipulation SoftReferences can cause memory leaks
-             that can OOM our test runs. The next two settings informs our GC
-             algorithm to limit the metaspace size and clean up SoftReferences
-             more aggressively rather than waiting. See CASSANDRA-14922 for more details.
-        -->
-        <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
-        <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
-        <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
-        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
-        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
-        <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
-        <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
-        <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
-        <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
-        <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg line="${java11-jvmargs}"/>
-        <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
-        <jvmarg value="-DQT_SHRINKS=0"/>
-        <jvmarg line="${test-jvmargs}" />
-        <optjvmargs/>
-        <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
-        <!--
-        <jvmarg line="-agentlib:jdwp=transport=dt_socket,address=localhost:1416,server=y,suspend=y" />
-        -->
+
+      <pathconvert id="testfiles" pathsep="${line.separator}" property="testfiles">
+        <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
+        <filelist dir="@{inputdir}" files="@{filelist}"/>
+        <mapper>
+            <globmapper from="@{inputdir}/*.java" to="*.class"/>
+        </mapper>
+      </pathconvert>
+
+      <!-- TODO: forkmode="@{forkmode}" and maxmemory="1024m"> are not handled -->
+      <junitlauncher failureproperty="testfailed" printsummary="@{showoutput}">
         <classpath>
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
@@ -1399,11 +1377,48 @@
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{testtag}">
-            <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
-            <filelist dir="@{inputdir}" files="@{filelist}"/>
-        </batchtest>
-      </junit-timeout>
+        <testclasses outputdir="${build.test.dir}/output/@{testtag}">
+            <fileset dir="${test.classes}" includes="${testfiles}"/>
+            <listener classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
+            <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" if="${showoutput}" sendSysOut="true" sendSysErr="true"/>
+            <fork timeout="@{timeout}">
+                <jvmarg value="-Dstorage-config=${test.conf}"/>
+                <jvmarg value="-Djava.awt.headless=true"/>
+                <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
+                <jvmarg line="-javaagent:${build.lib}/jamm-${jamm.version}.jar ${additionalagent}" />
+                <jvmarg value="-ea"/>
+                <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
+                <jvmarg value="-Dcassandra.debugrefcount=true"/>
+                <jvmarg value="-Xss256k"/>
+                <!-- When we do classloader manipulation SoftReferences can cause memory leaks
+                     that can OOM our test runs. The next two settings informs our GC
+                     algorithm to limit the metaspace size and clean up SoftReferences
+                     more aggressively rather than waiting. See CASSANDRA-14922 for more details.
+                -->
+                <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
+                <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
+                <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
+                <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+                <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+                <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
+                <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
+                <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
+                <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
+                <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
+                <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+                <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
+                <jvmarg line="${java11-jvmargs}"/>
+                <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
+                <jvmarg value="-DQT_SHRINKS=0"/>
+                <jvmarg line="${test-jvmargs}" />
+                <optjvmargs/>
+                <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
+                <!--
+                <jvmarg line="-agentlib:jdwp=transport=dt_socket,address=localhost:1416,server=y,suspend=y" />
+                -->
+            </fork>
+        </testclasses>
+      </junitlauncher>
 
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/cdc_raw"/>
@@ -2091,26 +2106,27 @@
 
         <echo message="Running Eclipse Code Analysis.  Output logged to ${ecj.warnings.file}" />
 
-	<java
-	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"
-            fork="true"
-	    failonerror="true"
-            maxmemory="512m">
-            <arg value="-source"/>
-	    <arg value="${source.version}" />
-	    <arg value="-target"/>
-	    <arg value="${target.version}" />
-	    <arg value="-d" />
-            <arg value="none" />
-	    <arg value="-proc:none" />
-            <arg value="-log" />
-            <arg value="${ecj.warnings.file}" />
-            <arg value="-properties" />
-            <arg value="${ecj.properties}" />
-            <arg value="-cp" />
-            <arg value="${toString:cassandra.classpath}" />
-            <arg value="${build.src.java}" />
-        </java>
+<!--      TODO: rollback -->
+<!--	<java-->
+<!--	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"-->
+<!--            fork="true"-->
+<!--	    failonerror="true"-->
+<!--            maxmemory="512m">-->
+<!--            <arg value="-source"/>-->
+<!--	    <arg value="${source.version}" />-->
+<!--	    <arg value="-target"/>-->
+<!--	    <arg value="${target.version}" />-->
+<!--	    <arg value="-d" />-->
+<!--            <arg value="none" />-->
+<!--	    <arg value="-proc:none" />-->
+<!--            <arg value="-log" />-->
+<!--            <arg value="${ecj.warnings.file}" />-->
+<!--            <arg value="-properties" />-->
+<!--            <arg value="${ecj.properties}" />-->
+<!--            <arg value="-cp" />-->
+<!--            <arg value="${toString:cassandra.classpath}" />-->
+<!--            <arg value="${build.src.java}" />-->
+<!--        </java>-->
   </target>
 
   <target name="init-checkstyle" depends="maven-ant-tasks-retrieve-build,build-project">
@@ -2130,13 +2146,14 @@
 
       <property name="checkstyle.properties" value="${basedir}/checkstyle.xml" />
       <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
-      <checkstyle config="${checkstyle.properties}"
-                  failureProperty="checkstyle.failure"
-                  failOnViolation="true">
-          <formatter type="plain"/>
-          <formatter type="xml" tofile="${checkstyle.report.file}"/>
-          <fileset dir="${build.src.java}" includes="**/*.java"/>
-      </checkstyle>
+<!--      TODO: rollback-->
+<!--      <checkstyle config="${checkstyle.properties}"-->
+<!--                  failureProperty="checkstyle.failure"-->
+<!--                  failOnViolation="true">-->
+<!--          <formatter type="plain"/>-->
+<!--          <formatter type="xml" tofile="${checkstyle.report.file}"/>-->
+<!--          <fileset dir="${build.src.java}" includes="**/*.java"/>-->
+<!--      </checkstyle>-->
   </target>
 
 

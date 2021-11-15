@@ -29,6 +29,8 @@ public class Junit5SampleTest
     @Test
     public void testSuccess()
     {
+        System.out.println("CUSTOM StdOut");
+        System.err.println("CUSTOM StdErr");
         assertTrue(true);
     }
 
