@@ -83,6 +83,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      * The default number of decayingBuckets. Use this bucket count to reduce memory allocation for bucket offsets.
      */
     public static final int DEFAULT_BUCKET_COUNT = 164;
+    public static final int LOW_BUCKET_COUNT = 127;
     public static final int DEFAULT_STRIPE_COUNT = Integer.parseInt(System.getProperty("cassandra.dehr_stripe_count", "2"));
     public static final int MAX_BUCKET_COUNT = 237;
     public static final boolean DEFAULT_ZERO_CONSIDERATION = false;
