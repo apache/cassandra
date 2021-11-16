@@ -1,5 +1,5 @@
---- .circleci/config-2_1.yml	2021-10-18 11:48:35.000000000 +0100
-+++ .circleci/config-2_1.yml.HIGHRES	2021-10-18 12:03:47.000000000 +0100
+--- config-2_1.yml	2021-11-12 11:02:52.301079060 +0100
++++ config-2_1.yml.HIGHRES	2021-11-16 12:04:20.083117123 +0100
 @@ -101,14 +101,14 @@
  j8_par_executor: &j8_par_executor
    executor:
@@ -58,7 +58,7 @@
 -    #exec_resource_class: medium
 -  parallelism: 1
 +    exec_resource_class: xlarge
-+  parallelism: 2
++  parallelism: 5
  
  j8_repeated_utest_executor: &j8_repeated_utest_executor
    executor:
