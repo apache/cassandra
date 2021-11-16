@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.*;
-import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
@@ -109,7 +108,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Timer timer(MetricName name, TimeUnit durationUnit)
     {
-        Timer timer = register(name, new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS)));
+        Timer timer = register(name, new Timer(CassandraMetricsRegistry.createReservoir(durationUnit)));
         registerMBean(timer, name.getMBeanName());
 
         return timer;
@@ -128,9 +127,9 @@ public class CassandraMetricsRegistry extends MetricRegistry
         if (durationUnit != TimeUnit.NANOSECONDS)
         {
             Reservoir underlying = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
-                                                                           EstimatedHistogram.DEFAULT_BUCKET_COUNT,
+                                                                           DecayingEstimatedHistogramReservoir.LOW_BUCKET_COUNT,
                                                                            DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT);
-            // less buckets (90) should suffice if timer is not based on nanos
+            // fewer buckets should suffice if timer is not based on nanos
             reservoir = new ScalingReservoir(underlying,
                                              // timer update values in nanos.
                                              v -> durationUnit.convert(v, TimeUnit.NANOSECONDS));

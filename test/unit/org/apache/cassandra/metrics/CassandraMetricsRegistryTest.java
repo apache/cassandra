@@ -118,7 +118,7 @@ public class CassandraMetricsRegistryTest
     @Test
     public void testTimer()
     {
-        long[] offsets = new EstimatedHistogram().getBucketOffsets();
+        long[] offsets = EstimatedHistogram.newOffsets(DecayingEstimatedHistogramReservoir.LOW_BUCKET_COUNT, false);
         Timer timer = new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
         timer.update(42, TimeUnit.NANOSECONDS);
         timer.update(100, TimeUnit.NANOSECONDS);
@@ -126,8 +126,12 @@ public class CassandraMetricsRegistryTest
         timer.update(100, TimeUnit.MICROSECONDS);
         timer.update(42, TimeUnit.MILLISECONDS);
         timer.update(100, TimeUnit.MILLISECONDS);
+        timer.update(100, TimeUnit.SECONDS);
+        timer.update(100, TimeUnit.MINUTES);
+        int maxSeconds = 21356;
+        timer.update(maxSeconds, TimeUnit.SECONDS);
         long[] counts = timer.getSnapshot().getValues();
-        int expectedBucketsWithValues = 5;
+        int expectedBucketsWithValues = 8;
         int bucketsWithValues = 0;
         for (int i = 0; i < counts.length; i++)
         {
@@ -141,6 +145,9 @@ public class CassandraMetricsRegistryTest
                 || inRange(offsets[i], TimeUnit.MICROSECONDS.toMicros(100), 1.2)
                 || inRange(offsets[i], TimeUnit.MILLISECONDS.toMicros(42), 1.2)
                 || inRange(offsets[i], TimeUnit.MILLISECONDS.toMicros(100), 1.2)
+                || inRange(offsets[i], TimeUnit.SECONDS.toMicros(100), 1.2)
+                || inRange(offsets[i], TimeUnit.MINUTES.toMicros(100), 1.2)
+                || inRange(offsets[i], TimeUnit.SECONDS.toMicros(maxSeconds), 1.2)
                 );
             }
         }
