@@ -1,5 +1,5 @@
---- .circleci/config-2_1.yml	2021-10-18 11:48:35.000000000 +0100
-+++ .circleci/config-2_1.yml.MIDRES	2021-10-18 12:02:44.000000000 +0100
+--- config-2_1.yml	2021-11-12 11:02:52.301079060 +0100
++++ config-2_1.yml.MIDRES	2021-11-16 11:53:09.052881200 +0100
 @@ -101,14 +101,14 @@
  j8_par_executor: &j8_par_executor
    executor:
@@ -19,7 +19,7 @@
  
  j8_small_executor: &j8_small_executor
    executor:
-@@ -119,20 +119,32 @@
+@@ -119,26 +119,38 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
@@ -56,6 +56,14 @@
 +  parallelism: 25
  
  j11_small_par_executor: &j11_small_par_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    #exec_resource_class: large
++  parallelism: 10
+ 
+ j11_small_executor: &j11_small_executor
    executor:
 @@ -146,35 +158,47 @@
      #exec_resource_class: medium
