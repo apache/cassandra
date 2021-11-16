@@ -21,14 +21,18 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -123,7 +127,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
 
             Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
-            PropertiesChecker propertiesChecker = new PropertiesChecker();
+            Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+            PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
             Config result = loadConfig(yaml, configBytes);
@@ -137,6 +142,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
+    @VisibleForTesting
     public static <T> T fromMap(Map<String,Object> map, Class<T> klass)
     {
         return fromMap(map, true, klass);
@@ -146,7 +152,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     public static <T> T fromMap(Map<String,Object> map, boolean shouldCheck, Class<T> klass)
     {
         Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
-        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker();
+        Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
         Node node = yaml.represent(map);
@@ -212,15 +219,66 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private final Set<String> nullProperties = new HashSet<>();
 
-        public PropertiesChecker()
+        private final Map<Class<?>, Map<String, Replacement>> replacements;
+
+        public PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
         {
+            this.replacements = Objects.requireNonNull(replacements, "Replacements should not be null");
             setSkipMissingProperties(true);
         }
 
         @Override
         public Property getProperty(Class<? extends Object> type, String name)
         {
-            final Property result = super.getProperty(type, name);
+            final Property result;
+            Map<String, Replacement> typeReplacements = replacements.getOrDefault(type, Collections.emptyMap());
+            if(typeReplacements.containsKey(name))
+            {
+                Replacement replacement = typeReplacements.get(name);
+                final Property newProperty = super.getProperty(type, replacement.newName);
+                result = new Property(replacement.oldName, newProperty.getType())
+                {
+                    @Override
+                    public Class<?>[] getActualTypeArguments()
+                    {
+                        return newProperty.getActualTypeArguments();
+                    }
+
+                    @Override
+                    public void set(Object o, Object o1) throws Exception
+                    {
+                        newProperty.set(o, o1);
+                    }
+
+                    @Override
+                    public Object get(Object o)
+                    {
+                        return newProperty.get(o);
+                    }
+
+                    @Override
+                    public List<Annotation> getAnnotations()
+                    {
+                        return null;
+                    }
+
+                    @Override
+                    public <A extends Annotation> A getAnnotation(Class<A> aClass)
+                    {
+                        return null;
+                    }
+                };
+
+                if(replacement.deprecated)
+                {
+                    logger.warn("{} parameter has been deprecated. It has a new name; For more information, please refer to NEWS.txt", name);
+                }
+            }
+            else
+            {
+                result = super.getProperty(type, name);
+            }
+
 
             if (result instanceof MissingProperty)
             {
@@ -251,11 +309,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     return result.get(object);
                 }
 
+                @Override
                 public List<Annotation> getAnnotations()
                 {
                     return Collections.EMPTY_LIST;
                 }
 
+                @Override
                 public <A extends Annotation> A getAnnotation(Class<A> aClass)
                 {
                     return null;
@@ -276,4 +336,98 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             }
         }
     }
+
+    /**
+     * @param klass to get replacements for
+     * @return map of old names and replacements needed.
+     */
+    private static Map<Class<?>, Map<String, Replacement>> getNameReplacements(Class<?> klass)
+    {
+        List<Replacement> replacements = getReplacements(klass);
+        Map<Class<?>, Map<String, Replacement>> objectOldNames = new HashMap<>();
+        for (Replacement r : replacements)
+        {
+            Map<String, Replacement> oldNames = objectOldNames.computeIfAbsent(r.parent, ignore -> new HashMap<>());
+            if (!oldNames.containsKey(r.oldName))
+                oldNames.put(r.oldName, r);
+            else
+            {
+                throw new ConfigurationException("Invalid annotations, you have more than one @Replaces annotation in " +
+                                                 "Config class with same old name(" + r.oldName + ") defined.");
+            }
+        }
+        return objectOldNames;
+    }
+
+    private static List<Replacement> getReplacements(Class<?> klass)
+    {
+        List<Replacement> replacements = new ArrayList<>();
+        for (Field field : klass.getDeclaredFields())
+        {
+            String newName = field.getName();
+            final ReplacesList[] byType = field.getAnnotationsByType(ReplacesList.class);
+            if (byType == null || byType.length == 0)
+            {
+                Replaces r = field.getAnnotation(Replaces.class);
+                if (r != null)
+                    addReplacement(klass, replacements, newName, r);
+            }
+            else
+            {
+                for (ReplacesList replacesList : byType)
+                    for (Replaces r : replacesList.value())
+                        addReplacement(klass, replacements, newName, r);
+            }
+        }
+        return replacements.isEmpty() ? Collections.emptyList() : replacements;
+    }
+
+    private static void addReplacement(Class<?> klass,
+                                       List<Replacement> replacements,
+                                       String newName,
+                                       Replaces r)
+    {
+        String oldName = r.oldName();
+        boolean deprecated = r.deprecated();
+
+        replacements.add(new Replacement(klass, oldName, newName, deprecated));
+    }
+
+    /**
+     * Holder for replacements to support backward compatibility between old and new names for configuration parameters
+     * backported partially from trunk(CASSANDRA-15234) to support a bug fix/improvement in Cassadra 4.0
+     * (CASSANDRA-17141)
+     */
+    static final class Replacement
+    {
+        /**
+         * Currently we use for Config class
+         */
+        final Class<?> parent;
+        /**
+         * Old name of the configuration parameter
+         */
+        final String oldName;
+        /**
+         * New name used for the configuration parameter
+         */
+        final String newName;
+        /**
+         * A flag to mark whether the old name is deprecated and fire a warning to the user. By default we set it to false.
+         */
+        final boolean deprecated;
+
+        Replacement(Class<?> parent,
+                    String oldName,
+                    String newName,
+                    boolean deprecated)
+        {
+            this.parent = Objects.requireNonNull(parent);
+            this.oldName = Objects.requireNonNull(oldName);
+            this.newName = Objects.requireNonNull(newName);
+            // by default deprecated is false
+            this.deprecated = deprecated;
+        }
+    }
 }
+
