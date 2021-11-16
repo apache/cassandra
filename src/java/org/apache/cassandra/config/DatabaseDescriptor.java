@@ -786,12 +786,6 @@ public class DatabaseDescriptor
                 break;
         }
 
-        if (conf.otc_coalescing_enough_coalesced_messages > 128)
-            throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be smaller than 128", false);
-
-        if (conf.otc_coalescing_enough_coalesced_messages <= 0)
-            throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
-
         if (conf.server_encryption_options != null)
         {
             conf.server_encryption_options.applyConfig();
