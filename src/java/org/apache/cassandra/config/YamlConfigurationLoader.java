@@ -386,7 +386,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-
     /**
      * @param klass to get replacements for
      * @return map of old names and replacements needed.

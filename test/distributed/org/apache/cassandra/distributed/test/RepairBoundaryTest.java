@@ -47,7 +47,7 @@ public class RepairBoundaryTest extends TestBaseImpl
 {
     private static Cluster cluster;
 
-    private static final String INSERT = withKeyspace("INSERT INTO %s.test (k, c1, c2) VALUES" +
+    private static final String INSERT = withKeyspace("INSERT INTO %s.test (k, 1, c2) VALUES" +
                                                       "(?, 'C1', ?);");
 
     private static final String DELETE = withKeyspace("DELETE FROM %s.test WHERE k = ?;");
@@ -164,6 +164,7 @@ public class RepairBoundaryTest extends TestBaseImpl
     {
         cluster = Cluster.build(3)
                          .withConfig(config -> config.set("hinted_handoff_enabled", false)
+                                                     .set("commitlog_sync_batch_window", "5.0ms")
                                                      .set("num_tokens", 1)
                                                      .set("initial_token", Long.toString(config.num() * 1000))
                                                      .with(NETWORK)

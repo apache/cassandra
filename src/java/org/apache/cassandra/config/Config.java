@@ -301,6 +301,11 @@ public class Config
     public DataStorage commitlog_total_space;
     public CommitLogSync commitlog_sync;
 
+    /**
+     * @deprecated since 4.0 This value was near useless, and we're not using it anymore
+     */
+    @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, deprecated = true)
+    public CassandraDuration commitlog_sync_batch_window = new CassandraDuration("0.0ms");
     @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, deprecated = true)
     public CassandraDuration commitlog_sync_group_window = new CassandraDuration("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
