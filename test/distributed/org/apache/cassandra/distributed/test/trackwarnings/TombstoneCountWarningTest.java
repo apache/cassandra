@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -53,8 +53,11 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Condition;
 
-public class TombstoneWarningTest extends TestBaseImpl
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class TombstoneCountWarningTest extends TestBaseImpl
 {
     private static final int TOMBSTONE_WARN = 50;
     private static final int TOMBSTONE_FAIL = 100;
@@ -228,12 +231,19 @@ public class TombstoneWarningTest extends TestBaseImpl
             // without changing the client can't produce a better message...
             // client does NOT include the message sent from the server in the exception; so the message doesn't work
             // well in this case
-            Assertions.assertThat(e.getMessage()).contains("(3 responses were required but only 0 replica responded"); // can't include ', 3 failed)' as some times its 2
-            Assertions.assertThat(e.getFailuresMap())
-                      .isEqualTo(ImmutableMap.of(
-                      InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code,
-                      InetAddress.getByAddress(new byte[] {127, 0, 0, 2}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code,
-                      InetAddress.getByAddress(new byte[] {127, 0, 0, 3}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
+            Assertions.assertThat(e.getMessage()).contains("responses were required but only 0 replica responded"); // can't include ', 3 failed)' as some times its 2
+
+            ImmutableSet<InetAddress> expectedKeys = ImmutableSet.of(InetAddress.getByAddress(new byte[]{ 127, 0, 0, 1 }), InetAddress.getByAddress(new byte[]{ 127, 0, 0, 2 }), InetAddress.getByAddress(new byte[]{ 127, 0, 0, 3 }));
+            assertThat(e.getFailuresMap())
+            .hasSizeBetween(1, 3)
+            // coordinator changes from run to run, so can't assert map as the key is dynamic... so assert the domain of keys and the single value expect
+            .containsValue(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code)
+            .hasKeySatisfying(new Condition<InetAddress>() {
+                public boolean matches(InetAddress value)
+                {
+                    return expectedKeys.contains(value);
+                }
+            });
         }
 
         assertWarnAborts(0, 2, 1);
