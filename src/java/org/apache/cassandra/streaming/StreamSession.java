@@ -569,7 +569,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized void messageReceived(StreamMessage message)
     {
         if (message.type != StreamMessage.Type.KEEP_ALIVE)
+        {
+            // can ignore duplicate complete messages
+            if (message.type == StreamMessage.Type.COMPLETE && state() == State.COMPLETE)
+                return;
             failIfFinished();
+        }
 
         sink.recordMessage(peer, message.type);
 
