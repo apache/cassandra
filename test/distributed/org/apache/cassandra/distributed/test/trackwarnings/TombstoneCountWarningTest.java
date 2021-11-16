@@ -58,7 +58,7 @@ import org.assertj.core.api.Condition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class TombstoneWarningTest extends TestBaseImpl
+public class TombstoneCountWarningTest extends TestBaseImpl
 {
     private static final int TOMBSTONE_WARN = 50;
     private static final int TOMBSTONE_FAIL = 100;
