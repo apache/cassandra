@@ -118,7 +118,7 @@ public class CassandraMetricsRegistryTest
     @Test
     public void testTimer()
     {
-        long[] offsets = EstimatedHistogram.newOffsets(DecayingEstimatedHistogramReservoir.FEWER_BUCKET_COUNT, false);
+        long[] offsets = EstimatedHistogram.newOffsets(DecayingEstimatedHistogramReservoir.LOW_BUCKET_COUNT, false);
         Timer timer = new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
         timer.update(42, TimeUnit.NANOSECONDS);
         timer.update(100, TimeUnit.NANOSECONDS);
