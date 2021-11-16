@@ -874,7 +874,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         else
         {
-            channel.sendControlMessage(new CompleteMessage());
+            CompleteMessage msg = new CompleteMessage();
+//            channel.sendControlMessage(msg);
+            // can't rely on control channel as the message may not be seen before the channels get closed
+            for (StreamingChannel c : outbound.values())
+                channel.sendMessage(c, msg);
             closeSession(State.COMPLETE);
         }
 
