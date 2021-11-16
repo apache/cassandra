@@ -3479,7 +3479,6 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 workflows:
-<<<<<<< HEAD
   version: 2
   java8_separate_tests:
     jobs:
@@ -3653,9 +3652,6 @@ workflows:
         - start_repeated_jvm_upgrade_dtest
         - j8_dtest_jars_build
   java8_pre-commit_tests:
-=======
-  java8_tests:
->>>>>>> 8197bb5ba2 (exclude jdk11)
     jobs:
     - start_pre-commit_tests:
         type: approval
