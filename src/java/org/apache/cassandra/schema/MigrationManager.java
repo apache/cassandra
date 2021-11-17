@@ -23,6 +23,8 @@ import java.lang.management.ManagementFactory;
 import java.util.function.LongSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +44,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.concurrent.Stage.MIGRATION;
 import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
+import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 
+@Simulate(with = GLOBAL_CLOCK)
 public class MigrationManager
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);

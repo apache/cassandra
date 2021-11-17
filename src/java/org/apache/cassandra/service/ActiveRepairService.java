@@ -43,6 +43,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,6 +107,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.*;
 import static org.apache.cassandra.net.Message.out;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 /**
@@ -122,6 +124,7 @@ import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownL
  * The creation of a repair session is done through the submitRepairSession that
  * returns a future on the completion of that session.
  */
+@Simulate(with = MONITORS)
 public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
 

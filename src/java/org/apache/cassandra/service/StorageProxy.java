@@ -141,6 +141,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.net.Message.out;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -152,6 +153,8 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetr
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.*;
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
+import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallotTimestampMicros;
+import static org.apache.cassandra.service.paxos.BallotGenerator.Global.randomBallot;
 import static org.apache.cassandra.service.paxos.PrepareVerbHandler.doPrepare;
 import static org.apache.cassandra.service.paxos.ProposeVerbHandler.doPropose;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -335,7 +338,6 @@ public class StorageProxy implements StorageProxyMBean
                            consistencyForPaxos,
                            consistencyForCommit,
                            consistencyForCommit,
-                           state,
                            queryStartNanoTime,
                            casWriteMetrics,
                            updateProposer);
@@ -430,7 +432,6 @@ public class StorageProxy implements StorageProxyMBean
                                        ConsistencyLevel consistencyForPaxos,
                                        ConsistencyLevel consistencyForReplayCommits,
                                        ConsistencyLevel consistencyForCommit,
-                                       ClientState state,
                                        long queryStartNanoTime,
                                        CASClientRequestMetrics casMetrics,
                                        Supplier<Pair<PartitionUpdate, RowIterator>> createUpdateProposal)
@@ -457,8 +458,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                     replicaPlan,
                                                                     consistencyForPaxos,
                                                                     consistencyForReplayCommits,
-                                                                    casMetrics,
-                                                                    state);
+                                                                    casMetrics);
 
                 final UUID ballot = pair.ballot;
                 contentions += pair.contentions;
@@ -525,8 +525,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 ReplicaPlan.ForPaxosWrite paxosPlan,
                                                                 ConsistencyLevel consistencyForPaxos,
                                                                 ConsistencyLevel consistencyForCommit,
-                                                                CASClientRequestMetrics casMetrics,
-                                                                ClientState state)
+                                                                CASClientRequestMetrics casMetrics)
     throws WriteTimeoutException, WriteFailureException
     {
         long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
@@ -540,10 +539,10 @@ public class StorageProxy implements StorageProxyMBean
             // in progress (#5667). Lastly, we don't want to use a timestamp that is older than the last one assigned by ClientState or operations may appear
             // out-of-order (#7801).
             long minTimestampMicrosToUse = summary == null ? Long.MIN_VALUE : 1 + UUIDGen.microsTimestamp(summary.mostRecentInProgressCommit.ballot);
-            long ballotMicros = state.getTimestampForPaxos(minTimestampMicrosToUse);
+            long ballotMicros = nextBallotTimestampMicros(minTimestampMicrosToUse);
             // Note that ballotMicros is not guaranteed to be unique if two proposal are being handled concurrently by the same coordinator. But we still
             // need ballots to be unique for each proposal so we have to use getRandomTimeUUIDFromMicros.
-            UUID ballot = UUIDGen.getRandomTimeUUIDFromMicros(ballotMicros);
+            UUID ballot = randomBallot(ballotMicros, consistencyForPaxos == SERIAL);
 
             // prepare
             try
@@ -1810,7 +1809,6 @@ public class StorageProxy implements StorageProxyMBean
                         consistencyLevel,
                         consistencyForReplayCommitsOrFetch,
                         ConsistencyLevel.ANY,
-                        state,
                         start,
                         casReadMetrics,
                         updateProposer);
@@ -2077,12 +2075,12 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
-                    MessagingService.instance().metrics.recordSelfDroppedMessage(verb, MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
+                    MessagingService.instance().metrics.recordSelfDroppedMessage(verb, MonotonicClock.Global.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                 }
 
                 if (!readRejected)
-                    MessagingService.instance().latencySubscribers.add(FBUtilities.getBroadcastAddressAndPort(), MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
+                    MessagingService.instance().latencySubscribers.add(FBUtilities.getBroadcastAddressAndPort(), MonotonicClock.Global.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
             }
             catch (Throwable t)
             {
@@ -2375,13 +2373,13 @@ public class StorageProxy implements StorageProxyMBean
 
         public DroppableRunnable(Verb verb)
         {
-            this.approxCreationTimeNanos = MonotonicClock.approxTime.now();
+            this.approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
             this.verb = verb;
         }
 
         public final void run()
         {
-            long approxCurrentTimeNanos = MonotonicClock.approxTime.now();
+            long approxCurrentTimeNanos = MonotonicClock.Global.approxTime.now();
             long expirationTimeNanos = verb.expiresAtNanos(approxCreationTimeNanos);
             if (approxCurrentTimeNanos > expirationTimeNanos)
             {
@@ -2408,7 +2406,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class LocalMutationRunnable implements Runnable
     {
-        private final long approxCreationTimeNanos = MonotonicClock.approxTime.now();
+        private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
 
         private final Replica localReplica;
 
@@ -2420,7 +2418,7 @@ public class StorageProxy implements StorageProxyMBean
         public final void run()
         {
             final Verb verb = verb();
-            long nowNanos = MonotonicClock.approxTime.now();
+            long nowNanos = MonotonicClock.Global.approxTime.now();
             long expirationTimeNanos = verb.expiresAtNanos(approxCreationTimeNanos);
             if (nowNanos > expirationTimeNanos)
             {

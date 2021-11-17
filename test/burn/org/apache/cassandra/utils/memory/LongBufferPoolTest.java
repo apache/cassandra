@@ -265,7 +265,7 @@ public class LongBufferPoolTest
         logger.info("{} - testing {} threads for {}m", DATE_FORMAT.format(new Date()), threadCount, TimeUnit.NANOSECONDS.toMinutes(duration));
         logger.info("Testing BufferPool with memoryUsageThreshold={} and enabling BufferPool.DEBUG", bufferPool.memoryUsageThreshold());
         Debug debug = new Debug();
-        bufferPool.debug(debug);
+        bufferPool.debug(debug, null);
 
         TestEnvironment testEnv = new TestEnvironment(threadCount, duration, bufferPool.memoryUsageThreshold());
 
@@ -305,7 +305,7 @@ public class LongBufferPoolTest
         assertEquals(0, testEnv.executorService.shutdownNow().size());
 
         logger.info("Reverting BufferPool DEBUG config");
-        bufferPool.debug(BufferPool.Debug.NO_OP);
+        bufferPool.debug(BufferPool.Debug.NO_OP, null);
 
         testEnv.assertCheckedThreadsSucceeded();
 
