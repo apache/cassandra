@@ -53,9 +53,9 @@ public class PaxosState
         }
     }
 
-    private final Commit promised;
-    private final Commit accepted;
-    private final Commit mostRecentCommit;
+    public final Commit promised;
+    public final Commit accepted;
+    public final Commit mostRecentCommit;
 
     public PaxosState(DecoratedKey key, TableMetadata metadata)
     {

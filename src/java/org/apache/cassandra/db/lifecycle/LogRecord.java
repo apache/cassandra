@@ -22,7 +22,6 @@ package org.apache.cassandra.db.lifecycle;
 
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.regex.Matcher;

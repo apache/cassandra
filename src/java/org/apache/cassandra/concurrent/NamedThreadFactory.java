@@ -177,7 +177,7 @@ public class NamedThreadFactory implements ThreadFactory
     @Override
     public String toString()
     {
-        return id;
+        return threadGroup != null ? id + " in " + threadGroup.getName() : id;
     }
 
     public void close()

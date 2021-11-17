@@ -59,6 +59,7 @@ import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
 import static org.apache.cassandra.streaming.StreamSession.createLogTag;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serialize;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serializedSize;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 import static org.apache.cassandra.utils.JVMStabilityInspector.inspectThrowable;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;

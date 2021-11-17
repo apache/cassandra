@@ -35,6 +35,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
 {
     private static final long serialVersionUID = 1L;
@@ -81,7 +83,7 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
                                                                  null,
                                                                  timestamp,
                                                                  FBUtilities.nowInSeconds()),
-                                             System.nanoTime());
+                                             nanoTime());
 
         // Collect warnings reported during the query.
         if (res != null)

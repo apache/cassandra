@@ -28,7 +28,6 @@ import java.util.zip.CRC32;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

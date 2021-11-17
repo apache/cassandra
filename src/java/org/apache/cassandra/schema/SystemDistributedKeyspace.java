@@ -310,7 +310,10 @@ public final class SystemDistributedKeyspace
                                       keyspaceName,
                                       cfname,
                                       id.toString());
-        processSilent(fmtQry, t.getMessage(), sw.toString());
+        String message = t.getMessage();
+        if (message == null)
+            message = t.getClass().getName();
+        processSilent(fmtQry, message, sw.toString());
     }
 
     public static void startViewBuild(String keyspace, String view, UUID hostId)

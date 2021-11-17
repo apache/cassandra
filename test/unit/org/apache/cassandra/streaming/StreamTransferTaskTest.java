@@ -95,6 +95,7 @@ public class StreamTransferTaskTest
     {
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, FACTORY, null, current_version, false, 0, UUID.randomUUID(), PreviewKind.ALL);
+        session.init(new StreamResultFuture(UUID.randomUUID(), StreamOperation.OTHER, UUID.randomUUID(), PreviewKind.NONE));
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
         // create two sstables

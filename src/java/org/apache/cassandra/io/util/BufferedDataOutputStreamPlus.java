@@ -243,6 +243,9 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     @Override
     public void close() throws IOException
     {
+        if (buffer == null)
+            return;
+
         doFlush(0);
         channel.close();
         FileUtils.clean(buffer);

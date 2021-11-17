@@ -17,11 +17,8 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Paths;
 import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.EOFException;
 

@@ -28,7 +28,6 @@ import java.util.Optional;
 
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairResult;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.SyncStat;

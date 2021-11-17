@@ -23,8 +23,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.util.File;
