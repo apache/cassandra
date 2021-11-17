@@ -22,7 +22,7 @@
 
     <!-- details of what version of Resolver ANT Tasks to fetch -->
     <property name="resolver-ant-tasks.version" value="1.3.0" />
-    <property name="resolver-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}.jar"/>
+    <property name="resolver-ant-tasks.local" value="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}.jar"/>
     <property name="resolver-ant-tasks.url" value="https://repo1.maven.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
     <condition property="resolver-ant-tasks.jar.exists">
         <available file="${resolver-ant-tasks.local}" />
@@ -44,7 +44,7 @@
 
     <target name="_resolver_download" unless="resolver-ant-tasks.jar.exists" description="Fetch Resolver ANT Tasks from Maven Central Repository">
         <echo>Downloading Resolver ANT Tasks...</echo>
-        <mkdir dir="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
+        <mkdir dir="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
 
         <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
              dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
@@ -178,7 +178,7 @@
 
 
         <!-- jacoco agent jar comes wrapped in a jar -->
-        <unzip src="${user.home}/.m2/repository/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
+        <unzip src="${local.repository}/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
             <patternset>
                 <include name="*.jar"/>
             </patternset>
@@ -193,16 +193,16 @@
             <dependencies pomRef="all-pom"/>
             <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
         </resolve>
-        <mkdir dir="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin"/>
+        <mkdir dir="${local.repository}/org/apache/cassandra/deps/sigar-bin"/>
         <mkdir dir="${build.lib}/sigar-bin"/>
 
         <!-- files.pythonhosted.org -->
-        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- apache/cassandra/lib -->
-        <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get dest="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
+        <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get dest="${local.repository}/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
             <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
             <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-linux.so"/>
             <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
@@ -229,34 +229,34 @@
         </get>
         
         <copy todir="${build.lib}" quiet="true">
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
         </copy>
         <copy todir="${build.lib}/sigar-bin/" quiet="true">
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-solaris.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-hpux-11.sl"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-pa-hpux-11.sl"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-aix-5.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-aix-5.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64le-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-s390x-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-sparc-solaris.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-sparc64-solaris.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-universal-macosx.dylib"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-universal64-macosx.dylib"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-5.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-6.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-linux.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/sigar-amd64-winnt.dll"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.dll"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.lib"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-solaris.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-hpux-11.sl"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-pa-hpux-11.sl"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-aix-5.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-aix-5.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64le-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-s390x-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-sparc-solaris.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-sparc64-solaris.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-universal-macosx.dylib"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-universal64-macosx.dylib"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-5.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-6.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-linux.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/sigar-amd64-winnt.dll"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.dll"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.lib"/>
         </copy>
     </target>
 </project>
