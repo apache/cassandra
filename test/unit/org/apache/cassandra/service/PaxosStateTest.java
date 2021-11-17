@@ -125,4 +125,29 @@ public class PaxosStateTest
         assertTrue("paxos prepare stage failed", PrepareVerbHandler.doPrepare(commit).promised);
         assertTrue("paxos propose stage failed", ProposeVerbHandler.doPropose(commit));
     }
+
+    @Test
+    public void testRejectsDelayedProposalIfNewerProposalIsAccepted() {
+        String key = "key" + nanoTime();
+        ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
+
+        // CFS should be empty initially
+        assertNoDataPresent(cfs, Util.dk(key));
+
+        PartitionUpdate newerUpdate = updateFor(key, cfs, "newValue");
+        UUID ballot = UUIDGen.getRandomTimeUUIDFromMicros(1000);
+        Commit newerProposal = Commit.newProposal(ballot, newerUpdate);
+        assertTrue("paxos propose stage failed", ProposeVerbHandler.doPropose(newerProposal));
+
+        UUID delayedBallot = UUIDGen.getRandomTimeUUIDFromMicros(900);
+        PartitionUpdate olderUpdate = updateFor(key, cfs, "oldValue");
+        Commit delayedProposal = Commit.newProposal(delayedBallot, olderUpdate);
+        assertFalse("Older prepared should be rejected",  ProposeVerbHandler.doPropose(delayedProposal));
+    }
+
+    private PartitionUpdate updateFor(String key, ColumnFamilyStore cfs, String oldValue) {
+        RowUpdateBuilder older = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
+        older.clustering("a").add("val", ByteBufferUtil.bytes(oldValue));
+        return Iterables.getOnlyElement(older.build().getPartitionUpdates());
+    }
 }
