@@ -90,7 +90,7 @@ public class SyncFuture<V> extends AbstractFuture<V>
     }
 
     /**
-     * Support {@link com.google.common.util.concurrent.Futures#transform(ListenableFuture, com.google.common.base.Function, Executor)} natively
+     * Support {@link com.google.common.util.concurrent.Futures#transform} natively
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
@@ -165,7 +165,7 @@ public class SyncFuture<V> extends AbstractFuture<V>
 
     private void notifyListeners()
     {
-        ListenerList.notify(listeners, this);
+        ListenerList.notifyExclusive(listeners, this);
         listenersUpdater.lazySet(this, null);
     }
 }

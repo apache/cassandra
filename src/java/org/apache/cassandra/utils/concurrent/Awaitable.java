@@ -105,91 +105,96 @@ public interface Awaitable
      */
     Awaitable awaitUninterruptibly();
 
-    public static boolean await(Awaitable await, long time, TimeUnit unit) throws InterruptedException
+    // we must declare the static implementation methods outside of the interface,
+    // so that they can be loaded by different classloaders during simulation
+    class Defaults
     {
-        return await.awaitUntil(nanoTime() + unit.toNanos(time));
-    }
-
-    public static boolean awaitThrowUncheckedOnInterrupt(Awaitable await, long time, TimeUnit units) throws UncheckedInterruptedException
-    {
-        return awaitUntilThrowUncheckedOnInterrupt(await, nanoTime() + units.toNanos(time));
-    }
-
-    public static boolean awaitUninterruptibly(Awaitable await, long time, TimeUnit units)
-    {
-        return awaitUntilUninterruptibly(await, nanoTime() + units.toNanos(time));
-    }
-
-    public static <A extends Awaitable> A awaitThrowUncheckedOnInterrupt(A await) throws UncheckedInterruptedException
-    {
-        try
+        public static boolean await(Awaitable await, long time, TimeUnit unit) throws InterruptedException
         {
-            await.await();
+            return await.awaitUntil(nanoTime() + unit.toNanos(time));
         }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException();
-        }
-        return await;
-    }
 
-    public static boolean awaitUntilThrowUncheckedOnInterrupt(Awaitable await, long nanoTimeDeadline) throws UncheckedInterruptedException
-    {
-        try
+        public static boolean awaitThrowUncheckedOnInterrupt(Awaitable await, long time, TimeUnit units) throws UncheckedInterruptedException
         {
-            return await.awaitUntil(nanoTimeDeadline);
+            return awaitUntilThrowUncheckedOnInterrupt(await, nanoTime() + units.toNanos(time));
         }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException();
-        }
-    }
 
-    /**
-     * {@link Awaitable#awaitUntilUninterruptibly(long)}
-     */
-    public static boolean awaitUntilUninterruptibly(Awaitable await, long nanoTimeDeadline)
-    {
-        boolean interrupted = false;
-        boolean result;
-        while (true)
+        public static boolean awaitUninterruptibly(Awaitable await, long time, TimeUnit units)
         {
-            try
-            {
-                result = await.awaitUntil(nanoTimeDeadline);
-                break;
-            }
-            catch (InterruptedException e)
-            {
-                interrupted = true;
-            }
+            return awaitUntilUninterruptibly(await, nanoTime() + units.toNanos(time));
         }
-        if (interrupted)
-            Thread.currentThread().interrupt();
-        return result;
-    }
 
-    /**
-     * {@link Awaitable#awaitUninterruptibly()}
-     */
-    public static <A extends Awaitable> A awaitUninterruptibly(A await)
-    {
-        boolean interrupted = false;
-        while (true)
+        public static <A extends Awaitable> A awaitThrowUncheckedOnInterrupt(A await) throws UncheckedInterruptedException
         {
             try
             {
                 await.await();
-                break;
             }
             catch (InterruptedException e)
             {
-                interrupted = true;
+                throw new UncheckedInterruptedException();
+            }
+            return await;
+        }
+
+        public static boolean awaitUntilThrowUncheckedOnInterrupt(Awaitable await, long nanoTimeDeadline) throws UncheckedInterruptedException
+        {
+            try
+            {
+                return await.awaitUntil(nanoTimeDeadline);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException();
             }
         }
-        if (interrupted)
-            Thread.currentThread().interrupt();
-        return await;
+
+        /**
+         * {@link Awaitable#awaitUntilUninterruptibly(long)}
+         */
+        public static boolean awaitUntilUninterruptibly(Awaitable await, long nanoTimeDeadline)
+        {
+            boolean interrupted = false;
+            boolean result;
+            while (true)
+            {
+                try
+                {
+                    result = await.awaitUntil(nanoTimeDeadline);
+                    break;
+                }
+                catch (InterruptedException e)
+                {
+                    interrupted = true;
+                }
+            }
+            if (interrupted)
+                Thread.currentThread().interrupt();
+            return result;
+        }
+
+        /**
+         * {@link Awaitable#awaitUninterruptibly()}
+         */
+        public static <A extends Awaitable> A awaitUninterruptibly(A await)
+        {
+            boolean interrupted = false;
+            while (true)
+            {
+                try
+                {
+                    await.await();
+                    break;
+                }
+                catch (InterruptedException e)
+                {
+                    interrupted = true;
+                }
+            }
+            if (interrupted)
+                Thread.currentThread().interrupt();
+            return await;
+        }
     }
 
     abstract class AbstractAwaitable implements Awaitable
@@ -202,7 +207,7 @@ public interface Awaitable
         @Override
         public boolean await(long time, TimeUnit unit) throws InterruptedException
         {
-            return Awaitable.await(this, time, unit);
+            return Defaults.await(this, time, unit);
         }
 
         /**
@@ -211,7 +216,7 @@ public interface Awaitable
         @Override
         public boolean awaitThrowUncheckedOnInterrupt(long time, TimeUnit units) throws UncheckedInterruptedException
         {
-            return Awaitable.awaitThrowUncheckedOnInterrupt(this, time, units);
+            return Defaults.awaitThrowUncheckedOnInterrupt(this, time, units);
         }
 
         /**
@@ -227,7 +232,7 @@ public interface Awaitable
          */
         public Awaitable awaitThrowUncheckedOnInterrupt() throws UncheckedInterruptedException
         {
-            return Awaitable.awaitThrowUncheckedOnInterrupt(this);
+            return Defaults.awaitThrowUncheckedOnInterrupt(this);
         }
 
         /**
@@ -235,7 +240,7 @@ public interface Awaitable
          */
         public boolean awaitUntilThrowUncheckedOnInterrupt(long nanoTimeDeadline) throws UncheckedInterruptedException
         {
-            return Awaitable.awaitUntilThrowUncheckedOnInterrupt(this, nanoTimeDeadline);
+            return Defaults.awaitUntilThrowUncheckedOnInterrupt(this, nanoTimeDeadline);
         }
 
         /**
@@ -243,7 +248,7 @@ public interface Awaitable
          */
         public boolean awaitUntilUninterruptibly(long nanoTimeDeadline)
         {
-            return Awaitable.awaitUntilUninterruptibly(this, nanoTimeDeadline);
+            return Defaults.awaitUntilUninterruptibly(this, nanoTimeDeadline);
         }
 
         /**
@@ -251,7 +256,7 @@ public interface Awaitable
          */
         public Awaitable awaitUninterruptibly()
         {
-            return Awaitable.awaitUninterruptibly(this);
+            return Defaults.awaitUninterruptibly(this);
         }
     }
 

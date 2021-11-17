@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.concurrent.Condition;
 import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.*;
 import static org.apache.cassandra.metrics.HintsServiceMetrics.updateDelayMetrics;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 /**

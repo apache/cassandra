@@ -32,6 +32,8 @@ import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
+import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
+
 @Ignore
 public abstract class AbstractExecutorPlusTest
 {
@@ -100,9 +102,9 @@ public abstract class AbstractExecutorPlusTest
 
         SequentialExecutorPlus exec = builder.build();
 
-        Semaphore enter = new Semaphore.UnfairAsync(0);
-        Semaphore exit = new Semaphore.UnfairAsync(0);
-        Semaphore runAfter = new Semaphore.UnfairAsync(0);
+        Semaphore enter = newSemaphore(0);
+        Semaphore exit = newSemaphore(0);
+        Semaphore runAfter = newSemaphore(0);
         SequentialExecutorPlus.AtLeastOnceTrigger trigger;
         trigger = exec.atLeastOnceTrigger(() -> { enter.release(1); exit.acquireThrowUncheckedOnInterrupt(1); });
 

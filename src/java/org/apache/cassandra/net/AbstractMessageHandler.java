@@ -44,7 +44,7 @@ import org.apache.cassandra.net.ResourceLimits.Limit;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.cassandra.net.Crc.InvalidCrc;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
  * Core logic for handling inbound message deserialization and execution (in tandem with {@link FrameDecoder}).

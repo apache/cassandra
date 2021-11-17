@@ -47,12 +47,15 @@ import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Shared;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.util.Collections.emptyList;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -91,6 +94,13 @@ public final class Ref<T> implements RefCounted<T>
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
     public static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");
+    static OnLeak ON_LEAK;
+
+    @Shared(scope = SIMULATION)
+    public interface OnLeak
+    {
+        void onLeak(Object state);
+    }
 
     final State state;
     final T referent;
@@ -227,6 +237,9 @@ public final class Ref<T> implements RefCounted<T>
                 logger.error("LEAK DETECTED: a reference ({}) to {} was not released before the reference was garbage collected", id, globalState);
                 if (DEBUG_ENABLED)
                     debug.log(id);
+                OnLeak onLeak = ON_LEAK;
+                if (onLeak != null)
+                    onLeak.onLeak(this);
             }
             else if (DEBUG_ENABLED)
             {
@@ -234,6 +247,12 @@ public final class Ref<T> implements RefCounted<T>
             }
             if (fail != null)
                 logger.error("Error when closing {}", globalState, fail);
+        }
+
+        @Override
+        public String toString()
+        {
+            return globalState.toString();
         }
     }
 
@@ -678,7 +697,10 @@ public final class Ref<T> implements RefCounted<T>
         {
             final Set<Tidy> candidates = Collections.newSetFromMap(new IdentityHashMap<>());
             for (GlobalState state : globallyExtant)
-                candidates.add(state.tidy);
+            {
+                if (state.tidy != null)
+                    candidates.add(state.tidy);
+            }
             removeExpected(candidates);
             this.candidates.retainAll(candidates);
             if (!this.candidates.isEmpty())
@@ -704,6 +726,11 @@ public final class Ref<T> implements RefCounted<T>
                 }
             }
         }
+    }
+
+    public static void setOnLeak(OnLeak onLeak)
+    {
+        ON_LEAK = onLeak;
     }
 
     @VisibleForTesting

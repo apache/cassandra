@@ -28,8 +28,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.StorageService;
 
+import static com.google.common.primitives.Longs.max;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutionFailure.propagating;
 import static org.apache.cassandra.concurrent.ExecutionFailure.suppressing;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Like ExecutorPlus, ScheduledThreadPoolExecutorPlus always
@@ -95,6 +98,30 @@ public class ScheduledThreadPoolExecutorPlus extends ScheduledThreadPoolExecutor
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable task, long initialDelay, long delay, TimeUnit unit)
     {
         return super.scheduleWithFixedDelay(suppressing(task), initialDelay, delay, unit);
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleSelfRecurring(Runnable run, long delay, TimeUnit units)
+    {
+        return schedule(run, delay, units);
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleAt(Runnable run, long deadline)
+    {
+        return schedule(run, max(0, deadline - nanoTime()), NANOSECONDS);
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleTimeoutAt(Runnable run, long deadline)
+    {
+        return scheduleTimeoutWithDelay(run, max(0, deadline - nanoTime()), NANOSECONDS);
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleTimeoutWithDelay(Runnable run, long delay, TimeUnit units)
+    {
+        return schedule(run, delay, units);
     }
 
     /*======== BEGIN DIRECT COPY OF ThreadPoolExecutorPlus ===============*/

@@ -862,42 +862,8 @@ public class TokenMetadata
         {
             TokenMetadataDiagnostics.pendingRangeCalculationStarted(this, keyspaceName);
 
-            // create clone of current state
-            BiMultiValMap<Token, InetAddressAndPort> bootstrapTokensClone;
-            Set<InetAddressAndPort> leavingEndpointsClone;
-            Set<Pair<Token, InetAddressAndPort>> movingEndpointsClone;
-            TokenMetadata metadata;
+            unsafeCalculatePendingRanges(strategy, keyspaceName);
 
-            lock.readLock().lock();
-            try
-            {
-
-                if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
-                {
-                    if (logger.isTraceEnabled())
-                        logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
-                    if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
-                    {
-                        if (logger.isTraceEnabled())
-                            logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
-                        pendingRanges.put(keyspaceName, new PendingRangeMaps());
-
-                        return;
-                    }
-                }
-
-                bootstrapTokensClone  = new BiMultiValMap<>(this.bootstrapTokens);
-                leavingEndpointsClone = new HashSet<>(this.leavingEndpoints);
-                movingEndpointsClone = new HashSet<>(this.movingEndpoints);
-                metadata = this.cloneOnlyTokenMap();
-            }
-            finally
-            {
-                lock.readLock().unlock();
-            }
-
-            pendingRanges.put(keyspaceName, calculatePendingRanges(strategy, metadata, bootstrapTokensClone,
-                                                                   leavingEndpointsClone, movingEndpointsClone));
             if (logger.isDebugEnabled())
                 logger.debug("Starting pending range calculation for {}", keyspaceName);
 
@@ -908,6 +874,46 @@ public class TokenMetadata
             if (logger.isTraceEnabled())
                 logger.trace("Calculated pending ranges for {}:\n{}", keyspaceName, (pendingRanges.isEmpty() ? "<empty>" : printPendingRanges()));
         }
+    }
+
+    public void unsafeCalculatePendingRanges(AbstractReplicationStrategy strategy, String keyspaceName)
+    {
+        // create clone of current state
+        BiMultiValMap<Token, InetAddressAndPort> bootstrapTokensClone;
+        Set<InetAddressAndPort> leavingEndpointsClone;
+        Set<Pair<Token, InetAddressAndPort>> movingEndpointsClone;
+        TokenMetadata metadata;
+
+        lock.readLock().lock();
+        try
+        {
+
+            if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
+                if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
+                {
+                    if (logger.isTraceEnabled())
+                        logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
+                    pendingRanges.put(keyspaceName, new PendingRangeMaps());
+
+                    return;
+                }
+            }
+
+            bootstrapTokensClone  = new BiMultiValMap<>(this.bootstrapTokens);
+            leavingEndpointsClone = new HashSet<>(this.leavingEndpoints);
+            movingEndpointsClone = new HashSet<>(this.movingEndpoints);
+            metadata = this.cloneOnlyTokenMap();
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+
+        pendingRanges.put(keyspaceName, calculatePendingRanges(strategy, metadata, bootstrapTokensClone,
+                                                               leavingEndpointsClone, movingEndpointsClone));
     }
 
     /**

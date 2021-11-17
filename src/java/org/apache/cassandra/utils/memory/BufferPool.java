@@ -48,6 +48,7 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static com.google.common.collect.ImmutableList.of;
@@ -55,6 +56,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 import static org.apache.cassandra.utils.ExecutorUtils.*;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
 
 /**
@@ -119,6 +121,7 @@ public class BufferPool
     private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocateDirect(0);
 
     private volatile Debug debug = Debug.NO_OP;
+    private volatile DebugLeaks debugLeaks = DebugLeaks.NO_OP;
 
     protected final String name;
     protected final BufferPoolMetrics metrics;
@@ -305,10 +308,19 @@ public class BufferPool
         void recyclePartial(Chunk chunk);
     }
 
-    public void debug(Debug setDebug)
+    @Shared(scope = SIMULATION)
+    public interface DebugLeaks
     {
-        assert setDebug != null;
-        this.debug = setDebug;
+        public static DebugLeaks NO_OP = () -> {};
+        void leak();
+    }
+
+    public void debug(Debug newDebug, DebugLeaks newDebugLeaks)
+    {
+        if (newDebug != null)
+            this.debug = newDebug;
+        if (newDebugLeaks != null)
+            this.debugLeaks = newDebugLeaks;
     }
 
     interface Recycler
@@ -1025,6 +1037,7 @@ public class BufferPool
         Object obj = localPoolRefQueue.remove(100);
         if (obj instanceof LocalPoolRef)
         {
+            debugLeaks.leak();
             ((LocalPoolRef) obj).release();
             localPoolReferences.remove(obj);
         }

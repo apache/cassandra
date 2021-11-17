@@ -40,7 +40,7 @@ public abstract class Sampler<T>
     }
 
     @VisibleForTesting
-    MonotonicClock clock = MonotonicClock.approxTime;
+    MonotonicClock clock = MonotonicClock.Global.approxTime;
 
     @VisibleForTesting
     static final ExecutorPlus samplerExecutor = executorFactory()

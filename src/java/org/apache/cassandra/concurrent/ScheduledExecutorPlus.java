@@ -19,6 +19,8 @@
 package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.utils.Shared;
 
@@ -27,4 +29,26 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION)
 public interface ScheduledExecutorPlus extends ExecutorPlus, ScheduledExecutorService
 {
+    /**
+     * Schedule an action that is recurring but self-administered.
+     */
+    ScheduledFuture<?> scheduleSelfRecurring(Runnable run, long delay, TimeUnit units);
+
+    /**
+     * Schedule a timeout action. This method is primarily used by the Simulator to modify its
+     * scheduling behaviour with respect to this operation.
+     */
+    ScheduledFuture<?> scheduleAt(Runnable run, long deadline);
+
+    /**
+     * Schedule a timeout action. This method is primarily used by the Simulator to modify its
+     * scheduling behaviour with respect to this operation.
+     */
+    ScheduledFuture<?> scheduleTimeoutAt(Runnable run, long deadline);
+
+    /**
+     * Schedule a timeout action. This method is primarily used by the Simulator to modify its
+     * scheduling behaviour with respect to this operation.
+     */
+    ScheduledFuture<?> scheduleTimeoutWithDelay(Runnable run, long delay, TimeUnit units);
 }

@@ -36,7 +36,7 @@ public class SemaphoreTest
     @Test
     public void testUnfair() throws InterruptedException
     {
-        Semaphore s = new Semaphore.UnfairAsync(2);
+        Semaphore s = Semaphore.newSemaphore(2);
         List<Future<Boolean>> fs = start(s);
         s.release(1);
         while (s.permits() == 1) Thread.yield();
@@ -54,7 +54,7 @@ public class SemaphoreTest
     @Test
     public void testFair() throws InterruptedException, ExecutionException, TimeoutException
     {
-        Semaphore s = new Semaphore.FairJDK(2);
+        Semaphore s = Semaphore.newFairSemaphore(2);
         List<Future<Boolean>> fs = start(s);
         s.release(1);
         fs.get(0).get(1L, TimeUnit.MINUTES);
@@ -83,9 +83,9 @@ public class SemaphoreTest
             try { s.tryAcquireUntil(1, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1L)); Assert.fail(); } catch (InterruptedException ignore) { }
             List<Future<Boolean>> fs = new ArrayList<>();
             fs.add(exec.submit(() -> s.tryAcquire(1, 1L, TimeUnit.MINUTES)));
-            while (s instanceof Semaphore.FairJDK && ((Semaphore.FairJDK) s).waiting() == 0) Thread.yield();
+            while (s instanceof Semaphore.Standard && ((Semaphore.Standard) s).waiting() == 0) Thread.yield();
             fs.add(exec.submit(() -> s.tryAcquireUntil(1, System.nanoTime() + TimeUnit.MINUTES.toNanos(1L))));
-            while (s instanceof Semaphore.FairJDK && ((Semaphore.FairJDK) s).waiting() == 1) Thread.yield();
+            while (s instanceof Semaphore.Standard && ((Semaphore.Standard) s).waiting() == 1) Thread.yield();
             fs.add(exec.submit(() -> { s.acquire(1); return true; } ));
             return fs;
         }

@@ -21,7 +21,10 @@ package org.apache.cassandra.utils.memory;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class HeapPool extends MemtablePool
 {
@@ -58,6 +61,7 @@ public class HeapPool extends MemtablePool
 
     public static class Logged extends MemtablePool
     {
+        @Shared(scope = SIMULATION)
         public interface Listener
         {
             public void accept(long size, String table);

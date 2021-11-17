@@ -316,6 +316,18 @@ public abstract class AbstractFuture<V> implements Future<V>
         return this;
     }
 
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    @Override
+    public <T> Future<T> map(Function<? super V, ? extends T> mapper)
+    {
+        return map(mapper, null);
+    }
+
     /**
      * Support more fluid version of {@link com.google.common.util.concurrent.Futures#addCallback}
      *
@@ -435,31 +447,31 @@ public abstract class AbstractFuture<V> implements Future<V>
     @Override
     public boolean await(long timeout, TimeUnit unit) throws InterruptedException
     {
-        return Awaitable.await(this, timeout, unit);
+        return Defaults.await(this, timeout, unit);
     }
 
     @Override
     public boolean awaitThrowUncheckedOnInterrupt(long time, TimeUnit units) throws UncheckedInterruptedException
     {
-        return Awaitable.awaitThrowUncheckedOnInterrupt(this, time, units);
+        return Defaults.awaitThrowUncheckedOnInterrupt(this, time, units);
     }
 
     @Override
     public boolean awaitUninterruptibly(long timeout, TimeUnit unit)
     {
-        return Awaitable.awaitUninterruptibly(this, timeout, unit);
+        return Defaults.awaitUninterruptibly(this, timeout, unit);
     }
 
     @Override
     public boolean awaitUntilThrowUncheckedOnInterrupt(long nanoTimeDeadline) throws UncheckedInterruptedException
     {
-        return Awaitable.awaitUntilThrowUncheckedOnInterrupt(this, nanoTimeDeadline);
+        return Defaults.awaitUntilThrowUncheckedOnInterrupt(this, nanoTimeDeadline);
     }
 
     @Override
     public boolean awaitUntilUninterruptibly(long nanoTimeDeadline)
     {
-        return Awaitable.awaitUntilUninterruptibly(this, nanoTimeDeadline);
+        return Defaults.awaitUntilUninterruptibly(this, nanoTimeDeadline);
     }
 
     /**
@@ -468,7 +480,7 @@ public abstract class AbstractFuture<V> implements Future<V>
     @Override
     public Future<V> awaitUninterruptibly()
     {
-        return Awaitable.awaitUninterruptibly(this);
+        return Defaults.awaitUninterruptibly(this);
     }
 
     /**
@@ -477,7 +489,7 @@ public abstract class AbstractFuture<V> implements Future<V>
     @Override
     public Future<V> awaitThrowUncheckedOnInterrupt() throws UncheckedInterruptedException
     {
-        return Awaitable.awaitThrowUncheckedOnInterrupt(this);
+        return Defaults.awaitThrowUncheckedOnInterrupt(this);
     }
 
     public String toString()
