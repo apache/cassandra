@@ -2211,18 +2211,27 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         public static Ref<GlobalTidy> get(SSTableReader sstable)
         {
             Descriptor descriptor = sstable.descriptor;
-            Ref<GlobalTidy> refc = lookup.get(descriptor);
-            if (refc != null)
-                return refc.ref();
-            final GlobalTidy tidy = new GlobalTidy(sstable);
-            refc = new Ref<>(tidy, tidy);
-            Ref<?> ex = lookup.putIfAbsent(descriptor, refc);
-            if (ex != null)
+
+            while (true)
             {
-                refc.close();
-                throw new AssertionError();
+                Ref<GlobalTidy> ref = lookup.get(descriptor);
+                if (ref == null)
+                {
+                    final GlobalTidy tidy = new GlobalTidy(sstable);
+                    ref = new Ref<>(tidy, tidy);
+                    Ref<GlobalTidy> ex = lookup.putIfAbsent(descriptor, ref);
+                    if (ex == null)
+                        return ref;
+                    ref = ex;
+                }
+
+                Ref<GlobalTidy> newRef = ref.tryRef();
+                if (newRef != null)
+                    return newRef;
+
+                // raced with tidy
+                lookup.remove(descriptor, ref);
             }
-            return refc;
         }
     }
 

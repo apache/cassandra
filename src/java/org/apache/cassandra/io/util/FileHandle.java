@@ -148,8 +148,16 @@ public class FileHandle extends SharedCloseableImpl
     public FileDataInput createReader(long position)
     {
         RandomAccessReader reader = createReader();
-        reader.seek(position);
-        return reader;
+        try
+        {
+            reader.seek(position);
+            return reader;
+        }
+        catch (Throwable t)
+        {
+            try { reader.close(); } catch (Throwable t2) { t.addSuppressed(t2); }
+            throw t;
+        }
     }
 
     /**
