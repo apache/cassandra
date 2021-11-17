@@ -96,6 +96,17 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
         return this;
     }
 
+    /**
+     * waits for completion; in case of failure rethrows the original exception without a new wrapping exception
+     * so may cause problems for reporting stack traces
+     */
+    default Future<V> syncThrowUncheckedOnInterrupt()
+    {
+        awaitThrowUncheckedOnInterrupt();
+        rethrowIfFailed();
+        return this;
+    }
+
     @Deprecated
     @Override
     default boolean await(long l) throws InterruptedException

@@ -38,7 +38,7 @@ import static org.apache.cassandra.utils.concurrent.ListenerList.Notifying.NOTIF
 /**
  * Encapsulate one or more items in a linked-list that is immutable whilst shared, forming a prepend-only list (or stack).
  * Once the list is ready to consume, exclusive ownership is taken by clearing the shared variable containing it, after
- * which the list may be invoked using {@link #notify}, which reverses the list before invoking the work it contains.
+ * which the list may be invoked using {@link #notifyExclusive(ListenerList, Future)}, which reverses the list before invoking the work it contains.
  */
 abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
 {
@@ -93,7 +93,7 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
             {
                 while (true)
                 {
-                    notify(listeners, in);
+                    notifyExclusive(listeners, in);
                     if (updater.compareAndSet(in, NOTIFYING, null))
                         return;
 
@@ -113,17 +113,13 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
      *
      * @param head must be either a {@link ListenerList} or {@link GenericFutureListener}
      */
-    static <T> void notify(ListenerList<T> head, Future<T> future)
+    static <T> void notifyExclusive(ListenerList<T> head, Future<T> future)
     {
-        Executor notifyExecutor = future.notifyExecutor();
-        if (inExecutor(notifyExecutor))
-            notifyExecutor = null;
+        Executor notifyExecutor; {
+            Executor exec = future.notifyExecutor();
+            notifyExecutor = inExecutor(exec) ? null : exec;
+        }
 
-        notify(head, notifyExecutor, future);
-    }
-
-    private static <T> void notify(ListenerList<T> head, Executor notifyExecutor, Future<T> future)
-    {
         head = reverse(head);
         forEach(head, i -> i.notifySelf(notifyExecutor, future));
     }
