@@ -36,7 +36,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +56,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
+import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -569,12 +569,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized void messageReceived(StreamMessage message)
     {
         if (message.type != StreamMessage.Type.KEEP_ALIVE)
-        {
-            // can ignore duplicate complete messages
-            if (message.type == StreamMessage.Type.COMPLETE && state() == State.COMPLETE)
-                return;
             failIfFinished();
-        }
 
         sink.recordMessage(peer, message.type);
 
@@ -640,9 +635,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * after completion or because the peer was down, otherwise sends a {@link SessionFailedMessage} and closes
      * the session as {@link State#FAILED}.
      */
-    public synchronized Future onError(Throwable error)
+    public synchronized Future onError(Throwable e)
     {
-        boolean isEofException = Throwables.anyCauseMatches(error, e -> e instanceof EOFException || e instanceof ClosedChannelException);
+        boolean isEofException = e instanceof EOFException || e instanceof ClosedChannelException;
         if (isEofException)
         {
             if (state.finalState)
@@ -656,13 +651,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 logger.error("[Stream #{}] Socket closed before session completion, peer {} is probably down.",
                              planId(),
                              peer.getHostAddressAndPort(),
-                             error);
+                             e);
 
                 return closeSession(State.FAILED);
             }
         }
 
-        logError(error);
+        logError(e);
         // send session failure message
         if (channel.connected())
             channel.sendControlMessage(new SessionFailedMessage());
@@ -879,11 +874,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         else
         {
-            CompleteMessage msg = new CompleteMessage();
-//            channel.sendControlMessage(msg);
-            // can't rely on control channel as the message may not be seen before the channels get closed
-            for (StreamingChannel c : outbound.values())
-                channel.sendMessage(c, msg);
+            channel.sendControlMessage(new CompleteMessage());
             closeSession(State.COMPLETE);
         }
 
