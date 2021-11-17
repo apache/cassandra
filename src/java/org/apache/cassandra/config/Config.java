@@ -217,7 +217,7 @@ public class Config
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-    @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
+    @Replaces(oldName = "internode_tcp_user_timeout_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
     public volatile CassandraDuration internode_tcp_user_timeout = new CassandraDuration("30s");
     // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
     // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
@@ -304,8 +304,8 @@ public class Config
     /**
      * @deprecated since 4.0 This value was near useless, and we're not using it anymore
      */
-    @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, deprecated = true)
-    public CassandraDuration commitlog_sync_batch_window = new CassandraDuration("0.0ms");
+    @Replaces(oldName = "commitlog_sync_batch_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, deprecated = true)
+    public CassandraDuration commitlog_sync_batch_window = new CassandraDuration("0ms");
     @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, deprecated = true)
     public CassandraDuration commitlog_sync_group_window = new CassandraDuration("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converter.MillisDurationConverter.class, deprecated = true)
