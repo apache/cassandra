@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.reads.range;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -54,7 +55,8 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
+@VisibleForTesting
+public class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeCommandIterator.class);
 
@@ -125,11 +127,13 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
         catch (UnavailableException e)
         {
             rangeMetrics.unavailables.mark();
+            StorageProxy.logRequestException(e, Collections.singleton(command));
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             rangeMetrics.timeouts.mark();
+            StorageProxy.logRequestException(e, Collections.singleton(command));
             throw e;
         }
         catch (ReadAbortException e)
