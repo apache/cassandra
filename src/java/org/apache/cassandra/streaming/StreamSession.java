@@ -890,6 +890,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     /**
+     * Call back on receiving {@code StreamMessage.Type.SESSION_FAILED} message.
+     */
+    public synchronized void sessionTimeout()
+    {
+        logger.error("[Stream #{}] timeout with {}.", planId(), peer.toString());
+        closeSession(State.FAILED);
+    }
+
+    /**
      * @return Current snapshot of this session info.
      */
     public SessionInfo getSessionInfo()

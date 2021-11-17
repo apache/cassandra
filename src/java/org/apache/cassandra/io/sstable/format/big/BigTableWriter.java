@@ -25,7 +25,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.io.util.File;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -111,7 +111,7 @@ public class Coordinator implements ICoordinator
                                                        null,
                                                        ProtocolVersion.CURRENT,
                                                        null),
-                                   System.nanoTime());
+                                   nanoTime());
             // Collect warnings reported during the query.
             CoordinatorWarnings.done();
             if (res != null)

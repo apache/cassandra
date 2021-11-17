@@ -29,7 +29,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 /**
  * HeartBeat State associated with any given endpoint.
  */
-import org.apache.cassandra.io.util.File;
 
 public class HeartBeatState
 {

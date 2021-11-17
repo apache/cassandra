@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.IOError;
-import java.io.IOException;
 import java.util.*;
 import java.util.regex.Pattern;
 

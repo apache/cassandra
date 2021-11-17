@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;

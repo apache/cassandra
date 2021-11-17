@@ -132,4 +132,9 @@ public class Threads
         return Stream.of(st).collect(new StackTraceCombiner(printBriefPackages, prefix, delimiter, suffix));
     }
 
+    public static String prettyPrint(Stream<StackTraceElement> st, boolean printBriefPackages, String prefix, String delimiter, String suffix)
+    {
+        return st.collect(new StackTraceCombiner(printBriefPackages, prefix, delimiter, suffix));
+    }
+
 }

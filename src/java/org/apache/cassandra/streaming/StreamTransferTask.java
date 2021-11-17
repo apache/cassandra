@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -33,6 +32,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 
@@ -46,7 +46,7 @@ import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 public class StreamTransferTask extends StreamTask
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamTransferTask.class);
-    private static final ScheduledExecutorService timeoutExecutor = executorFactory().scheduled("StreamingTransferTaskTimeouts");
+    private static final ScheduledExecutorPlus timeoutExecutor = executorFactory().scheduled("StreamingTransferTaskTimeouts");
 
     private final AtomicInteger sequenceNumber = new AtomicInteger(0);
     private boolean aborted = false;
@@ -98,6 +98,26 @@ public class StreamTransferTask extends StreamTask
         // all file sent, notify session this task is complete.
         if (signalComplete)
             session.taskCompleted(this);
+    }
+
+    /**
+     * Received ACK for stream at {@code sequenceNumber}.
+     *
+     * @param sequenceNumber sequence number of stream
+     */
+    public void timeout(int sequenceNumber)
+    {
+        synchronized (this)
+        {
+            timeoutTasks.remove(sequenceNumber);
+            OutgoingStreamMessage stream = streams.remove(sequenceNumber);
+            if (stream == null) return;
+            stream.complete();
+
+            logger.debug("timeout sequenceNumber {}, remaining files {}", sequenceNumber, streams.keySet());
+        }
+
+        session.sessionTimeout();
     }
 
     public synchronized void abort()
@@ -169,19 +189,7 @@ public class StreamTransferTask extends StreamTask
         if (!streams.containsKey(sequenceNumber))
             return null;
 
-        ScheduledFuture future = timeoutExecutor.schedule(new Runnable()
-        {
-            public void run()
-            {
-                synchronized (StreamTransferTask.this)
-                {
-                    // remove so we don't cancel ourselves
-                    timeoutTasks.remove(sequenceNumber);
-                    StreamTransferTask.this.complete(sequenceNumber);
-                }
-            }
-        }, time, unit);
-
+        ScheduledFuture future = timeoutExecutor.scheduleTimeoutWithDelay(() -> StreamTransferTask.this.timeout(sequenceNumber), time, unit);
         ScheduledFuture prev = timeoutTasks.put(sequenceNumber, future);
         assert prev == null;
         return future;
