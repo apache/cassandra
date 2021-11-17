@@ -37,6 +37,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
@@ -49,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -130,6 +132,7 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -162,6 +165,8 @@ public class StorageProxy implements StorageProxyMBean
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
 
     public static final String UNREACHABLE = "UNREACHABLE";
+
+    private static final int FAILURE_LOGGING_INTERVAL_SECONDS = CassandraRelevantProperties.FAILURE_LOGGING_INTERVAL_SECONDS.getInt();
 
     private static final WritePerformer standardWritePerformer;
     private static final WritePerformer counterWritePerformer;
@@ -1758,7 +1763,9 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
-            throw new IsBootstrappingException();
+            IsBootstrappingException exception = new IsBootstrappingException();
+            logRequestException(exception, group.queries);
+            throw exception;
         }
 
         if (DatabaseDescriptor.getEnablePartitionDenylist() && DatabaseDescriptor.getEnableDenylistReads())
@@ -1838,6 +1845,7 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.unavailables.mark();
             casReadMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
+            logRequestException(e, group.queries);
             throw e;
         }
         catch (ReadTimeoutException e)
@@ -1845,6 +1853,7 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.timeouts.mark();
             casReadMetrics.timeouts.mark();
             readMetricsForLevel(consistencyLevel).timeouts.mark();
+            logRequestException(e, group.queries);
             throw e;
         }
         catch (ReadAbortException e)
@@ -1894,12 +1903,14 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
+            logRequestException(e, group.queries);
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
             readMetricsForLevel(consistencyLevel).timeouts.mark();
+            logRequestException(e, group.queries);
             throw e;
         }
         catch (ReadAbortException e)
@@ -2453,6 +2464,17 @@ public class StorageProxy implements StorageProxyMBean
 
         abstract protected Verb verb();
         abstract protected void runMayThrow() throws Exception;
+    }
+
+    public static void logRequestException(Exception exception, Collection<? extends ReadCommand> commands)
+    {
+        NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, FAILURE_LOGGING_INTERVAL_SECONDS, TimeUnit.SECONDS,
+                         "\"{}\" while executing {}",
+                         () -> new Object[]
+                               {
+                                   exception.getMessage(),
+                                   commands.stream().map(ReadCommand::toCQLString).collect(Collectors.joining("; "))
+                               });
     }
 
     /**
