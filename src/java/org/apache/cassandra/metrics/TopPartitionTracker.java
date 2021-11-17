@@ -195,7 +195,7 @@ public class TopPartitionTracker
         private final int maxTopPartitionCount;
         private final long minTrackedValue;
         private final Collection<Range<Token>> ranges;
-        private long currentMinValue = Integer.MAX_VALUE;
+        private long currentMinValue = Long.MAX_VALUE;
 
         private TopHolder(int maxTopPartitionCount, long minTrackedValue, Collection<Range<Token>> ranges)
         {
