@@ -225,7 +225,7 @@ public enum Verb
     private final Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer;
     private final Supplier<? extends IVerbHandler<?>> handler;
 
-    final Verb responseVerb;
+    public final Verb responseVerb;
 
     private final ToLongFunction<TimeUnit> expiration;
 

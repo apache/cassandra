@@ -41,8 +41,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.nio.file.StandardOpenOption.*;
-import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.Collections.unmodifiableSet;
 import static org.apache.cassandra.utils.Throwables.merge;
 

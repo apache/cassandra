@@ -24,6 +24,8 @@ package org.apache.cassandra.service.paxos;
 import java.io.IOException;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.schema.TableMetadata;
@@ -110,6 +112,38 @@ public class Commit
     public String toString()
     {
         return String.format("Commit(%s, %s)", ballot, update);
+    }
+
+    /**
+     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     */
+    public static boolean isAfter(@Nullable Commit testIsAfter, @Nullable Commit testIsBefore)
+    {
+        return testIsAfter != null && testIsAfter.isAfter(testIsBefore);
+    }
+
+    /**
+     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     */
+    public static boolean isAfter(@Nullable UUID testIsAfter, @Nullable Commit testIsBefore)
+    {
+        return testIsAfter != null && (testIsBefore == null || testIsAfter.timestamp() > testIsBefore.ballot.timestamp());
+    }
+
+    /**
+     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     */
+    public static boolean isAfter(@Nullable Commit testIsAfter, @Nullable UUID testIsBefore)
+    {
+        return testIsAfter != null && (testIsBefore == null || testIsAfter.ballot.timestamp() > testIsBefore.timestamp());
+    }
+
+    /**
+     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     */
+    public static boolean isAfter(@Nullable UUID testIsAfter, @Nullable UUID testIsBefore)
+    {
+        return testIsAfter != null && (testIsBefore == null || testIsAfter.timestamp() > testIsBefore.timestamp());
     }
 
     public static class CommitSerializer implements IVersionedSerializer<Commit>
