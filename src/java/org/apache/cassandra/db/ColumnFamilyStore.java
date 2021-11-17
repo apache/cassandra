@@ -111,7 +111,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
-import static org.apache.cassandra.db.commitlog.CommitLog.instance;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -461,7 +460,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
 
-        if (!SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
+        if (!SchemaConstants.isSystemKeyspace(keyspace.getName()))
             topPartitions = new TopPartitionTracker(metadata().partitioner, keyspace.getName(), name);
         else
             topPartitions = null;
