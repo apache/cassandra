@@ -100,8 +100,6 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(CassandraDuration.inMilliseconds(1000), config.gc_warn_threshold);
         assertEquals(CassandraDuration.inSeconds(86400), config.trace_type_query_ttl);
         assertEquals(CassandraDuration.inSeconds(604800), config.trace_type_repair_ttl);
-        assertEquals("DISABLED", config.outbound_connection_coalescing_strategy);
-        assertEquals(8, config.outbound_connection_coalescing_enough_coalesced_messages);
         assertNull(config.prepared_statements_cache_size);
         assertFalse(config.user_defined_functions_enabled);
         assertFalse(config.scripted_user_defined_functions_enabled);
