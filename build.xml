@@ -1340,7 +1340,6 @@
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
-      <!-- TODO: think whether showoutput is equal to printSummary or to BriefListener -->
       <condition property="showoutput" value="true">
         <istrue value="${showoutput}"/>
       </condition>
@@ -1361,8 +1360,8 @@
         </mapper>
       </pathconvert>
 
-      <!-- TODO: forkmode="@{forkmode}" and maxmemory="1024m"> are not handled -->
-      <junitlauncher failureproperty="testfailed" printsummary="@{showoutput}">
+      <!-- TODO: forkmode="@{forkmode}" -->
+      <junitlauncher failureproperty="testfailed">
         <classpath>
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
@@ -1377,11 +1376,13 @@
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
+        <listener classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
+        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
         <testclasses outputdir="${build.test.dir}/output/@{testtag}">
             <fileset dir="${test.classes}" includes="${testfiles}"/>
-            <listener classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
-            <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" if="${showoutput}" sendSysOut="true" sendSysErr="true"/>
             <fork timeout="@{timeout}">
+                <!-- ant-junitlauncher does not support `maxmemory` parameter, effectively it equals to passing Xmx directly -->
+                <jvmarg value="-Xmx1024m"/>
                 <jvmarg value="-Dstorage-config=${test.conf}"/>
                 <jvmarg value="-Djava.awt.headless=true"/>
                 <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->

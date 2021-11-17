@@ -18,6 +18,10 @@
 
 package org.apache.cassandra;
 
+import java.io.OutputStream;
+import java.util.Optional;
+
+import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.TestIdentifier;
 
 import org.apache.tools.ant.taskdefs.optional.junitlauncher2.LegacyBriefResultFormatter;
@@ -40,12 +44,20 @@ public class CassandraBriefJUnitResultFormatter extends LegacyBriefResultFormatt
     }
 
     @Override
-    protected String determineTestSuiteName()
+    protected String determineTestSuiteName(Optional<ClassSource> testClass)
     {
-        String testSuiteName = super.determineTestSuiteName();
+        String testSuiteName = super.determineTestSuiteName(testClass);
         if (!"UNKNOWN".equals(testSuiteName) && !tag.isEmpty())
             testSuiteName = testSuiteName + '-' + tag;
         return testSuiteName;
+    }
+
+    @Override
+    @SuppressWarnings("UseOfSystemOutOrSystemErr")
+    public void setDestination(OutputStream os)
+    {
+        // here we intentionally substitute the original OuputStream by STDOUT because
+        super.setDestination(System.out);
     }
 
     @Override

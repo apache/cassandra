@@ -50,15 +50,6 @@ public class CassandraXMLJUnitResultFormatter extends LegacyXmlResultFormatter
     }
 
     @Override
-    protected String determineTestSuiteName()
-    {
-        String testSuiteName = super.determineTestSuiteName();
-        if (!"UNKNOWN".equals(testSuiteName) && !tag.isEmpty())
-            testSuiteName = testSuiteName + '-' + tag;
-        return testSuiteName;
-    }
-
-    @Override
     protected XMLReportWriter createXMLReportWriter()
     {
         return new CassandraXMLReportWriter();
@@ -171,6 +162,15 @@ public class CassandraXMLJUnitResultFormatter extends LegacyXmlResultFormatter
                 }
             }
             return changed ? sb.toString() : s;
+        }
+
+        @Override
+        protected String determineTestSuiteName()
+        {
+            String testSuiteName = super.determineTestSuiteName();
+            if (!"UNKNOWN".equals(testSuiteName) && !tag.isEmpty())
+                testSuiteName = testSuiteName + '-' + tag;
+            return testSuiteName;
         }
 
         /**
