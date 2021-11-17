@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.Nemesis;
 
 /**
  * ProposeCallback has two modes of operation, controlled by the failFast parameter.
@@ -46,7 +47,7 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
 {
     private static final Logger logger = LoggerFactory.getLogger(ProposeCallback.class);
 
-    private final AtomicInteger accepts = new AtomicInteger(0);
+    @Nemesis private final AtomicInteger accepts = new AtomicInteger(0);
     private final int requiredAccepts;
     private final boolean failFast;
 

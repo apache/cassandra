@@ -37,10 +37,12 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION)
 public interface Clock
 {
-    static final Logger logger = LoggerFactory.getLogger(Clock.class);
-
     public static class Global
     {
+        // something weird happens with class loading Logger that can cause a deadlock
+        private static Throwable FAILED_TO_INITIALISE;
+        private static String INITIALIZE_MESSAGE;
+
         /**
          * Static singleton object that will be instantiated by default with a system clock
          * implementation. Set <code>cassandra.clock</code> system property to a FQCN to use a
@@ -52,19 +54,38 @@ public interface Clock
         {
             String classname = CLOCK_GLOBAL.getString();
             Clock clock = new Default();
+            Throwable errorOutcome = null;
+            String outcome = null;
             if (classname != null)
             {
                 try
                 {
-                    logger.debug("Using custom clock implementation: {}", classname);
+                    outcome = "Using custom clock implementation: " + classname;
                     clock = (Clock) Class.forName(classname).newInstance();
                 }
-                catch (Exception e)
+                catch (Throwable t)
                 {
-                    logger.error("Failed to load clock implementation {}", classname, e);
+                    outcome = "Failed to load clock implementation " + classname;
+                    errorOutcome = t;
                 }
             }
             instance = clock;
+            FAILED_TO_INITIALISE = errorOutcome;
+            INITIALIZE_MESSAGE = outcome;
+        }
+
+        public static void logInitializationOutcome(Logger logger)
+        {
+            if (FAILED_TO_INITIALISE != null)
+            {
+                logger.error(INITIALIZE_MESSAGE, FAILED_TO_INITIALISE);
+            }
+            else if (INITIALIZE_MESSAGE != null)
+            {
+                logger.debug(INITIALIZE_MESSAGE);
+            }
+            FAILED_TO_INITIALISE = null;
+            INITIALIZE_MESSAGE = null;
         }
 
         /**

@@ -124,6 +124,7 @@ import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownL
  * The creation of a repair session is done through the submitRepairSession that
  * returns a future on the completion of that session.
  */
+@Simulate(with = MONITORS)
 public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
 

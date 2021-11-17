@@ -39,7 +39,7 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
  * Wrapper around time related functions that are either implemented by using the default JVM calls
  * or by using a custom implementation for testing purposes.
  *
- * See {@link #preciseTime} for how to use a custom implementation.
+ * See {@link Global#preciseTime} for how to use a custom implementation.
  *
  * Please note that {@link java.time.Clock} wasn't used, as it would not be possible to provide an
  * implementation for {@link #now()} with the exact same properties of {@link System#nanoTime()}.
@@ -49,13 +49,6 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION)
 public interface MonotonicClock
 {
-    /**
-     * Static singleton object that will be instantiated by default with a system clock
-     * implementation. Set <code>cassandra.clock</code> system property to a FQCN to use a
-     * different implementation instead.
-     */
-    public static final MonotonicClock preciseTime = Defaults.precise();
-    public static final MonotonicClock approxTime = Defaults.approx(preciseTime);
 
     /**
      * @see System#nanoTime()
@@ -77,9 +70,17 @@ public interface MonotonicClock
     public boolean isAfter(long instant);
     public boolean isAfter(long now, long instant);
 
-    static class Defaults
+    public static class Global
     {
         private static final Logger logger = LoggerFactory.getLogger(MonotonicClock.class);
+
+        /**
+         * Static singleton object that will be instantiated by default with a system clock
+         * implementation. Set <code>cassandra.clock</code> system property to a FQCN to use a
+         * different implementation instead.
+         */
+        public static final MonotonicClock preciseTime = precise();
+        public static final MonotonicClock approxTime = approx(preciseTime);
 
         private static MonotonicClock precise()
         {

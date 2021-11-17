@@ -385,7 +385,7 @@ public class CassandraRoleManager implements IRoleManager
     protected void scheduleSetupTask(final Callable<Void> setupTask)
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
-        ScheduledExecutors.optionalTasks.schedule(() -> {
+        ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
             isClusterReady = true;
             try
             {
