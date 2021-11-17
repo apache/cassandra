@@ -85,7 +85,7 @@ public class StreamDeserializingTask implements Runnable
             }
             else if (t instanceof StreamReceiveException)
             {
-                ((StreamReceiveException)t).session.onError(t);
+                ((StreamReceiveException)t).session.onError(t.getCause());
             }
             else
             {
