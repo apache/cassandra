@@ -50,6 +50,13 @@ final class SettingsTable extends AbstractVirtualTable
               .collect(Collectors.toMap(Field::getName, Functions.identity()));
 
     @VisibleForTesting
+    static final Map<String, Field> ANNOTATED_FIELDS =
+    Arrays.stream(Config.class.getFields())
+          .filter(f -> !Modifier.isStatic(f.getModifiers()))
+          .filter(f -> f.isAnnotationPresent(Replaces.class))
+          .collect(Collectors.toMap(Field::getName, Functions.identity()));
+
+    @VisibleForTesting
     final Map<String, BiConsumer<SimpleDataSet, Field>> overrides =
         ImmutableMap.<String, BiConsumer<SimpleDataSet, Field>>builder()
                     .put("audit_logging_options", this::addAuditLoggingOptions)
@@ -108,6 +115,28 @@ final class SettingsTable extends AbstractVirtualTable
             if (value.getClass().isArray())
                 value = Arrays.toString((Object[]) value);
             result.row(f.getName()).column(VALUE, value.toString());
+
+            if(ANNOTATED_FIELDS.containsKey(f.getName()))
+            {
+                if (CassandraDuration.class.equals(value.getClass()))
+                {
+                    CassandraDuration quantity = (CassandraDuration) value;
+                    result.row(f.getAnnotation(Replaces.class).oldName()).column(VALUE,quantity.quantityToString());
+                }
+
+                if (DataStorage.class.equals(value.getClass()))
+                {
+                    DataStorage quantity = (DataStorage) value;
+                    result.row(f.getAnnotation(Replaces.class).oldName()).column(VALUE,quantity.quantityToString());
+                }
+
+                if (BitRate.class.equals(value.getClass()))
+                {
+                    BitRate quantity = (BitRate) value;
+                    result.row(f.getAnnotation(Replaces.class).oldName()).column(VALUE,quantity.quantityToString());
+                }
+
+            }
         }
     }
 

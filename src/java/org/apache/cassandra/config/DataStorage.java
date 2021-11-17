@@ -200,6 +200,11 @@ public final class DataStorage
         return quantity + unit.symbol;
     }
 
+    public String quantityToString()
+    {
+        return String.valueOf(quantity);
+    }
+
     public enum DataStorageUnit
     {
         BYTES("B")

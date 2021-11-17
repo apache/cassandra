@@ -193,6 +193,11 @@ public final class BitRate
         return quantity + unit.symbol;
     }
 
+    public String quantityToString()
+    {
+        return String.valueOf(quantity);
+    }
+
     public enum BitRateUnit
     {
         BITS_PER_SECOND("b/s")

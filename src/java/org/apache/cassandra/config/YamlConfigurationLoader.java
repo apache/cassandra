@@ -265,6 +265,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private final Set<String> nullProperties = new HashSet<>();
 
+        private final Set<String> deprecationWarnings = new HashSet<>();
+
         private final Map<Class<?>, Map<String, Replacement>> replacements;
 
         PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
@@ -318,10 +320,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     }
                 };
 
+
                 if(replacement.deprecated)
-                {
-                    logger.warn("{} parameter has been deprecated. It has a new name and/or value format; For more information, please refer to NEWS.txt", name);
-                }
+                    deprecationWarnings.add(replacement.oldName);
             }
             else
             {
@@ -382,6 +383,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             if (!missingProperties.isEmpty())
             {
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml", false);
+            }
+
+            if (!deprecationWarnings.isEmpty())
+            {
+                logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
             }
         }
     }

@@ -254,6 +254,11 @@ public final class CassandraDuration
         return quantity + getSymbol(unit);
     }
 
+    public String quantityToString()
+    {
+        return String.valueOf(quantity);
+    }
+
     /**
      * Returns the symbol associated to the specified unit
      *
