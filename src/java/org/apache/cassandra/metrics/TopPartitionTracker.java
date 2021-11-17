@@ -102,10 +102,12 @@ public class TopPartitionTracker
     @VisibleForTesting
     public void save()
     {
-        if (!topSizes.get().top.isEmpty())
-            SystemKeyspace.saveTopPartitions(keyspace, table, SIZES, topSizes.get().top);
-        if (!topTombstones.get().top.isEmpty())
-            SystemKeyspace.saveTopPartitions(keyspace, table, TOMBSTONES, topTombstones.get().top);
+        TopHolder topSize = topSizes.get();
+        if (!topSize.top.isEmpty())
+            SystemKeyspace.saveTopPartitions(keyspace, table, SIZES, topSize.top);
+        TopHolder topTombstones = this.topTombstones.get();
+        if (!topTombstones.top.isEmpty())
+            SystemKeyspace.saveTopPartitions(keyspace, table, TOMBSTONES, topTombstones.top);
     }
 
     public void merge(Collector collector)
