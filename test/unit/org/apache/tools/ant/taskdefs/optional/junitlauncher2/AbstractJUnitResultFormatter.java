@@ -41,24 +41,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Contains some common behaviour that's used by our internal {@link TestResultFormatter}s
  */
-abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
+public abstract class AbstractJUnitResultFormatter implements TestResultFormatter
+{
 
     protected TestExecutionContext context;
-    protected TestPlan testPlan;
-    protected boolean useLegacyReportingName = true;
 
     private SysOutErrContentStore sysOutStore;
     private SysOutErrContentStore sysErrStore;
-
-    @Override
-    public void testPlanExecutionStarted(final TestPlan testPlan) {
-        this.testPlan = testPlan;
-    }
 
     @Override
     public void sysOutAvailable(final byte[] data) {
@@ -134,7 +127,7 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
      * @param writer The {@link Writer} to use. Cannot be null.
      * @throws IOException If any I/O problem occurs during writing the data
      */
-    void writeSysOut(final Writer writer) throws IOException {
+    protected void writeSysOut(final Writer writer) throws IOException {
         Objects.requireNonNull(writer, "Writer cannot be null");
         this.writeFrom(this.sysOutStore, writer);
     }
@@ -185,16 +178,6 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
     }
 
     @Override
-    public void setUseLegacyReportingName(final boolean useLegacyReportingName) {
-        this.useLegacyReportingName = useLegacyReportingName;
-    }
-
-    protected String determineTestName(TestIdentifier testId) {
-        return useLegacyReportingName ? testId.getLegacyReportingName()
-                                      : testId.getDisplayName();
-    }
-
-    @Override
     public void close() throws IOException {
         FileUtils.close(this.sysOutStore);
         FileUtils.close(this.sysErrStore);
@@ -206,38 +189,6 @@ abstract class AbstractJUnitResultFormatter implements TestResultFormatter {
                                                          + AbstractJUnitResultFormatter.this.getClass().getName(), t, Project.MSG_DEBUG));
     }
 
-    protected String determineTestSuiteName() {
-        // this is really a hack to try and match the expectations of the XML report in JUnit4.x
-        // world. In JUnit5, the TestPlan doesn't have a name and a TestPlan (for which this is a
-        // listener) can have numerous tests within it
-        final Set<TestIdentifier> roots = testPlan.getRoots();
-        if (roots.isEmpty()) {
-            return "UNKNOWN";
-        }
-        for (final TestIdentifier root : roots) {
-            final Optional<ClassSource> classSource = findFirstClassSource(root);
-            if (classSource.isPresent()) {
-                return classSource.get().getClassName();
-            }
-        }
-        return "UNKNOWN";
-    }
-
-    protected Optional<ClassSource> findFirstClassSource(final TestIdentifier root) {
-        if (root.getSource().isPresent()) {
-            final TestSource source = root.getSource().get();
-            if (source instanceof ClassSource) {
-                return Optional.of((ClassSource) source);
-            }
-        }
-        for (final TestIdentifier child : testPlan.getChildren(root)) {
-            final Optional<ClassSource> classSource = findFirstClassSource(child);
-            if (classSource.isPresent()) {
-                return classSource;
-            }
-        }
-        return Optional.empty();
-    }
 
     /*
     A "store" for sysout/syserr content that gets sent to the AbstractJUnitResultFormatter.

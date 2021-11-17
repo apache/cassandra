@@ -43,11 +43,19 @@ import org.apache.tools.ant.taskdefs.optional.junitlauncher.TestResultFormatter;
 /**
  * A {@link TestResultFormatter} which prints a short statistic for each of the tests
  */
-public class LegacyPlainResultFormatter extends org.apache.tools.ant.taskdefs.optional.junitlauncher2.AbstractJUnitResultFormatter implements TestResultFormatter {
+public class LegacyPlainResultFormatter extends AbstractJUnitResultFormatter implements TestResultFormatter
+{
 
-    private OutputStream outputStream;
-    private final Map<TestIdentifier, Stats> testIds = new ConcurrentHashMap<>();
-    private BufferedWriter writer;
+    protected OutputStream outputStream;
+    protected final Map<TestIdentifier, Stats> testIds = new ConcurrentHashMap<>();
+    protected TestPlan testPlan;
+    protected BufferedWriter writer;
+    protected boolean useLegacyReportingName = true;
+
+    @Override
+    public void testPlanExecutionStarted(final TestPlan testPlan) {
+        this.testPlan = testPlan;
+    }
 
     @Override
     public void testPlanExecutionFinished(final TestPlan testPlan) {
@@ -58,9 +66,7 @@ public class LegacyPlainResultFormatter extends org.apache.tools.ant.taskdefs.op
                 continue;
             }
             final Stats stats = entry.getValue();
-            // TODO: am I really required?
-            final StringBuilder sb = new StringBuilder("Testsuite: ").append(super.determineTestSuiteName());
-            sb.append(", Tests run: ").append(stats.numTestsRun.get());
+            final StringBuilder sb = new StringBuilder("Tests run: ").append(stats.numTestsRun.get());
             sb.append(", Failures: ").append(stats.numTestsFailed.get());
             sb.append(", Skipped: ").append(stats.numTestsSkipped.get());
             sb.append(", Aborted: ").append(stats.numTestsAborted.get());
@@ -142,7 +148,7 @@ public class LegacyPlainResultFormatter extends org.apache.tools.ant.taskdefs.op
         if (testClass.isPresent()) {
             // if this is a test class, then print it out
             try {
-                this.writer.write("Testcase: " + testClass.get().getClassName());
+                this.writer.write("Testcase: " + determineTestSuiteName(testClass));
                 this.writer.newLine();
             } catch (IOException ioe) {
                 handleException(ioe);
@@ -226,6 +232,21 @@ public class LegacyPlainResultFormatter extends org.apache.tools.ant.taskdefs.op
     public void setDestination(final OutputStream os) {
         this.outputStream = os;
         this.writer = new BufferedWriter(new OutputStreamWriter(this.outputStream, StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public void setUseLegacyReportingName(final boolean useLegacyReportingName) {
+        this.useLegacyReportingName = useLegacyReportingName;
+    }
+
+    protected String determineTestName(TestIdentifier testIdentifier) {
+        return this.useLegacyReportingName ? testIdentifier.getLegacyReportingName()
+                                           : testIdentifier.getDisplayName();
+    }
+
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+    protected String determineTestSuiteName(Optional<ClassSource> testClass) {
+        return testClass.map(ClassSource::getClassName).orElse("UNKNOWN");
     }
 
     protected boolean shouldReportExecutionFinished(final TestIdentifier testIdentifier, final TestExecutionResult testExecutionResult) {
