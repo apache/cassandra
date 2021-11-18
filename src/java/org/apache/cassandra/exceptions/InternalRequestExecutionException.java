@@ -15,21 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.exceptions;
 
-public class UnknownKeyspaceException extends RuntimeException implements InternalRequestExecutionException
+/**
+ * Indicates an "expected" exception during the execution of a request on a
+ * replica.
+ * <p>
+ * This groups exceptions that can happen on replicas but aren't unexpected in
+ * the sense that the circumstance for it happening is understood and a result
+ * of a user error, which we simply couldn't detect on the coordinator.
+ * <p>
+ * Such failures include an index query while the index is not built yet, or a
+ * 'TombstoneOverwhelmingException' for instance.
+ */
+public interface InternalRequestExecutionException
 {
-    public final String keyspaceName;
-
-    public UnknownKeyspaceException(String keyspaceName)
-    {
-        super("Could not find a keyspace " + keyspaceName);
-        this.keyspaceName = keyspaceName;
-    }
-
-    @Override
-    public RequestFailureReason getReason()
-    {
-        return RequestFailureReason.INCOMPATIBLE_SCHEMA;
-    }
+    RequestFailureReason getReason();
 }

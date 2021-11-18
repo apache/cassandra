@@ -36,7 +36,10 @@ public enum RequestFailureReason
     READ_TOO_MANY_TOMBSTONES (1),
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
-    INDEX_NOT_AVAILABLE      (4);
+    INDEX_NOT_AVAILABLE      (4),
+    UNKNOWN_COLUMN           (5),
+    UNKNOWN_TABLE            (6),
+    REMOTE_STORAGE_FAILURE   (7);
 
     public static final Serializer serializer = new Serializer();
 

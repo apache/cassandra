@@ -25,7 +25,7 @@ public class UnknownTableException extends IncompatibleSchemaException
 
     public UnknownTableException(String msg, TableId id)
     {
-        super(msg);
+        super(RequestFailureReason.UNKNOWN_TABLE, msg);
         this.id = id;
     }
 }
