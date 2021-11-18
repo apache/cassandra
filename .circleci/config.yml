@@ -167,8 +167,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -284,8 +284,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -401,8 +401,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -518,8 +518,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -635,8 +635,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -752,8 +752,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -928,8 +928,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 25
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -1085,8 +1085,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 25
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -1242,8 +1242,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 1
-    resource_class: medium
+    parallelism: 26
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -1383,8 +1383,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -1518,11 +1518,11 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_UTEST_TARGET: test-jvm-dtest-some
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.FullRepairCoordinatorTimeoutTest
+    - REPEATED_UTEST_TARGET: testsome
+    - REPEATED_UTEST_CLASS: null
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1537,8 +1537,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -1679,8 +1679,8 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-    parallelism: 4
-    resource_class: medium
+    parallelism: 36
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -1931,8 +1931,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2047,8 +2047,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2163,8 +2163,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2279,8 +2279,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2395,8 +2395,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2511,8 +2511,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2755,8 +2755,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 25
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2870,8 +2870,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 25
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -2985,8 +2985,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 1
-    resource_class: medium
+    parallelism: 26
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3125,8 +3125,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 1
-    resource_class: medium
+    parallelism: 12
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3265,8 +3265,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3359,11 +3359,11 @@ jobs:
     - DTEST_BRANCH: trunk
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
-    - REPEATED_UTEST_TARGET: test-jvm-dtest-some
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.FullRepairCoordinatorTimeoutTest
+    - REPEATED_UTEST_TARGET: testsome
+    - REPEATED_UTEST_CLASS: null
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3377,8 +3377,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3518,8 +3518,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 36
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3658,8 +3658,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 100
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3776,8 +3776,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -3918,8 +3918,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -4029,8 +4029,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -4171,7 +4171,7 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     parallelism: 1
-    resource_class: medium
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -4229,7 +4229,7 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     parallelism: 1
-    resource_class: medium
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -4287,7 +4287,7 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     parallelism: 1
-    resource_class: medium
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -4344,8 +4344,8 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    parallelism: 4
-    resource_class: medium
+    parallelism: 20
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     steps:
     - attach_workspace:
@@ -4450,10 +4450,112 @@ jobs:
     working_directory: ~/
 version: 2
 workflows:
+  java11_tests:
+    jobs:
+    - j11_build: {}
+    - j11_unit_tests:
+        requires:
+        - j11_build
+    - j11_jvm_dtests:
+        requires:
+        - j11_build
+    - j11_cqlshlib_tests:
+        requires:
+        - j11_build
+    - j11_dtests-with-vnodes:
+        requires:
+        - j11_build
+    - j11_dtests-no-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py2-with-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py3-with-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py38-with-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py2-no-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py3-no-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py38-no-vnodes:
+        requires:
+        - j11_build
   java8_tests:
     jobs:
     - j8_build: {}
-    - j8_repeated_utest:
+    - j8_unit_tests:
+        requires:
+        - j8_build
+    - j8_jvm_dtests:
+        requires:
+        - j8_build
+    - j8_cqlshlib_tests:
+        requires:
+        - j8_build
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+        - start_utests_long
+        - j8_build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+        - start_utests_compression
+        - j8_build
+    - start_utests_stress:
+        type: approval
+    - utests_stress:
+        requires:
+        - start_utests_stress
+        - j8_build
+    - utests_fqltool:
+        requires:
+        - j8_build
+    - start_utests_system_keyspace_directory:
+        type: approval
+    - utests_system_keyspace_directory:
+        requires:
+        - start_utests_system_keyspace_directory
+        - j8_build
+    - j8_dtest_jars_build:
+        requires:
+        - j8_build
+    - j8_jvm_upgrade_dtests:
+        requires:
+        - j8_dtest_jars_build
+    - j8_dtests-with-vnodes:
+        requires:
+        - j8_build
+    - j8_dtests-no-vnodes:
+        requires:
+        - j8_build
+    - j8_upgradetests-no-vnodes:
+        requires:
+        - j8_build
+    - j8_cqlsh-dtests-py2-with-vnodes:
+        requires:
+        - j8_build
+    - j8_cqlsh-dtests-py3-with-vnodes:
+        requires:
+        - j8_build
+    - j8_cqlsh-dtests-py38-with-vnodes:
+        requires:
+        - j8_build
+    - j8_cqlsh-dtests-py2-no-vnodes:
+        requires:
+        - j8_build
+    - j8_cqlsh-dtests-py3-no-vnodes:
+        requires:
+        - j8_build
+    - j8_cqlsh-dtests-py38-no-vnodes:
         requires:
         - j8_build
   version: 2
