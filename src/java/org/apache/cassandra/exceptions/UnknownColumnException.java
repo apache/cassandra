@@ -21,6 +21,6 @@ public final class UnknownColumnException extends IncompatibleSchemaException
 {
     public UnknownColumnException(String msg)
     {
-        super(msg);
+        super(RequestFailureReason.UNKNOWN_COLUMN, msg);
     }
 }
