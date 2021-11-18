@@ -65,7 +65,6 @@ public abstract class StreamMessage
         STREAM         (2,  0, IncomingStreamMessage.serializer, OutgoingStreamMessage.serializer),
         RECEIVED       (3,  4, ReceivedMessage.serializer     ),
         COMPLETE       (5,  1, CompleteMessage.serializer     ),
-        COMPLETE_ACK   (11, 1, CompleteAckMessage.serializer  ),
         SESSION_FAILED (6,  5, SessionFailedMessage.serializer),
         KEEP_ALIVE     (7,  5, KeepAliveMessage.serializer    ),
         PREPARE_SYNACK (8,  5, PrepareSynAckMessage.serializer),

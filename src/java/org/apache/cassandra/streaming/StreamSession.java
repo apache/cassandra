@@ -23,11 +23,9 @@ import java.nio.channels.ClosedChannelException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
@@ -58,7 +56,6 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
-import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -114,8 +111,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  *
  *   (a) When the initiator finishes streaming, it enters the {@link StreamSession.State#WAIT_COMPLETE} state, and waits
  *       for the follower to send a {@link CompleteMessage} once it finishes streaming too. Once the {@link CompleteMessage}
- *       is received, initiator sends a {@link CompleteAckMessage} and sets its own state to {@link StreamSession.State#COMPLETE}
- *       and closes all channels attached to this session; the followers may close all channels after reciving the ack.
+ *       is received, initiator sets its own state to {@link StreamSession.State#COMPLETE} and closes all channels attached
+ *       to this session.
  *
  * </pre>
  *
@@ -604,9 +601,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 // at initiator
                 complete();
                 break;
-            case COMPLETE_ACK:
-                completeAck(false);
-                break;
             case KEEP_ALIVE:
                 // NOP - we only send/receive the KEEP_ALIVE to force the TCP connection to remain open
                 break;
@@ -845,33 +839,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         if (!isFollower) // initiator
         {
-            channel.sendControlMessage(new CompleteAckMessage());
-            closeSession(State.COMPLETE);
+            if (state == State.WAIT_COMPLETE)
+                closeSession(State.COMPLETE);
+            else
+                state(State.WAIT_COMPLETE);
         }
         else // follower
         {
             // pre-4.0 nodes should not be connected via streaming, see {@link MessagingService#accept_streaming}
             throw new IllegalStateException(String.format("[Stream #%s] Complete message can be only received by the initiator!", planId()));
-        }
-    }
-
-    public synchronized void completeAck(boolean timeout)
-    {
-        logger.debug("[Stream #{}] handling Complete Ack message, state = {}, timeout = ", planId(), state, timeout);
-
-        if (isFollower)
-        {
-            if (timeoutCompleteAck != null)
-                timeoutCompleteAck.cancel(false);
-            timeoutCompleteAck = null;
-            closeSession(State.COMPLETE);
-            if (timeout)
-                logger.info("[Stream #{}] closed due to timeout waiting on COMPLETE_ACK", planId());
-        }
-        else // initiator
-        {
-            // pre-4.0 nodes should not be connected via streaming, see {@link MessagingService#accept_streaming}
-            throw new IllegalStateException(String.format("[Stream #%s] Complete Ack message can be only received by the follower!", planId()));
         }
     }
 
@@ -890,28 +866,22 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         maybeCompleted = true;
         if (!isFollower) // initiator
         {
-            setStateWaitComplete();
+            if (state == State.WAIT_COMPLETE)
+                closeSession(State.COMPLETE);
+            else
+                state(State.WAIT_COMPLETE);
         }
         else // follower
         {
             channel.sendControlMessage(new CompleteMessage());
             int timeoutMs = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
             if (timeoutMs > 0)
-                timeoutCompleteAck = ScheduledExecutors.scheduledFastTasks.schedule(() -> completeAck(true), timeoutMs, TimeUnit.MILLISECONDS);
+                ScheduledExecutors.scheduledFastTasks.schedule(() -> closeSession(State.COMPLETE), timeoutMs, TimeUnit.MILLISECONDS);
+            else
+                closeSession(State.COMPLETE);
         }
 
         return true;
-    }
-
-    @GuardedBy("this")
-    private ScheduledFuture<?> timeoutCompleteAck = null;
-
-    private void setStateWaitComplete()
-    {
-        if (state == State.WAIT_COMPLETE)
-            return;
-        else
-            state(State.WAIT_COMPLETE);
     }
 
     /**
