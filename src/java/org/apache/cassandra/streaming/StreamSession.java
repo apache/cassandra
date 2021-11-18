@@ -874,11 +874,18 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         else // follower
         {
             channel.sendControlMessage(new CompleteMessage());
+            state(State.COMPLETE); // mark complete early
             int timeoutMs = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
             if (timeoutMs > 0)
+            {
+                logger.info("[Stream #{}] Closing session async ({} {}) with state = COMPLETE", planId(), timeoutMs, TimeUnit.MILLISECONDS);
                 ScheduledExecutors.scheduledFastTasks.schedule(() -> closeSession(State.COMPLETE), timeoutMs, TimeUnit.MILLISECONDS);
+            }
             else
+            {
+                logger.info("[Stream #{}] Closing session immedialty with state = COMPLETE", planId());
                 closeSession(State.COMPLETE);
+            }
         }
 
         return true;
