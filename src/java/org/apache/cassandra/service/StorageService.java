@@ -6081,7 +6081,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
         Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
-        FullQueryLogger.instance.enable(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
+        FullQueryLogger.instance.enableWithoutClean(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
     @Override
