@@ -484,6 +484,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
+    private synchronized void closeSessionAsync(State finalState, int timeoutMs)
+    {
+        assert timeoutMs > 0 : "Attempted to close async with timeout <= 0: " + timeoutMs;
+        state(finalState); // mark complete early
+        notifyDone();
+        ScheduledExecutors.scheduledFastTasks.schedule(() -> closeSession(finalState), timeoutMs, TimeUnit.MILLISECONDS);
+    }
+
     private synchronized Future closeSession(State finalState)
     {
         // it's session is already closed
@@ -508,11 +516,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             outbound.values().forEach(channel -> futures.add(channel.close()));
         }
 
-        sink.onClose(peer);
-        streamResult.handleSessionComplete(this);
+        notifyDone();
         closeFuture = FutureCombiner.allOf(futures);
 
         return closeFuture;
+    }
+
+    private void notifyDone()
+    {
+        sink.onClose(peer);
+        streamResult.handleSessionComplete(this);
     }
 
     private void abortTasks()
@@ -874,7 +887,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         else // follower
         {
             channel.sendControlMessage(new CompleteMessage());
-            state(State.COMPLETE); // mark complete early
             // If we send the COMPLETE message then close the channels, the initiator may see the channel close
             // events before the COMPLETE message (we have multiple channels open, so can't rely on TCP ordering),
             // causing the initiator to fail; to work around this issue, attempt to delay closing, this does not fix
@@ -884,7 +896,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             if (timeoutMs > 0)
             {
                 logger.info("[Stream #{}] Closing session async ({} {}) with state = COMPLETE", planId(), timeoutMs, TimeUnit.MILLISECONDS);
-                ScheduledExecutors.scheduledFastTasks.schedule(() -> closeSession(State.COMPLETE), timeoutMs, TimeUnit.MILLISECONDS);
+                closeSessionAsync(State.COMPLETE, timeoutMs);
             }
             else
             {
