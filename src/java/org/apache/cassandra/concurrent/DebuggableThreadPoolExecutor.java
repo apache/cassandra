@@ -36,8 +36,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.cassandra.tracing.Tracing.isTracing;
-
 /**
  * This class encorporates some Executor best practices for Cassandra.  Most of the executors in the system
  * should use or extend this.  There are two main improvements over a vanilla TPE:
@@ -169,20 +167,27 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         execute(command);
     }
 
+    private ExecutorLocals maybeCreateExecutorLocals(Object command)
+    {
+        return command instanceof LocalSessionWrapper ? null : ExecutorLocals.create();
+    }
+
     // execute does not call newTaskFor
     @Override
     public void execute(Runnable command)
     {
-        super.execute(isTracing() && !(command instanceof LocalSessionWrapper)
-                      ? LocalSessionWrapper.create(command)
+        ExecutorLocals locals = maybeCreateExecutorLocals(command);
+        super.execute(locals != null
+                      ? LocalSessionWrapper.create(command, locals)
                       : command);
     }
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T result)
     {
-        if (isTracing() && !(runnable instanceof LocalSessionWrapper))
-            return LocalSessionWrapper.create(runnable, result);
+        ExecutorLocals locals = maybeCreateExecutorLocals(runnable);
+        if (locals != null)
+            return LocalSessionWrapper.create(runnable, result, locals);
         if (runnable instanceof RunnableFuture)
             return new ForwardingRunnableFuture<>((RunnableFuture) runnable, result);
         return super.newTaskFor(runnable, result);
@@ -191,8 +196,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable)
     {
-        if (isTracing() && !(callable instanceof LocalSessionWrapper))
-            return LocalSessionWrapper.create(callable);
+        ExecutorLocals locals = maybeCreateExecutorLocals(callable);
+        if (locals != null)
+            return LocalSessionWrapper.create(callable, locals);
         return super.newTaskFor(callable);
     }
 
@@ -201,11 +207,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     {
         super.afterExecute(r, t);
 
-        maybeResetTraceSessionWrapper(r);
+        maybeResetLocalSessionWrapper(r);
         logExceptionsAfterExecute(r, t);
     }
 
-    protected static void maybeResetTraceSessionWrapper(Runnable r)
+    protected static void maybeResetLocalSessionWrapper(Runnable r)
     {
         if (r instanceof LocalSessionWrapper)
         {
@@ -354,6 +360,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
             return create(command, null, ExecutorLocals.create());
         }
 
+        static LocalSessionWrapper<Object> create(Runnable command, ExecutorLocals locals)
+        {
+            return create(command, null, locals);
+        }
+
         static <T> LocalSessionWrapper<T> create(Runnable command, T result)
         {
             return create(command, result, ExecutorLocals.create());
@@ -369,6 +380,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         static <T> LocalSessionWrapper<T> create(Callable<T> command)
         {
             return new LocalSessionWrapper<>(command, ExecutorLocals.create());
+        }
+
+        static <T> LocalSessionWrapper<T> create(Callable<T> command, ExecutorLocals locals)
+        {
+            return new LocalSessionWrapper<>(command, locals);
         }
 
         private void setupContext()

@@ -1826,7 +1826,7 @@ public class CompactionManager implements CompactionManagerMBean
         @Override
         public void afterExecute(Runnable r, Throwable t)
         {
-            DebuggableThreadPoolExecutor.maybeResetTraceSessionWrapper(r);
+            DebuggableThreadPoolExecutor.maybeResetLocalSessionWrapper(r);
 
             if (t == null)
                 t = DebuggableThreadPoolExecutor.extractThrowable(r);

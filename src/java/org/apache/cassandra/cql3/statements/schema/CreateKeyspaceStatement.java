@@ -41,7 +41,6 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
@@ -62,10 +61,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        if (ClientWarn.instance.get() == null)
-            ClientWarn.instance.captureWarnings();
-        int previousNumWarnings = ClientWarn.instance.numWarnings();
-
         attrs.validate();
 
         if (!attrs.hasOption(Option.REPLICATION))
@@ -85,13 +80,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
         keyspace.params.validate(keyspaceName);
-        Keyspaces keyspaces = schema.withAddedOrUpdated(keyspace);
-
-        int newNumWarnings = ClientWarn.instance.numWarnings();
-        if (newNumWarnings > previousNumWarnings)
-            clientWarnings.addAll(ClientWarn.instance.getWarnings().subList(previousNumWarnings, newNumWarnings));
-
-        return keyspaces;
+        return schema.withAddedOrUpdated(keyspace);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)

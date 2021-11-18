@@ -30,15 +30,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.concurrent.DebuggableThreadPoolExecutorTest.checkLocalStateIsPropagated;
 
 public class SEPExecutorTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void shutdownTest() throws Throwable
     {
@@ -261,4 +270,20 @@ public class SEPExecutorTest
         // Will return true if all of the LatchWaiters count down before the timeout
         Assert.assertTrue("Test tasks did not hit max concurrency goal", concurrencyGoal.await(3L, TimeUnit.SECONDS));
     }
+
+    @Test
+    public void testLocalStatePropagation() throws InterruptedException, TimeoutException
+    {
+        SharedExecutorPool sharedPool = new SharedExecutorPool("TestPool");
+        try
+        {
+            LocalAwareExecutorService executor = sharedPool.newExecutor(1, "TEST", "TEST");
+            checkLocalStateIsPropagated(executor);
+        }
+        finally
+        {
+            sharedPool.shutdownAndWait(1, TimeUnit.SECONDS);
+        }
+    }
+
 }
