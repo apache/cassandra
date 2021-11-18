@@ -27,10 +27,8 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
@@ -49,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * to be used for keystore and the truststore managers.
  * <p>
  * This factory also supports 'hot reloading' of the key material, the same way as defined by {@link FileBasedSslContextFactory},
- * if it is file based. This factory ignores the existing 'store_type' configuration used for other file based store
+ * <b>if it is file based</b>. This factory ignores the existing 'store_type' configuration used for other file based store
  * types like JKS.
  * <p>
  * You can configure this factory with either inline PEM data or with the files having the required PEM data as shown
@@ -91,7 +89,6 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 {
     public static final String DEFAULT_TARGET_STORETYPE = "PKCS12";
     private static final Logger logger = LoggerFactory.getLogger(PEMBasedSslContextFactory.class);
-    private String targetStoreType;
     private String pemEncodedKey;
     private String keyPassword;
     private String pemEncodedCertificates;
@@ -100,13 +97,11 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
     public PEMBasedSslContextFactory()
     {
-        targetStoreType = DEFAULT_TARGET_STORETYPE;
     }
 
     public PEMBasedSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        targetStoreType = DEFAULT_TARGET_STORETYPE;
         pemEncodedKey = getString(ConfigKey.ENCODED_KEY.getKeyName());
         keyPassword = getString(ConfigKey.KEY_PASSWORD.getKeyName());
         if (StringUtils.isEmpty(keyPassword))
@@ -134,6 +129,9 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
         maybeFileBasedPrivateKey = StringUtils.isEmpty(pemEncodedKey);
         maybeFileBasedTrustedCertificates = StringUtils.isEmpty(pemEncodedCertificates);
+
+        enforceSinglePrivateKeySource();
+        enforceSingleTurstedCertificatesSource();
     }
 
     /**
@@ -213,7 +211,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
             }
             else
             {
-                throw new SSLException("Can not build KeyManagerFactory in absence of the Private Key");
+                throw new SSLException("Must provide keystore or private_key in configuration for PEMBasedSSlContextFactory");
             }
         }
         catch (Exception e)
@@ -248,7 +246,8 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
             }
             else
             {
-                throw new SSLException("Can not build KeyManagerFactory in absence of the trusted certificates");
+                throw new SSLException("Must provide truststore or trusted_certificates in configuration for " +
+                                       "PEMBasedSSlContextFactory");
             }
         }
         catch (Exception e)
@@ -263,29 +262,27 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
     }
 
     /**
-     * Builds KeyStore object given the {@link #targetStoreType} out of the PEM formatted private key material.
+     * Builds KeyStore object given the {@link #DEFAULT_TARGET_STORETYPE} out of the PEM formatted private key material.
      * It uses {@code cassandra-ssl-keystore} as the alias for the created key-entry.
      */
     private KeyStore buildKeyStore() throws GeneralSecurityException, IOException
     {
-        boolean encryptedKey = keyPassword != null;
-        char[] keyPasswordArray = encryptedKey ? keyPassword.toCharArray() : null;
-        PrivateKey privateKey = encryptedKey ? PEMReader.extractPrivateKey(pemEncodedKey, keyPassword) :
-                                PEMReader.extractPrivateKey(pemEncodedKey);
+        char[] keyPasswordArray = keyPassword != null ? keyPassword.toCharArray() : null;
+        PrivateKey privateKey = PEMReader.extractPrivateKey(pemEncodedKey, keyPassword);
         Certificate[] certChainArray = PEMReader.extractCertificates(pemEncodedKey);
         if (certChainArray == null || certChainArray.length == 0)
         {
             throw new SSLException("Could not read any certificates for the certChain for the private key");
         }
 
-        KeyStore keyStore = KeyStore.getInstance(targetStoreType);
+        KeyStore keyStore = KeyStore.getInstance(DEFAULT_TARGET_STORETYPE);
         keyStore.load(null, null);
         keyStore.setKeyEntry("cassandra-ssl-keystore", privateKey, keyPasswordArray, certChainArray);
         return keyStore;
     }
 
     /**
-     * Builds KeyStore object given the {@link #targetStoreType} out of the PEM formatted certificates/public-key
+     * Builds KeyStore object given the {@link #DEFAULT_TARGET_STORETYPE} out of the PEM formatted certificates/public-key
      * material.
      * <p>
      * It uses {@code cassandra-ssl-trusted-cert-<numeric-id>} as the alias for the created certificate-entry.
@@ -298,13 +295,43 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
             throw new SSLException("Could not read any certificates from the given PEM");
         }
 
-        KeyStore keyStore = KeyStore.getInstance(targetStoreType);
+        KeyStore keyStore = KeyStore.getInstance(DEFAULT_TARGET_STORETYPE);
         keyStore.load(null, null);
         for (int i = 0; i < certChainArray.length; i++)
         {
             keyStore.setCertificateEntry("cassandra-ssl-trusted-cert-" + (i + 1), certChainArray[i]);
         }
         return keyStore;
+    }
+
+    /**
+     * Enforces that the configuration specified a sole source of loading private keys - either {@code keystore}
+     * or {@code private_key}, not both. Here, the actual existence of the file specified by {@code keystore} does not
+     * matter. As far as there is a non-empty value for the {@code keystore}, it will be considered as a valid input
+     * for the check.
+     */
+    private void enforceSinglePrivateKeySource()
+    {
+        if (!StringUtils.isEmpty(keystore) && !StringUtils.isEmpty(pemEncodedKey))
+        {
+            throw new IllegalArgumentException("Configuration must specify value for either keystore or private_key, " +
+                                               "not both for PEMBasedSSlContextFactory");
+        }
+    }
+
+    /**
+     * Enforces that the configuration specified a sole source of loading trusted certificates - either {@code
+     * truststore} or {@code trusted_certificates}, not both. Here, the actual existence of the file specified by {@code
+     * truststore} does not matter. As far as there is a non-empty value for the {@code truststore}, it will be
+     * considered as a valid input for the check.
+     */
+    private void enforceSingleTurstedCertificatesSource()
+    {
+        if (!StringUtils.isEmpty(truststore) && !StringUtils.isEmpty(pemEncodedCertificates))
+        {
+            throw new IllegalArgumentException("Configuration must specify value for either truststore or " +
+                                               "trusted_certificates, not both for PEMBasedSSlContextFactory");
+        }
     }
 
     public enum ConfigKey
@@ -318,17 +345,6 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
         ConfigKey(String keyName)
         {
             this.keyName = keyName;
-        }
-
-        static Set<String> asSet()
-        {
-            Set<String> valueSet = new HashSet<>();
-            ConfigKey[] values = values();
-            for (ConfigKey key : values)
-            {
-                valueSet.add(key.getKeyName().toLowerCase());
-            }
-            return valueSet;
         }
 
         String getKeyName()

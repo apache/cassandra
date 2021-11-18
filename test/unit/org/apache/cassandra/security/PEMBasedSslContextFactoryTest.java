@@ -167,7 +167,7 @@ public class PEMBasedSslContextFactoryTest
     "HOWUwuPTetWIuJCKP7P4mWWtmSmjLy+BFX5seNEngn3RzJ2L8uuTJQ/88OsqgGru\n" +
     "n3MVF9w=\n" +
     "-----END CERTIFICATE-----";
-    private Map<String, Object> commonConfig = new HashMap<>();
+    private final Map<String, Object> commonConfig = new HashMap<>();
 
     @Before
     public void setup()
@@ -264,7 +264,7 @@ public class PEMBasedSslContextFactoryTest
     {
         Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.remove("encoded_certificates");
+        config.remove(ENCODED_CERTIFICATES.getKeyName());
         addFileBaseTrustStoreOptions(config);
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
@@ -409,5 +409,51 @@ public class PEMBasedSslContextFactoryTest
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
         Assert.assertEquals(SslProvider.JDK, defaultSslContextFactoryImpl.getSslProvider());
         System.clearProperty("cassandra.disable_tcactive_openssl");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testMultiplePrivateKeySources()
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addUnencryptedKeyStoreOptions(config);
+
+        // Check with a valid file path for the keystore
+        addFileBaseUnencryptedKeyStoreOptions(config);
+        new PEMBasedSslContextFactory(config);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testMultiplePrivateKeySourcesWithInvalidKeystorePath()
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addUnencryptedKeyStoreOptions(config);
+
+        // Check with an invalid file path for the keystore
+        config.put("keystore", "/path/to/nowhere");
+        new PEMBasedSslContextFactory(config);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testMultipleTrustedCertificatesSources()
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+
+        // Check with a valid file path for the truststore
+        addFileBaseTrustStoreOptions(config);
+        new PEMBasedSslContextFactory(config);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testMultipleTrustedCertificatesSourcesWithInvalidTruststorePath()
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+
+        // Check with an invalid file path for the truststore
+        config.put("truststore", "/path/to/nowhere");
+        new PEMBasedSslContextFactory(config);
     }
 }
