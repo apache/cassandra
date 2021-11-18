@@ -892,7 +892,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             // causing the initiator to fail; to work around this issue, attempt to delay closing, this does not fix
             // the root cause, but makes this error less likely.
             // see CASSANDRA-17116
-            int timeoutMs = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+            int timeoutMs = Math.toIntExact(DatabaseDescriptor.getRpcTimeout(TimeUnit.MILLISECONDS));
             if (timeoutMs > 0)
             {
                 logger.info("[Stream #{}] Closing session async ({} {}) with state = COMPLETE", planId(), timeoutMs, TimeUnit.MILLISECONDS);
