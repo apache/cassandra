@@ -64,11 +64,6 @@ public class ClientWarn implements ExecutorLocal<ClientWarn.State>
         return state.warnings;
     }
 
-    public int numWarnings()
-    {
-        return getWarnings() == null ? 0 : getWarnings().size();
-    }
-
     public void resetWarnings()
     {
         warnLocal.remove();

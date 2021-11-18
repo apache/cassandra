@@ -1,4 +1,5 @@
 4.0.2
+ * DebuggableThreadPoolExecutor does not propagate client warnings (CASSANDRA-17072)
  * internode_send_buff_size_in_bytes and internode_recv_buff_size_in_bytes have new names. Backward compatibility with the old names added (CASSANDRA-17141)
  * Remove unused configuration parameters from cassandra.yaml (CASSANDRA-17132)
  * Queries performed with NODE_LOCAL consistency level do not update request metrics (CASSANDRA-17052)
