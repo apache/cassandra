@@ -15,17 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.exceptions;
 
-import org.apache.cassandra.schema.TableId;
-
-public class UnknownTableException extends IncompatibleSchemaException
+/**
+ * Indicates an "expected" exception during the execution of a request on a
+ * replica.
+ * <p>
+ * This groups exceptions that can happen on replicas but aren't unexpected in
+ * the sense that the circumstance for it happening is understood and a result
+ * of a user error, which we simply couldn't detect on the coordinator.
+ * <p>
+ * Such failures include an index query while the index is not built yet, or a
+ * 'TombstoneOverwhelmingException' for instance.
+ */
+public interface InternalRequestExecutionException
 {
-    public final TableId id;
-
-    public UnknownTableException(String msg, TableId id)
-    {
-        super(RequestFailureReason.UNKNOWN_TABLE, msg);
-        this.id = id;
-    }
+    RequestFailureReason getReason();
 }
