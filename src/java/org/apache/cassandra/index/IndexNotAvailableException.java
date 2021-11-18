@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.index;
 
+import org.apache.cassandra.exceptions.UncheckedInternalRequestExecutionException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+
 /**
  * Thrown if a secondary index is not currently available.
  */
-public final class IndexNotAvailableException extends RuntimeException
+public final class IndexNotAvailableException extends UncheckedInternalRequestExecutionException
 {
     /**
      * Creates a new <code>IndexNotAvailableException</code> for the specified index.
@@ -29,6 +32,7 @@ public final class IndexNotAvailableException extends RuntimeException
      */
     public IndexNotAvailableException(Index index)
     {
-        super(String.format("The secondary index '%s' is not yet available", index.getIndexMetadata().name));
+        super(RequestFailureReason.INDEX_NOT_AVAILABLE,
+              String.format("The secondary index '%s' is not yet available", index.getIndexMetadata().name));
     }
 }

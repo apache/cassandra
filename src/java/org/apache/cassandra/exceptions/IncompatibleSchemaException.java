@@ -19,10 +19,18 @@ package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
 
-public class IncompatibleSchemaException extends IOException
+public class IncompatibleSchemaException extends IOException implements InternalRequestExecutionException
 {
-    public IncompatibleSchemaException(String msg)
+    private final RequestFailureReason reason;
+
+    public IncompatibleSchemaException(RequestFailureReason reason, String msg)
     {
         super(msg);
+        this.reason = reason;
+    }
+
+    public RequestFailureReason getReason()
+    {
+        return reason;
     }
 }
