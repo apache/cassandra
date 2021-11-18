@@ -23,9 +23,11 @@ import java.nio.channels.ClosedChannelException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
@@ -112,8 +114,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  *
  *   (a) When the initiator finishes streaming, it enters the {@link StreamSession.State#WAIT_COMPLETE} state, and waits
  *       for the follower to send a {@link CompleteMessage} once it finishes streaming too. Once the {@link CompleteMessage}
- *       is received, initiator sets its own state to {@link StreamSession.State#COMPLETE} and closes all channels attached
- *       to this session.
+ *       is received, initiator sends a {@link CompleteAckMessage} and sets its own state to {@link StreamSession.State#COMPLETE}
+ *       and closes all channels attached to this session; the followers may close all channels after reciving the ack.
  *
  * </pre>
  *
@@ -602,6 +604,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 // at initiator
                 complete();
                 break;
+            case COMPLETE_ACK:
+                completeAck();
+                break;
             case KEEP_ALIVE:
                 // NOP - we only send/receive the KEEP_ALIVE to force the TCP connection to remain open
                 break;
@@ -838,17 +843,33 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         logger.debug("[Stream #{}] handling Complete message, state = {}", planId(), state);
 
-        if (!isFollower)
+        if (!isFollower) // initiator
         {
-            if (state == State.WAIT_COMPLETE)
-                closeSession(State.COMPLETE);
-            else
-                state(State.WAIT_COMPLETE);
+            channel.sendControlMessage(new CompleteAckMessage());
+            closeSession(State.COMPLETE);
         }
-        else
+        else // follower
         {
             // pre-4.0 nodes should not be connected via streaming, see {@link MessagingService#accept_streaming}
             throw new IllegalStateException(String.format("[Stream #%s] Complete message can be only received by the initiator!", planId()));
+        }
+    }
+
+    public synchronized void completeAck()
+    {
+        logger.debug("[Stream #{}] handling Complete Ack message, state = {}", planId(), state);
+
+        if (isFollower)
+        {
+            if (timeoutCompleteAck != null)
+                timeoutCompleteAck.cancel(false);
+            timeoutCompleteAck = null;
+            closeSession(State.COMPLETE);
+        }
+        else // initiator
+        {
+            // pre-4.0 nodes should not be connected via streaming, see {@link MessagingService#accept_streaming}
+            throw new IllegalStateException(String.format("[Stream #%s] Complete Ack message can be only received by the follower!", planId()));
         }
     }
 
@@ -865,20 +886,30 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             return true;
 
         maybeCompleted = true;
-        if (!isFollower)
+        if (!isFollower) // initiator
         {
-            if (state == State.WAIT_COMPLETE)
-                closeSession(State.COMPLETE);
-            else
-                state(State.WAIT_COMPLETE);
+            setStateWaitComplete();
         }
-        else
+        else // follower
         {
             channel.sendControlMessage(new CompleteMessage());
-            closeSession(State.COMPLETE);
+            int timeoutMs = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+            if (timeoutMs > 0)
+                timeoutCompleteAck = ScheduledExecutors.scheduledFastTasks.schedule(this::completeAck, timeoutMs, TimeUnit.MILLISECONDS);
         }
 
         return true;
+    }
+
+    @GuardedBy("this")
+    private ScheduledFuture<?> timeoutCompleteAck = null;
+
+    private void setStateWaitComplete()
+    {
+        if (state == State.WAIT_COMPLETE)
+            return;
+        else
+            state(State.WAIT_COMPLETE);
     }
 
     /**
