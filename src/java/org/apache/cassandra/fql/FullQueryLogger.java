@@ -107,6 +107,22 @@ public class FullQueryLogger implements QueryEvents.Listener
         QueryEvents.instance.registerListener(this);
     }
 
+    public synchronized void enableWithoutClean(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
+    {
+        if (this.binLog != null)
+            throw new IllegalStateException("Binlog is already configured");
+        this.binLog = new BinLog.Builder().path(path)
+                                          .rollCycle(rollCycle)
+                                          .blocking(blocking)
+                                          .maxQueueWeight(maxQueueWeight)
+                                          .maxLogSize(maxLogSize)
+                                          .archiveCommand(archiveCommand)
+                                          .maxArchiveRetries(maxArchiveRetries)
+                                          .build(false);
+        QueryEvents.instance.registerListener(this);
+    }
+
+
     static
     {
         ByteBuf buf = CBUtil.allocator.buffer(0, 0);
