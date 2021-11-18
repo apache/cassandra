@@ -605,7 +605,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 complete();
                 break;
             case COMPLETE_ACK:
-                completeAck();
+                completeAck(false);
                 break;
             case KEEP_ALIVE:
                 // NOP - we only send/receive the KEEP_ALIVE to force the TCP connection to remain open
@@ -855,9 +855,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    public synchronized void completeAck()
+    public synchronized void completeAck(boolean timeout)
     {
-        logger.debug("[Stream #{}] handling Complete Ack message, state = {}", planId(), state);
+        logger.debug("[Stream #{}] handling Complete Ack message, state = {}, timeout = ", planId(), state, timeout);
 
         if (isFollower)
         {
@@ -865,6 +865,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 timeoutCompleteAck.cancel(false);
             timeoutCompleteAck = null;
             closeSession(State.COMPLETE);
+            if (timeout)
+                logger.info("[Stream #{}] closed due to timeout waiting on COMPLETE_ACK", planId());
         }
         else // initiator
         {
@@ -895,7 +897,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             channel.sendControlMessage(new CompleteMessage());
             int timeoutMs = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
             if (timeoutMs > 0)
-                timeoutCompleteAck = ScheduledExecutors.scheduledFastTasks.schedule(this::completeAck, timeoutMs, TimeUnit.MILLISECONDS);
+                timeoutCompleteAck = ScheduledExecutors.scheduledFastTasks.schedule(() -> completeAck(true), timeoutMs, TimeUnit.MILLISECONDS);
         }
 
         return true;
