@@ -29,19 +29,26 @@ import java.util.function.Supplier;
 
 import com.google.common.base.Throwables;
 import com.google.common.net.InetAddresses;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.TraceStateImpl;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class DebuggableThreadPoolExecutorTest
 {
@@ -72,6 +79,96 @@ public class DebuggableThreadPoolExecutorTest
             continue;
         long delta = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
         assert delta >= 9 * 50 : delta;
+    }
+
+    @Test
+    public void testLocalStatePropagation()
+    {
+        ExecutorPlus executor = executorFactory().localAware().sequential("TEST");
+        assertThat(executor).isInstanceOf(LocalAwareExecutorPlus.class);
+        try
+        {
+            checkLocalStateIsPropagated(executor);
+        }
+        finally
+        {
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    public void testNoLocalStatePropagation() throws InterruptedException
+    {
+        ExecutorPlus executor = executorFactory().sequential("TEST");
+        assertThat(executor).isNotInstanceOf(LocalAwareExecutorPlus.class);
+        try
+        {
+            checkLocalStateIsPropagated(executor);
+        }
+        finally
+        {
+            executor.shutdown();
+        }
+    }
+
+    public static void checkLocalStateIsPropagated(ExecutorPlus executor)
+    {
+        checkClientWarningsArePropagated(executor, () -> executor.execute(() -> ClientWarn.instance.warn("msg")));
+        checkClientWarningsArePropagated(executor, () -> executor.submit(() -> ClientWarn.instance.warn("msg")));
+        checkClientWarningsArePropagated(executor, () -> executor.submit(() -> ClientWarn.instance.warn("msg"), null));
+        checkClientWarningsArePropagated(executor, () -> executor.submit((Callable<Void>) () -> {
+            ClientWarn.instance.warn("msg");
+            return null;
+        }));
+
+        checkTracingIsPropagated(executor, () -> executor.execute(() -> Tracing.trace("msg")));
+        checkTracingIsPropagated(executor, () -> executor.submit(() -> Tracing.trace("msg")));
+        checkTracingIsPropagated(executor, () -> executor.submit(() -> Tracing.trace("msg"), null));
+        checkTracingIsPropagated(executor, () -> executor.submit((Callable<Void>) () -> {
+            Tracing.trace("msg");
+            return null;
+        }));
+    }
+
+    public static void checkClientWarningsArePropagated(ExecutorPlus executor, Runnable schedulingTask) {
+        ClientWarn.instance.captureWarnings();
+        assertThat(ClientWarn.instance.getWarnings()).isNullOrEmpty();
+
+        ClientWarn.instance.warn("msg0");
+        long initCompletedTasks = executor.getCompletedTaskCount();
+        schedulingTask.run();
+        while (executor.getCompletedTaskCount() == initCompletedTasks) Uninterruptibles.sleepUninterruptibly(10, MILLISECONDS);
+        ClientWarn.instance.warn("msg1");
+
+        if (executor instanceof LocalAwareExecutorPlus)
+            assertThat(ClientWarn.instance.getWarnings()).containsExactlyInAnyOrder("msg0", "msg", "msg1");
+        else
+            assertThat(ClientWarn.instance.getWarnings()).containsExactlyInAnyOrder("msg0", "msg1");
+    }
+
+    public static void checkTracingIsPropagated(ExecutorPlus executor, Runnable schedulingTask) {
+        ClientWarn.instance.captureWarnings();
+        assertThat(ClientWarn.instance.getWarnings()).isNullOrEmpty();
+
+        ConcurrentLinkedQueue<String> q = new ConcurrentLinkedQueue<>();
+        Tracing.instance.set(new TraceState(FBUtilities.getLocalAddressAndPort(), UUID.randomUUID(), Tracing.TraceType.NONE)
+        {
+            @Override
+            protected void traceImpl(String message)
+            {
+                q.add(message);
+            }
+        });
+        Tracing.trace("msg0");
+        long initCompletedTasks = executor.getCompletedTaskCount();
+        schedulingTask.run();
+        while (executor.getCompletedTaskCount() == initCompletedTasks) Uninterruptibles.sleepUninterruptibly(10, MILLISECONDS);
+        Tracing.trace("msg1");
+
+        if (executor instanceof LocalAwareExecutorPlus)
+            assertThat(q.toArray()).containsExactlyInAnyOrder("msg0", "msg", "msg1");
+        else
+            assertThat(q.toArray()).containsExactlyInAnyOrder("msg0", "msg1");
     }
 
     @Test

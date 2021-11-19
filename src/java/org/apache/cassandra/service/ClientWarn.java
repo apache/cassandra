@@ -64,11 +64,6 @@ public class ClientWarn extends ExecutorLocals.Impl
         return state.warnings;
     }
 
-    public int numWarnings()
-    {
-        return getWarnings() == null ? 0 : getWarnings().size();
-    }
-
     public void resetWarnings()
     {
         set(null);
