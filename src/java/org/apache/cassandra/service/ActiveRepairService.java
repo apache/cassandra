@@ -26,6 +26,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.management.openmbean.CompositeData;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -523,6 +524,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         final CountDownLatch prepareLatch = newCountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
         final Set<String> failedNodes = synchronizedSet(new HashSet<String>());
+        final AtomicInteger timeouts = new AtomicInteger(0);
         RequestCallback callback = new RequestCallback()
         {
             @Override
@@ -536,6 +538,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 status.set(false);
                 failedNodes.add(from.toString());
+                if (failureReason == RequestFailureReason.TIMEOUT)
+                    timeouts.incrementAndGet();
                 prepareLatch.decrement();
             }
 
@@ -576,7 +580,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
         try
         {
-            if (!prepareLatch.await(getRpcTimeout(MILLISECONDS), MILLISECONDS))
+            if (!prepareLatch.await(getRpcTimeout(MILLISECONDS), MILLISECONDS) || timeouts.get() > 0)
                 failRepair(parentRepairSession, "Did not get replies from all endpoints.");
         }
         catch (InterruptedException e)
