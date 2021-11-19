@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import org.apache.commons.lang.StringUtils;
+
 /**
  * Wrapper class for Cassandra duration configuration parameters which are internally represented in Milliseconds. In order
  * not to lose precision while converting to smaller units (until we migrate those parameters to use internally the smallest
@@ -65,5 +67,21 @@ public final class SmallestDurationMilliseconds extends DurationSpec
     public static SmallestDurationMilliseconds inDoubleMilliseconds(double milliseconds)
     {
         return new SmallestDurationMilliseconds(milliseconds, MILLISECONDS);
+    }
+
+    /**
+     * Creates a {@code SmallestDurationMilliseconds} of the specified amount of milliseconds. Custom method for special cases.
+     *
+     * @param value may be a simple number (assumed to be in milliseconds) or representation the constructor can handle
+     * @return a duration
+     */
+    public static SmallestDurationMilliseconds inMillisecondsString(String value)
+    {
+        //parse the string field value
+        if (StringUtils.isNumeric(value))
+            return inMilliseconds(Long.parseLong(value));
+
+        //otherwise we just use the standard constructors
+        return new SmallestDurationMilliseconds(value);
     }
 }

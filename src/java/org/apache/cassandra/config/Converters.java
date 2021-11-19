@@ -36,10 +36,13 @@ public enum Converters
      * This converter is used when we change the name of a cassandra.yaml configuration parameter but we want to be
      * able to still use the old name too. No units involved.
      */
-    IDENTITY(null, null, o -> o, o-> o),
-    MILLIS_DURATION(Long.class, SmallestDurationMilliseconds.class,
-                    SmallestDurationMilliseconds::inMilliseconds,
-                    o -> o.toMilliseconds()),
+    IDENTITY(null, null, o -> o, o -> o),
+    MILLIS_DURATION_LONG(Long.class, SmallestDurationMilliseconds.class,
+                         SmallestDurationMilliseconds::inMilliseconds,
+                         o -> o.toMilliseconds()),
+    MILLIS_DURATION_INT(Integer.class, SmallestDurationMilliseconds.class,
+                        i -> SmallestDurationMilliseconds.inMilliseconds(i),
+                        DurationSpec::toMillisecondsAsInt),
     MILLIS_DOUBLE_DURATION(Double.class, SmallestDurationMilliseconds.class,
                            o -> Double.isNaN(o) ? SmallestDurationMilliseconds.inMilliseconds(0) : SmallestDurationMilliseconds.inDoubleMilliseconds(o),
                            o -> (double) o.toMilliseconds()),
@@ -47,15 +50,15 @@ public enum Converters
      * This converter is used to support backward compatibility for parameters where in the past -1 was used as a value
      * Example: credentials_update_interval_in_ms = -1 and credentials_update_interval = null are equal.
      */
-    MILLIS_CUSTOM_DURATION(Long.class, SmallestDurationMilliseconds.class,
+    MILLIS_CUSTOM_DURATION(Integer.class, SmallestDurationMilliseconds.class,
                            o -> o == -1 ? null : SmallestDurationMilliseconds.inMilliseconds(o),
-                           o -> o == null ? -1 : o.toMilliseconds()),
-    SECONDS_DURATION(Long.class, SmallestDurationSeconds.class,
-                     SmallestDurationSeconds::inSeconds,
-                     DurationSpec::toSeconds),
-    NEGATIVE_SECONDS_DURATION(Long.class, SmallestDurationSeconds.class,
+                           o -> o == null ? -1 : o.toMillisecondsAsInt()),
+    SECONDS_DURATION(Integer.class, SmallestDurationSeconds.class,
+                     i -> SmallestDurationSeconds.inSeconds(i),
+                     DurationSpec::toSecondsAsInt),
+    NEGATIVE_SECONDS_DURATION(Integer.class, SmallestDurationSeconds.class,
                               o -> o < 0 ? SmallestDurationSeconds.inSeconds(0) : SmallestDurationSeconds.inSeconds(o),
-                              DurationSpec::toSeconds),
+                              DurationSpec::toSecondsAsInt),
     /**
      * This converter is used to support backward compatibility for Duration parameters where we added the opportunity
      * for the users to add a unit in the parameters' values but we didn't change the names. (key_cache_save_period,
@@ -65,18 +68,21 @@ public enum Converters
     SECONDS_CUSTOM_DURATION(String.class, SmallestDurationSeconds.class,
                             SmallestDurationSeconds::inSecondsString,
                             o -> Long.toString(o.toSeconds())),
-    MINUTES_DURATION(Long.class, SmallestDurationMinutes.class,
-                     SmallestDurationMinutes::inMinutes,
-                     DurationSpec::toMinutes),
-    MEBIBYTES_DATA_STORAGE(Long.class, SmallestDataStorageMebibytes.class,
-                          SmallestDataStorageMebibytes::inMebibytes,
-                          DataStorageSpec::toMebibytes),
-    KIBIBYTES_DATASTORAGE(Long.class, SmallestDataStorageKibibytes.class,
-                          SmallestDataStorageKibibytes::inKibibytes,
-                          DataStorageSpec::toKibibytes),
-    BYTES_DATASTORAGE(Long.class, DataStorageSpec.class,
-                      DataStorageSpec::inBytes,
-                      DataStorageSpec::toBytes),
+    MINUTES_DURATION(Integer.class, SmallestDurationMinutes.class,
+                     i -> SmallestDurationMinutes.inMinutes(i),
+                     DurationSpec::toMinutesAsInt),
+    MEBIBYTES_DATA_STORAGE_LONG(Long.class, SmallestDataStorageMebibytes.class,
+                                SmallestDataStorageMebibytes::inMebibytes,
+                                DataStorageSpec::toMebibytes),
+    MEBIBYTES_DATA_STORAGE_INT(Integer.class, SmallestDataStorageMebibytes.class,
+                               i -> SmallestDataStorageMebibytes.inMebibytes(i),
+                               DataStorageSpec::toMebibytesAsInt),
+    KIBIBYTES_DATASTORAGE(Integer.class, SmallestDataStorageKibibytes.class,
+                          i -> SmallestDataStorageKibibytes.inKibibytes(i),
+                          DataStorageSpec::toKibibytesAsInt),
+    BYTES_DATASTORAGE(Integer.class, DataStorageSpec.class,
+                      i -> DataStorageSpec.inBytes(i),
+                      DataStorageSpec::toBytesAsInt),
     /**
      * This converter is used to support backward compatibility for parameters where in the past negative number was used as a value
      * Example: native_transport_max_concurrent_requests_in_bytes_per_ip = -1 and native_transport_max_request_data_in_flight_per_ip = null
@@ -85,16 +91,16 @@ public enum Converters
     BYTES_CUSTOM_DATASTORAGE(Long.class, DataStorageSpec.class,
                              o -> o == -1 ? null : DataStorageSpec.inBytes(o),
                              DataStorageSpec::toBytes),
-    MEBIBYTES_PER_SECOND_DATA_RATE(Long.class, DataRateSpec.class,
-                                   DataRateSpec::inMebibytesPerSecond,
-                                   o -> (long) o.toMebibytesPerSecondAsInt()),
+    MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.class,
+                                   i -> DataRateSpec.inMebibytesPerSecond(i),
+                                   DataRateSpec::toMebibytesPerSecondAsInt),
     /**
      * This converter is a custom one to support backward compatibility for stream_throughput_outbound and
      * inter_dc_stream_throughput_outbound which were provided in megatibs per second prior CASSANDRA-15234.
      */
-    MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Long.class, DataRateSpec.class,
-                                               DataRateSpec::megabitsPerSecondInMebibytesPerSecond,
-                                               o -> (long) o.toMegabitsPerSecondAsInt());
+    MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.class,
+                                               i -> DataRateSpec.megabitsPerSecondInMebibytesPerSecond(i),
+                                               DataRateSpec::toMegabitsPerSecondAsInt);
 
     private final Class<?> oldType;
     private final Class<?> newType;
@@ -121,7 +127,8 @@ public enum Converters
     }
 
     /**
-     * Expected return type from {@link #convert(Object)}, and input type to {@link #deconvert(Object)}
+     * Expected return type from {@link #convert(Object)}, and input type to {@link #unconvert(Object)}
+     *
      * @return type that {@link #convert(Object)} is expected to return
      */
     public Class<?> getNewType()
@@ -133,8 +140,7 @@ public enum Converters
      * Apply the converter specified as part of the {@link Replaces} annotation in {@link Config}
      *
      * @param value we will use from cassandra.yaml to create a new {@link Config} parameter of type {@link DurationSpec},
-     * {@link DataRateSpec} or {@link DataStorageSpec}
-     *
+     *              {@link DataRateSpec} or {@link DataStorageSpec}
      * @return new object of type {@link DurationSpec}, {@link DataRateSpec} or {@link DataStorageSpec}
      */
     public Object convert(Object value)
@@ -149,12 +155,11 @@ public enum Converters
      * compatibility
      *
      * @param value we will use to calculate the output value
-     *
      * @return the numeric value
      */
-    public Object deconvert(Object value)
+    public Object unconvert(Object value)
     {
-        if (value == null) return 0;
+        if (value == null) return null;
         return reverseConvert.apply(value);
     }
 }

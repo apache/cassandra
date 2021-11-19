@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.AbstractSslContextFactory;
@@ -104,7 +105,7 @@ public class EncryptionOptions
      * We will wait to initialize this until applyConfig() call to make sure we do it only when the caller is ready
      * to use this option instance.
      */
-    public ISslContextFactory sslContextFactoryInstance;
+    public transient ISslContextFactory sslContextFactoryInstance;
 
     public enum ConfigKey
     {
@@ -318,7 +319,7 @@ public class EncryptionOptions
      *
      * @return if the channel should be encrypted
      */
-    public Boolean isEnabled() {
+    public Boolean getEnabled() {
         ensureConfigApplied();
         return isEnabled;
     }
@@ -343,7 +344,7 @@ public class EncryptionOptions
      * Return type is Boolean even though it can never be null so that snakeyaml can find it
      * @return if the channel may be encrypted
      */
-    public Boolean isOptional()
+    public Boolean getOptional()
     {
         ensureConfigApplied();
         return isOptional;
@@ -355,7 +356,7 @@ public class EncryptionOptions
      * is probably a bad idea.
      * @param optional value to set
      */
-    public void setOptional(boolean optional) {
+    public void setOptional(Boolean optional) {
         ensureConfigNotApplied();
         this.optional = optional;
     }
@@ -371,34 +372,39 @@ public class EncryptionOptions
         this.protocol = protocol;
     }
 
+    public String getProtocol()
+    {
+        return protocol;
+    }
+
     /**
      * Sets accepted TLS protocols for this channel. Note that this should only be called by
      * the configuration parser or tests. It is public only for that purpose, mutating protocol state
      * is probably a bad idea. The function casing is required for snakeyaml to find this setter for the protected field.
      * @param accepted_protocols value to set
      */
-    public void setaccepted_protocols(List<String> accepted_protocols) {
+    public void setAcceptedProtocols(List<String> accepted_protocols) {
         this.accepted_protocols = accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols);
     }
 
-    public List<String> acceptedProtocols()
+    public List<String> getAcceptedProtocols()
     {
-        return sslContextFactoryInstance.getAcceptedProtocols();
+        return sslContextFactoryInstance == null ? null : sslContextFactoryInstance.getAcceptedProtocols();
     }
 
     public String[] acceptedProtocolsArray()
     {
-        List<String> ap = acceptedProtocols();
+        List<String> ap = getAcceptedProtocols();
         return ap == null ?  new String[0] : ap.toArray(new String[0]);
     }
 
     public TlsEncryptionPolicy tlsEncryptionPolicy()
     {
-        if (isOptional())
+        if (getOptional())
         {
             return TlsEncryptionPolicy.OPTIONAL;
         }
-        else if (isEnabled())
+        else if (getEnabled())
         {
             return TlsEncryptionPolicy.ENCRYPTED;
         }
@@ -683,6 +689,7 @@ public class EncryptionOptions
          * values of "dc" and "all". This method returns the explicit, raw value of {@link #optional}
          * as set by the user (if set at all).
          */
+        @JsonIgnore
         public boolean isExplicitlyOptional()
         {
             return optional != null && optional;

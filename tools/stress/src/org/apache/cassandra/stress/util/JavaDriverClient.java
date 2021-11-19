@@ -145,7 +145,7 @@ public class JavaDriverClient
         if (loadBalancingPolicy != null)
             clusterBuilder.withLoadBalancingPolicy(loadBalancingPolicy);
         clusterBuilder.withCompression(compression);
-        if (encryptionOptions.isEnabled())
+        if (encryptionOptions.getEnabled())
         {
             SSLContext sslContext;
             sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
