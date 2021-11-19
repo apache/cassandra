@@ -727,6 +727,15 @@ public class AlterTest extends CQLTester
     }
 
     @Test
+    public void testAlterTableRenameExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, myCollection list<text>, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s RENAME IF EXISTS a TO y AND b to z");
+        execute("INSERT INTO %s (y, z, myCollection) VALUES (1, 2, ['first element']);");
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2, list("first element")));
+    }
+
+    @Test
     public void testAlterTypeWithIfExists() throws Throwable
     {
         // frozen UDT used directly in a partition key

@@ -100,6 +100,9 @@ public class RoleSyntaxTest extends CQLTester
         assertValidSyntax("ALTER USER 'u1' WITH PASSWORD 'password'");
         assertValidSyntax("ALTER USER $$u1$$ WITH PASSWORD 'password'");
         assertValidSyntax("ALTER USER $$ u1 ' x $ x ' $$ WITH PASSWORD 'password'");
+        // ALTER with IF EXISTS syntax
+        assertValidSyntax("ALTER ROLE IF EXISTS r1 WITH PASSWORD = 'password'");
+        assertValidSyntax("ALTER USER IF EXISTS u1 WITH PASSWORD 'password'");
         // user names may not be quoted names
         assertInvalidSyntax("ALTER USER \"u1\" WITH PASSWORD 'password'", NO_QUOTED_USERNAME);
     }

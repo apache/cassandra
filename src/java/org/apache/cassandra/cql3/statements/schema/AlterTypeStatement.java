@@ -150,12 +150,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
     private static final class RenameFields extends AlterTypeStatement
     {
-        private final Map<FieldIdentifier, FieldIdentifier> renamedFields;
+        private final Raw.RenamedRawFields renamedRawFields;
 
-        private RenameFields(String keyspaceName, String typeName, Map<FieldIdentifier, FieldIdentifier> renamedFields, boolean ifTypeExists)
+        private RenameFields(String keyspaceName, String typeName, Raw.RenamedRawFields renamedRawFields, boolean ifTypeExists)
         {
             super(keyspaceName, typeName, ifTypeExists);
-            this.renamedFields = renamedFields;
+            this.renamedRawFields = renamedRawFields;
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
@@ -176,18 +176,21 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
             List<FieldIdentifier> fieldNames = new ArrayList<>(userType.fieldNames());
 
-            renamedFields.forEach((oldName, newName) ->
+            renamedRawFields.renamedFields.forEach((oldName, newName) ->
             {
                 int idx = userType.fieldPosition(oldName);
                 if (idx < 0)
-                    throw ire("Unkown field %s in user type %s", oldName, keyspaceName, userType.getCqlTypeName());
+                {
+                    if (renamedRawFields.ifExists) return;
+                    throw ire("Unkown field %s in user type %s", oldName, userType.getCqlTypeName());
+                }
                 fieldNames.set(idx, newName);
             });
 
             fieldNames.forEach(name ->
             {
                 if (fieldNames.stream().filter(isEqual(name)).count() > 1)
-                    throw ire("Duplicate field name %s in type %s", name, keyspaceName, userType.getCqlTypeName());
+                    throw ire("Duplicate field name %s in type %s", name, userType.getCqlTypeName());
             });
 
             return new UserType(keyspaceName, userType.name, fieldNames, userType.fieldTypes(), true);
@@ -220,7 +223,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private Kind kind;
 
         // ADD
-        private static class AddRawFields{
+        private static class AddRawFields {
             private FieldIdentifier newFieldName;
             private CQL3Type.Raw newFieldType;
             private boolean ifNotExists;
@@ -228,7 +231,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         AddRawFields addRawFields = new AddRawFields();
 
         // RENAME
-        private final Map<FieldIdentifier, FieldIdentifier> renamedFields = new HashMap<>();
+        private static class RenamedRawFields {
+            private final Map<FieldIdentifier, FieldIdentifier> renamedFields;
+            private boolean ifExists;
+            RenamedRawFields() { renamedFields = new HashMap<>(); }
+        }
+        RenamedRawFields renamedRawFields = new RenamedRawFields();
 
         public Raw(UTName name, boolean ifExists)
         {
@@ -244,7 +252,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             switch (kind)
             {
                 case     ADD_FIELD: return new AddField(keyspaceName, typeName, addRawFields, ifTypeExists);
-                case RENAME_FIELDS: return new RenameFields(keyspaceName, typeName, renamedFields, ifTypeExists);
+                case RENAME_FIELDS: return new RenameFields(keyspaceName, typeName, renamedRawFields, ifTypeExists);
                 case   ALTER_FIELD: return new AlterField(keyspaceName, typeName, ifTypeExists);
             }
 
@@ -259,10 +267,11 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             addRawFields.newFieldType = type;
         }
 
-        public void rename(FieldIdentifier from, FieldIdentifier to)
+        public void rename(FieldIdentifier from, FieldIdentifier to, boolean ifExists)
         {
             kind = Kind.RENAME_FIELDS;
-            renamedFields.put(from, to);
+            renamedRawFields.ifExists = ifExists;
+            renamedRawFields.renamedFields.put(from, to);
         }
 
         public void alter(FieldIdentifier name, CQL3Type.Raw type)

@@ -200,7 +200,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             boolean isStatic = column.isStatic;
 
             if (null != tableBuilder.getColumn(name)) {
-                if(ifNotExists) return;
+                if (ifNotExists) return;
                 throw ire("Column with name '%s' already exists", name);
             }
 
@@ -328,19 +328,19 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
      */
     private static class RenameColumns extends AlterTableStatement
     {
-        private final Map<ColumnIdentifier, ColumnIdentifier> renamedColumns;
+        private final Raw.RenamedRawColumns renamedRawColumns;
 
-        private RenameColumns(String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns, boolean ifTableExists)
+        private RenameColumns(String keyspaceName, String tableName, Raw.RenamedRawColumns renamedRawColumns, boolean ifTableExists)
         {
             super(keyspaceName, tableName, ifTableExists);
-            this.renamedColumns = renamedColumns;
+            this.renamedRawColumns = renamedRawColumns;
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
-            renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, tableBuilder, viewsBuilder));
+            renamedRawColumns.renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, renamedRawColumns.ifExists, tableBuilder, viewsBuilder));
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(tableBuilder.build()))
                            .withSwapped(viewsBuilder.build());
@@ -350,12 +350,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                                   TableMetadata table,
                                   ColumnIdentifier oldName,
                                   ColumnIdentifier newName,
+                                  boolean ifExists,
                                   TableMetadata.Builder tableBuilder,
                                   Views.Builder viewsBuilder)
         {
             ColumnMetadata column = table.getExistingColumn(oldName);
             if (null == column)
+            {
+                if (ifExists) return;
                 throw ire("Column %s was not found in table %s", oldName, table);
+            }
 
             if (!column.isPrimaryKeyColumn())
                 throw ire("Cannot rename non PRIMARY KEY column %s", oldName);
@@ -565,7 +569,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private Long timestamp = null; // will use execution timestamp if not provided by query
 
         // RENAME
-        private final Map<ColumnIdentifier, ColumnIdentifier> renamedColumns = new HashMap<>();
+        private static final class RenamedRawColumns {
+            private final Map<ColumnIdentifier, ColumnIdentifier> renamedColumns;
+            private boolean ifExists;
+            RenamedRawColumns() { this.renamedColumns = new HashMap<>(); }
+        }
+        RenamedRawColumns renamedRawColumns = new RenamedRawColumns();
+
 
         // OPTIONS
         public final TableAttributes attrs = new TableAttributes();
@@ -586,7 +596,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 case          ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName, ifTableExists);
                 case           ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addRawColumns, ifTableExists);
                 case          DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedRawColumns, timestamp, ifTableExists);
-                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists);
+                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedRawColumns, ifTableExists);
                 case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
                 case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
             }
@@ -623,10 +633,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.timestamp = timestamp;
         }
 
-        public void rename(ColumnIdentifier from, ColumnIdentifier to)
+        public void rename(ColumnIdentifier from, ColumnIdentifier to, boolean ifExists)
         {
             kind = Kind.RENAME_COLUMNS;
-            renamedColumns.put(from, to);
+            renamedRawColumns.renamedColumns.put(from, to);
+            renamedRawColumns.ifExists = ifExists;
         }
 
         public void attrs()

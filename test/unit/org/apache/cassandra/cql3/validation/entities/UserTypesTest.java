@@ -900,4 +900,18 @@ public class UserTypesTest extends CQLTester
                                   "ALTER TYPE " + columnType + " ADD a int");
     }
 
+    @Test
+    public void testAlteringTypeRenameWithIfExists() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, y frozen<" + columnType + ">)");
+        execute("ALTER TYPE " + columnType + " RENAME IF EXISTS a TO z AND b TO Y;");
+
+        execute("INSERT INTO %s (k, y) VALUES(?, ?)", 1, userType("z", 1));
+        assertRows(execute("SELECT * FROM %s"), row(1, userType("z", 1)));
+
+        assertInvalidThrowMessage(String.format("Unkown field %s in user type %s", "a", columnType),
+                                  InvalidRequestException.class,
+                                  "ALTER TYPE " + columnType + " RENAME a TO z;");
+    }
 }
