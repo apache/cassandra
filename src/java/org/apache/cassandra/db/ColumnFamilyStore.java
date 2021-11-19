@@ -2941,7 +2941,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         private static ExecutorPlus[] createPerDiskFlushWriters(int numberOfExecutors, int flushWriters)
         {
             ExecutorPlus[] flushExecutors = new ExecutorPlus[numberOfExecutors];
-            for (int i = 0; i < DatabaseDescriptor.getAllDataFileLocations().length; i++)
+            for (int i = 0; i < numberOfExecutors; i++)
             {
                 flushExecutors[i] = newThreadPool("PerDiskMemtableFlushWriter_"+i, flushWriters);
             }
