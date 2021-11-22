@@ -21,10 +21,10 @@ package org.apache.cassandra.cql3;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
@@ -32,10 +32,10 @@ import org.junit.runners.Parameterized;
 
 import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
+/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes:
  * - ViewComplexUpdatesTest
  * - ViewComplexDeletionsTest
@@ -46,10 +46,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
  * - ViewComplex*Test
  */
 @RunWith(Parameterized.class)
-public abstract class ViewComplexTester extends CQLTester
+public abstract class ViewFilteringTester extends CQLTester
 {
-    private static final AtomicInteger seqNumber = new AtomicInteger();
-
     @Parameterized.Parameter
     public ProtocolVersion version;
 
@@ -67,10 +65,17 @@ public abstract class ViewComplexTester extends CQLTester
     public static void startup()
     {
         requireNetwork();
+        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "false");
     }
 
     @Before
-    public void begin() throws Throwable
+    public void begin()
     {
         views.clear();
     }
@@ -78,19 +83,12 @@ public abstract class ViewComplexTester extends CQLTester
     @After
     public void end() throws Throwable
     {
-        dropMViews();
-    }
-
-    protected void dropMViews() throws Throwable
-    {
         for (String viewName : views)
             executeNet(version, "DROP MATERIALIZED VIEW " + viewName);
     }
 
-    protected String createView(String query) throws Throwable
+    protected void createView(String name, String query) throws Throwable
     {
-        String name = createViewName();
-
         try
         {
             executeNet(version, String.format(query, name));
@@ -104,21 +102,9 @@ public abstract class ViewComplexTester extends CQLTester
             views.add(name);
             throw ex;
         }
-
-        return name;
-    }
-
-    protected static String createViewName()
-    {
-        return "mv" + seqNumber.getAndIncrement();
     }
 
     protected void updateView(String query, Object... params) throws Throwable
-    {
-        updateViewWithFlush(query, false, params);
-    }
-
-    protected void updateViewWithFlush(String query, boolean flush, Object... params) throws Throwable
     {
         executeNet(version, query, params);
         while (!(Stage.VIEW_MUTATION.executor().getPendingTaskCount() == 0
@@ -126,7 +112,17 @@ public abstract class ViewComplexTester extends CQLTester
         {
             Thread.sleep(1);
         }
-        if (flush)
-            Keyspace.open(keyspace()).flush();
+    }
+
+    protected void dropView(String name) throws Throwable
+    {
+        executeNet(version, "DROP MATERIALIZED VIEW " + name);
+        views.remove(name);
+    }
+
+    protected static void waitForView(String keyspace, String view) throws InterruptedException
+    {
+        while (!SystemKeyspace.isViewBuilt(keyspace, view))
+            Thread.sleep(10);
     }
 }
