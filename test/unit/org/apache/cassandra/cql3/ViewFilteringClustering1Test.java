@@ -18,77 +18,27 @@
 
 package org.apache.cassandra.cql3;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.transport.ProtocolVersion;
 
-/* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
+/* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
  * - ViewFilteringClustering1Test
  * - ViewFilteringClustering2Test
  * - ViewFilteringTest
+ * - ...
+ * - ViewFiltering*Test
  */
 @RunWith(Parameterized.class)
-public class ViewFilteringClustering1Test extends CQLTester
+public class ViewFilteringClustering1Test extends ViewFilteringTester
 {
-    @Parameterized.Parameter
-    public ProtocolVersion version;
-
-    @Parameterized.Parameters()
-    public static Collection<Object[]> versions()
-    {
-        return ViewFilteringTest.versions();
-    }
-
-    private final List<String> views = new ArrayList<>();
-
-    @BeforeClass
-    public static void startup()
-    {
-        ViewFilteringTest.startup();
-    }
-
-    @AfterClass
-    public static void tearDown()
-    {
-        ViewFilteringTest.tearDown();
-    }
-
-    @Before
-    public void begin()
-    {
-        ViewFilteringTest.beginSetup(views);
-    }
-
-    @After
-    public void end() throws Throwable
-    {
-        ViewFilteringTest.endSetup(views, version, this);
-    }
-
-    private void createView(String name, String query) throws Throwable
-    {
-        ViewFilteringTest.createView(name, query, views, version, this);
-    }
-
-    private void dropView(String name) throws Throwable
-    {
-        ViewFilteringTest.dropView(name, views, version, this);
-    }
-
     @Test
     public void testClusteringKeyEQRestrictions() throws Throwable
     {
