@@ -1352,7 +1352,7 @@
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
 
-      <pathconvert id="testfiles" pathsep="${line.separator}" property="testfiles">
+      <pathconvert id="testfiles" pathsep="," property="testfiles">
         <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
         <filelist dir="@{inputdir}" files="@{filelist}"/>
         <mapper>
@@ -1371,15 +1371,13 @@
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${test.conf}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-              <exclude name="**/ant-*.jar"/>
-          </fileset>
         </classpath>
         <listener classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
-        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
+        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" if="${showoutput}" sendSysOut="true" sendSysErr="true"/>
         <testclasses outputdir="${build.test.dir}/output/@{testtag}">
             <fileset dir="${test.classes}" includes="${testfiles}"/>
+            <fileset dir="${stress.test.classes}" includes="${testfiles}"/>
+            <fileset dir="${fqltool.test.classes}" includes="${testfiles}"/>
             <fork timeout="@{timeout}">
                 <!-- ant-junitlauncher does not support `maxmemory` parameter, effectively it equals to passing Xmx directly -->
                 <jvmarg value="-Xmx1024m"/>
@@ -1422,14 +1420,14 @@
       </junitlauncher>
       <!-- TODO: since "extension" feature is available in ant 1.10.13 only we rename txt files to xml manually -->
       <!-- See: https://github.com/apache/ant/pull/168 -->
-      <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false">
+      <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false" quiet="true">
         <fileset dir="${build.test.dir}/output/@{testtag}"/>
         <mapper type="glob" from="*.txt" to="*.xml"/>
       </move>
 
       <!-- TODO: ant community rejected to support "useFile" feature that's why we need to remove txt files created for "brief" formatter manually -->
       <!-- See: https://github.com/apache/ant/pull/171 -->
-      <delete>
+      <delete quiet="true">
         <fileset dir="${build.test.dir}/output/@{testtag}" includes="**/*.txt"/>
       </delete>
 
@@ -1660,30 +1658,45 @@
       <echo message="running CQL tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
-      <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
-        <formatter type="brief" usefile="false"/>
-        <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
-        <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
-        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
-        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.skip_sync=true" />
+      <pathconvert id="testfiles" pathsep="," property="testfiles">
+        <fileset dir="${test.unit.src}" includes="**/cql3/*Test.java">
+          <contains text="CQLTester" casesensitive="yes"/>
+        </fileset>
+        <mapper>
+          <globmapper from="${test.unit.src}/*.java" to="*.class"/>
+        </mapper>
+      </pathconvert>
+      <junitlauncher failureproperty="testfailed">
         <classpath>
           <path refid="cassandra.classpath.test" />
           <pathelement location="${test.classes}"/>
           <pathelement location="${test.conf}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-          </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output">
-            <fileset dir="${test.unit.src}" includes="**/cql3/*Test.java">
-                <contains text="CQLTester" casesensitive="yes"/>
-            </fileset>
-        </batchtest>
-      </junit>
+        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
+        <testclasses outputdir="${build.test.dir}/output">
+          <fileset dir="${test.classes}" includes="${testfiles}"/>
+          <fork timeout="${test.timeout}">
+            <!-- ant-junitlauncher does not support `maxmemory` parameter, effectively it equals to passing Xmx directly -->
+            <jvmarg value="-Xmx1024m"/>
+            <jvmarg value="-Dstorage-config=${test.conf}"/>
+            <jvmarg value="-Djava.awt.headless=true"/>
+            <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
+            <jvmarg value="-ea"/>
+            <jvmarg value="-Xss256k"/>
+            <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+            <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+            <jvmarg value="-Dcassandra.skip_sync=true" />
+            <!-- TODO: clarify why it was not here -->
+            <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
+          </fork>
+        </testclasses>
+      </junitlauncher>
+
+      <!-- TODO: ant community rejected to support "useFile" feature that's why we need to remove txt files created for "brief" formatter manually -->
+      <!-- See: https://github.com/apache/ant/pull/171 -->
+      <delete quiet="true">
+        <fileset dir="${build.test.dir}/output" includes="**/*.txt"/>
+      </delete>
       <fail message="Some CQL test(s) failed.">
         <condition>
             <and>
@@ -1706,27 +1719,34 @@
       <echo message="running ${test.methods} tests from ${test.name}"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
-      <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
-        <formatter type="brief" usefile="false"/>
-        <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
-        <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
-        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
-        <jvmarg value="-Dcassandra.skip_sync=true" />
+      <junitlauncher failureproperty="testfailed">
         <classpath>
           <path refid="cassandra.classpath.test" />
           <pathelement location="${test.classes}"/>
           <pathelement location="${test.conf}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-          </fileset>
         </classpath>
-        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
-        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
-      </junit>
+        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
+        <test outputdir="${build.test.dir}/output" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}">
+          <fork timeout="${test.timeout}">
+            <!-- ant-junitlauncher does not support `maxmemory` parameter, effectively it equals to passing Xmx directly -->
+            <jvmarg value="-Xmx1024m"/>
+            <jvmarg value="-Dstorage-config=${test.conf}"/>
+            <jvmarg value="-Djava.awt.headless=true"/>
+            <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
+            <jvmarg value="-ea"/>
+            <jvmarg value="-Xss256k"/>
+            <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+            <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+            <jvmarg value="-Dcassandra.skip_sync=true" />
+          </fork>
+        </test>
+      </junitlauncher>
+
+      <!-- TODO: ant community rejected to support "useFile" feature that's why we need to remove txt files created for "brief" formatter manually -->
+      <!-- See: https://github.com/apache/ant/pull/171 -->
+      <delete quiet="true">
+        <file file="${build.test.dir}/output/TEST-org.apache.cassandra.cql3.${test.name}.txt"/>
+      </delete>
     </sequential>
   </target>
 
@@ -1928,9 +1948,6 @@
               <path refid="cassandra.classpath.test" />
               <pathelement location="${test.classes}"/>
               <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
-                  <include name="**/*.jar" />
-              </fileset>
           </classpath>
           <arg value="-foe"/>
           <arg value="true"/>
@@ -1966,8 +1983,9 @@
               <path refid="cassandra.classpath" />
               <pathelement location="${test.classes}"/>
               <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
+              <fileset dir="${test.lib}/jars">
                   <include name="**/*.jar" />
+                  <exclude name="**/ant-*.jar"/>
               </fileset>
           </classpath>
       </java>
@@ -2144,7 +2162,7 @@
 
   <target name="init-checkstyle" depends="maven-ant-tasks-retrieve-build,build-project">
       <path id="checkstyle.lib.path">
-          <fileset dir="${test.lib}/jars" includes="*.jar"/>
+          <fileset dir="${test.lib}/jars" includes="*.jar" excludes="ant-*.jar"/>
       </path>
       <!-- Sevntu custom checks are retrieved by Ivy into lib folder
          and will be accessible to checkstyle-->
