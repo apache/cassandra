@@ -50,6 +50,8 @@ public class KubernetesSecretsPEMSslContextFactoryTest
     private static final Logger logger = LoggerFactory.getLogger(KubernetesSecretsPEMSslContextFactoryTest.class);
 
     private static final String ENCRYPTED_PRIVATE_KEY_FILEPATH = "build/test/conf/cassandra_encrypted_private_key.pem";
+    private static final String ENCRYPTED_PRIVATE_KEY_WITH_MULTIPLE_CERTS_IN_CERTCHAIN_FILEPATH = "build/test/conf" +
+                                                                                                  "/cassandra_encrypted_private_key_multiplecerts.pem";
     private static final String UNENCRYPTED_PRIVATE_KEY_FILEPATH = "build/test/conf/cassandra_unencrypted_private_key.pem";
     private static final String TRUSTED_CERTIFICATES_FILEPATH = "build/test/conf/cassandra_trusted_certificates.pem";
     private final static String TRUSTSTORE_UPDATED_TIMESTAMP_FILEPATH = "build/test/conf/cassandra_truststore_last_updatedtime";
@@ -59,7 +61,7 @@ public class KubernetesSecretsPEMSslContextFactoryTest
     private static String unencrypted_private_key;
     private static String trusted_certificates;
 
-    private Map<String, Object> commonConfig = new HashMap<>();
+    private final Map<String, Object> commonConfig = new HashMap<>();
 
     @BeforeClass
     public static void prepare()
@@ -211,6 +213,19 @@ public class KubernetesSecretsPEMSslContextFactoryTest
         Assert.assertFalse(kubernetesSecretsSslContextFactory3.checkedExpiry);
         kubernetesSecretsSslContextFactory3.buildKeyManagerFactory();
         Assert.assertTrue(kubernetesSecretsSslContextFactory3.checkedExpiry);
+    }
+
+    @Test
+    public void buildKeyManagerFactoryWithMultipleCertsInCertChain() throws IOException
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addKeystoreOptions(config);
+        config.put(DEFAULT_PRIVATE_KEY_ENV_VAR_NAME, readFile(ENCRYPTED_PRIVATE_KEY_WITH_MULTIPLE_CERTS_IN_CERTCHAIN_FILEPATH));
+
+        KubernetesSecretsPEMSslContextFactory kubernetesSecretsSslContextFactory2 = new KubernetesSecretsPEMSslContextFactoryForTestOnly(config);
+        // Trigger the private key loading. That will also check for expired private key
+        kubernetesSecretsSslContextFactory2.buildKeyManagerFactory();
     }
 
     @Test

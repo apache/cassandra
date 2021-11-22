@@ -219,6 +219,79 @@ public class PEMReaderTest
     "AVAkzYOwmRMYC9BHKjNs\n" +
     "-----END CERTIFICATE-----";
 
+    private static final String encoded_encrypted_key_with_multiplecerts_in_chain =
+    "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" +
+    "MIIE6TAbBgkqhkiG9w0BBQMwDgQI4QuRiKYzf88CAggABIIEyPRVmPp38SIFr8H3\n" +
+    "wi+oc6b+HJH7SPflXO6XZe4Tignw/aSyBTsLm2dWrzojRAYMIRd1xC7yQ2ffYrvx\n" +
+    "uoYbtOQeAminNqvwXdRTnwu6oC0rxdBT8RQ9NK7xL2tQyD/shmOeTJG/glXxaeqS\n" +
+    "rT0CZ5P5GJh6xdIWLEu3lEa3NSWVFE2YacUphmxBoaWjBjsJfWTgkF665SgP+2lh\n" +
+    "8R2WTcHrHjD8jR4jHB03wlup0LOmOwzplUmqHB9TyuA4wF6tlJajwBcPa0PNI6ny\n" +
+    "e9YcdcRr7Y0IxnPQr7PhQNV5AQb9TivwX4WaZxR+BXtwMglp+mz0ohjwLS3z6pqr\n" +
+    "tLrFhv2qcacSl+CKukFb9umV/QBkUk/iu+jwLcNJKPC965GWdieNbO0akBQpQsUN\n" +
+    "mqaF9DYHogW5lRnybl8WWPIR8tXmSCbSUIgzw4lRK+o15I4vaMI0NfkwFD/2y1sn\n" +
+    "t3m9LnVBukkpx3g/CPKd9PbZZeWpOTrnRJQfOu9Fj2lmkpGp0peCBqLJpO0pieVl\n" +
+    "87EQ0ZCErtAGLGIAhWnDUqRK0MaWZ+DMQNKYn5klF4YTVBkfRc9tQbIgBaa77wvz\n" +
+    "gvVWBuJtTFpCt9c8jByTH1gLbchC4bhLsy1nO7moevypMmNW4rqw9x5f0EIR3zCU\n" +
+    "L5/buoIh91TG5JB7BaIbVHtbB/Y2siARRXJibuw3ChBjqPOfzQ66j//NCMqhfTwT\n" +
+    "x2wn7L1BB4xyLJgVW9803FUTzaaL3EvJjzpdvrGC7vzcB6Jd0La9cjHhWSAPOKro\n" +
+    "nD9XPCbgLs10vW9g1Tc8drnZklhw6f7xrIQhWFg6VlwmVpvCQhEpX48rCCo2PH9X\n" +
+    "uzeJA+oqFEH3zfDp0r+q6jbAl+5TkkbBBgC2GCoI1vTYSKaWjeKKHkgzGG0QQLAz\n" +
+    "YXWMXvWKOME4wVPkeVxJv80RqDv0JsoOrnVoaFAzAHJMWa7UZQnjkrbVz/y8ZbV4\n" +
+    "oLJjQjvuOnU2PoXXs6SXbzOs1xx5zbX1UUH3Wc7/CCaUec2hemQJ5m6b1XJciyrY\n" +
+    "GHpMKWtXky9Mo1ruTP7ZH1nk03b4PTObKSx2gQD5AZ/ASuTeahMqMb/2PJkDkpHA\n" +
+    "sy8b1zOn2YTbf4K6NWVNIOkiaApmKhhX0Af6Lg8Wr2ymRTXdp/Um8f+SQLADpB/F\n" +
+    "xOydEN622wmihKDge9DrUFqPG/bdIiRGLXLg8efNboC6/cn/i/sheO7/YlrvcUNo\n" +
+    "qxDa/Bb1N/DgmtgAQ1ZP+AKjk6FKkwZRF1X/VZkZ6auscDlaPetF7razPeIJUrKN\n" +
+    "z/x4AD2txGYKmeYztYR577hPXBw+PPKdggRhIugb6z5Tk89C2pDEwfnByA/wcGJr\n" +
+    "w5avxrubosPrp0QtJpZMzouOvcD52VUiZzDfu9dqI/hpinyt5rETj5E19qxBjIZt\n" +
+    "X3Nq5lY2ktbyqVIo8Z8w4EUU+3XHZKqDwjyYvjxCxv5lVVnqvQrH9h3kENBMrPYQ\n" +
+    "4XonQHpUGG7g7pA3ylmHi+nEedr0H5qKHzyFZlRdI7CLVNoAtBSdwvmtGd2cVVXU\n" +
+    "EaToKNbHPXXYYPX/oVAWZYwD7PHXIRJkiEZnrFARNhLypicU7yjvejUPXcVy5HMh\n" +
+    "XqEbrODPp4VXfbYhVg==\n" +
+    "-----END ENCRYPTED PRIVATE KEY-----\n" +
+    "-----BEGIN CERTIFICATE-----\n" +
+    "MIIDXjCCAkYCAhI0MA0GCSqGSIb3DQEBBAUAMHcxCzAJBgNVBAYTAlVTMRMwEQYD\n" +
+    "VQQIDApDYWxpZm9ybmlhMREwDwYDVQQHDAhTYW4gSm9zZTEXMBUGA1UECgwOUGVy\n" +
+    "c29uYWwsIEluYy4xEDAOBgNVBAsMB1Jvb3QgQ0ExFTATBgNVBAMMDG15ZG9tYWlu\n" +
+    "LmNvbTAeFw0yMTExMjIyMjQ5MzlaFw0yMjExMjIyMjQ5MzlaMHIxCzAJBgNVBAYT\n" +
+    "AlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMREwDwYDVQQHDAhTYW4gSm9zZTEXMBUG\n" +
+    "A1UECgwOUGVyc29uYWwsIEluYy4xCzAJBgNVBAsMAklUMRUwEwYDVQQDDAxteWRv\n" +
+    "bWFpbi5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC5fdA7wwD9\n" +
+    "9e5RcdLscvGB+hqJUEHuNC53SYKg5X4Sf0H4ExQUbsy8UaoWzWHhgGbCtTvUVavl\n" +
+    "72xsO74ei0EblopW7QknF0kaTO8Vi3mxhUAdtZFLG/o0NS9J16HdGDGojJwuqU9+\n" +
+    "sMQt1w0HCTMlriELnxaUFKP7M9b0uK5VODEKJ38QKNGXUDt66D7BVYeT/6hz2cXK\n" +
+    "QWDoHk/JadALSzW5ES8KIHfxCLnl2TcKxQhJ4CnL8qeGvc8N3VyTh2AXajaJW5RB\n" +
+    "8Oy4CVoYxcdmP1IapxCD+yNcmNt9XpUTD+6eM5gnvtbye+MSfwPz2MW+fWEDZXOv\n" +
+    "3VxhJyTRFNVTAgMBAAEwDQYJKoZIhvcNAQEEBQADggEBADYK/pn6QG7bvUL0Xnnw\n" +
+    "1KPf1nx36gfJE2V0bNk4uyNNeYufMKS8gPLzC+a3RigCEDc+hIZFE5BJexHd7DXA\n" +
+    "CWgHZJtdjM/Xlgoxbf1yfGV3DWeIZlNFSFZujBIpbm1Ug2BAeV31YRWODPZlUSEZ\n" +
+    "0jv8NEs8/oEz9bM4jwRdn09lo4D9hE6o8qDnrzmN2LBZP5dDIJ6g/M+mq/SJFnho\n" +
+    "qBrfUABZhbgk2+tkZ89OI2xpASCLo6X/vqua2iho6km3x+cz6EI9BbvVr6xOOdVK\n" +
+    "m6gs/Bi4MGTh35jdmvyXoyBUOd1w3yBBj86qbEt2ZHYqreRTxntQYx06598Q9Dsi\n" +
+    "xdg=\n" +
+    "-----END CERTIFICATE-----\n" +
+    "-----BEGIN CERTIFICATE-----\n" +
+    "MIIDajCCAlICCQD/7mxPcMTPIDANBgkqhkiG9w0BAQsFADB3MQswCQYDVQQGEwJV\n" +
+    "UzETMBEGA1UECAwKQ2FsaWZvcm5pYTERMA8GA1UEBwwIU2FuIEpvc2UxFzAVBgNV\n" +
+    "BAoMDlBlcnNvbmFsLCBJbmMuMRAwDgYDVQQLDAdSb290IENBMRUwEwYDVQQDDAxt\n" +
+    "eWRvbWFpbi5jb20wHhcNMjExMTIyMjExODAwWhcNNDkwNDA5MjExODAwWjB3MQsw\n" +
+    "CQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTERMA8GA1UEBwwIU2FuIEpv\n" +
+    "c2UxFzAVBgNVBAoMDlBlcnNvbmFsLCBJbmMuMRAwDgYDVQQLDAdSb290IENBMRUw\n" +
+    "EwYDVQQDDAxteWRvbWFpbi5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK\n" +
+    "AoIBAQCkIwuNGv3ckew/o2UwaDlYgXH9bh1jap4ZCb6qpjvR3tq9nCerY6XMli0Z\n" +
+    "Xxg0wMHDNUr/jmVYIdQjbz0DVNz/l6ZBJHzHCEgqR40pNM3NgC5sDyuNhF3WLNvj\n" +
+    "WgHEwYosfb/9kFRjKUPqqtJ0ccj87OP3XrE/4epCTdJdmugroAQSpXt1ZZfwwPO4\n" +
+    "K27DzMD9W01EmeLcUhMfrpUnKGCfL22c0sZZm/6Khk4BExC3pSILP/NREKeUEAHw\n" +
+    "+rxhNqbUyD/e4/DutdtJ5zONA+GVVGYCpu1Iy0W78Jve4MD2/TFPcEzf5omiWpPz\n" +
+    "WjpOWayD43ur0SZnYJ5haUlZ+bSLAgMBAAEwDQYJKoZIhvcNAQELBQADggEBABqN\n" +
+    "/eb+mKEw2zklPZuzy5uhOc7ImG2LP/ha3oc2ntwkqZQ2LmVA/2ZNVfcNrRRngIfn\n" +
+    "Ir9Kual7djmKmIQvanpnSyXOKOlIiuN0VOrewgzlBZZwlFJL/AH1l7K9uZfBbV5h\n" +
+    "oFfaR9wc+vRGsg3nqO9+hEuk6xbp0jk8QCt26EVhEPlijxzbxTQYiNPNSLuf/kPW\n" +
+    "C9xtIKSWIDT4N6DtH7BtHGQKQdRJ2b4SSUF4joEmBe6jcrLBeDybmuFtKqlVJKUk\n" +
+    "tzBd9CPseqMML1c518KzxlSkXNxTCa7PWEnuN5atLZ+pGGjxtGcDKkrZ9Cgi09G8\n" +
+    "MzB8b4C/goypyhBNlyI=\n" +
+    "-----END CERTIFICATE-----";
+
     @Test
     public void readEncryptedKey() throws IOException, GeneralSecurityException
     {
@@ -263,6 +336,13 @@ public class PEMReaderTest
         Certificate[] certificates = PEMReader.extractCertificates(encoded_encrypted_key);
         Assert.assertNotNull("CertChain must not be null", certificates);
         Assert.assertTrue("CertChain must have only one certificate", certificates.length==1);
+    }
+
+    @Test
+    public void readCertChainWithMoreThanOneCerts() throws GeneralSecurityException
+    {
+        Certificate[] certificates = PEMReader.extractCertificates(encoded_encrypted_key_with_multiplecerts_in_chain);
+        Assert.assertNotNull("CertChain must not be null", certificates);
     }
 
     @Test(expected = GeneralSecurityException.class)
