@@ -1420,6 +1420,18 @@
             </fork>
         </testclasses>
       </junitlauncher>
+      <!-- TODO: since "extension" feature is available in ant 1.10.13 only we rename txt files to xml manually -->
+      <!-- See: https://github.com/apache/ant/pull/168 -->
+      <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false">
+        <fileset dir="${build.test.dir}/output/@{testtag}"/>
+        <mapper type="glob" from="*.txt" to="*.xml"/>
+      </move>
+
+      <!-- TODO: ant community rejected to support "useFile" feature that's why we need to remove txt files created for "brief" formatter manually -->
+      <!-- See: https://github.com/apache/ant/pull/171 -->
+      <delete>
+        <fileset dir="${build.test.dir}/output/@{testtag}" includes="**/*.txt"/>
+      </delete>
 
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/cdc_raw"/>
