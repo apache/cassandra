@@ -24,6 +24,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.management.openmbean.CompositeData;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -36,6 +37,7 @@ import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -195,6 +197,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     private final IFailureDetector failureDetector;
     private final Gossiper gossiper;
     private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
+
+    private final DebuggableThreadPoolExecutor clearSnapshotExecutor = DebuggableThreadPoolExecutor.createWithMaximumPoolSize("RepairClearSnapshot",
+                                                                                                                              1,
+                                                                                                                              1,
+                                                                                                                              TimeUnit.HOURS);
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
@@ -699,10 +706,22 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         ParentRepairSession session = parentRepairSessions.remove(parentSessionId);
         if (session == null)
             return null;
-        for (ColumnFamilyStore cfs : session.columnFamilyStores.values())
+
+        if (session.hasSnapshots)
         {
-            if (cfs.snapshotExists(snapshotName))
-                cfs.clearSnapshot(snapshotName);
+            clearSnapshotExecutor.submit(() -> {
+                logger.info("[repair #{}] Clearing snapshots for {}", parentSessionId,
+                            session.columnFamilyStores.values()
+                                                      .stream()
+                                                      .map(cfs -> cfs.metadata().toString()).collect(Collectors.joining(", ")));
+                long startNanos = System.nanoTime();
+                for (ColumnFamilyStore cfs : session.columnFamilyStores.values())
+                {
+                    if (cfs.snapshotExists(snapshotName))
+                        cfs.clearSnapshot(snapshotName);
+                }
+                logger.info("[repair #{}] Cleared snapshots in {}ms", parentSessionId, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
+            });
         }
         return session;
     }
@@ -744,6 +763,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public final long repairedAt;
         public final InetAddressAndPort coordinator;
         public final PreviewKind previewKind;
+        public volatile boolean hasSnapshots = false;
 
         public ParentRepairSession(InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
         {
@@ -798,6 +818,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     ", ranges=" + ranges +
                     ", repairedAt=" + repairedAt +
                     '}';
+        }
+
+        public void setHasSnapshots()
+        {
+            hasSnapshots = true;
         }
     }
 
@@ -865,5 +890,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             logger.info(message, parentSessionsToRemove);
             parentSessionsToRemove.forEach(this::removeParentRepairSession);
         }
+    }
+
+    @VisibleForTesting
+    public int parentRepairSessionCount()
+    {
+        return parentRepairSessions.size();
     }
 }
