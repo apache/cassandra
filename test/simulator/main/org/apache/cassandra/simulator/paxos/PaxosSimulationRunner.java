@@ -125,9 +125,9 @@ public class PaxosSimulationRunner extends SimulationRunner
         Optional.ofNullable(toVariant).map(Config.PaxosVariant::valueOf).ifPresent(builder::finalPaxosVariant);
     }
 
-    // be sure to invoke with: -XX:ActiveProcessorCount= and -Xmx for reproducibility
-    // -XX:Tier4CompileThreshold=1000 -XX:-TieredCompilation for significantly reduced CPU utilisation
-    // -XX:ReservedCodeCacheSize=128M for compiler to have enouvh room
+    /**
+     * See {@link org.apache.cassandra.simulator} package info for execution tips
+     */
     public static void main(String[] args) throws IOException
     {
         Cli.<SimulationRunner.ICommand<PaxosClusterSimulation.Builder>>builder("paxos")

@@ -34,6 +34,7 @@ import org.apache.cassandra.simulator.Ordered.StrictlyOrdered;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
 import static org.apache.cassandra.simulator.Action.Modifier.*;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Phase.CANCELLED;
@@ -54,7 +55,7 @@ import static org.apache.cassandra.simulator.utils.CompactLists.safeForEach;
 
 public abstract class Action implements PriorityQueueNode
 {
-    private static final boolean DEBUG = Action.class.desiredAssertionStatus();
+    private static final boolean DEBUG = TEST_SIMULATOR_DEBUG.getBoolean();
 
     public enum Modifier
     {

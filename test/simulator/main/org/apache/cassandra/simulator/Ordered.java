@@ -33,6 +33,7 @@ import org.apache.cassandra.simulator.utils.IntrusiveLinkedList;
 import org.apache.cassandra.simulator.utils.IntrusiveLinkedListNode;
 
 import static java.util.Collections.newSetFromMap;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
 
 /**
  * Represents an action that may not run before certain other actions
@@ -42,7 +43,7 @@ import static java.util.Collections.newSetFromMap;
  */
 class Ordered extends OrderedLink implements ActionListener
 {
-    static final boolean DEBUG = ActionSchedule.class.desiredAssertionStatus();
+    static final boolean DEBUG = TEST_SIMULATOR_DEBUG.getBoolean();
 
     /**
      * A sequence is used to model STRICT execution order imposed on certain actions that are not able

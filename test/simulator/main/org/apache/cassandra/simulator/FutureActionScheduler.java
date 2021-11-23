@@ -18,13 +18,40 @@
 
 package org.apache.cassandra.simulator;
 
+/**
+ * Makes decisions about when in the simulated scheduled, in terms of the global simulated nanoTime,
+ * events should occur.
+ */
 public interface FutureActionScheduler
 {
     enum Deliver { DELIVER, TIMEOUT, FAILURE }
 
+    /**
+     * Make a decision about the result of some attempt to deliver a message.
+     * Note that this includes responses, so for any given message the chance
+     * of a successful reply depends on two of these calls succeeding.
+     */
     Deliver shouldDeliver(int from, int to);
+
+    /**
+     * The simulated global nanoTime arrival of a message
+     */
     long messageDeadlineNanos(int from, int to);
+
+    /**
+     * The simulated global nanoTime at which a timeout should be reported for a message
+     * with {@code expiresAfterNanos} timeout
+     */
     long messageTimeoutNanos(long expiresAfterNanos);
+
+    /**
+     * The simulated global nanoTime at which a failure should be reported for a message
+     */
     long messageFailureNanos(int from, int to);
+
+    /**
+     * The additional time in nanos that should elapse for some thread signal event to occur
+     * to simulate scheduler latency
+     */
     long schedulerDelayNanos();
 }

@@ -44,6 +44,7 @@ import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SingleThreadExecutorPlus;
 import org.apache.cassandra.concurrent.SyncFutureTask;
 import org.apache.cassandra.concurrent.TaskFactory;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.OrderOn.OrderAppliesAfterScheduling;
 import org.apache.cassandra.simulator.systems.NotifyThreadPaused.AwaitPaused;
@@ -58,6 +59,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
 import static org.apache.cassandra.simulator.systems.InterceptibleThread.runDeterministic;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_DAEMON;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TASK;
@@ -138,8 +140,7 @@ public interface InterceptingExecutor extends OrderOn
         final InterceptorOfExecution interceptorOfExecution;
         final InterceptingTaskFactory taskFactory;
 
-        // TODO (now): use system property
-        final Set<Object> debugPending = AbstractInterceptingExecutor.class.desiredAssertionStatus() ? synchronizedSet(newSetFromMap(new IdentityHashMap<>())) : null;
+        final Set<Object> debugPending = TEST_SIMULATOR_DEBUG.getBoolean() ? synchronizedSet(newSetFromMap(new IdentityHashMap<>())) : null;
         final Condition isTerminated = new Sync();
         volatile boolean isShutdown;
         volatile int pending;
