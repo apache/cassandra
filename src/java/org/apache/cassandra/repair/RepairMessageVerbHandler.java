@@ -109,6 +109,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
 
                     ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
+                    prs.setHasSnapshots();
                     TableRepairManager repairManager = cfs.getRepairManager();
                     if (prs.isGlobal)
                     {
