@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.schema;
 
+import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -37,7 +38,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -179,7 +179,6 @@ public class MigrationCoordinator
     private final ScheduledExecutorService periodicCheckExecutor;
     private final MessagingService messagingService;
     private final AtomicReference<ScheduledFuture<?>> periodicPullTask = new AtomicReference<>();
-    private final LongSupplier getUptimeFn;
     private final int maxOutstandingVersionRequests;
     private final Gossiper gossiper;
     private final Supplier<UUID> schemaVersion;
@@ -196,7 +195,6 @@ public class MigrationCoordinator
     MigrationCoordinator(MessagingService messagingService,
                          ExecutorPlus executor,
                          ScheduledExecutorService periodicCheckExecutor,
-                         LongSupplier getUptimeFn,
                          int maxOutstandingVersionRequests,
                          Gossiper gossiper,
                          Supplier<UUID> schemaVersionSupplier,
@@ -205,7 +203,6 @@ public class MigrationCoordinator
         this.messagingService = messagingService;
         this.executor = executor;
         this.periodicCheckExecutor = periodicCheckExecutor;
-        this.getUptimeFn = getUptimeFn;
         this.maxOutstandingVersionRequests = maxOutstandingVersionRequests;
         this.gossiper = gossiper;
         this.schemaVersion = schemaVersionSupplier;
@@ -338,7 +335,7 @@ public class MigrationCoordinator
     private boolean shouldPullImmediately(InetAddressAndPort endpoint, UUID version)
     {
         UUID localSchemaVersion = schemaVersion.get();
-        if (SchemaConstants.emptyVersion.equals(localSchemaVersion) || getUptimeFn.getAsLong() < MIGRATION_DELAY_IN_MS)
+        if (SchemaConstants.emptyVersion.equals(localSchemaVersion) || ManagementFactory.getRuntimeMXBean().getUptime() < MIGRATION_DELAY_IN_MS)
         {
             // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
             logger.debug("Immediately submitting migration task for {}, " +

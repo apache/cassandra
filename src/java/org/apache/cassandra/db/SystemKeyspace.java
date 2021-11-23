@@ -491,11 +491,6 @@ public final class SystemKeyspace
         DECOMMISSIONED
     }
 
-    public static void finishStartup()
-    {
-        Schema.instance.saveSystemKeyspace();
-    }
-
     public static void persistLocalMetadata()
     {
         String req = "INSERT INTO system.%s (" +

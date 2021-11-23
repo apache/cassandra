@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.schema;
 
-import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -26,7 +25,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -68,7 +66,6 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         return new MigrationCoordinator(messagingService,
                                         Stage.MIGRATION.executor(),
                                         ScheduledExecutors.scheduledTasks,
-                                        () -> ManagementFactory.getRuntimeMXBean().getUptime(),
                                         MAX_OUTSTANDING_VERSION_REQUESTS,
                                         Gossiper.instance,
                                         () -> schema.getVersion(),
@@ -97,6 +94,9 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     {
         if (StorageService.instance.isReplacing())
             onRemove(DatabaseDescriptor.getReplaceAddress());
+
+        SchemaKeyspace.saveSystemKeyspacesSchema();
+
         migrationCoordinator.start();
     }
 

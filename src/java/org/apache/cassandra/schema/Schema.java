@@ -123,37 +123,6 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * Add entries to system_schema.* for the hardcoded system keyspaces
-     *
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized void saveSystemKeyspace()
-    {
-        SchemaKeyspace.saveSystemKeyspacesSchema();
-    }
-
-    /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized void truncateSchemaKeyspace()
-    {
-        SchemaKeyspace.truncate();
-    }
-
-    /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized Collection<Mutation> schemaKeyspaceAsMutations()
-    {
-        return SchemaKeyspace.convertSchemaToMutations();
-    }
-
-    public static KeyspaceMetadata getSystemKeyspaceMetadata()
-    {
-        return SchemaKeyspace.metadata();
-    }
-
-    /**
      * Load keyspaces definitions from local storage, see {@link SchemaUpdateHandler#reset(boolean)}.
      */
     public void loadFromDisk()
@@ -690,7 +659,7 @@ public class Schema implements SchemaProvider
             delta.views.altered.forEach(diff -> alterView(keyspace, diff.after));
 
             // deal with all added, and altered views
-            Keyspace.open(delta.after.name).viewManager.reload(true);
+            Keyspace.open(delta.after.name, this, true).viewManager.reload(true);
         }
 
         schemaChangeNotifier.notifyKeyspaceAltered(delta);
@@ -703,7 +672,7 @@ public class Schema implements SchemaProvider
         load(keyspace);
         if (Keyspace.isInitialized())
         {
-            Keyspace.open(keyspace.name);
+            Keyspace.open(keyspace.name, this, true);
         }
 
         schemaChangeNotifier.notifyKeyspaceCreated(keyspace);

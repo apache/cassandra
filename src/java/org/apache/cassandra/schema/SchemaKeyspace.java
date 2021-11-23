@@ -251,7 +251,7 @@ public final class SchemaKeyspace
                                    .build();
     }
 
-    static KeyspaceMetadata metadata()
+    public static KeyspaceMetadata metadata()
     {
         return KeyspaceMetadata.create(SchemaConstants.SCHEMA_KEYSPACE_NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
@@ -446,7 +446,7 @@ public final class SchemaKeyspace
         return metadata.partitioner.decorateKey(metadata.partitionKeyType.decomposeUntyped(value));
     }
 
-    static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
+    private static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.keyspace, decorate(Keyspaces, name))
                                                  .timestamp(timestamp);
@@ -459,6 +459,7 @@ public final class SchemaKeyspace
         return builder;
     }
 
+    @VisibleForTesting
     static Mutation.SimpleBuilder makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
@@ -472,7 +473,7 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
+    private static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
@@ -505,7 +506,7 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    static void addTableToSchemaMutation(TableMetadata table, boolean withColumnsAndTriggers, Mutation.SimpleBuilder builder)
+    private static void addTableToSchemaMutation(TableMetadata table, boolean withColumnsAndTriggers, Mutation.SimpleBuilder builder)
     {
         Row.SimpleBuilder rowBuilder = builder.update(Tables)
                                               .row(table.name)
@@ -611,6 +612,7 @@ public final class SchemaKeyspace
             addUpdatedIndexToSchemaMutation(newTable, diff.rightValue(), builder);
     }
 
+    @VisibleForTesting
     static Mutation.SimpleBuilder makeUpdateTableMutation(KeyspaceMetadata keyspace,
                                                           TableMetadata oldTable,
                                                           TableMetadata newTable,
@@ -641,14 +643,6 @@ public final class SchemaKeyspace
         after.forEach(t -> afterMap.put(t.name, t));
 
         return Maps.difference(beforeMap, afterMap);
-    }
-
-    static Mutation.SimpleBuilder makeDropTableMutation(KeyspaceMetadata keyspace, TableMetadata table, long timestamp)
-    {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        addDropTableToSchemaMutation(table, builder);
-        return builder;
     }
 
     private static void addDropTableToSchemaMutation(TableMetadata table, Mutation.SimpleBuilder builder)
@@ -949,6 +943,7 @@ public final class SchemaKeyspace
                             .build();
     }
 
+    @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
         return TableParams.builder()
@@ -989,6 +984,7 @@ public final class SchemaKeyspace
         return columns;
     }
 
+    @VisibleForTesting
     static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
     {
         String keyspace = row.getString("keyspace_name");

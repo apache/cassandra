@@ -141,8 +141,7 @@ public class Keyspace
         return open(keyspaceName, Schema.instance, false);
     }
 
-    @VisibleForTesting
-    static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
+    public static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
         return schema.maybeAddKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
     }

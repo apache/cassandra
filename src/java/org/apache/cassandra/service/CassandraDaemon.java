@@ -372,8 +372,6 @@ public class CassandraDaemon
             throw new RuntimeException(e);
         }
 
-        SystemKeyspace.finishStartup();
-
         // Clean up system.size_estimates entries left lying around from missed keyspace drops (CASSANDRA-14905)
         StorageService.instance.cleanupSizeEstimates();
 

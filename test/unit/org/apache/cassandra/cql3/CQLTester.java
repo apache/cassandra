@@ -514,7 +514,6 @@ public abstract class CQLTester
 
     private static void startServices()
     {
-        SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();

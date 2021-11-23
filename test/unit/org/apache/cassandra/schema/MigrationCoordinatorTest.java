@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.schema;
 
-import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -141,7 +140,6 @@ public class MigrationCoordinatorTest
             this.coordinator = new MigrationCoordinator(messagingService,
                                                         ImmediateExecutor.INSTANCE,
                                                         oneTimeExecutor,
-                                                        () -> ManagementFactory.getRuntimeMXBean().getUptime(),
                                                         maxOutstandingRequests,
                                                         gossiper,
                                                         () -> localSchemaVersion,
