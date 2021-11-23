@@ -379,7 +379,7 @@ public final class SystemDistributedKeyspace
             {
                 valueList.add(bytes(v));
             }
-            QueryProcessor.process(fmtQry, ConsistencyLevel.ONE, valueList);
+            QueryProcessor.process(fmtQry, ConsistencyLevel.ANY, valueList);
         }
         catch (Throwable t)
         {
