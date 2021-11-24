@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,23 +27,24 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.LongBinaryOperator;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
+
 public class RecomputingSupplierTest
 {
+    // This test case verifies that recomputing supplier never returns out of order values during concurrent updates and
+    // eventually returns the most recent value.
     @Test
     public void recomputingSupplierTest() throws Throwable
     {
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
         ExecutorService testExecutor = Executors.newFixedThreadPool(10);
-
         AtomicReference<Throwable> thrown = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
         final AtomicLong counter = new AtomicLong(0);
+
         final RecomputingSupplier<Long> supplier = new RecomputingSupplier<>(() -> {
             try
             {
@@ -57,7 +57,6 @@ public class RecomputingSupplierTest
             catch (Throwable e)
             {
                 thrown.set(e);
-                latch.countDown();
                 throw new RuntimeException(e);
             }
         }, executor);
@@ -73,7 +72,6 @@ public class RecomputingSupplierTest
                 catch (Throwable e)
                 {
                     thrown.set(e);
-                    latch.countDown();
                 }
             });
         }
@@ -87,37 +85,46 @@ public class RecomputingSupplierTest
                     try
                     {
                         long seenBeforeGet = lastSeen.get();
-                        Long v = supplier.get(1, TimeUnit.SECONDS);
+                        Long v = supplier.get(5, TimeUnit.SECONDS);
                         if (v != null)
                         {
                             lastSeen.accumulateAndGet(v, Math::max);
                             Assert.assertTrue(String.format("Seen %d out of order. Last seen value %d", v, seenBeforeGet),
                                               v >= seenBeforeGet);
-
                         }
-
                     }
                     catch (Throwable e)
                     {
                         thrown.set(e);
-                        latch.countDown();
                     }
                 }
             });
         }
 
-        latch.await(10, TimeUnit.SECONDS);
-
+        Util.spinAssertEquals(true, () -> counter.get() > 1000, 30);
         testExecutor.shutdown();
-        testExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+        Assert.assertTrue(testExecutor.awaitTermination(30, TimeUnit.SECONDS));
 
         if (thrown.get() != null)
             throw new AssertionError(supplier.toString(), thrown.get());
 
-        Assert.assertTrue(counter.get() > 1); // We actually did some work
-        Assert.assertEquals(supplier.get(1, TimeUnit.SECONDS).longValue(), counter.get());
+        Util.spinAssertEquals(true, () -> {
+            try
+            {
+                return supplier.get(1, TimeUnit.SECONDS) == counter.get();
+            }
+            catch (InterruptedException | ExecutionException | TimeoutException e)
+            {
+                e.printStackTrace();
+                return false;
+            }
+        }, 10);
+
+        executor.shutdown();
+        Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+
+        if (thrown.get() != null)
+            throw new AssertionError(supplier.toString(), thrown.get());
     }
 
     @Test
