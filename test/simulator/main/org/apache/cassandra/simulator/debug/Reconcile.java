@@ -105,6 +105,7 @@ public class Reconcile
 
         public void checkThread() throws IOException
         {
+            // normalise lambda also strips Object.toString() inconsistencies for some Thread objects
             String thread = NORMALISE_LAMBDA.matcher(readInterned()).replaceAll("");
             String ourThread = NORMALISE_LAMBDA.matcher(Thread.currentThread().toString()).replaceAll("");
             String callSite = NORMALISE_LAMBDA.matcher(readCallSite()).replaceAll("");
@@ -430,7 +431,6 @@ public class Reconcile
             throw new RuntimeException("Failed on seed " + Long.toHexString(seed), t);
         }
     }
-
 
     private static String normaliseRecordingIn(String input)
     {

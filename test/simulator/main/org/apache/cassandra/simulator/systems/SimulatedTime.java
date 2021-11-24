@@ -37,7 +37,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.simulator.RandomSource.Choices.uniform;
 
 // TODO (cleanup): when we encounter an exception and unwind the simulation, we should restore normal time to go with normal waits etc.
-// TODO (now): configurable clock skew
 public class SimulatedTime
 {
     public static class Throwing implements Clock, MonotonicClock

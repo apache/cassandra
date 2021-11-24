@@ -57,7 +57,6 @@ import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.SimulatorUtils.dumpStackTraces;
 
 /**
- * TODO (now): support teleporting into the future to simulate extreme stalls or other weirdness
  * TODO (feature): support total stalls on specific nodes
  *
  * This class coordinates the running of actions that have been planned by an ActionPlan, or are the consequences

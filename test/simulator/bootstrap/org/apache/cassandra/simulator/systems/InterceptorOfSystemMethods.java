@@ -32,9 +32,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * A superclass of InterceptorOfGlobalMethods exposing those methods we might want to use for byte-weaving classes
- * loaded by the system classloader (such as concurrency primitives). Today we do not byte weave these except for Enum,
- * after an aborted attempt to byteweave ConcurrentHashMap directly (but it is interwoven into class loading, making it
- * infeasible), but the facility may ne of use in future.
+ * loaded by the system classloader (such as concurrency primitives). Today we byte weave Enum, Object, Random,
+ * ThreadLocalRandom, ConcurrentHashMap (only for determinism) and all of java.util.concurrent.locks (for park/unpark).
+ * See {@link org.apache.cassandra.simulator.asm.InterceptAgent} for more details.
  */
 @SuppressWarnings("unused")
 public interface InterceptorOfSystemMethods
