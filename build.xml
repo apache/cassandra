@@ -1343,7 +1343,7 @@
       <condition property="showoutput" value="true">
         <istrue value="${showoutput}"/>
       </condition>
-      <taskdef name="junit-timeout" classname="org.apache.cassandra.JStackJUnitTask">
+      <taskdef name="junit-timeout" classname="org.apache.cassandra.JStackJUnitLauncherTask">
         <classpath>
           <pathelement location="${test.classes}"/>
         </classpath>
@@ -1362,7 +1362,7 @@
       <!-- TODO: remove me -->
       <echo message="Tests to run: ${testfiles}"/>
       <!-- TODO: forkmode="@{forkmode}" -->
-      <junitlauncher failureproperty="testfailed">
+      <junitlauncher-timeout failureproperty="testfailed">
         <classpath>
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
@@ -1418,7 +1418,7 @@
                 -->
             </fork>
         </testclasses>
-      </junitlauncher>
+      </junitlauncher-timeout>
       <!-- TODO: since "extension" feature is available in ant 1.10.13 only we rename txt files to xml manually -->
       <!-- See: https://github.com/apache/ant/pull/168 -->
       <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false" quiet="true">

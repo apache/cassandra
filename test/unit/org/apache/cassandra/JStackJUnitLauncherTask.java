@@ -26,7 +26,7 @@ import org.apache.tools.ant.taskdefs.ExecuteWatchdog;
 import org.apache.tools.ant.taskdefs.optional.junitlauncher.confined.JUnitLauncherTask;
 import org.apache.tools.ant.util.Watchdog;
 
-public class JStackJUnitTask extends JUnitLauncherTask
+public class JStackJUnitLauncherTask extends JUnitLauncherTask
 {
     @Override
     protected ExecuteWatchdog createExecuteWatchdog(long timeout)
