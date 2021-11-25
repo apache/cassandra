@@ -25,11 +25,13 @@ import java.nio.file.attribute.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -332,6 +334,49 @@ public final class PathUtils
 
         // The directory is now empty so now it can be smoked
         delete(path, rateLimiter);
+    }
+
+    /**
+     * Recursively delete the content of the directory, but not the directory itself.
+     * @param dirPath directory for which content should be deleted 
+     */
+    public static void deleteContent(Path dirPath)
+    {
+        if (isDirectory(dirPath))
+            forEach(dirPath, PathUtils::deleteRecursive);
+    }
+
+    /**
+     * List all paths in this directory
+     * @param dirPath directory for which to list all paths
+     * @return list of all paths contained in the given directory
+     */
+    public static List<Path> listPaths(Path dirPath)
+    {
+        return listPaths(dirPath, p -> true);
+    }
+
+    /**
+     * List paths in this directory that match the filter
+     * @param dirPath directory for which to list all paths matching the given filter
+     * @param filter predicate used to filter paths
+     * @return filtered list of paths contained in the given directory
+     */
+    public static List<Path> listPaths(Path dirPath, Predicate<Path> filter)
+    {
+        try (Stream<Path> stream = Files.list(dirPath))
+        {
+            return (consistentDirectoryListings ? stream.sorted() : stream).filter(filter).collect(Collectors.toList());
+        }
+        catch(NotDirectoryException | NoSuchFileException ex)
+        {
+            // Don't throw if the file does not exist or is not a directory
+            return ImmutableList.of();
+        }
+        catch(IOException ex)
+        {
+            throw new FSReadError(ex, dirPath);
+        }
     }
 
     /**
