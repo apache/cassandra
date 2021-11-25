@@ -1852,6 +1852,9 @@
               <path refid="cassandra.classpath.test" />
               <pathelement location="${test.classes}"/>
               <pathelement location="${test.conf}"/>
+              <fileset dir="${test.lib}">
+                  <include name="**/*.jar" />
+              </fileset>
           </classpath>
           <arg value="-foe"/>
           <arg value="true"/>
@@ -1887,9 +1890,8 @@
               <path refid="cassandra.classpath" />
               <pathelement location="${test.classes}"/>
               <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}/jars">
+              <fileset dir="${test.lib}">
                   <include name="**/*.jar" />
-                  <exclude name="**/ant-*.jar"/>
               </fileset>
           </classpath>
       </java>
@@ -2041,32 +2043,31 @@
 
         <echo message="Running Eclipse Code Analysis.  Output logged to ${ecj.warnings.file}" />
 
-<!--      TODO: rollback -->
-<!--	<java-->
-<!--	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"-->
-<!--            fork="true"-->
-<!--	    failonerror="true"-->
-<!--            maxmemory="512m">-->
-<!--            <arg value="-source"/>-->
-<!--	    <arg value="${source.version}" />-->
-<!--	    <arg value="-target"/>-->
-<!--	    <arg value="${target.version}" />-->
-<!--	    <arg value="-d" />-->
-<!--            <arg value="none" />-->
-<!--	    <arg value="-proc:none" />-->
-<!--            <arg value="-log" />-->
-<!--            <arg value="${ecj.warnings.file}" />-->
-<!--            <arg value="-properties" />-->
-<!--            <arg value="${ecj.properties}" />-->
-<!--            <arg value="-cp" />-->
-<!--            <arg value="${toString:cassandra.classpath}" />-->
-<!--            <arg value="${build.src.java}" />-->
-<!--        </java>-->
+	<java
+	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"
+            fork="true"
+	    failonerror="true"
+            maxmemory="512m">
+            <arg value="-source"/>
+	    <arg value="${source.version}" />
+	    <arg value="-target"/>
+	    <arg value="${target.version}" />
+	    <arg value="-d" />
+            <arg value="none" />
+	    <arg value="-proc:none" />
+            <arg value="-log" />
+            <arg value="${ecj.warnings.file}" />
+            <arg value="-properties" />
+            <arg value="${ecj.properties}" />
+            <arg value="-cp" />
+            <arg value="${toString:cassandra.classpath}" />
+            <arg value="${build.src.java}" />
+        </java>
   </target>
 
   <target name="init-checkstyle" depends="maven-ant-tasks-retrieve-build,build-project">
       <path id="checkstyle.lib.path">
-          <fileset dir="${test.lib}/jars" includes="*.jar" excludes="ant-*.jar"/>
+          <fileset dir="${test.lib}/jars" includes="*.jar"/>
       </path>
       <!-- Sevntu custom checks are retrieved by Ivy into lib folder
          and will be accessible to checkstyle-->
@@ -2081,14 +2082,13 @@
 
       <property name="checkstyle.properties" value="${basedir}/checkstyle.xml" />
       <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
-<!--      TODO: rollback-->
-<!--      <checkstyle config="${checkstyle.properties}"-->
-<!--                  failureProperty="checkstyle.failure"-->
-<!--                  failOnViolation="true">-->
-<!--          <formatter type="plain"/>-->
-<!--          <formatter type="xml" tofile="${checkstyle.report.file}"/>-->
-<!--          <fileset dir="${build.src.java}" includes="**/*.java"/>-->
-<!--      </checkstyle>-->
+      <checkstyle config="${checkstyle.properties}"
+                  failureProperty="checkstyle.failure"
+                  failOnViolation="true">
+          <formatter type="plain"/>
+          <formatter type="xml" tofile="${checkstyle.report.file}"/>
+          <fileset dir="${build.src.java}" includes="**/*.java"/>
+      </checkstyle>
   </target>
 
 
