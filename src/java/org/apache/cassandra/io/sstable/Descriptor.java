@@ -236,22 +236,7 @@ public class Descriptor
             file = file.toAbsolute();
 
         String name = file.name();
-        List<String> tokens = filenameSplitter.splitToList(name);
-        int size = tokens.size();
-
-        if (size != 4)
-        {
-            // This is an invalid sstable file for this version. But to provide a more helpful error message, we detect
-            // old format sstable, which had the format:
-            //   <keyspace>-<table>-(tmp-)?<version>-<gen>-<component>
-            // Note that we assume it's an old format sstable if it has the right number of tokens: this is not perfect
-            // but we're just trying to be helpful, not perfect.
-            if (size == 5 || size == 6)
-                throw new IllegalArgumentException(String.format("%s is of version %s which is now unsupported and cannot be read.",
-                                                                 name,
-                                                                 tokens.get(size - 3)));
-            throw new IllegalArgumentException(String.format("Invalid sstable file %s: the name doesn't look like a supported sstable file name", name));
-        }
+        List<String> tokens = filenameTokens(name);
 
         String versionString = tokens.get(0);
         if (!Version.validate(versionString))
@@ -307,6 +292,50 @@ public class Descriptor
         return Pair.create(new Descriptor(version, directory, keyspace, table, generation, format), component);
     }
 
+    public static Component validFilenameWithComponent(String name)
+    {
+        try
+        {
+            List<String> tokens = filenameTokens(name);
+
+            String versionString = tokens.get(0);
+            if (!Version.validate(versionString))
+                return null;
+
+            SSTableUniqueIdentifierFactory.instance.fromString(tokens.get(1));
+
+            String formatString = tokens.get(2);
+            SSTableFormat.Type.validate(formatString);
+
+            return Component.parse(tokens.get(3));
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    private static List<String> filenameTokens(String name)
+    {
+        List<String> tokens = filenameSplitter.splitToList(name);
+        int size = tokens.size();
+
+        if (size != 4)
+        {
+            // This is an invalid sstable file for this version. But to provide a more helpful error message, we detect
+            // old format sstable, which had the format:
+            //   <keyspace>-<table>-(tmp-)?<version>-<gen>-<component>
+            // Note that we assume it's an old format sstable if it has the right number of tokens: this is not perfect
+            // but we're just trying to be helpful, not perfect.
+            if (size == 5 || size == 6)
+                throw new IllegalArgumentException(String.format("%s is of version %s which is now unsupported and cannot be read.",
+                                                                 name,
+                                                                 tokens.get(size - 3)));
+            throw new IllegalArgumentException(String.format("Invalid sstable file %s: the name doesn't look like a supported sstable file name", name));
+        }
+        return tokens;
+    }
+    
     private static File parentOf(String name, File file)
     {
         File parent = file.parent();
