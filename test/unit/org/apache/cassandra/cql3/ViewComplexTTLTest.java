@@ -26,13 +26,15 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
+/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
  * - ViewComplexUpdatesTest
  * - ViewComplexDeletionsTest
  * - ViewComplexTTLTest
  * - ViewComplexTest
  * - ViewComplexLivenessTest
+ * - ...
+ * - ViewComplex*Test
  */
 public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
 {

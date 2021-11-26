@@ -32,15 +32,15 @@ import org.junit.Test;
  * - ...
  * - ViewFiltering*Test
  */
-public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
+public class ViewFilteringComplexPKTest extends ViewAbstractParameterizedTest
 {
     @Test
-    public void testClusteringKeyMultiColumnRestrictions() throws Throwable
+    public void testCompoundPartitionKeyRestrictions() throws Throwable
     {
         List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
         for (int i = 0; i < mvPrimaryKeys.size(); i++)
         {
-            createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+            createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
 
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 0);
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 1, 0);
@@ -48,49 +48,40 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 1, 0);
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 0, 0);
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 1, 0);
-            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, -1, 0);
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 0, 0);
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 1, 0);
 
             logger.info("Testing MV primary key: {}", mvPrimaryKeys.get(i));
 
-            // only accept rows where b = 1
+            // only accept rows where a = 1 and b = 1
             createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
-                       "WHERE a IS NOT NULL AND (b, c) >= (1, 0) " +
+                       "WHERE a = 1 AND b = 1 AND c IS NOT NULL " +
                        "PRIMARY KEY " + mvPrimaryKeys.get(i));
 
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 0, 0),
                                     row(1, 1, 1, 0));
 
             // insert new rows that do not match the filter
-            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, -1, 0, 0);
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 0, 0, 0);
-            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1, -1, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 2, 0, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 0, 0),
                                     row(1, 1, 1, 0));
 
             // insert new row that does match the filter
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 2, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 0, 0),
                                     row(1, 1, 1, 0),
                                     row(1, 1, 2, 0));
 
             // update rows that don't match the filter
-            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, -1, 0);
-            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 2, -1, 0);
-            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 2, 0, 0);
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 0, 0);
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, 0, 0);
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 1, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 0, 0),
                                     row(1, 1, 1, 0),
                                     row(1, 1, 2, 0));
@@ -98,20 +89,16 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
             // update a row that does match the filter
             execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, 1, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 0, 1),
                                     row(1, 1, 1, 0),
                                     row(1, 1, 2, 0));
 
             // delete rows that don't match the filter
-            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, -1);
-            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 2, -1, 0);
-            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 2, 0, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 0, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 0, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 1, 0);
             execute("DELETE FROM %s WHERE a = ? AND b = ?", 0, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 0, 1),
                                     row(1, 1, 1, 0),
                                     row(1, 1, 2, 0));
@@ -119,24 +106,92 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
             // delete a row that does match the filter
             execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 1, 1, 0),
                                     row(1, 1, 2, 0));
 
             // delete a partition that matches the filter
-            execute("DELETE FROM %s WHERE a = ?", 1);
-            assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 1, 0, 0),
-                                    row(0, 1, 1, 0));
-
-            dropView();
-            dropTable("DROP TABLE %s");
+            execute("DELETE FROM %s WHERE a = ? AND b = ?", 1, 1);
+            assertEmpty(executeView("SELECT * FROM %s"));
         }
     }
 
     @Test
-    public void testClusteringKeyFilteringRestrictions() throws Throwable
+    public void testCompoundPartitionKeyRestrictionsNotIncludeAll() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 1, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 1, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 1, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 1, 0);
+
+        // only accept rows where a = 1 and b = 1, don't include column d in the selection
+        createView("CREATE MATERIALIZED VIEW %s AS SELECT a, b, c FROM %s " +
+                   "WHERE a = 1 AND b = 1 AND c IS NOT NULL " +
+                   "PRIMARY KEY ((a, b), c)");
+
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 0),
+                   row(1, 1, 1));
+
+        // insert new rows that do not match the filter
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 2, 0, 0);
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 0),
+                   row(1, 1, 1));
+
+        // insert new row that does match the filter
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 2, 0);
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 0),
+                   row(1, 1, 1),
+                   row(1, 1, 2));
+
+        // update rows that don't match the filter
+        execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 0, 0);
+        execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, 0, 0);
+        execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 1, 0);
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 0),
+                   row(1, 1, 1),
+                   row(1, 1, 2));
+
+        // update a row that does match the filter
+        execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, 1, 0);
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 0),
+                   row(1, 1, 1),
+                   row(1, 1, 2));
+
+        // delete rows that don't match the filter
+        execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 0, 0);
+        execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 0, 0);
+        execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 1, 0);
+        execute("DELETE FROM %s WHERE a = ? AND b = ?", 0, 0);
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 0),
+                   row(1, 1, 1),
+                   row(1, 1, 2));
+
+        // delete a row that does match the filter
+        execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, 0);
+        assertRows(executeView("SELECT * FROM %s"),
+                   row(1, 1, 1),
+                   row(1, 1, 2));
+
+        // delete a partition that matches the filter
+        execute("DELETE FROM %s WHERE a = ? AND b = ?", 1, 1);
+        assertEmpty(executeView("SELECT * FROM %s"));
+    }
+
+    @Test
+    public void testPartitionKeyAndClusteringKeyFilteringRestrictions() throws Throwable
     {
         List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
         for (int i = 0; i < mvPrimaryKeys.size(); i++)
@@ -157,39 +212,31 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
 
             // only accept rows where b = 1
             createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
-                       "WHERE a IS NOT NULL AND b IS NOT NULL AND c = 1 " +
+                       "WHERE a = 1 AND b IS NOT NULL AND c = 1 " +
                        "PRIMARY KEY " + mvPrimaryKeys.get(i));
 
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 1, 1, 0));
 
             // insert new rows that do not match the filter
-            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 0, 0, 0);
-            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1, -1, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 1, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 0, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 1, 1, 0));
 
             // insert new row that does match the filter
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 2, 1, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 1, 1, 0),
                                     row(1, 2, 1, 0));
 
             // update rows that don't match the filter
             execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, -1, 0);
-            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 2, 0, 0);
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 0, 1, 1, 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 1, 1, 0),
                                     row(1, 2, 1, 0));
@@ -197,20 +244,15 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
             // update a row that does match the filter
             execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 2, 1, 1, 1);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 1, 1, 2),
                                     row(1, 2, 1, 0));
 
             // delete rows that don't match the filter
             execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, -1);
-            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 2, -1, 0);
-            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 2, 0, 0);
-            execute("DELETE FROM %s WHERE a = ? AND b = ?", 0, -1);
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 2, 0, 1);
+            execute("DELETE FROM %s WHERE a = ?", 0);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 1, 1, 2),
                                     row(1, 2, 1, 0));
@@ -218,29 +260,12 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
             // delete a row that does match the filter
             execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, 1);
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
                                     row(1, 0, 1, 0),
                                     row(1, 2, 1, 0));
 
             // delete a partition that matches the filter
             execute("DELETE FROM %s WHERE a = ?", 1);
-            assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0));
-
-            // insert a partition with one matching and one non-matching row using a batch (CASSANDRA-10614)
-            String tableName = KEYSPACE + "." + currentTable();
-            execute("BEGIN BATCH " +
-                    "INSERT INTO " + tableName + " (a, b, c, d) VALUES (?, ?, ?, ?); " +
-                    "INSERT INTO " + tableName + " (a, b, c, d) VALUES (?, ?, ?, ?); " +
-                    "APPLY BATCH",
-                    4, 4, 0, 0,
-                    4, 4, 1, 1);
-            assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
-                                    row(0, 0, 1, 0),
-                                    row(0, 1, 1, 0),
-                                    row(4, 4, 1, 1));
+            assertEmpty(executeView("SELECT a, b, c, d FROM %s"));
 
             dropView();
             dropTable("DROP TABLE %s");
