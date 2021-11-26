@@ -25,13 +25,15 @@ import org.junit.Test;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
-/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
+/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
  * - ViewComplexUpdatesTest
  * - ViewComplexDeletionsTest
  * - ViewComplexTTLTest
  * - ViewComplexTest
  * - ViewComplexLivenessTest
+ * - ...
+ * - ViewComplex*Test
  */
 public class ViewComplexUpdatesTest extends ViewAbstractParameterizedTest
 {

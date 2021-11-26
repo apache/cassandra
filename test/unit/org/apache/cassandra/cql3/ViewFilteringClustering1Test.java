@@ -23,12 +23,14 @@ import java.util.List;
 
 import org.junit.Test;
 
-/* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
+/* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
  * - ViewFilteringClustering1Test
  * - ViewFilteringClustering2Test
  * - ViewFilteringTest
+ * - ...
+ * - ViewFiltering*Test
  */
 public class ViewFilteringClustering1Test extends ViewAbstractParameterizedTest
 {
