@@ -1,4 +1,5 @@
 4.1
+ * Harden resource management on SSTable components to prevent future leaks (CASSANDRA-17174)
  * Make nodes more resilient to local unrelated files during startup (CASSANDRA-17082)
  * repair prepare message would produce a wrong error message if network timeout happened rather than reply wait timeout (CASSANDRA-16992)
  * Log queries that fail on timeout or unavailable errors up to once per minute by default (CASSANDRA-17159)
