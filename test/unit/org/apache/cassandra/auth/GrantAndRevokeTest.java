@@ -21,6 +21,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 
@@ -61,8 +62,20 @@ public class GrantAndRevokeTest extends CQLTester
         useUser(user, pass);
 
         // ALTER and DROP tables created by somebody else
-        assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
-                                formatQuery(KEYSPACE_PER_TEST, "INSERT INTO %s (pk, ck, val, val_2) VALUES (1, 1, 1, '1')"));
+        // Spin assert for effective auth changes.
+        final String spinAssertTable = table;
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no MODIFY permission on <table " + spinAssertTable + "> or any of its parents",
+                                        formatQuery(KEYSPACE_PER_TEST, "INSERT INTO %s (pk, ck, val, val_2) VALUES (1, 1, 1, '1')"));
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "UPDATE %s SET val = 1 WHERE pk = 1 AND ck = 1"));
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
@@ -93,7 +106,18 @@ public class GrantAndRevokeTest extends CQLTester
 
         useUser(user, pass);
 
-        executeNet("ALTER KEYSPACE " + KEYSPACE_PER_TEST + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        // Spin assert for effective auth changes.
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                executeNet("ALTER KEYSPACE " + KEYSPACE_PER_TEST + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
 
         executeNet(formatQuery(KEYSPACE_PER_TEST, "INSERT INTO %s (pk, ck, val, val_2) VALUES (1, 1, 1, '1')"));
         executeNet(formatQuery(KEYSPACE_PER_TEST, "UPDATE %s SET val = 1 WHERE pk = 1 AND ck = 1"));
@@ -139,8 +163,20 @@ public class GrantAndRevokeTest extends CQLTester
 
         useUser(user, pass);
 
-        assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
-                                "INSERT INTO " + table + " (pk, ck, val, val_2) VALUES (1, 1, 1, '1')");
+        // Spin assert for effective auth changes.
+        final String spinAssertTable2 = table;
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no MODIFY permission on <table " + spinAssertTable2 + "> or any of its parents",
+                                        "INSERT INTO " + spinAssertTable2 + " (pk, ck, val, val_2) VALUES (1, 1, 1, '1')");
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 "UPDATE " + table + " SET val = 1 WHERE pk = 1 AND ck = 1");
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
@@ -182,8 +218,20 @@ public class GrantAndRevokeTest extends CQLTester
         useUser(user, pass);
 
         // ALTER and DROP tables created by somebody else
-        assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
-                                formatQuery(KEYSPACE_PER_TEST, "INSERT INTO %s (pk, ck, val, val_2) VALUES (1, 1, 1, '1')"));
+        // Spin assert for effective auth changes.
+        final String spinAssertTable = table;
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no MODIFY permission on <table " + spinAssertTable + "> or any of its parents",
+                                        formatQuery(KEYSPACE_PER_TEST, "INSERT INTO %s (pk, ck, val, val_2) VALUES (1, 1, 1, '1')"));
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 formatQuery(KEYSPACE_PER_TEST, "UPDATE %s SET val = 1 WHERE pk = 1 AND ck = 1"));
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
@@ -213,9 +261,19 @@ public class GrantAndRevokeTest extends CQLTester
 
         useUser(user, pass);
 
-        assertUnauthorizedQuery("User user has no ALTER permission on <keyspace " + KEYSPACE_PER_TEST + "> or any of its parents",
-                                "ALTER KEYSPACE " + KEYSPACE_PER_TEST + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
-
+        // Spin assert for effective auth changes.
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no ALTER permission on <keyspace " + KEYSPACE_PER_TEST + "> or any of its parents",
+                                        "ALTER KEYSPACE " + KEYSPACE_PER_TEST + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
         executeNet(formatQuery(KEYSPACE_PER_TEST, "INSERT INTO %s (pk, ck, val, val_2) VALUES (1, 1, 1, '1')"));
         executeNet(formatQuery(KEYSPACE_PER_TEST, "UPDATE %s SET val = 1 WHERE pk = 1 AND ck = 1"));
         executeNet(formatQuery(KEYSPACE_PER_TEST, "DELETE FROM %s WHERE pk = 1 AND ck = 2"));
@@ -262,8 +320,20 @@ public class GrantAndRevokeTest extends CQLTester
 
         useUser(user, pass);
 
-        assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
-                                "INSERT INTO " + table + " (pk, ck, val, val_2) VALUES (1, 1, 1, '1')");
+        // Spin assert for effective auth changes.
+        final String spinAssertTable2 = table;
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no MODIFY permission on <table " + spinAssertTable2 + "> or any of its parents",
+                                        "INSERT INTO " + spinAssertTable2 + " (pk, ck, val, val_2) VALUES (1, 1, 1, '1')");
+            }
+            catch(Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
                                 "UPDATE " + table + " SET val = 1 WHERE pk = 1 AND ck = 1");
         assertUnauthorizedQuery("User user has no MODIFY permission on <table " + table + "> or any of its parents",
