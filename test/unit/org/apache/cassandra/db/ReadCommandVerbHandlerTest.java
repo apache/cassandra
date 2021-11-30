@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
 import java.util.Random;
-import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -46,6 +45,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.*;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -110,7 +110,7 @@ public class ReadCommandVerbHandlerTest
         handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
                               .from(peer())
                               .withId(messageId())
-                              .withParam(ParamType.TRACE_SESSION, UUID.randomUUID())
+                              .withParam(ParamType.TRACE_SESSION, nextTimeUUID())
                               .build());
         assertFalse(command.isTrackingRepairedData());
     }

@@ -30,9 +30,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.*;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
@@ -226,8 +226,8 @@ public class CQL3TypeLiteralTest
 
         for (int i = 0; i < 20; i++)
         {
-            UUID v = UUIDGen.getTimeUUID(randLong(currentTimeMillis()));
-            addNativeValue(v.toString(), CQL3Type.Native.TIMEUUID, TimeUUIDType.instance.decompose(v));
+            TimeUUID v = TimeUUID.Generator.atUnixMillis(randLong(currentTimeMillis()));
+            addNativeValue(v.toString(), CQL3Type.Native.TIMEUUID, v.toBytes());
         }
         addNativeValue("null", CQL3Type.Native.TIMEUUID, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         addNativeValue("null", CQL3Type.Native.TIMEUUID, null);

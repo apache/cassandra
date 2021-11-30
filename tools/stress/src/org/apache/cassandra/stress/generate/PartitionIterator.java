@@ -42,6 +42,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.stress.generate.values.Generator;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 
 // a partition is re-used to reduce garbage generation, as is its internal RowIterator
 // TODO: we should batch the generation of clustering components so we can bound the time and size necessary to
@@ -746,9 +747,13 @@ public abstract class PartitionIterator implements Iterator<Row>
         {
             return seed * 31 + (((UUID) object).getLeastSignificantBits() ^ ((UUID) object).getMostSignificantBits());
         }
+        else if (object instanceof TimeUUID)
+        {
+            return seed * 31 + (((TimeUUID) object).lsb() ^ ((TimeUUID) object).msb());
+        }
         else
         {
-            return seed(type.decompose(object), BytesType.instance, seed);
+            return seed(type.decomposeUntyped(object), BytesType.instance, seed);
         }
     }
 
@@ -766,7 +771,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             if (i > 0)
                 sb.append("|");
             AbstractType type = generator.partitionKey.get(i++).type;
-            sb.append(type.getString(type.decompose(key)));
+            sb.append(type.getString(type.decomposeUntyped(key)));
         }
         return sb.toString();
     }

@@ -26,8 +26,8 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.UUIDGen;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class PaxosState
@@ -87,7 +87,7 @@ public class PaxosState
                     // on some replica and not others during a new proposal (in StorageProxy.beginAndRepairPaxos()), and no
                     // amount of re-submit will fix this (because the node on which the commit has expired will have a
                     // tombstone that hides any re-submit). See CASSANDRA-12043 for details.
-                    int nowInSec = UUIDGen.unixTimestampInSec(toPrepare.ballot);
+                    int nowInSec = (int) toPrepare.ballot.unix(SECONDS);
                     PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.update.partitionKey(), toPrepare.update.metadata(), nowInSec);
                     if (toPrepare.isAfter(state.promised))
                     {
@@ -126,7 +126,7 @@ public class PaxosState
                 synchronized (lock)
                 {
 
-                    int nowInSec = UUIDGen.unixTimestampInSec(proposal.ballot);
+                    int nowInSec = (int) proposal.ballot.unix(SECONDS);
                     PaxosState state = SystemKeyspace.loadPaxosState(proposal.update.partitionKey(), proposal.update.metadata(), nowInSec);
                     if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
                     {
@@ -164,7 +164,7 @@ public class PaxosState
             // erase the in-progress update.
             // The table may have been truncated since the proposal was initiated. In that case, we
             // don't want to perform the mutation and potentially resurrect truncated data
-            if (UUIDGen.unixTimestamp(proposal.ballot) >= SystemKeyspace.getTruncatedAt(proposal.update.metadata().id))
+            if (proposal.ballot.unixMicros() >= SystemKeyspace.getTruncatedAt(proposal.update.metadata().id))
             {
                 Tracing.trace("Committing proposal {}", proposal);
                 Mutation mutation = proposal.makeMutation();

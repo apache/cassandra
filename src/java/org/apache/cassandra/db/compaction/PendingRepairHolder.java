@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
@@ -40,6 +39,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class PendingRepairHolder extends AbstractStrategyHolder
 {
@@ -93,7 +93,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         return Iterables.concat(Iterables.transform(managers, PendingRepairManager::getStrategies));
     }
 
-    Iterable<AbstractCompactionStrategy> getStrategiesFor(UUID session)
+    Iterable<AbstractCompactionStrategy> getStrategiesFor(TimeUUID session)
     {
         List<AbstractCompactionStrategy> strategies = new ArrayList<>(managers.size());
         for (PendingRepairManager manager : managers)
@@ -236,7 +236,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,
                                                        long keyCount,
                                                        long repairedAt,
-                                                       UUID pendingRepair,
+                                                       TimeUUID pendingRepair,
                                                        boolean isTransient,
                                                        MetadataCollector collector,
                                                        SerializationHeader header,
@@ -271,7 +271,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         return -1;
     }
 
-    public boolean hasDataForSession(UUID sessionID)
+    public boolean hasDataForSession(TimeUUID sessionID)
     {
         return Iterables.any(managers, prm -> prm.hasDataForSession(sessionID));
     }

@@ -19,10 +19,10 @@
 package org.apache.cassandra.streaming;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * The main streaming hook for a storage implementation.
@@ -51,6 +51,6 @@ public interface TableStreamManager
      */
     Collection<OutgoingStream> createOutgoingStreams(StreamSession session,
                                                      RangesAtEndpoint replicas,
-                                                     UUID pendingRepair,
+                                                     TimeUUID pendingRepair,
                                                      PreviewKind previewKind);
 }

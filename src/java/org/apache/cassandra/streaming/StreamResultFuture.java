@@ -18,11 +18,11 @@
 package org.apache.cassandra.streaming;
 
 import java.util.Collection;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +49,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamResultFuture.class);
 
-    public final UUID planId;
+    public final TimeUUID planId;
     public final StreamOperation streamOperation;
     private final StreamCoordinator coordinator;
     private final Collection<StreamEventHandler> eventListeners = new ConcurrentLinkedQueue<>();
@@ -62,7 +62,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
      * @param planId Stream plan ID
      * @param streamOperation Stream streamOperation
      */
-    public StreamResultFuture(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
+    public StreamResultFuture(TimeUUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         this.planId = planId;
         this.streamOperation = streamOperation;
@@ -74,12 +74,12 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
     }
 
     @VisibleForTesting
-    public StreamResultFuture(UUID planId, StreamOperation streamOperation, UUID pendingRepair, PreviewKind previewKind)
+    public StreamResultFuture(TimeUUID planId, StreamOperation streamOperation, TimeUUID pendingRepair, PreviewKind previewKind)
     {
         this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, streamingFactory(), true, false, pendingRepair, previewKind));
     }
 
-    public static StreamResultFuture createInitiator(UUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
+    public static StreamResultFuture createInitiator(TimeUUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
                                                      StreamCoordinator coordinator)
     {
         StreamResultFuture future = createAndRegisterInitiator(planId, streamOperation, coordinator);
@@ -103,12 +103,12 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
     }
 
     public static synchronized StreamResultFuture createFollower(int sessionIndex,
-                                                                 UUID planId,
+                                                                 TimeUUID planId,
                                                                  StreamOperation streamOperation,
                                                                  InetAddressAndPort from,
                                                                  StreamingChannel channel,
                                                                  int messagingVersion,
-                                                                 UUID pendingRepair,
+                                                                 TimeUUID pendingRepair,
                                                                  PreviewKind previewKind)
     {
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
@@ -127,7 +127,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
         return future;
     }
 
-    private static StreamResultFuture createAndRegisterInitiator(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
+    private static StreamResultFuture createAndRegisterInitiator(TimeUUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         StreamResultFuture future = new StreamResultFuture(planId, streamOperation, coordinator);
         StreamManager.instance.registerInitiator(future);

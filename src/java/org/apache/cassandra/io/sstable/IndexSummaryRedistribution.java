@@ -25,7 +25,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -44,10 +43,12 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class IndexSummaryRedistribution extends CompactionInfo.Holder
 {
@@ -63,7 +64,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     private final Map<TableId, LifecycleTransaction> transactions;
     private final long nonRedistributingOffHeapSize;
     private final long memoryPoolBytes;
-    private final UUID compactionId;
+    private final TimeUUID compactionId;
     private volatile long remainingSpace;
 
     /**
@@ -77,7 +78,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         this.transactions = transactions;
         this.nonRedistributingOffHeapSize = nonRedistributingOffHeapSize;
         this.memoryPoolBytes = memoryPoolBytes;
-        this.compactionId = UUID.randomUUID();
+        this.compactionId = nextTimeUUID();
     }
 
     public List<SSTableReader> redistributeSummaries() throws IOException

@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -41,12 +40,13 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.REPAIRING;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertTrue;
 
 public class IncRepairAdminTest extends TestBaseImpl
@@ -84,7 +84,7 @@ public class IncRepairAdminTest extends TestBaseImpl
                 res.asserts().stdoutContains("no sessions");
             });
 
-            UUID uuid = makeFakeSession(cluster);
+            TimeUUID uuid = makeFakeSession(cluster);
             awaitNodetoolRepairAdminContains(cluster, uuid, "REPAIRING", false);
             IInvokableInstance instance = cluster.get(coordinator ? 1 : 2);
 
@@ -114,7 +114,7 @@ public class IncRepairAdminTest extends TestBaseImpl
 
 
 
-    private static void awaitNodetoolRepairAdminContains(Cluster cluster, UUID uuid, String state, boolean all)
+    private static void awaitNodetoolRepairAdminContains(Cluster cluster, TimeUUID uuid, String state, boolean all)
     {
         cluster.forEach(i -> {
             while (true)
@@ -137,9 +137,9 @@ public class IncRepairAdminTest extends TestBaseImpl
         });
     }
 
-    private static UUID makeFakeSession(Cluster cluster)
+    private static TimeUUID makeFakeSession(Cluster cluster)
     {
-        UUID sessionId = UUIDGen.getTimeUUID();
+        TimeUUID sessionId = nextTimeUUID();
         InetSocketAddress coordinator = cluster.get(1).config().broadcastAddress();
         Set<InetSocketAddress> participants = cluster.stream()
                                                      .map(i -> i.config().broadcastAddress())

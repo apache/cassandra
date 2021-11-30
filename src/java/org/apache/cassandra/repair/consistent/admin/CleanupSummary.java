@@ -37,6 +37,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class CleanupSummary
 {
@@ -64,10 +65,10 @@ public class CleanupSummary
     public final String keyspace;
     public final String table;
 
-    public final Set<UUID> successful;
-    public final Set<UUID> unsuccessful;
+    public final Set<TimeUUID> successful;
+    public final Set<TimeUUID> unsuccessful;
 
-    public CleanupSummary(String keyspace, String table, Set<UUID> successful, Set<UUID> unsuccessful)
+    public CleanupSummary(String keyspace, String table, Set<TimeUUID> successful, Set<TimeUUID> unsuccessful)
     {
         this.keyspace = keyspace;
         this.table = table;
@@ -75,7 +76,7 @@ public class CleanupSummary
         this.unsuccessful = unsuccessful;
     }
 
-    public CleanupSummary(ColumnFamilyStore cfs, Set<UUID> successful, Set<UUID> unsuccessful)
+    public CleanupSummary(ColumnFamilyStore cfs, Set<TimeUUID> successful, Set<TimeUUID> unsuccessful)
     {
         this(cfs.keyspace.getName(), cfs.name, successful, unsuccessful);
     }
@@ -85,30 +86,30 @@ public class CleanupSummary
         Preconditions.checkArgument(l.keyspace.equals(r.keyspace));
         Preconditions.checkArgument(l.table.equals(r.table));
 
-        Set<UUID> unsuccessful = new HashSet<>(l.unsuccessful);
+        Set<TimeUUID> unsuccessful = new HashSet<>(l.unsuccessful);
         unsuccessful.addAll(r.unsuccessful);
 
-        Set<UUID> successful = new HashSet<>(l.successful);
+        Set<TimeUUID> successful = new HashSet<>(l.successful);
         successful.addAll(r.successful);
         successful.removeAll(unsuccessful);
 
         return new CleanupSummary(l.keyspace, l.table, successful, unsuccessful);
     }
 
-    private static String[] uuids2Strings(Set<UUID> uuids)
+    private static String[] uuids2Strings(Set<TimeUUID> uuids)
     {
         String[] strings = new String[uuids.size()];
         int idx = 0;
-        for (UUID uuid : uuids)
+        for (TimeUUID uuid : uuids)
             strings[idx++] = uuid.toString();
         return strings;
     }
 
-    private static Set<UUID> strings2Uuids(String[] strings)
+    private static Set<TimeUUID> strings2Uuids(String[] strings)
     {
-        Set<UUID> uuids = Sets.newHashSetWithExpectedSize(strings.length);
+        Set<TimeUUID> uuids = Sets.newHashSetWithExpectedSize(strings.length);
         for (String string : strings)
-            uuids.add(UUID.fromString(string));
+            uuids.add(TimeUUID.fromString(string));
 
         return uuids;
     }

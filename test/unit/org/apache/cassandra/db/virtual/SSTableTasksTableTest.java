@@ -36,6 +36,9 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class SSTableTasksTableTest extends CQLTester
 {
@@ -67,7 +70,7 @@ public class SSTableTasksTableTest extends CQLTester
 
         long bytesCompacted = 123;
         long bytesTotal = 123456;
-        UUID compactionId = UUID.randomUUID();
+        TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
                 .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
                 .collect(Collectors.toList());

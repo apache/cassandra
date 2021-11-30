@@ -31,6 +31,7 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class SessionInfoCompositeData
 {
@@ -86,7 +87,7 @@ public class SessionInfoCompositeData
         }
     }
 
-    public static CompositeData toCompositeData(final UUID planId, SessionInfo sessionInfo)
+    public static CompositeData toCompositeData(final TimeUUID planId, SessionInfo sessionInfo)
     {
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());

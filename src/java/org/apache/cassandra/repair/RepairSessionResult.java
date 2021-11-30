@@ -18,23 +18,23 @@
 package org.apache.cassandra.repair;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Repair session result
  */
 public class RepairSessionResult
 {
-    public final UUID sessionId;
+    public final TimeUUID sessionId;
     public final String keyspace;
     public final Collection<Range<Token>> ranges;
     public final Collection<RepairResult> repairJobResults;
     public final boolean skippedReplicas;
 
-    public RepairSessionResult(UUID sessionId, String keyspace, Collection<Range<Token>> ranges, Collection<RepairResult> repairJobResults, boolean skippedReplicas)
+    public RepairSessionResult(TimeUUID sessionId, String keyspace, Collection<Range<Token>> ranges, Collection<RepairResult> repairJobResults, boolean skippedReplicas)
     {
         this.sessionId = sessionId;
         this.keyspace = keyspace;

@@ -49,6 +49,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static java.lang.Long.max;
@@ -99,12 +100,12 @@ public class Ballots
     {
         return NonInterceptible.apply(() -> {
               PaxosState state = loadPaxosState(key, metadata, nowInSec);
-              UUID promised = state.promised.ballot;
+              TimeUUID promised = state.promised.ballot;
               Commit accepted = isAfter(state.accepted, state.mostRecentCommit) ? null : state.accepted;
               Commit committed = state.mostRecentCommit;
               long baseTable = latestBallotFromBaseTable(key, metadata);
               return new LatestBallots(
-              UUIDGen.microsTimestamp(promised),
+              promised.unixMicros(),
               accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update),
               latestBallot(committed.update),
               baseTable
@@ -228,7 +229,7 @@ public class Ballots
         return debugBallot(cache == null ? null : cache.ballot, memtable, persisted == null ? null : persisted.ballot);
     }
 
-    private static String debugBallot(UUID cache, long memtable, UUID persisted)
+    private static String debugBallot(TimeUUID cache, long memtable, TimeUUID persisted)
     {
         return debugBallot(timestamp(cache), memtable, timestamp(persisted));
     }
@@ -244,8 +245,8 @@ public class Ballots
         return value + (memtable == value && memtable != 0 ? "*" : "");
     }
 
-    private static long timestamp(UUID a)
+    private static long timestamp(TimeUUID a)
     {
-        return a == null ? 0L : UUIDGen.microsTimestamp(a);
+        return a == null ? 0L : a.unixMicros();
     }
 }

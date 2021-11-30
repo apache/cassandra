@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.streaming;
 
-import java.util.UUID;
-
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 
@@ -29,6 +27,7 @@ import org.apache.cassandra.repair.PreviewRepairConflictWithIncrementalRepairExc
 import org.apache.cassandra.repair.consistent.ConsistentSession;
 import org.apache.cassandra.repair.consistent.LocalSession;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 public enum PreviewKind
 {
@@ -69,7 +68,7 @@ public enum PreviewKind
         return isPreview() ? "preview repair" : "repair";
     }
 
-    public String logPrefix(UUID sessionId)
+    public String logPrefix(TimeUUID sessionId)
     {
         return '[' + logPrefix() + " #" + sessionId.toString() + ']';
     }

@@ -22,8 +22,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -47,7 +47,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                            .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
-                           .addClusteringColumn(TASK_ID, UUIDType.instance)
+                           .addClusteringColumn(TASK_ID, TimeUUIDType.instance)
                            .addRegularColumn(COMPLETION_RATIO, DoubleType.instance)
                            .addRegularColumn(KIND, UTF8Type.instance)
                            .addRegularColumn(PROGRESS, LongType.instance)

@@ -21,7 +21,6 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -39,6 +38,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 @Ignore
 public class AbstractPendingRepairTest extends AbstractRepairTest
@@ -99,7 +99,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         return sstable;
     }
 
-    public static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
     {
         try
         {
@@ -117,7 +117,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         mutateRepaired(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
     }
 
-    public static void mutateRepaired(SSTableReader sstable, UUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(SSTableReader sstable, TimeUUID pendingRepair, boolean isTransient)
     {
         mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isTransient);
     }

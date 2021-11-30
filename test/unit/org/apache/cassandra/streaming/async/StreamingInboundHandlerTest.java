@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -49,6 +48,9 @@ import org.apache.cassandra.streaming.messages.CompleteMessage;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 import static org.apache.cassandra.net.TestChannel.REMOTE_ADDR;
 
@@ -97,7 +99,7 @@ public class StreamingInboundHandlerTest
     @Test
     public void StreamDeserializingTask_deriveSession_StreamInitMessage()
     {
-        StreamInitMessage msg = new StreamInitMessage(REMOTE_ADDR, 0, UUID.randomUUID(), StreamOperation.REPAIR, UUID.randomUUID(), PreviewKind.ALL);
+        StreamInitMessage msg = new StreamInitMessage(REMOTE_ADDR, 0, nextTimeUUID(), StreamOperation.REPAIR, nextTimeUUID(), PreviewKind.ALL);
         StreamDeserializingTask task = new StreamDeserializingTask(null, streamingChannel, streamingChannel.messagingVersion);
         StreamSession session = task.deriveSession(msg);
         Assert.assertNotNull(session);
@@ -114,8 +116,8 @@ public class StreamingInboundHandlerTest
     @Test (expected = IllegalStateException.class)
     public void StreamDeserializingTask_deserialize_ISM_NoSession() throws IOException
     {
-        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, UUID.randomUUID(), true,
-                                                             0, 0, 0, UUID.randomUUID());
+        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, nextTimeUUID(), true,
+                                                             0, 0, 0, nextTimeUUID());
 
         ByteBuffer temp = ByteBuffer.allocate(1024);
         DataOutputPlus out = new DataOutputBuffer(temp);
@@ -130,11 +132,11 @@ public class StreamingInboundHandlerTest
     @Test
     public void StreamDeserializingTask_deserialize_ISM_HasSession()
     {
-        UUID planId = UUID.randomUUID();
-        StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, streamingChannel.messagingVersion, UUID.randomUUID(), PreviewKind.ALL);
+        TimeUUID planId = nextTimeUUID();
+        StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, streamingChannel.messagingVersion, nextTimeUUID(), PreviewKind.ALL);
         StreamManager.instance.registerFollower(future);
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, false,
-                                                             0, 0, 0, UUID.randomUUID());
+                                                             0, 0, 0, nextTimeUUID());
 
         // IncomingStreamMessage.serializer.deserialize
         StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);

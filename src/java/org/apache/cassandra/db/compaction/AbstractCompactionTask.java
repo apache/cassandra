@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Iterator;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 
@@ -28,6 +27,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
@@ -67,7 +67,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
             Iterator<SSTableReader> iter = sstables.iterator();
             SSTableReader first = iter.next();
             boolean isRepaired = first.isRepaired();
-            UUID pendingRepair = first.getPendingRepair();
+            TimeUUID pendingRepair = first.getPendingRepair();
             while (iter.hasNext())
             {
                 SSTableReader next = iter.next();

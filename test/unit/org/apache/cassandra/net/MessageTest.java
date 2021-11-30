@@ -19,7 +19,6 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -39,6 +38,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FreeRunningClock;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
@@ -49,6 +49,7 @@ import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.ParamType.TRACE_SESSION;
 import static org.apache.cassandra.net.ParamType.TRACE_TYPE;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.*;
 
 public class MessageTest
@@ -96,7 +97,7 @@ public class MessageTest
                    .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
                    .withFlag(MessageFlag.TRACK_REPAIRED_DATA)
                    .withParam(TRACE_TYPE, TraceType.QUERY)
-                   .withParam(TRACE_SESSION, UUID.randomUUID())
+                   .withParam(TRACE_SESSION, nextTimeUUID())
                    .build();
 
         testInferMessageSize(msg, VERSION_30);
@@ -134,7 +135,7 @@ public class MessageTest
         long createAtNanos = approxTime.now();
         long expiresAtNanos = createAtNanos + TimeUnit.SECONDS.toNanos(1);
         TraceType traceType = TraceType.QUERY;
-        UUID traceSession = UUID.randomUUID();
+        TimeUUID traceSession = nextTimeUUID();
 
         Message<NoPayload> msg =
             Message.builder(Verb._TEST_1, noPayload)
@@ -156,7 +157,7 @@ public class MessageTest
         assertEquals(traceType, msg.traceType());
         assertEquals(traceSession, msg.traceSession());
         assertNull(msg.forwardTo());
-        assertNull(msg.respondTo());
+        assertEquals(from, msg.respondTo());
     }
 
     @Test
@@ -169,7 +170,7 @@ public class MessageTest
                    .withCreatedAt(approxTime.now())
                    .withExpiresAt(approxTime.now() + TimeUnit.SECONDS.toNanos(1))
                    .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
-                   .withParam(TRACE_SESSION, UUID.randomUUID())
+                   .withParam(TRACE_SESSION, nextTimeUUID())
                    .build();
         testCycle(msg);
     }
@@ -215,7 +216,7 @@ public class MessageTest
     {
         try
         {
-            UUID sessionId = Tracing.instance.newSession(traceType);
+            TimeUUID sessionId = Tracing.instance.newSession(traceType);
             Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
             assertEquals(sessionId, msg.header.traceSession());
             assertEquals(traceType, msg.header.traceType());

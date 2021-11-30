@@ -20,7 +20,6 @@ package org.apache.cassandra.db.repair;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
@@ -35,6 +34,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class CassandraTableRepairManager implements TableRepairManager
 {
@@ -46,7 +46,7 @@ public class CassandraTableRepairManager implements TableRepairManager
     }
 
     @Override
-    public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, UUID parentId, UUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException
+    public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException
     {
         return new CassandraValidationIterator(cfs, ranges, parentId, sessionID, isIncremental, nowInSec);
     }
@@ -58,7 +58,7 @@ public class CassandraTableRepairManager implements TableRepairManager
     }
 
     @Override
-    public void incrementalSessionCompleted(UUID sessionID)
+    public void incrementalSessionCompleted(TimeUUID sessionID)
     {
         CompactionManager.instance.submitBackground(cfs);
     }

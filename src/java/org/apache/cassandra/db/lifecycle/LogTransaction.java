@@ -54,6 +54,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
 /**
  * IMPORTANT: When this object is involved in a transactional graph, and is not encapsulated in a LifecycleTransaction,
  * for correct behaviour its commit MUST occur before any others, since it may legitimately fail. This is consistent
@@ -126,7 +128,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     LogTransaction(OperationType opType, Tracker tracker)
     {
         this.tracker = tracker;
-        this.txnFile = new LogFile(opType, UUIDGen.getTimeUUID());
+        this.txnFile = new LogFile(opType, nextTimeUUID());
         this.lock = new Object();
         this.selfRef = new Ref<>(this, new TransactionTidier(txnFile, lock));
 
@@ -209,7 +211,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         return txnFile.type();
     }
 
-    UUID id()
+    TimeUUID id()
     {
         return txnFile.id();
     }

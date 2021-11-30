@@ -26,6 +26,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
@@ -51,7 +52,7 @@ public enum ParamType
     @Deprecated
     FAILURE_CALLBACK    (4, "CAL_BAC",       LegacyFlag.serializer),
 
-    TRACE_SESSION       (5, "TraceSession",  UUIDSerializer.serializer),
+    TRACE_SESSION       (5, "TraceSession",  TimeUUID.Serializer.instance),
     TRACE_TYPE          (6, "TraceType",     Tracing.traceTypeSerializer),
 
     @Deprecated

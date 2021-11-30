@@ -18,22 +18,22 @@
 package org.apache.cassandra.repair;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class NormalRepairTask extends AbstractRepairTask
 {
-    private final UUID parentSession;
+    private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
     private final String[] cfnames;
 
     protected NormalRepairTask(RepairOption options,
                                String keyspace,
                                RepairNotifier notifier,
-                               UUID parentSession,
+                               TimeUUID parentSession,
                                List<CommonRange> commonRanges,
                                String[] cfnames)
     {

@@ -30,11 +30,12 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
 {
-    private static final RepairJobDesc DESC = new RepairJobDesc(UUIDGen.getTimeUUID(), UUIDGen.getTimeUUID(), "ks", "tbl", ALL_RANGES);
+    private static final RepairJobDesc DESC = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), "ks", "tbl", ALL_RANGES);
     private static final List<Range<Token>> RANGE_LIST = ImmutableList.of(RANGE1);
     private static class InstrumentedSymmetricRemoteSyncTask extends SymmetricRemoteSyncTask
     {

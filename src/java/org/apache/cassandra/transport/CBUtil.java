@@ -44,6 +44,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -301,9 +302,22 @@ public abstract class CBUtil
         return UUIDGen.getUUID(buffer);
     }
 
+    public static TimeUUID readTimeUUID(ByteBuf cb)
+    {
+        long msb = cb.readLong();
+        long lsb = cb.readLong();
+        return TimeUUID.fromBytes(msb, lsb);
+    }
+
     public static void writeUUID(UUID uuid, ByteBuf cb)
     {
         cb.writeBytes(UUIDGen.decompose(uuid));
+    }
+
+    public static void writeUUID(TimeUUID uuid, ByteBuf cb)
+    {
+        cb.writeLong(uuid.msb());
+        cb.writeLong(uuid.lsb());
     }
 
     public static int sizeOfUUID(UUID uuid)

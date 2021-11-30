@@ -21,7 +21,6 @@ package org.apache.cassandra.db.repair;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,6 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.utils.TimeUUID;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -65,7 +65,7 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
         {
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
         }
-        UUID prsid = prepareSession();
+        TimeUUID prsid = prepareSession();
         try
         {
             PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Lists.newArrayList(cfs, cfs2), atEndpoint(ranges, NO_RANGES), es, () -> false);

@@ -22,10 +22,10 @@ package org.apache.cassandra.tracing;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.UUID;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -95,7 +95,7 @@ class TracingImpl extends Tracing
     }
 
     @Override
-    protected TraceState newTraceState(InetAddressAndPort coordinator, UUID sessionId, TraceType traceType)
+    protected TraceState newTraceState(InetAddressAndPort coordinator, TimeUUID sessionId, TraceType traceType)
     {
         return new TraceStateImpl(coordinator, sessionId, traceType);
     }

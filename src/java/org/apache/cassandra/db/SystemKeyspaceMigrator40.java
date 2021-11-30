@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -146,7 +147,7 @@ public class SystemKeyspaceMigrator40
             QueryProcessor.executeInternal(insert,
                                            row.has("peer") ? row.getInetAddress("peer") : null,
                                            DatabaseDescriptor.getStoragePort(),
-                                           row.has("hints_dropped") ? row.getMap("hints_dropped", UUIDType.instance, Int32Type.instance) : null);
+                                           row.has("hints_dropped") ? row.getMap("hints_dropped", TimeUUIDType.instance, Int32Type.instance) : null);
             transferred++;
         }
         logger.info("Migrated {} rows from legacy {} to {}", transferred, legacyPeerEventsName, peerEventsName);

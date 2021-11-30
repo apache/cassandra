@@ -39,8 +39,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
-import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -70,7 +70,7 @@ public class StatsMetadata extends MetadataComponent
     public final long totalColumnsSet;
     public final long totalRows;
     public final UUID originatingHostId;
-    public final UUID pendingRepair;
+    public final TimeUUID pendingRepair;
     public final boolean isTransient;
     // just holds the current encoding stats to avoid allocating - it is not serialized
     public final EncodingStats encodingStats;
@@ -94,7 +94,7 @@ public class StatsMetadata extends MetadataComponent
                          long totalColumnsSet,
                          long totalRows,
                          UUID originatingHostId,
-                         UUID pendingRepair,
+                         TimeUUID pendingRepair,
                          boolean isTransient)
     {
         this.estimatedPartitionSize = estimatedPartitionSize;
@@ -175,7 +175,7 @@ public class StatsMetadata extends MetadataComponent
                                  isTransient);
     }
 
-    public StatsMetadata mutateRepairedMetadata(long newRepairedAt, UUID newPendingRepair, boolean newIsTransient)
+    public StatsMetadata mutateRepairedMetadata(long newRepairedAt, TimeUUID newPendingRepair, boolean newIsTransient)
     {
         return new StatsMetadata(estimatedPartitionSize,
                                  estimatedCellPerPartitionCount,
@@ -290,7 +290,7 @@ public class StatsMetadata extends MetadataComponent
             {
                 size += 1;
                 if (component.pendingRepair != null)
-                    size += UUIDSerializer.serializer.serializedSize(component.pendingRepair, 0);
+                    size += TimeUUID.sizeInBytes();
             }
 
             if (version.hasIsTransient())
@@ -344,7 +344,7 @@ public class StatsMetadata extends MetadataComponent
                 if (component.pendingRepair != null)
                 {
                     out.writeByte(1);
-                    UUIDSerializer.serializer.serialize(component.pendingRepair, out, 0);
+                    component.pendingRepair.serialize(out);
                 }
                 else
                 {
@@ -441,10 +441,10 @@ public class StatsMetadata extends MetadataComponent
             else
                 commitLogIntervals = new IntervalSet<CommitLogPosition>(commitLogLowerBound, commitLogUpperBound);
 
-            UUID pendingRepair = null;
+            TimeUUID pendingRepair = null;
             if (version.hasPendingRepair() && in.readByte() != 0)
             {
-                pendingRepair = UUIDSerializer.serializer.deserialize(in, 0);
+                pendingRepair = TimeUUID.deserialize(in);
             }
 
             boolean isTransient = version.hasIsTransient() && in.readBoolean();

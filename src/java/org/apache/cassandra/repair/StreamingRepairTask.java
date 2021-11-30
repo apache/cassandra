@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.UUID;
 import java.util.Collections;
 import java.util.Collection;
 
@@ -38,6 +37,7 @@ import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.Verb.SYNC_RSP;
 
@@ -55,10 +55,10 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     private final InetAddressAndPort src;
     private final InetAddressAndPort dst;
     private final Collection<Range<Token>> ranges;
-    private final UUID pendingRepair;
+    private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
-    public StreamingRepairTask(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges,  UUID pendingRepair, PreviewKind previewKind, boolean asymmetric)
+    public StreamingRepairTask(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, TimeUUID pendingRepair, PreviewKind previewKind, boolean asymmetric)
     {
         this.desc = desc;
         this.initiator = initiator;

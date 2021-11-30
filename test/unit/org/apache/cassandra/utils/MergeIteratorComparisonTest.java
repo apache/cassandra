@@ -23,7 +23,7 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
-import org.apache.cassandra.utils.AbstractIterator;
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -37,6 +37,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.utils.MergeIterator.Reducer;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class MergeIteratorComparisonTest
 {
@@ -231,7 +233,7 @@ public class MergeIteratorComparisonTest
             @Override
             public UUID next()
             {
-                return UUIDGen.getTimeUUID();
+                return nextTimeUUID().asUUID();
             }
         }.result;
         testMergeIterator(reducer, lists);
@@ -257,14 +259,14 @@ public class MergeIteratorComparisonTest
     public void testTimeUuidType()
     {
         System.out.println("testTimeUuidType");
-        final AbstractType<UUID> type = TimeUUIDType.instance;
+        final AbstractType<TimeUUID> type = TimeUUIDType.instance;
         Reducer<ByteBuffer, Counted<ByteBuffer>> reducer = new Counter<ByteBuffer>();
 
         List<List<ByteBuffer>> lists = new SimpleListGenerator<ByteBuffer>(type, ITERATOR_COUNT, LIST_LENGTH) {
             @Override
             public ByteBuffer next()
             {
-                return type.decompose(UUIDGen.getTimeUUID());
+                return type.decompose(nextTimeUUID());
             }
         }.result;
         testMergeIterator(reducer, lists, type);
@@ -281,7 +283,7 @@ public class MergeIteratorComparisonTest
             @Override
             public ByteBuffer next()
             {
-                return type.decompose(UUIDGen.getTimeUUID());
+                return type.decompose(nextTimeUUID().asUUID());
             }
         }.result;
         testMergeIterator(reducer, lists, type);
@@ -300,7 +302,7 @@ public class MergeIteratorComparisonTest
             @Override
             public KeyedSet<Integer, UUID> next()
             {
-                return new KeyedSet<>(r.nextInt(5 * LIST_LENGTH), UUIDGen.getTimeUUID());
+                return new KeyedSet<>(r.nextInt(5 * LIST_LENGTH), nextTimeUUID().asUUID());
             }
         }.result;
         testMergeIterator(reducer, lists);

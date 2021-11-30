@@ -20,7 +20,9 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -39,13 +41,17 @@ public abstract class BytesConversionFcts
 
         // because text and varchar ends up being synonymous, our automatic makeToBlobFunction doesn't work
         // for varchar, so we special case it below. We also skip blob for obvious reasons.
+        Set<AbstractType<?>> types = new HashSet<>();
         for (CQL3Type type : CQL3Type.Native.values())
         {
-            if (type != CQL3Type.Native.VARCHAR && type != CQL3Type.Native.BLOB)
-            {
-                functions.add(makeToBlobFunction(type.getType()));
-                functions.add(makeFromBlobFunction(type.getType()));
-            }
+            if (type == CQL3Type.Native.BLOB)
+                continue;
+            AbstractType<?> udfType = type.getType().udfType();
+            if (!types.add(udfType))
+                continue;
+
+            functions.add(makeToBlobFunction(type.getType().udfType()));
+            functions.add(makeFromBlobFunction(type.getType().udfType()));
         }
 
         functions.add(VarcharAsBlobFct);

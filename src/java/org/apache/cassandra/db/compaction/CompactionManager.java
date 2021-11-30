@@ -94,6 +94,7 @@ import static org.apache.cassandra.db.compaction.CompactionManager.CompactionExe
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * <p>
@@ -720,7 +721,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                     RangesAtEndpoint tokenRanges,
                                                     Refs<SSTableReader> sstables,
                                                     LifecycleTransaction txn,
-                                                    UUID sessionId,
+                                                    TimeUUID sessionId,
                                                     BooleanSupplier isCancelled)
     {
         Runnable runnable = new WrappedRunnable()
@@ -759,7 +760,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                      Iterator<SSTableReader> sstableIterator,
                                                      Collection<Range<Token>> ranges,
                                                      LifecycleTransaction txn,
-                                                     UUID sessionID,
+                                                     TimeUUID sessionID,
                                                      boolean isTransient) throws IOException
     {
         if (ranges.isEmpty())
@@ -794,7 +795,7 @@ public class CompactionManager implements CompactionManagerMBean
                                       RangesAtEndpoint replicas,
                                       Refs<SSTableReader> validatedForRepair,
                                       LifecycleTransaction txn,
-                                      UUID sessionID,
+                                      TimeUUID sessionID,
                                       BooleanSupplier isCancelled) throws IOException
     {
         try
@@ -835,7 +836,7 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info("{} Completed anticompaction successfully", PreviewKind.NONE.logPrefix(sessionID));
     }
 
-    static void validateSSTableBoundsForAnticompaction(UUID sessionID,
+    static void validateSSTableBoundsForAnticompaction(TimeUUID sessionID,
                                                        Collection<SSTableReader> sstables,
                                                        RangesAtEndpoint ranges)
     {
@@ -857,7 +858,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     @VisibleForTesting
-    static Set<SSTableReader> findSSTablesToAnticompact(Iterator<SSTableReader> sstableIterator, List<Range<Token>> normalizedRanges, UUID parentRepairSession)
+    static Set<SSTableReader> findSSTablesToAnticompact(Iterator<SSTableReader> sstableIterator, List<Range<Token>> normalizedRanges, TimeUUID parentRepairSession)
     {
         Set<SSTableReader> fullyContainedSSTables = new HashSet<>();
         while (sstableIterator.hasNext())
@@ -1285,7 +1286,7 @@ public class CompactionManager implements CompactionManagerMBean
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable);
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable));
-             CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), active))
+             CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, nextTimeUUID(), active))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();
             writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, txn));
@@ -1449,7 +1450,7 @@ public class CompactionManager implements CompactionManagerMBean
                                              File compactionFileLocation,
                                              long expectedBloomFilterSize,
                                              long repairedAt,
-                                             UUID pendingRepair,
+                                             TimeUUID pendingRepair,
                                              boolean isTransient,
                                              SSTableReader sstable,
                                              LifecycleTransaction txn)
@@ -1472,7 +1473,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                               File compactionFileLocation,
                                                               int expectedBloomFilterSize,
                                                               long repairedAt,
-                                                              UUID pendingRepair,
+                                                              TimeUUID pendingRepair,
                                                               boolean isTransient,
                                                               Collection<SSTableReader> sstables,
                                                               ILifecycleTransaction txn)
@@ -1519,7 +1520,7 @@ public class CompactionManager implements CompactionManagerMBean
     private void doAntiCompaction(ColumnFamilyStore cfs,
                                   RangesAtEndpoint ranges,
                                   LifecycleTransaction txn,
-                                  UUID pendingRepair,
+                                  TimeUUID pendingRepair,
                                   BooleanSupplier isCancelled)
     {
         int originalCount = txn.originals().size();
@@ -1554,7 +1555,7 @@ public class CompactionManager implements CompactionManagerMBean
     int antiCompactGroup(ColumnFamilyStore cfs,
                          RangesAtEndpoint ranges,
                          LifecycleTransaction txn,
-                         UUID pendingRepair,
+                         TimeUUID pendingRepair,
                          BooleanSupplier isCancelled)
     {
         Preconditions.checkArgument(!ranges.isEmpty(), "need at least one full or transient range");
@@ -1622,7 +1623,7 @@ public class CompactionManager implements CompactionManagerMBean
 
              AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs, nowInSec));
-             CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID(), active, isCancelled))
+             CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, nextTimeUUID(), active, isCancelled))
         {
             int expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval, (int)(SSTableReader.getApproximateKeyCount(sstableAsSet)));
 
@@ -1705,7 +1706,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     @VisibleForTesting
-    public static CompactionIterator getAntiCompactionIterator(List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID timeUUID, ActiveCompactionsTracker activeCompactions, BooleanSupplier isCancelled)
+    public static CompactionIterator getAntiCompactionIterator(List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, TimeUUID timeUUID, ActiveCompactionsTracker activeCompactions, BooleanSupplier isCancelled)
     {
         return new CompactionIterator(OperationType.ANTICOMPACTION, scanners, controller, nowInSec, timeUUID, activeCompactions) {
 
@@ -2043,8 +2044,8 @@ public class CompactionManager implements CompactionManagerMBean
     {
         for (Holder holder : active.getCompactions())
         {
-            UUID holderId = holder.getCompactionInfo().getTaskId();
-            if (holderId != null && holderId.equals(UUID.fromString(compactionId)))
+            TimeUUID holderId = holder.getCompactionInfo().getTaskId();
+            if (holderId != null && holderId.equals(TimeUUID.fromString(compactionId)))
                 holder.stop();
         }
     }

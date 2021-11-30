@@ -43,6 +43,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 /**
@@ -54,7 +55,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 public abstract class SSTableWriter extends SSTable implements Transactional
 {
     protected long repairedAt;
-    protected UUID pendingRepair;
+    protected TimeUUID pendingRepair;
     protected boolean isTransient;
     protected long maxDataAge = -1;
     protected final long keyCount;
@@ -77,7 +78,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected SSTableWriter(Descriptor descriptor,
                             long keyCount,
                             long repairedAt,
-                            UUID pendingRepair,
+                            TimeUUID pendingRepair,
                             boolean isTransient,
                             TableMetadataRef metadata,
                             MetadataCollector metadataCollector,
@@ -98,7 +99,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        Long keyCount,
                                        Long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        TableMetadataRef metadata,
                                        MetadataCollector metadataCollector,
@@ -113,7 +114,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        int sstableLevel,
                                        SerializationHeader header,
@@ -128,7 +129,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        int sstableLevel,
                                        SerializationHeader header,
@@ -143,7 +144,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
@@ -377,7 +378,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         public abstract SSTableWriter open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,
-                                           UUID pendingRepair,
+                                           TimeUUID pendingRepair,
                                            boolean isTransient,
                                            TableMetadataRef metadata,
                                            MetadataCollector metadataCollector,

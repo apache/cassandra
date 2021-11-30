@@ -19,11 +19,11 @@
 package org.apache.cassandra.repair.consistent;
 
 import java.util.Set;
-import java.util.UUID;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * makes package private hacks available to compaction tests
@@ -37,7 +37,7 @@ public class LocalSessionAccessor
         ARS.consistent.local.start();
     }
 
-    public static void prepareUnsafe(UUID sessionID, InetAddressAndPort coordinator, Set<InetAddressAndPort> peers)
+    public static void prepareUnsafe(TimeUUID sessionID, InetAddressAndPort coordinator, Set<InetAddressAndPort> peers)
     {
         ActiveRepairService.ParentRepairSession prs = null;
         try
@@ -53,18 +53,18 @@ public class LocalSessionAccessor
         ARS.consistent.local.putSessionUnsafe(session);
     }
 
-    public static long finalizeUnsafe(UUID sessionID)
+    public static long finalizeUnsafe(TimeUUID sessionID)
     {
         LocalSession session = setState(sessionID, ConsistentSession.State.FINALIZED);
         return session.repairedAt;
     }
 
-    public static void failUnsafe(UUID sessionID)
+    public static void failUnsafe(TimeUUID sessionID)
     {
         setState(sessionID, ConsistentSession.State.FAILED);
     }
 
-    public static LocalSession setState(UUID sessionId, ConsistentSession.State state)
+    public static LocalSession setState(TimeUUID sessionId, ConsistentSession.State state)
     {
         LocalSession session = ARS.consistent.local.getSession(sessionId);
         assert session != null;

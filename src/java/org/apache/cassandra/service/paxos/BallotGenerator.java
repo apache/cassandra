@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.service.paxos;
 
+import java.security.SecureRandom;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Shared;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -32,12 +33,14 @@ public interface BallotGenerator
 {
     static class Default implements BallotGenerator
     {
-        public UUID randomBallot(long whenInMicros, boolean isSerial)
+        private static final SecureRandom secureRandom = new SecureRandom();
+
+        public TimeUUID randomBallot(long whenInMicros, boolean isSerial)
         {
-            return UUIDGen.getRandomTimeUUIDFromMicros(whenInMicros, isSerial ? 2 : 1);
+            return TimeUUID.atUnixMicrosWithLsb(whenInMicros, secureRandom.nextLong(), isSerial);
         }
 
-        public UUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial)
+        public TimeUUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial)
         {
             long timestampMicros = ThreadLocalRandom.current().nextLong(fromInMicros, toInMicros);
             return randomBallot(timestampMicros, isSerial);
@@ -57,8 +60,8 @@ public interface BallotGenerator
     static class Global
     {
         private static BallotGenerator instance = new Default();
-        public static UUID randomBallot(long whenInMicros, boolean isSerial) { return instance.randomBallot(whenInMicros, isSerial); }
-        public static UUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial) { return instance.randomBallot(fromInMicros, toInMicros, isSerial); }
+        public static TimeUUID randomBallot(long whenInMicros, boolean isSerial) { return instance.randomBallot(whenInMicros, isSerial); }
+        public static TimeUUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial) { return instance.randomBallot(fromInMicros, toInMicros, isSerial); }
         public static long nextBallotTimestampMicros(long minWhenInMicros) { return instance.nextBallotTimestampMicros(minWhenInMicros); }
         public static long prevBallotTimestampMicros() { return instance.prevBallotTimestampMicros(); }
 
@@ -68,8 +71,8 @@ public interface BallotGenerator
         }
     }
 
-    UUID randomBallot(long whenInMicros, boolean isSerial);
-    UUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial);
+    TimeUUID randomBallot(long whenInMicros, boolean isSerial);
+    TimeUUID randomBallot(long fromInMicros, long toInMicros, boolean isSerial);
     long nextBallotTimestampMicros(long minWhenInMicros);
     long prevBallotTimestampMicros();
 }

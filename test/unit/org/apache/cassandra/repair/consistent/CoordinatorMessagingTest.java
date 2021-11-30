@@ -20,7 +20,6 @@ package org.apache.cassandra.repair.consistent;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +31,7 @@ import java.util.function.Supplier;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.repair.CoordinatedRepairResult;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -64,6 +64,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import static org.apache.cassandra.net.MockMessagingService.all;
 import static org.apache.cassandra.net.MockMessagingService.to;
 import static org.apache.cassandra.net.MockMessagingService.verb;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.fail;
 
 public class CoordinatorMessagingTest extends AbstractRepairTest
@@ -104,7 +105,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         MockMessagingSpy spyFinalize = createFinalizeSpy(Collections.emptySet(), Collections.emptySet(), finalizeLatch);
         MockMessagingSpy spyCommit = createCommitSpy();
 
-        UUID uuid = registerSession(cfs, true, true);
+        TimeUUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
@@ -183,7 +184,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     public void testMockedMessagingPrepareFailureWrongSessionId() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch latch = createLatch();
-        createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), (msgOut) -> UUID.randomUUID(), latch);
+        createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), (msgOut) -> nextTimeUUID(), latch);
         testMockedMessagingPrepareFailure(latch);
     }
 
@@ -192,7 +193,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         // we expect FailSession messages to all participants
         MockMessagingSpy sendFailSessionExpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
-        UUID uuid = registerSession(cfs, true, true);
+        TimeUUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
@@ -231,7 +232,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.singleton(PARTICIPANT3), new CountDownLatch(0));
         MockMessagingSpy sendFailSessionUnexpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
-        UUID uuid = registerSession(cfs, true, true);
+        TimeUUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
@@ -276,7 +277,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
 
     private MockMessagingSpy createPrepareSpy(Collection<InetAddressAndPort> failed,
                                               Collection<InetAddressAndPort> timeout,
-                                              Function<PrepareConsistentRequest, UUID> sessionIdFunc,
+                                              Function<PrepareConsistentRequest, TimeUUID> sessionIdFunc,
                                               CountDownLatch latch)
     {
         return MockMessagingService.when(verb(Verb.PREPARE_CONSISTENT_REQ)).respond((msgOut, to) ->

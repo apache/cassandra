@@ -131,7 +131,8 @@ public final class FunctionResolver
                                           FunctionName name,
                                           List<? extends AssignmentTestable> providedArgs,
                                           String receiverKs,
-                                          String receiverCf, AbstractType<?> receiverType,
+                                          String receiverCf,
+                                          AbstractType<?> receiverType,
                                           Collection<Function> candidates)
     {
         List<Function> compatibles = null;
@@ -212,7 +213,7 @@ public final class FunctionResolver
      */
     private static boolean matchReturnType(Function fun, AbstractType<?> receiverType)
     {
-        return receiverType == null || fun.returnType().testAssignment(receiverType).isAssignable();
+        return receiverType == null || fun.returnType().testAssignment(receiverType.udfType()).isAssignable();
     }
 
     // This method and matchArguments are somewhat duplicate, but this method allows us to provide more precise errors in the common

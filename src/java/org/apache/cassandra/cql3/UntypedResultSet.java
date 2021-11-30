@@ -38,6 +38,7 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -401,6 +402,17 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public UUID getUUID(String column)
         {
             return UUIDType.instance.compose(data.get(column));
+        }
+
+        public UUID getUUID(String column, UUID ifNull)
+        {
+            ByteBuffer bytes = data.get(column);
+            return bytes == null ? ifNull : UUIDType.instance.compose(bytes);
+        }
+
+        public TimeUUID getTimeUUID(String column)
+        {
+            return TimeUUID.deserialize(data.get(column));
         }
 
         public Date getTimestamp(String column)

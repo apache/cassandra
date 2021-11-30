@@ -21,7 +21,6 @@ package org.apache.cassandra.repair.consistent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 
@@ -31,20 +30,21 @@ import org.apache.cassandra.repair.messages.FinalizePromise;
 import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Container for all consistent repair sessions a node is coordinating
  */
 public class CoordinatorSessions
 {
-    private final Map<UUID, CoordinatorSession> sessions = new HashMap<>();
+    private final Map<TimeUUID, CoordinatorSession> sessions = new HashMap<>();
 
     protected CoordinatorSession buildSession(CoordinatorSession.Builder builder)
     {
         return new CoordinatorSession(builder);
     }
 
-    public synchronized CoordinatorSession registerSession(UUID sessionId, Set<InetAddressAndPort> participants, boolean isForced) throws NoSuchRepairSessionException
+    public synchronized CoordinatorSession registerSession(TimeUUID sessionId, Set<InetAddressAndPort> participants, boolean isForced) throws NoSuchRepairSessionException
     {
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionId);
 
@@ -67,7 +67,7 @@ public class CoordinatorSessions
         return session;
     }
 
-    public synchronized CoordinatorSession getSession(UUID sessionId)
+    public synchronized CoordinatorSession getSession(TimeUUID sessionId)
     {
         return sessions.get(sessionId);
     }

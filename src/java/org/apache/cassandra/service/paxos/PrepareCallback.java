@@ -24,6 +24,7 @@ package org.apache.cassandra.service.paxos;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -38,6 +39,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
 {
@@ -94,7 +97,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         // on paxos tables. For such old commit, we rely on hints and repair to ensure the commit has indeed be
         // propagated to all nodes.
         long paxosTtlSec = SystemKeyspace.paxosTtlSec(metadata);
-        if (UUIDGen.unixTimestampInSec(mostRecentCommit.ballot) + paxosTtlSec < nowInSec)
+        if (mostRecentCommit.ballot.unix(SECONDS) + paxosTtlSec < nowInSec)
             return Collections.emptySet();
 
         return Iterables.filter(commitsByReplica.keySet(), new Predicate<InetAddressAndPort>()

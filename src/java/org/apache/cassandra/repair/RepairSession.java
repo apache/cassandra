@@ -35,6 +35,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,9 +103,9 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
-    public final UUID parentRepairSession;
+    public final TimeUUID parentRepairSession;
     /** Repair session ID */
-    private final UUID id;
+    private final TimeUUID id;
     public final String keyspace;
     private final String[] cfnames;
     public final RepairParallelism parallelismDegree;
@@ -138,8 +139,8 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
      * @param cfnames names of columnfamilies
      */
-    public RepairSession(UUID parentRepairSession,
-                         UUID id,
+    public RepairSession(TimeUUID parentRepairSession,
+                         TimeUUID id,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -169,7 +170,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         return ExecutorFactory.Global.executorFactory().pooled("RepairJobTask", Integer.MAX_VALUE);
     }
 
-    public UUID getId()
+    public TimeUUID getId()
     {
         return id;
     }

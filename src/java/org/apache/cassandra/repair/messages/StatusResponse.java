@@ -19,21 +19,20 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
-import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.consistent.ConsistentSession;
-import org.apache.cassandra.utils.UUIDSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class StatusResponse extends RepairMessage
 {
-    public final UUID sessionID;
+    public final TimeUUID sessionID;
     public final ConsistentSession.State state;
 
-    public StatusResponse(UUID sessionID, ConsistentSession.State state)
+    public StatusResponse(TimeUUID sessionID, ConsistentSession.State state)
     {
         super(null);
         assert sessionID != null;
@@ -72,19 +71,19 @@ public class StatusResponse extends RepairMessage
     {
         public void serialize(StatusResponse msg, DataOutputPlus out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(msg.sessionID, out, version);
+            msg.sessionID.serialize(out);
             out.writeInt(msg.state.ordinal());
         }
 
         public StatusResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new StatusResponse(UUIDSerializer.serializer.deserialize(in, version),
+            return new StatusResponse(TimeUUID.deserialize(in),
                                       ConsistentSession.State.valueOf(in.readInt()));
         }
 
         public long serializedSize(StatusResponse msg, int version)
         {
-            return UUIDSerializer.serializer.serializedSize(msg.sessionID, version)
+            return TimeUUID.sizeInBytes()
                    + TypeSizes.sizeof(msg.state.ordinal());
         }
     };

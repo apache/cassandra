@@ -32,9 +32,8 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.TimeUUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -65,8 +64,8 @@ public class ColumnConditionTest
         {
             for (int i = 0, m = values.size(); i < m; i++)
             {
-                UUID uuid = UUIDGen.getTimeUUID(now, i);
-                ByteBuffer key = TimeUUIDSerializer.instance.serialize(uuid);
+                TimeUUID uuid = TimeUUID.Generator.atUnixMillis(now, i);
+                ByteBuffer key = uuid.toBytes();
                 ByteBuffer value = values.get(i);
                 BufferCell cell = new BufferCell(definition,
                                                  0L,

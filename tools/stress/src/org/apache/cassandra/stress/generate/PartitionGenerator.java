@@ -104,10 +104,10 @@ public class PartitionGenerator
     public ByteBuffer convert(int c, Object v)
     {
         if (c < 0)
-            return partitionKey.get(-1-c).type.decompose(v);
+            return partitionKey.get(-1-c).type.decomposeUntyped(v);
         if (c < clusteringComponents.size())
-            return clusteringComponents.get(c).type.decompose(v);
-        return valueComponents.get(c - clusteringComponents.size()).type.decompose(v);
+            return clusteringComponents.get(c).type.decomposeUntyped(v);
+        return valueComponents.get(c - clusteringComponents.size()).type.decomposeUntyped(v);
     }
 
     public Object convert(int c, ByteBuffer v)

@@ -37,7 +37,8 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class UFTypesTest extends CQLTester
 {
@@ -186,7 +187,7 @@ public class UFTypesTest extends CQLTester
         new TypesTestDef("date", "date", "dt", 12345),
         new TypesTestDef("time", "time", "tim", 12345L),
         new TypesTestDef("uuid", "uuid", "uu", UUID.randomUUID()),
-        new TypesTestDef("timeuuid", "timeuuid", "tu", UUIDGen.getTimeUUID()),
+        new TypesTestDef("timeuuid", "timeuuid", "tu", nextTimeUUID().asUUID()),
         new TypesTestDef("tinyint", "tinyint", "ti", (byte) 42),
         new TypesTestDef("smallint", "smallint", "si", (short) 43),
         new TypesTestDef("int", "int", "i", 44),

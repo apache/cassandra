@@ -156,7 +156,7 @@ public final class DropFunctionStatement extends AlterSchemaStatement
     {
         return arguments.stream()
                         .map(t -> t.prepare(keyspaceName, types))
-                        .map(CQL3Type::getType)
+                        .map(t -> t.getType().udfType())
                         .collect(toList());
     }
 

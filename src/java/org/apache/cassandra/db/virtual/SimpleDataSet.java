@@ -204,9 +204,8 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> ByteBuffer decompose(AbstractType<?> type, T value)
+    private static ByteBuffer decompose(AbstractType<?> type, Object value)
     {
-        return ((AbstractType<T>) type).decompose(value);
+        return type.decomposeUntyped(value);
     }
 }

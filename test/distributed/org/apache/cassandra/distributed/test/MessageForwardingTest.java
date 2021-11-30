@@ -23,7 +23,6 @@ import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -36,7 +35,9 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class MessageForwardingTest extends TestBaseImpl
 {
@@ -56,9 +57,9 @@ public class MessageForwardingTest extends TestBaseImpl
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
-            final UUID sessionId = UUIDGen.getTimeUUID();
+            final TimeUUID sessionId = nextTimeUUID();
             Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) -> {
-                return cluster.coordinator(1).asyncExecuteWithTracing(sessionId,
+                return cluster.coordinator(1).asyncExecuteWithTracing(sessionId.asUUID(),
                                                                       "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')",
                                                                       ConsistencyLevel.ALL);
             });
@@ -70,7 +71,7 @@ public class MessageForwardingTest extends TestBaseImpl
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddress().getAddress(), 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
-            List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
+            List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId.asUUID(), ConsistencyLevel.ALL);
             traces.forEach(traceEntry -> {
                 if (traceEntry.activity.contains("Appending to commitlog"))
                 {

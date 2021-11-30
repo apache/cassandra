@@ -28,7 +28,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public abstract class TimeFcts
 {
@@ -74,7 +76,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
-            return UUIDGen.toByteBuffer(UUIDGen.minTimeUUID(TimestampType.instance.compose(bb).getTime()));
+            return TimeUUID.minAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
         }
     };
 
@@ -86,7 +88,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
-            return UUIDGen.toByteBuffer(UUIDGen.maxTimeUUID(TimestampType.instance.compose(bb).getTime()));
+            return TimeUUID.maxAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
         }
     };
 
@@ -111,7 +113,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
-            long timeInMillis = UUIDGen.unixTimestamp(UUIDGen.getUUID(bb));
+            long timeInMillis = TimeUUID.deserialize(bb).unix(MILLISECONDS);
             return ByteBufferUtil.bytes(timeInMillis);
         }
     };
@@ -137,7 +139,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
-            return ByteBufferUtil.bytes(UUIDGen.unixTimestamp(UUIDGen.getUUID(bb)));
+            return ByteBufferUtil.bytes(TimeUUID.deserialize(bb).unix(MILLISECONDS));
         }
     };
 

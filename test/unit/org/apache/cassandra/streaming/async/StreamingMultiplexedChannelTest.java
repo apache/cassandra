@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.streaming.async;
 
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -39,9 +38,11 @@ import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.messages.CompleteMessage;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.TestChannel.REMOTE_ADDR;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingMultiplexedChannelTest
 {
@@ -62,9 +63,9 @@ public class StreamingMultiplexedChannelTest
     {
         channel = new TestChannel();
         streamingChannel = new NettyStreamingChannel(current_version, channel, StreamingChannel.Kind.CONTROL);
-        UUID pendingRepair = UUID.randomUUID();
+        TimeUUID pendingRepair = nextTimeUUID();
         session = new StreamSession(StreamOperation.BOOTSTRAP, REMOTE_ADDR, new NettyStreamingConnectionFactory(), streamingChannel, current_version, true, 0, pendingRepair, PreviewKind.ALL);
-        StreamResultFuture future = StreamResultFuture.createFollower(0, UUID.randomUUID(), StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, current_version, pendingRepair, session.getPreviewKind());
+        StreamResultFuture future = StreamResultFuture.createFollower(0, nextTimeUUID(), StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, current_version, pendingRepair, session.getPreviewKind());
         session.init(future);
         session.attachOutbound(streamingChannel);
 

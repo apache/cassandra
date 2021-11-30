@@ -106,9 +106,9 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
 
         List<AbstractType<?>> argumentTypes =
             rawArgumentTypes.stream()
-                            .map(t -> t.prepare(keyspaceName, keyspace.types).getType())
+                            .map(t -> t.prepare(keyspaceName, keyspace.types).getType().udfType())
                             .collect(toList());
-        AbstractType<?> returnType = rawReturnType.prepare(keyspaceName, keyspace.types).getType();
+        AbstractType<?> returnType = rawReturnType.prepare(keyspaceName, keyspace.types).getType().udfType();
 
         UDFunction function =
             UDFunction.create(new FunctionName(keyspaceName, functionName),
@@ -171,7 +171,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
     {
         FunctionName name = new FunctionName(keyspaceName, functionName);
 
-        if (Schema.instance.findFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType())).isPresent() && orReplace)
+        if (Schema.instance.findFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType().udfType())).isPresent() && orReplace)
             client.ensurePermission(Permission.ALTER, FunctionResource.functionFromCql(keyspaceName, functionName, rawArgumentTypes));
         else
             client.ensurePermission(Permission.CREATE, FunctionResource.keyspace(keyspaceName));

@@ -23,7 +23,9 @@ import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.*;
@@ -64,21 +66,23 @@ public abstract class AggregateFcts
         functions.add(avgFunctionForCounter);
 
         // count, max, and min for all standard types
+        Set<AbstractType<?>> types = new HashSet<>();
         for (CQL3Type type : CQL3Type.Native.values())
         {
-            if (type != CQL3Type.Native.VARCHAR) // varchar and text both mapping to UTF8Type
+            AbstractType<?> udfType = type.getType().udfType();
+            if (!types.add(udfType))
+                continue;
+
+            functions.add(AggregateFcts.makeCountFunction(udfType));
+            if (type != CQL3Type.Native.COUNTER)
             {
-                functions.add(AggregateFcts.makeCountFunction(type.getType()));
-                if (type != CQL3Type.Native.COUNTER)
-                {
-                    functions.add(AggregateFcts.makeMaxFunction(type.getType()));
-                    functions.add(AggregateFcts.makeMinFunction(type.getType()));
-                }
-                else
-                {
-                    functions.add(AggregateFcts.maxFunctionForCounter);
-                    functions.add(AggregateFcts.minFunctionForCounter);
-                }
+                functions.add(AggregateFcts.makeMaxFunction(udfType));
+                functions.add(AggregateFcts.makeMinFunction(udfType));
+            }
+            else
+            {
+                functions.add(AggregateFcts.maxFunctionForCounter);
+                functions.add(AggregateFcts.minFunctionForCounter);
             }
         }
 

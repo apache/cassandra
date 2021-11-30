@@ -44,6 +44,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,7 +96,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.collect.Iterables.concat;
@@ -109,6 +110,7 @@ import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 /**
@@ -149,14 +151,14 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public static final ActiveRepairService instance = new ActiveRepairService(FailureDetector.instance, Gossiper.instance);
 
     public static final long UNREPAIRED_SSTABLE = 0;
-    public static final UUID NO_PENDING_REPAIR = null;
+    public static final TimeUUID NO_PENDING_REPAIR = null;
 
     /**
      * A map of active coordinator session.
      */
-    private final ConcurrentMap<UUID, RepairSession> sessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TimeUUID, RepairSession> sessions = new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<UUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TimeUUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
 
     static
     {
@@ -234,7 +236,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     @Override
     public void failSession(String session, boolean force)
     {
-        UUID sessionID = UUID.fromString(session);
+        TimeUUID sessionID = TimeUUID.fromString(session);
         consistent.local.cancelSession(sessionID, force);
     }
 
@@ -332,7 +334,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @return Future for asynchronous call or null if there is no need to repair
      */
-    public RepairSession submitRepairSession(UUID parentRepairSession,
+    public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
@@ -349,7 +351,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
+        final RepairSession session = new RepairSession(parentRepairSession, nextTimeUUID(), range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, cfnames);
 
@@ -520,7 +522,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-    public static boolean verifyCompactionsPendingThreshold(UUID parentRepairSession, PreviewKind previewKind)
+    public static boolean verifyCompactionsPendingThreshold(TimeUUID parentRepairSession, PreviewKind previewKind)
     {
         // Snapshot values so failure message is consistent with decision
         int pendingCompactions = CompactionManager.instance.getPendingTasks();
@@ -534,7 +536,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return true;
     }
 
-    public UUID prepareForRepair(UUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
+    public TimeUUID prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
@@ -621,7 +623,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * endpoint's cache.
      * This method does not throw an exception in case of a messaging failure.
      */
-    public void cleanUp(UUID parentRepairSession, Set<InetAddressAndPort> endpoints)
+    public void cleanUp(TimeUUID parentRepairSession, Set<InetAddressAndPort> endpoints)
     {
         for (InetAddressAndPort endpoint : endpoints)
         {
@@ -659,12 +661,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-    private void failRepair(UUID parentRepairSession, String errorMsg) {
+    private void failRepair(TimeUUID parentRepairSession, String errorMsg) {
         removeParentRepairSession(parentRepairSession);
         throw new RuntimeException(errorMsg);
     }
 
-    public synchronized void registerParentRepairSession(UUID parentRepairSession, InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
+    public synchronized void registerParentRepairSession(TimeUUID parentRepairSession, InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
     {
         assert isIncremental || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE;
         if (!registeredForEndpointChanges)
@@ -691,7 +693,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * 
      * @throws NoSuchRepairSessionException if the provided identifier does not map to an active parent session
      */
-    public ParentRepairSession getParentRepairSession(UUID parentSessionId) throws NoSuchRepairSessionException
+    public ParentRepairSession getParentRepairSession(TimeUUID parentSessionId) throws NoSuchRepairSessionException
     {
         ParentRepairSession session = parentRepairSessions.get(parentSessionId);
         if (session == null)
@@ -709,7 +711,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *                        
      * @return the {@link ParentRepairSession} associated with the provided identifier
      */
-    public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
+    public synchronized ParentRepairSession removeParentRepairSession(TimeUUID parentSessionId)
     {
         String snapshotName = parentSessionId.toString();
         ParentRepairSession session = parentRepairSessions.remove(parentSessionId);
@@ -904,8 +906,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public void abort(Predicate<ParentRepairSession> predicate, String message)
     {
-        Set<UUID> parentSessionsToRemove = new HashSet<>();
-        for (Map.Entry<UUID, ParentRepairSession> repairSessionEntry : parentRepairSessions.entrySet())
+        Set<TimeUUID> parentSessionsToRemove = new HashSet<>();
+        for (Map.Entry<TimeUUID, ParentRepairSession> repairSessionEntry : parentRepairSessions.entrySet())
         {
             if (predicate.test(repairSessionEntry.getValue()))
                 parentSessionsToRemove.add(repairSessionEntry.getKey());

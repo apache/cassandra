@@ -51,7 +51,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class RepairMessageSerializationsTest
 {
@@ -85,7 +86,7 @@ public class RepairMessageSerializationsTest
     private RepairJobDesc buildRepairJobDesc()
     {
         List<Range<Token>> tokenRanges = buildTokenRanges();
-        return new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), "serializationsTestKeyspace", "repairMessages", tokenRanges);
+        return new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), "serializationsTestKeyspace", "repairMessages", tokenRanges);
     }
 
     private List<Range<Token>> buildTokenRanges()
@@ -161,8 +162,8 @@ public class RepairMessageSerializationsTest
         InetAddressAndPort dst = InetAddressAndPort.getByName("127.0.0.3");
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dst,
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 5, 100)),
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 500, 10))
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 500, 10))
         ));
         SyncResponse msg = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries);
         serializeRoundTrip(msg, SyncResponse.serializer);
@@ -171,7 +172,7 @@ public class RepairMessageSerializationsTest
     @Test
     public void prepareMessage() throws IOException
     {
-        PrepareMessage msg = new PrepareMessage(UUID.randomUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},
+        PrepareMessage msg = new PrepareMessage(nextTimeUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},
                                                 buildTokenRanges(), true, 100000L, false,
                                                 PreviewKind.NONE);
         serializeRoundTrip(msg, PrepareMessage.serializer);
@@ -187,7 +188,7 @@ public class RepairMessageSerializationsTest
     @Test
     public void cleanupMessage() throws IOException
     {
-        CleanupMessage msg = new CleanupMessage(UUID.randomUUID());
+        CleanupMessage msg = new CleanupMessage(nextTimeUUID());
         serializeRoundTrip(msg, CleanupMessage.serializer);
     }
 }

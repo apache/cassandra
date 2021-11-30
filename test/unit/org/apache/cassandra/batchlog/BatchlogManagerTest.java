@@ -51,11 +51,13 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillis;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.*;
 
 public class BatchlogManagerTest
@@ -96,7 +98,7 @@ public class BatchlogManagerTest
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         InetAddressAndPort localhost = InetAddressAndPort.getByName("127.0.0.1");
         metadata.updateNormalToken(Util.token("A"), localhost);
-        metadata.updateHostId(UUIDGen.getTimeUUID(), localhost);
+        metadata.updateHostId(UUID.randomUUID(), localhost);
         Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).truncateBlocking();
     }
 
@@ -150,7 +152,7 @@ public class BatchlogManagerTest
                            ? (currentTimeMillis() - BatchlogManager.getBatchlogTimeout())
                            : (currentTimeMillis() + BatchlogManager.getBatchlogTimeout());
 
-            BatchlogManager.store(Batch.createLocal(UUIDGen.getTimeUUID(timestamp, i), timestamp * 1000, mutations));
+            BatchlogManager.store(Batch.createLocal(atUnixMillis(timestamp, i), timestamp * 1000, mutations));
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
@@ -234,7 +236,7 @@ public class BatchlogManagerTest
             else
                 timestamp--;
 
-            BatchlogManager.store(Batch.createLocal(UUIDGen.getTimeUUID(timestamp, i), FBUtilities.timestampMicros(), mutations));
+            BatchlogManager.store(Batch.createLocal(atUnixMillis(timestamp, i), FBUtilities.timestampMicros(), mutations));
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
@@ -277,7 +279,7 @@ public class BatchlogManagerTest
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD5).metadata();
 
         long timestamp = (currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
-        UUID uuid = UUIDGen.getTimeUUID();
+        TimeUUID uuid = nextTimeUUID();
 
         // Add a batch with 10 mutations
         List<Mutation> mutations = new ArrayList<>(10);
@@ -309,7 +311,7 @@ public class BatchlogManagerTest
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD5).metadata();
 
         long timestamp = (currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
-        UUID uuid = UUIDGen.getTimeUUID();
+        TimeUUID uuid = nextTimeUUID();
 
         // Add a batch with 10 mutations
         List<Mutation> mutations = new ArrayList<>(10);
@@ -351,7 +353,7 @@ public class BatchlogManagerTest
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata();
 
         long timestamp = (currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
-        UUID uuid = UUIDGen.getTimeUUID();
+        TimeUUID uuid = nextTimeUUID();
 
         // Add a batch with 10 mutations
         List<Mutation> mutations = new ArrayList<>(10);

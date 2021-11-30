@@ -21,7 +21,6 @@ package org.apache.cassandra.db.view;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -58,10 +57,11 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<Long>
 {
@@ -72,7 +72,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
     private final ColumnFamilyStore baseCfs;
     private final View view;
     private final Range<Token> range;
-    private final UUID compactionId;
+    private final TimeUUID compactionId;
     private volatile Token prevToken;
     private volatile long keysBuilt = 0;
     private volatile boolean isStopped = false;
@@ -84,7 +84,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
         this.baseCfs = baseCfs;
         this.view = view;
         this.range = range;
-        this.compactionId = UUIDGen.getTimeUUID();
+        this.compactionId = nextTimeUUID();
         this.prevToken = lastToken;
         this.keysBuilt = keysBuilt;
     }
