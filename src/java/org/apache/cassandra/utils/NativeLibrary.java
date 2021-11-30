@@ -302,7 +302,12 @@ public class NativeLibrary implements INativeLibrary
     @Override
     public int tryOpenDirectory(File file)
     {
-        String path = file.path();
+        return tryOpenDirectory(file.path());
+    }
+
+    @Override
+    public int tryOpenDirectory(String path)
+    {
         int fd = -1;
 
         try

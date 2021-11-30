@@ -94,6 +94,11 @@ public interface INativeLibrary
     int tryOpenDirectory(File path);
 
     /**
+     * try to open given directory
+     */
+    int tryOpenDirectory(String path);
+
+    /**
      * try fsync on given file
      */
     void trySync(int fd);
