@@ -17,143 +17,22 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.nio.ByteBuffer;
-import java.util.UUID;
-
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.serializers.TimeUUIDSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
-public class TimeUUIDType extends TemporalType<UUID>
+// Fully compatible with UUID, and indeed is interpreted as UUID for UDF
+public class TimeUUIDType extends AbstractTimeUUIDType<TimeUUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
-    TimeUUIDType()
+    public TypeSerializer<TimeUUID> getSerializer()
     {
-        super(ComparisonType.CUSTOM);
-    } // singleton
-
-    public boolean isEmptyValueMeaningless()
-    {
-        return true;
-    }
-
-    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
-    {
-        // Compare for length
-        boolean p1 = accessorL.size(left) == 16, p2 = accessorR.size(right) == 16;
-        if (!(p1 & p2))
-        {
-            // should we assert exactly 16 bytes (or 0)? seems prudent
-            assert p1 || accessorL.isEmpty(left);
-            assert p2 || accessorR.isEmpty(right);
-            return p1 ? 1 : p2 ? -1 : 0;
-        }
-
-        long msb1 = accessorL.getLong(left, 0);
-        long msb2 = accessorR.getLong(right, 0);
-        msb1 = reorderTimestampBytes(msb1);
-        msb2 = reorderTimestampBytes(msb2);
-
-        assert (msb1 & topbyte(0xf0L)) == topbyte(0x10L);
-        assert (msb2 & topbyte(0xf0L)) == topbyte(0x10L);
-
-        int c = Long.compare(msb1, msb2);
-        if (c != 0)
-            return c;
-
-        // this has to be a signed per-byte comparison for compatibility
-        // so we transform the bytes so that a simple long comparison is equivalent
-        long lsb1 = signedBytesToNativeLong(accessorL.getLong(left, 8));
-        long lsb2 = signedBytesToNativeLong(accessorR.getLong(right, 8));
-        return Long.compare(lsb1, lsb2);
-    }
-
-    // takes as input 8 signed bytes in native machine order
-    // returns the first byte unchanged, and the following 7 bytes converted to an unsigned representation
-    // which is the same as a 2's complement long in native format
-    private static long signedBytesToNativeLong(long signedBytes)
-    {
-        return signedBytes ^ 0x0080808080808080L;
-    }
-
-    private static long topbyte(long topbyte)
-    {
-        return topbyte << 56;
-    }
-
-    protected static long reorderTimestampBytes(long input)
-    {
-        return    (input <<  48)
-                  | ((input <<  16) & 0xFFFF00000000L)
-                  |  (input >>> 32);
-    }
-
-    public ByteBuffer fromString(String source) throws MarshalException
-    {
-        ByteBuffer parsed = UUIDType.parse(source);
-        if (parsed == null)
-            throw new MarshalException(String.format("Unknown timeuuid representation: %s", source));
-        if (parsed.remaining() == 16 && UUIDType.version(parsed) != 1)
-            throw new MarshalException("TimeUUID supports only version 1 UUIDs");
-        return parsed;
+        return TimeUUID.Serializer.instance;
     }
 
     @Override
-    public Term fromJSONObject(Object parsed) throws MarshalException
+    public AbstractType<?> udfType()
     {
-        try
-        {
-            return new Constants.Value(fromString((String) parsed));
-        }
-        catch (ClassCastException exc)
-        {
-            throw new MarshalException(
-                    String.format("Expected a string representation of a timeuuid, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
-        }
-    }
-
-    public CQL3Type asCQL3Type()
-    {
-        return CQL3Type.Native.TIMEUUID;
-    }
-
-    public TypeSerializer<UUID> getSerializer()
-    {
-        return TimeUUIDSerializer.instance;
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 16;
-    }
-
-    @Override
-    public long toTimeInMillis(ByteBuffer value)
-    {
-        return UUIDGen.unixTimestamp(UUIDGen.getUUID(value));
-    }
-
-    @Override
-    public ByteBuffer addDuration(ByteBuffer temporal, ByteBuffer duration)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ByteBuffer substractDuration(ByteBuffer temporal, ByteBuffer duration)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ByteBuffer now()
-    {
-        return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+        return LegacyTimeUUIDType.instance;
     }
 }

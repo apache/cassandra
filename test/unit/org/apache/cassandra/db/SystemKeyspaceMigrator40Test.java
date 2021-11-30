@@ -32,12 +32,13 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 
 public class SystemKeyspaceMigrator40Test extends CQLTester
@@ -57,8 +58,8 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
                                       + "tokens) "
                                       + " values ( ?, ?, ? , ? , ?, ?, ?, ?, ?)",
                                       SystemKeyspaceMigrator40.legacyPeersName);
-        UUID hostId = UUIDGen.getTimeUUID();
-        UUID schemaVersion = UUIDGen.getTimeUUID();
+        UUID hostId = UUID.randomUUID();
+        UUID schemaVersion = UUID.randomUUID();
         execute(insert,
                 InetAddress.getByName("127.0.0.1"),
                 "dcFoo",
@@ -113,7 +114,7 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
                                       + "hints_dropped) "
                                       + " values ( ?, ? )",
                                       SystemKeyspaceMigrator40.legacyPeerEventsName);
-        UUID uuid = UUIDGen.getTimeUUID();
+        TimeUUID uuid = nextTimeUUID();
         execute(insert,
                 InetAddress.getByName("127.0.0.1"),
                 ImmutableMap.of(uuid, 42));
@@ -125,7 +126,7 @@ public class SystemKeyspaceMigrator40Test extends CQLTester
             rowCount++;
             assertEquals(InetAddress.getByName("127.0.0.1"), row.getInetAddress("peer"));
             assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("peer_port"));
-            assertEquals(ImmutableMap.of(uuid, 42), row.getMap("hints_dropped", UUIDType.instance, Int32Type.instance));
+            assertEquals(ImmutableMap.of(uuid, 42), row.getMap("hints_dropped", TimeUUIDType.instance, Int32Type.instance));
         }
         assertEquals(1, rowCount);
 

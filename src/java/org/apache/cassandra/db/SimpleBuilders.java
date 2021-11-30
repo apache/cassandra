@@ -38,6 +38,8 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
+
 public abstract class SimpleBuilders
 {
     private SimpleBuilders()
@@ -391,7 +393,7 @@ public abstract class SimpleBuilders
                     ListType lt = (ListType)column.type;
                     assert value instanceof List;
                     for (Object elt : (List)value)
-                        builder.addCell(cell(column, toByteBuffer(elt, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()))));
+                        builder.addCell(cell(column, toByteBuffer(elt, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()))));
                     break;
                 case SET:
                     SetType st = (SetType)column.type;

@@ -21,7 +21,6 @@ package org.apache.cassandra.repair.messages;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -30,17 +29,17 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.UUIDSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
 public class PrepareConsistentRequest extends RepairMessage
 {
-    public final UUID parentSession;
+    public final TimeUUID parentSession;
     public final InetAddressAndPort coordinator;
     public final Set<InetAddressAndPort> participants;
 
-    public PrepareConsistentRequest(UUID parentSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> participants)
+    public PrepareConsistentRequest(TimeUUID parentSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> participants)
     {
         super(null);
         assert parentSession != null;
@@ -84,7 +83,7 @@ public class PrepareConsistentRequest extends RepairMessage
     {
         public void serialize(PrepareConsistentRequest request, DataOutputPlus out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(request.parentSession, out, version);
+            request.parentSession.serialize(out);
             inetAddressAndPortSerializer.serialize(request.coordinator, out, version);
             out.writeInt(request.participants.size());
             for (InetAddressAndPort peer : request.participants)
@@ -95,7 +94,7 @@ public class PrepareConsistentRequest extends RepairMessage
 
         public PrepareConsistentRequest deserialize(DataInputPlus in, int version) throws IOException
         {
-            UUID sessionId = UUIDSerializer.serializer.deserialize(in, version);
+            TimeUUID sessionId = TimeUUID.deserialize(in);
             InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
             int numPeers = in.readInt();
             Set<InetAddressAndPort> peers = new HashSet<>(numPeers);
@@ -109,7 +108,7 @@ public class PrepareConsistentRequest extends RepairMessage
 
         public long serializedSize(PrepareConsistentRequest request, int version)
         {
-            long size = UUIDSerializer.serializer.serializedSize(request.parentSession, version);
+            long size = TimeUUID.sizeInBytes();
             size += inetAddressAndPortSerializer.serializedSize(request.coordinator, version);
             size += TypeSizes.sizeof(request.participants.size());
             for (InetAddressAndPort peer : request.participants)

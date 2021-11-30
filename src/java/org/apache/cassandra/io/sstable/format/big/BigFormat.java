@@ -30,6 +30,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Legacy bigtable format
@@ -82,7 +83,7 @@ public class BigFormat implements SSTableFormat
         public SSTableWriter open(Descriptor descriptor,
                                   long keyCount,
                                   long repairedAt,
-                                  UUID pendingRepair,
+                                  TimeUUID pendingRepair,
                                   boolean isTransient,
                                   TableMetadataRef metadata,
                                   MetadataCollector metadataCollector,

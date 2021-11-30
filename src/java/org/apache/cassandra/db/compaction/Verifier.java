@@ -49,7 +49,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -65,6 +65,8 @@ import java.util.function.Function;
 import java.util.function.LongPredicate;
 
 import org.apache.cassandra.io.util.File;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class Verifier implements Closeable
 {
@@ -508,7 +510,7 @@ public class Verifier implements Closeable
     {
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
-        private final UUID verificationCompactionId;
+        private final TimeUUID verificationCompactionId;
         private final Lock fileReadLock;
 
         public VerifyInfo(RandomAccessReader dataFile, SSTableReader sstable, Lock fileReadLock)
@@ -516,7 +518,7 @@ public class Verifier implements Closeable
             this.dataFile = dataFile;
             this.sstable = sstable;
             this.fileReadLock = fileReadLock;
-            verificationCompactionId = UUIDGen.getTimeUUID();
+            verificationCompactionId = nextTimeUUID();
         }
 
         public CompactionInfo getCompactionInfo()

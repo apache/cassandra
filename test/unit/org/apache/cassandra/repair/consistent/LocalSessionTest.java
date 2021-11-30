@@ -65,24 +65,25 @@ import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
 
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.psjava.util.AssertStatus.assertTrue;
 
 public class LocalSessionTest extends AbstractRepairTest
 {
-    private static final UUID TID1 = UUIDGen.getTimeUUID();
-    private static final UUID TID2 = UUIDGen.getTimeUUID();
+    private static final UUID TID1 = UUID.randomUUID();
+    private static final UUID TID2 = UUID.randomUUID();
 
     static LocalSession.Builder createBuilder()
     {
         LocalSession.Builder builder = LocalSession.builder();
         builder.withState(PREPARING);
-        builder.withSessionID(UUIDGen.getTimeUUID());
+        builder.withSessionID(nextTimeUUID());
         builder.withCoordinator(COORDINATOR);
         builder.withUUIDTableIds(Sets.newHashSet(TID1, TID2));
         builder.withRepairedAt(System.currentTimeMillis());
@@ -144,7 +145,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
         @Override
         Future<List<Void>> prepareSession(KeyspaceRepairManager repairManager,
-                                          UUID sessionID,
+                                          TimeUUID sessionID,
                                           Collection<ColumnFamilyStore> tables,
                                           RangesAtEndpoint ranges,
                                           ExecutorService executor,
@@ -162,13 +163,13 @@ public class LocalSessionTest extends AbstractRepairTest
         }
 
         boolean failSessionCalled = false;
-        public void failSession(UUID sessionID, boolean sendMessage)
+        public void failSession(TimeUUID sessionID, boolean sendMessage)
         {
             failSessionCalled = true;
             super.failSession(sessionID, sendMessage);
         }
 
-        public LocalSession prepareForTest(UUID sessionID)
+        public LocalSession prepareForTest(TimeUUID sessionID)
         {
             prepareSessionFuture = new AsyncPromise<>();
             handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
@@ -193,11 +194,11 @@ public class LocalSessionTest extends AbstractRepairTest
             return true;
         }
 
-        public Map<UUID, Integer> completedSessions = new HashMap<>();
+        public Map<TimeUUID, Integer> completedSessions = new HashMap<>();
 
         protected void sessionCompleted(LocalSession session)
         {
-            UUID sessionID = session.sessionID;
+            TimeUUID sessionID = session.sessionID;
             int calls = completedSessions.getOrDefault(sessionID, 0);
             completedSessions.put(sessionID, calls + 1);
         }
@@ -229,7 +230,7 @@ public class LocalSessionTest extends AbstractRepairTest
         repairCfs.truncateBlocking();
     }
 
-    private static UUID registerSession()
+    private static TimeUUID registerSession()
     {
         return registerSession(cfs, true, true);
     }
@@ -267,7 +268,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void prepareSuccessCase()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -302,7 +303,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void prepareAntiCompactFailure()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -339,7 +340,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void prepareWithNonExistantParentSession()
     {
-        UUID sessionID = UUIDGen.getTimeUUID();
+        TimeUUID sessionID = nextTimeUUID();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
         Assert.assertNull(sessions.getSession(sessionID));
@@ -352,12 +353,12 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void prepareCancellation()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         AtomicReference<BooleanSupplier> isCancelledRef = new AtomicReference<>();
         Promise<List<Void>> future = new AsyncPromise<>();
 
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions() {
-            Future<List<Void>> prepareSession(KeyspaceRepairManager repairManager, UUID sessionID, Collection<ColumnFamilyStore> tables, RangesAtEndpoint ranges, ExecutorService executor, BooleanSupplier isCancelled)
+            Future<List<Void>> prepareSession(KeyspaceRepairManager repairManager, TimeUUID sessionID, Collection<ColumnFamilyStore> tables, RangesAtEndpoint ranges, ExecutorService executor, BooleanSupplier isCancelled)
             {
                 isCancelledRef.set(isCancelled);
                 return future;
@@ -383,7 +384,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void maybeSetRepairing()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -404,7 +405,7 @@ public class LocalSessionTest extends AbstractRepairTest
     public void maybeSetRepairingDuplicates()
     {
 
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -438,7 +439,7 @@ public class LocalSessionTest extends AbstractRepairTest
     public void maybeSetRepairingNonExistantSession()
     {
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
-        UUID fakeID = UUIDGen.getTimeUUID();
+        TimeUUID fakeID = nextTimeUUID();
         sessions.maybeSetRepairing(fakeID);
         Assert.assertTrue(sessions.sentMessages.isEmpty());
     }
@@ -450,7 +451,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void finalizeProposeSuccessCase()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -476,7 +477,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void finalizeProposeInvalidStateFailure()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -495,7 +496,7 @@ public class LocalSessionTest extends AbstractRepairTest
     public void finalizeProposeNonExistantSessionFailure()
     {
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
-        UUID fakeID = UUIDGen.getTimeUUID();
+        TimeUUID fakeID = nextTimeUUID();
         sessions.handleFinalizeProposeMessage(COORDINATOR, new FinalizePropose(fakeID));
         Assert.assertNull(sessions.getSession(fakeID));
         assertMessagesSent(sessions, COORDINATOR, new FailSession(fakeID));
@@ -508,7 +509,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void finalizeCommitSuccessCase()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -533,7 +534,7 @@ public class LocalSessionTest extends AbstractRepairTest
     {
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
-        UUID fakeID = UUIDGen.getTimeUUID();
+        TimeUUID fakeID = nextTimeUUID();
         sessions.handleFinalizeCommitMessage(PARTICIPANT1, new FinalizeCommit(fakeID));
         Assert.assertNull(sessions.getSession(fakeID));
         Assert.assertTrue(sessions.sentMessages.isEmpty());
@@ -542,7 +543,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void failSession()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -564,7 +565,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleFailMessage()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -580,7 +581,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void sendStatusRequest() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -597,7 +598,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusRequest() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -617,7 +618,7 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
 
         sessions.sentMessages.clear();
-        UUID sessionID = UUIDGen.getTimeUUID();
+        TimeUUID sessionID = nextTimeUUID();
         sessions.handleStatusRequest(PARTICIPANT2, new StatusRequest(sessionID));
         assertNoMessagesSent(sessions, PARTICIPANT1);
         assertMessagesSent(sessions, PARTICIPANT2, new StatusResponse(sessionID, FAILED));
@@ -627,7 +628,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseFinalized() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -640,7 +641,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseFinalizedRedundant() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -653,7 +654,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseFailed() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -666,7 +667,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseFailedRedundant() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -679,7 +680,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseNoop() throws Exception
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
@@ -692,7 +693,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseNoSession() throws Exception
     {
-        UUID sessionID = UUIDGen.getTimeUUID();
+        TimeUUID sessionID = nextTimeUUID();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -706,7 +707,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void isSessionInProgress()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         sessions.prepareSessionFuture = new AsyncPromise<>();  // prevent moving to prepared
@@ -733,7 +734,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void isSessionInProgressFailed()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         sessions.prepareSessionFuture = new AsyncPromise<>();
@@ -748,7 +749,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void isSessionInProgressNonExistantSession()
     {
-        UUID fakeID = UUIDGen.getTimeUUID();
+        TimeUUID fakeID = nextTimeUUID();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         Assert.assertFalse(sessions.isSessionInProgress(fakeID));
@@ -757,7 +758,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void finalRepairedAtFinalized()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -774,7 +775,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void finalRepairedAtFailed()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
@@ -790,7 +791,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void finalRepairedAtNoSession()
     {
-        UUID fakeID = registerSession();
+        TimeUUID fakeID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         long repairedAt = sessions.getFinalSessionRepairedAt(fakeID);
@@ -800,7 +801,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test(expected = IllegalStateException.class)
     public void finalRepairedAtInProgress()
     {
-        UUID sessionID = registerSession();
+        TimeUUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
         sessions.prepareForTest(sessionID);
@@ -817,9 +818,9 @@ public class LocalSessionTest extends AbstractRepairTest
         InstrumentedLocalSessions initialSessions = new InstrumentedLocalSessions();
         initialSessions.start();
         Assert.assertEquals(0, initialSessions.getNumSessions());
-        UUID id1 = registerSession();
-        UUID id2 = registerSession();
-        UUID id3 = registerSession();
+        TimeUUID id1 = registerSession();
+        TimeUUID id2 = registerSession();
+        TimeUUID id3 = registerSession();
 
         initialSessions.prepareForTest(id1);
         initialSessions.prepareForTest(id2);
@@ -867,9 +868,9 @@ public class LocalSessionTest extends AbstractRepairTest
         InstrumentedLocalSessions initialSessions = new InstrumentedLocalSessions();
         initialSessions.start();
         Assert.assertEquals(0, initialSessions.getNumSessions());
-        UUID id1 = registerSession();
-        UUID id2 = registerSession();
-        UUID id3 = registerSession();
+        TimeUUID id1 = registerSession();
+        TimeUUID id2 = registerSession();
+        TimeUUID id3 = registerSession();
 
         initialSessions.prepareForTest(id1);
         initialSessions.prepareForTest(id2);

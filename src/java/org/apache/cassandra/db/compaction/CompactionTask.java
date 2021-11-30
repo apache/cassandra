@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
@@ -45,6 +44,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -143,7 +143,7 @@ public class CompactionTask extends AbstractCompactionTask
                 }
             });
 
-            UUID taskId = transaction.opId();
+            TimeUUID taskId = transaction.opId();
 
             // new sstables from flush can be added during a compaction, but only the compaction can remove them,
             // so in our single-threaded compaction world this is a valid way of determining if we're compacting
@@ -314,13 +314,13 @@ public class CompactionTask extends AbstractCompactionTask
         return minRepairedAt;
     }
 
-    public static UUID getPendingRepair(Set<SSTableReader> sstables)
+    public static TimeUUID getPendingRepair(Set<SSTableReader> sstables)
     {
         if (sstables.isEmpty())
         {
             return ActiveRepairService.NO_PENDING_REPAIR;
         }
-        Set<UUID> ids = new HashSet<>();
+        Set<TimeUUID> ids = new HashSet<>();
         for (SSTableReader sstable: sstables)
             ids.add(sstable.getSSTableMetadata().pendingRepair);
 

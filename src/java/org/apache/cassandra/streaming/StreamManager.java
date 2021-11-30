@@ -45,6 +45,7 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
@@ -221,10 +222,10 @@ public class StreamManager implements StreamManagerMBean
      * We manage them in two different maps to distinguish plan from initiated ones to
      * receiving ones withing the same JVM.
      */
-    private final Map<UUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
-    private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
+    private final Map<TimeUUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
+    private final Map<TimeUUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
 
-    private final Cache<UUID, StreamingState> states;
+    private final Cache<TimeUUID, StreamingState> states;
     private final StreamListener listener = new StreamListener()
     {
         @Override
@@ -376,12 +377,12 @@ public class StreamManager implements StreamManagerMBean
         }
     }
 
-    public StreamResultFuture getReceivingStream(UUID planId)
+    public StreamResultFuture getReceivingStream(TimeUUID planId)
     {
         return followerStreams.get(planId);
     }
 
-    public StreamResultFuture getInitiatorStream(UUID planId)
+    public StreamResultFuture getInitiatorStream(TimeUUID planId)
     {
         return initiatorStreams.get(planId);
     }
@@ -406,13 +407,13 @@ public class StreamManager implements StreamManagerMBean
         return notifier.getNotificationInfo();
     }
 
-    public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex, boolean searchInitiatorSessions)
+    public StreamSession findSession(InetAddressAndPort peer, TimeUUID planId, int sessionIndex, boolean searchInitiatorSessions)
     {
-        Map<UUID, StreamResultFuture> streams = searchInitiatorSessions ? initiatorStreams : followerStreams;
+        Map<TimeUUID, StreamResultFuture> streams = searchInitiatorSessions ? initiatorStreams : followerStreams;
         return findSession(streams, peer, planId, sessionIndex);
     }
 
-    private StreamSession findSession(Map<UUID, StreamResultFuture> streams, InetAddressAndPort peer, UUID planId, int sessionIndex)
+    private StreamSession findSession(Map<TimeUUID, StreamResultFuture> streams, InetAddressAndPort peer, TimeUUID planId, int sessionIndex)
     {
         StreamResultFuture streamResultFuture = streams.get(planId);
         if (streamResultFuture == null)

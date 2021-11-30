@@ -47,6 +47,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.service.paxos.*;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import org.slf4j.Logger;
@@ -159,6 +160,7 @@ import static org.apache.cassandra.service.paxos.PrepareVerbHandler.doPrepare;
 import static org.apache.cassandra.service.paxos.ProposeVerbHandler.doPropose;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 import static org.apache.commons.lang3.StringUtils.join;
 
@@ -459,7 +461,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                     consistencyForReplayCommits,
                                                                     casMetrics);
 
-                final UUID ballot = pair.ballot;
+                final TimeUUID ballot = pair.ballot;
                 contentions += pair.contentions;
 
                 Pair<PartitionUpdate, RowIterator> proposalPair = createUpdateProposal.get();
@@ -537,11 +539,11 @@ public class StorageProxy implements StorageProxyMBean
             // already we also want to make sure we pick a timestamp that has a chance to be promised, i.e. one that is greater that the most recently known
             // in progress (#5667). Lastly, we don't want to use a timestamp that is older than the last one assigned by ClientState or operations may appear
             // out-of-order (#7801).
-            long minTimestampMicrosToUse = summary == null ? Long.MIN_VALUE : 1 + UUIDGen.microsTimestamp(summary.mostRecentInProgressCommit.ballot);
+            long minTimestampMicrosToUse = summary == null ? Long.MIN_VALUE : 1 + summary.mostRecentInProgressCommit.ballot.unixMicros();
             long ballotMicros = nextBallotTimestampMicros(minTimestampMicrosToUse);
             // Note that ballotMicros is not guaranteed to be unique if two proposal are being handled concurrently by the same coordinator. But we still
             // need ballots to be unique for each proposal so we have to use getRandomTimeUUIDFromMicros.
-            UUID ballot = randomBallot(ballotMicros, consistencyForPaxos == SERIAL);
+            TimeUUID ballot = randomBallot(ballotMicros, consistencyForPaxos == SERIAL);
 
             // prepare
             try
@@ -974,7 +976,7 @@ public class StorageProxy implements StorageProxyMBean
         try
         {
             // if we haven't joined the ring, write everything to batchlog because paired replicas may be stale
-            final UUID batchUUID = UUIDGen.getTimeUUID();
+            final TimeUUID batchUUID = nextTimeUUID();
 
             if (StorageService.instance.isStarting() || StorageService.instance.isJoining() || StorageService.instance.isMoving())
             {
@@ -1162,7 +1164,7 @@ public class StorageProxy implements StorageProxyMBean
 
             ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY);
 
-            final UUID batchUUID = UUIDGen.getTimeUUID();
+            final TimeUUID batchUUID = nextTimeUUID();
             BatchlogCleanup cleanup = new BatchlogCleanup(mutations.size(),
                                                           () -> asyncRemoveFromBatchlog(replicaPlan, batchUUID));
 
@@ -1242,7 +1244,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void syncWriteToBatchlog(Collection<Mutation> mutations, ReplicaPlan.ForTokenWrite replicaPlan, UUID uuid, long queryStartNanoTime)
+    private static void syncWriteToBatchlog(Collection<Mutation> mutations, ReplicaPlan.ForTokenWrite replicaPlan, TimeUUID uuid, long queryStartNanoTime)
     throws WriteTimeoutException, WriteFailureException
     {
         WriteResponseHandler<?> handler = new WriteResponseHandler(replicaPlan,
@@ -1263,9 +1265,9 @@ public class StorageProxy implements StorageProxyMBean
         handler.get();
     }
 
-    private static void asyncRemoveFromBatchlog(ReplicaPlan.ForTokenWrite replicaPlan, UUID uuid)
+    private static void asyncRemoveFromBatchlog(ReplicaPlan.ForTokenWrite replicaPlan, TimeUUID uuid)
     {
-        Message<UUID> message = Message.out(Verb.BATCH_REMOVE_REQ, uuid);
+        Message<TimeUUID> message = Message.out(Verb.BATCH_REMOVE_REQ, uuid);
         for (Replica target : replicaPlan.contacts())
         {
             if (logger.isTraceEnabled())
@@ -2808,10 +2810,10 @@ public class StorageProxy implements StorageProxyMBean
 
     static class PaxosBallotAndContention
     {
-        final UUID ballot;
+        final TimeUUID ballot;
         final int contentions;
 
-        PaxosBallotAndContention(UUID ballot, int contentions)
+        PaxosBallotAndContention(TimeUUID ballot, int contentions)
         {
             this.ballot = ballot;
             this.contentions = contentions;

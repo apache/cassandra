@@ -31,6 +31,7 @@ import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
 
@@ -45,12 +46,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
     private static final Logger logger = LoggerFactory.getLogger(RepairMessageVerbHandler.class);
 
-    private boolean isIncremental(UUID sessionID)
+    private boolean isIncremental(TimeUUID sessionID)
     {
         return ActiveRepairService.instance.consistent.local.isSessionInProgress(sessionID);
     }
 
-    private PreviewKind previewKind(UUID sessionID) throws NoSuchRepairSessionException
+    private PreviewKind previewKind(TimeUUID sessionID) throws NoSuchRepairSessionException
     {
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         return prs != null ? prs.previewKind : PreviewKind.NONE;

@@ -1669,7 +1669,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.pendingRepair != ActiveRepairService.NO_PENDING_REPAIR;
     }
 
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return sstableMetadata.pendingRepair;
     }
@@ -1862,7 +1862,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * Mutate sstable repair metadata with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
      */
-    public void mutateRepairedAndReload(long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairedAndReload(long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException
     {
         synchronized (tidy.global)
         {

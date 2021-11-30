@@ -68,6 +68,7 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -924,7 +925,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (!isTrackingRepairedStatus)
                 return false;
 
-            UUID pendingRepair = sstable.getPendingRepair();
+            TimeUUID pendingRepair = sstable.getPendingRepair();
             if (pendingRepair != ActiveRepairService.NO_PENDING_REPAIR)
             {
                 if (ActiveRepairService.instance.consistent.local.isSessionFinalized(pendingRepair))

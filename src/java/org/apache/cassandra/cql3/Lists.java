@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -45,7 +46,6 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Static helper methods and classes for lists.
@@ -501,7 +501,7 @@ public abstract class Lists
 
                 for (ByteBuffer buffer : ((Value) value).elements)
                 {
-                    ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+                    ByteBuffer uuid = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
                     params.addCell(column, CellPath.create(uuid), buffer);
                 }
             }
@@ -546,7 +546,8 @@ public abstract class Lists
                     pt = PrecisionTime.getNext(time, remainingInBatch);
                 }
 
-                ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, (pt.nanos + remainingInBatch--)));
+                // TODO: is this safe as part of LWTs?
+                ByteBuffer uuid = ByteBuffer.wrap(atUnixMillisAsBytes(pt.millis, (pt.nanos + remainingInBatch--)));
                 params.addCell(column, CellPath.create(uuid), toAdd.get(i));
             }
         }

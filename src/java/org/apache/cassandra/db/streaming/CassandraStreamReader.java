@@ -20,7 +20,6 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.UnmodifiableIterator;
@@ -57,6 +56,7 @@ import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 
@@ -72,7 +72,7 @@ public class CassandraStreamReader implements IStreamReader
     protected final StreamSession session;
     protected final Version inputVersion;
     protected final long repairedAt;
-    protected final UUID pendingRepair;
+    protected final TimeUUID pendingRepair;
     protected final SSTableFormat.Type format;
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
@@ -152,7 +152,7 @@ public class CassandraStreamReader implements IStreamReader
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
     @SuppressWarnings("resource")
-    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, UUID pendingRepair, SSTableFormat.Type format) throws IOException
+    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat.Type format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)

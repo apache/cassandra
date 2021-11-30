@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -45,7 +46,6 @@ import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePropose;
 import org.apache.cassandra.repair.messages.PrepareConsistentRequest;
 import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -56,6 +56,8 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PRE
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARING;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.REPAIRING;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
 public class CoordinatorSessionTest extends AbstractRepairTest
 {
 
@@ -63,9 +65,9 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     {
         CoordinatorSession.Builder builder = CoordinatorSession.builder();
         builder.withState(PREPARING);
-        builder.withSessionID(UUIDGen.getTimeUUID());
+        builder.withSessionID(nextTimeUUID());
         builder.withCoordinator(COORDINATOR);
-        builder.withUUIDTableIds(Sets.newHashSet(UUIDGen.getTimeUUID(), UUIDGen.getTimeUUID()));
+        builder.withUUIDTableIds(Sets.newHashSet(UUID.randomUUID(), UUID.randomUUID()));
         builder.withRepairedAt(System.currentTimeMillis());
         builder.withRanges(Sets.newHashSet(RANGE1, RANGE2, RANGE3));
         builder.withParticipants(Sets.newHashSet(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));

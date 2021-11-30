@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * Metrics for {@link org.apache.cassandra.hints.HintsService}.
@@ -71,7 +72,7 @@ public class HintedHandoffMetrics
             if (difference == 0)
                 continue;
             logger.warn("{} has {} dropped hints, because node is down past configured hint window.", entry.getKey(), difference);
-            SystemKeyspace.updateHintsDropped(entry.getKey(), UUIDGen.getTimeUUID(), (int) difference);
+            SystemKeyspace.updateHintsDropped(entry.getKey(), nextTimeUUID(), (int) difference);
         }
     }
 

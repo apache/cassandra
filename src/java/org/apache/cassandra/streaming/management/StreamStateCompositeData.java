@@ -29,6 +29,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  */
@@ -121,7 +122,7 @@ public class StreamStateCompositeData
     {
         assert cd.getCompositeType().equals(COMPOSITE_TYPE);
         Object[] values = cd.getAll(ITEM_NAMES);
-        UUID planId = UUID.fromString((String) values[0]);
+        TimeUUID planId = TimeUUID.fromString((String) values[0]);
         String typeString = (String) values[1];
         Set<SessionInfo> sessions = Sets.newHashSet(Iterables.transform(Arrays.asList((CompositeData[]) values[2]),
                                                                         new Function<CompositeData, SessionInfo>()

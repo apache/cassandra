@@ -54,6 +54,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.SchemaLoader.compositeIndexCFMD;
@@ -116,7 +117,7 @@ public class StreamingTransferTest
     public void testEmptyStreamPlan() throws Exception
     {
         StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER).execute();
-        final UUID planId = futureResult.planId;
+        final TimeUUID planId = futureResult.planId;
         Futures.addCallback(futureResult, new FutureCallback<StreamState>()
         {
             public void onSuccess(StreamState result)
@@ -148,7 +149,7 @@ public class StreamingTransferTest
                                                   .requestRanges(LOCAL, KEYSPACE2, RangesAtEndpoint.toDummyList(ranges), RangesAtEndpoint.toDummyList(Collections.emptyList()))
                                                   .execute();
 
-        UUID planId = futureResult.planId;
+        TimeUUID planId = futureResult.planId;
         StreamState result = futureResult.get();
         assert planId.equals(result.planId);
         assert result.streamOperation == StreamOperation.OTHER;

@@ -29,18 +29,19 @@ import org.apache.cassandra.repair.consistent.CoordinatorSession;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class IncrementalRepairTask extends AbstractRepairTask
 {
-    private final UUID parentSession;
+    private final TimeUUID parentSession;
     private final RepairRunnable.NeighborsAndRanges neighborsAndRanges;
     private final String[] cfnames;
 
     protected IncrementalRepairTask(RepairOption options,
                                     String keyspace,
                                     RepairNotifier notifier,
-                                    UUID parentSession,
+                                    TimeUUID parentSession,
                                     RepairRunnable.NeighborsAndRanges neighborsAndRanges,
                                     String[] cfnames)
     {

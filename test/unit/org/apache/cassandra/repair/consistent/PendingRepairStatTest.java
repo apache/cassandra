@@ -21,7 +21,6 @@ package org.apache.cassandra.repair.consistent;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -47,13 +46,14 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.FAILED;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.FINALIZED;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARING;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class PendingRepairStatTest extends AbstractRepairTest
 {
@@ -91,7 +91,7 @@ public class PendingRepairStatTest extends AbstractRepairTest
     {
         LocalSession.Builder builder = LocalSession.builder();
         builder.withState(PREPARING);
-        builder.withSessionID(UUIDGen.getTimeUUID());
+        builder.withSessionID(nextTimeUUID());
         builder.withCoordinator(COORDINATOR);
         builder.withUUIDTableIds(Sets.newHashSet(cfm.id.asUUID()));
         builder.withRepairedAt(System.currentTimeMillis());
@@ -118,7 +118,7 @@ public class PendingRepairStatTest extends AbstractRepairTest
         return Iterables.getOnlyElement(Sets.difference(cfs.getLiveSSTables(), existing));
     }
 
-    private static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair)
+    private static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair)
     {
         try
         {

@@ -43,6 +43,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.io.sstable.Component.DATA;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -545,7 +546,7 @@ public abstract class AbstractCompactionStrategy
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,
                                                        long keyCount,
                                                        long repairedAt,
-                                                       UUID pendingRepair,
+                                                       TimeUUID pendingRepair,
                                                        boolean isTransient,
                                                        MetadataCollector meta,
                                                        SerializationHeader header,

@@ -35,6 +35,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -42,10 +43,10 @@ public class Commit
 {
     public static final CommitSerializer serializer = new CommitSerializer();
 
-    public final UUID ballot;
+    public final TimeUUID ballot;
     public final PartitionUpdate update;
 
-    public Commit(UUID ballot, PartitionUpdate update)
+    public Commit(TimeUUID ballot, PartitionUpdate update)
     {
         assert ballot != null;
         assert update != null;
@@ -54,28 +55,28 @@ public class Commit
         this.update = update;
     }
 
-    public static Commit newPrepare(DecoratedKey key, TableMetadata metadata, UUID ballot)
+    public static Commit newPrepare(DecoratedKey key, TableMetadata metadata, TimeUUID ballot)
     {
         return new Commit(ballot, PartitionUpdate.emptyUpdate(metadata, key));
     }
 
-    public static Commit newProposal(UUID ballot, PartitionUpdate update)
+    public static Commit newProposal(TimeUUID ballot, PartitionUpdate update)
     {
-        PartitionUpdate withNewTimestamp = new PartitionUpdate.Builder(update, 0).updateAllTimestamp(UUIDGen.microsTimestamp(ballot)).build();
+        PartitionUpdate withNewTimestamp = new PartitionUpdate.Builder(update, 0).updateAllTimestamp(ballot.unixMicros()).build();
         return new Commit(ballot, withNewTimestamp);
     }
 
     public static Commit emptyCommit(DecoratedKey key, TableMetadata metadata)
     {
-        return new Commit(UUIDGen.minTimeUUID(0), PartitionUpdate.emptyUpdate(metadata, key));
+        return new Commit(TimeUUID.minAtUnixMillis(0), PartitionUpdate.emptyUpdate(metadata, key));
     }
 
     public boolean isAfter(Commit other)
     {
-        return ballot.timestamp() > other.ballot.timestamp();
+        return ballot.rawTimestamp() > other.ballot.rawTimestamp();
     }
 
-    public boolean hasBallot(UUID ballot)
+    public boolean hasBallot(TimeUUID ballot)
     {
         return this.ballot.equals(ballot);
     }
@@ -125,17 +126,17 @@ public class Commit
     /**
      * @return testIfAfter.isAfter(testIfBefore), with non-null > null
      */
-    public static boolean isAfter(@Nullable UUID testIsAfter, @Nullable Commit testIsBefore)
+    public static boolean isAfter(@Nullable TimeUUID testIsAfter, @Nullable Commit testIsBefore)
     {
-        return testIsAfter != null && (testIsBefore == null || testIsAfter.timestamp() > testIsBefore.ballot.timestamp());
+        return testIsAfter != null && (testIsBefore == null || testIsAfter.rawTimestamp() > testIsBefore.ballot.rawTimestamp());
     }
 
     /**
      * @return testIfAfter.isAfter(testIfBefore), with non-null > null
      */
-    public static boolean isAfter(@Nullable Commit testIsAfter, @Nullable UUID testIsBefore)
+    public static boolean isAfter(@Nullable Commit testIsAfter, @Nullable TimeUUID testIsBefore)
     {
-        return testIsAfter != null && (testIsBefore == null || testIsAfter.ballot.timestamp() > testIsBefore.timestamp());
+        return testIsAfter != null && (testIsBefore == null || testIsAfter.ballot.rawTimestamp() > testIsBefore.rawTimestamp());
     }
 
     /**
@@ -150,20 +151,20 @@ public class Commit
     {
         public void serialize(Commit commit, DataOutputPlus out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(commit.ballot, out, version);
+            commit.ballot.serialize(out);
             PartitionUpdate.serializer.serialize(commit.update, out, version);
         }
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
+            TimeUUID ballot = TimeUUID.deserialize(in);
             PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.LOCAL);
             return new Commit(ballot, update);
         }
 
         public long serializedSize(Commit commit, int version)
         {
-            return UUIDSerializer.serializer.serializedSize(commit.ballot, version)
+            return TimeUUID.sizeInBytes()
                  + PartitionUpdate.serializer.serializedSize(commit.update, version);
         }
     }

@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RandomSource.Choices;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 // TODO (feature): link with SimulateTime, and otherwise improve
@@ -54,14 +55,14 @@ public class SimulatedBallots
             super(1L);
         }
 
-        public UUID randomBallot(long timestamp, boolean isSerial)
+        public TimeUUID randomBallot(long timestamp, boolean isSerial)
         {
-            return UUIDGen.getRandomTimeUUIDFromMicrosAndRandom(timestamp, uniqueSupplier.getAsLong(), isSerial ? 2 : 1);
+            return TimeUUID.atUnixMicrosWithLsb(timestamp, uniqueSupplier.getAsLong(), isSerial);
         }
 
-        public UUID randomBallot(long from, long to, boolean isSerial)
+        public TimeUUID randomBallot(long from, long to, boolean isSerial)
         {
-            return UUIDGen.getRandomTimeUUIDFromMicrosAndRandom(random.uniform(from, to), uniqueSupplier.getAsLong(), isSerial ? 2 : 1);
+            return TimeUUID.atUnixMicrosWithLsb(random.uniform(from, to), uniqueSupplier.getAsLong(), isSerial);
         }
 
         public long nextBallotTimestampMicros(long minTimestamp)

@@ -24,7 +24,6 @@ import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -61,6 +60,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -200,7 +200,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                                     null,
                                                                     PreviewKind.NONE);
 
-        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(),
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(),
                                                                        StreamOperation.BOOTSTRAP,
                                                                        Collections.singleton(streamEventHandler),
                                                                        streamCoordinator);

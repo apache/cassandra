@@ -51,12 +51,14 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -658,7 +660,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, int nowInSeconds)
     {
-        UUID ballot = UUIDGen.getTimeUUIDFromMicros(timestamp);
+        TimeUUID ballot = BallotGenerator.Global.randomBallot(timestamp, false);
 
         SinglePartitionReadQuery readCommand = request.readCommand(nowInSeconds);
         FilteredPartition current;

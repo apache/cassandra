@@ -48,6 +48,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -70,7 +71,7 @@ public class Coordinator implements ICoordinator
         return instance.async(() -> {
             try
             {
-                Tracing.instance.newSession(sessionId, Collections.emptyMap());
+                Tracing.instance.newSession(TimeUUID.fromUuid(sessionId), Collections.emptyMap());
                 return executeInternal(query, consistencyLevelOrigin, boundValues);
             }
             finally

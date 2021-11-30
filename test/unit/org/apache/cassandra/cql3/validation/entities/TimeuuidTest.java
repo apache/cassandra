@@ -19,14 +19,14 @@
 package org.apache.cassandra.cql3.validation.entities;
 
 import java.util.Date;
-import java.util.UUID;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertEquals;
 
 public class TimeuuidTest extends CQLTester
@@ -59,7 +59,7 @@ public class TimeuuidTest extends CQLTester
 
         for (int i = 0; i < 4; i++)
         {
-            long timestamp = UUIDGen.unixTimestamp((UUID) rows[i][1]);
+            long timestamp = ((TimeUUID) rows[i][1]).unix(MILLISECONDS);
             assertRows(execute("SELECT dateOf(t), unixTimestampOf(t) FROM %s WHERE k = 0 AND t = ?", rows[i][1]),
                        row(new Date(timestamp), timestamp));
         }

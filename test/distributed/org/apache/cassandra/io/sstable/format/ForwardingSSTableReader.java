@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.util.concurrent.RateLimiter;
 
@@ -56,6 +55,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 public abstract class ForwardingSSTableReader extends SSTableReader
@@ -427,7 +427,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return delegate.getPendingRepair();
     }

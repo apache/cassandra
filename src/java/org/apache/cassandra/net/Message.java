@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,6 +46,7 @@ import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -170,7 +170,7 @@ public class Message<T>
     }
 
     @Nullable
-    public UUID traceSession()
+    public TimeUUID traceSession()
     {
         return header.traceSession();
     }
@@ -456,9 +456,9 @@ public class Message<T>
         }
 
         @Nullable
-        public UUID traceSession()
+        public TimeUUID traceSession()
         {
-            return (UUID) params.get(ParamType.TRACE_SESSION);
+            return (TimeUUID) params.get(ParamType.TRACE_SESSION);
         }
 
         @Nullable

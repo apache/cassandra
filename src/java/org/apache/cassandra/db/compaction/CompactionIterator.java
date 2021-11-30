@@ -37,6 +37,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -63,7 +64,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final List<ISSTableScanner> scanners;
     private final ImmutableSet<SSTableReader> sstables;
     private final int nowInSec;
-    private final UUID compactionId;
+    private final TimeUUID compactionId;
 
     private final long totalBytes;
     private long bytesRead;
@@ -79,13 +80,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final UnfilteredPartitionIterator compacted;
     private final ActiveCompactionsTracker activeCompactions;
 
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, TimeUUID compactionId)
     {
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP);
     }
 
     @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, TimeUUID compactionId, ActiveCompactionsTracker activeCompactions)
     {
         this.controller = controller;
         this.type = type;
