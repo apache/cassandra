@@ -98,6 +98,9 @@ public enum CassandraRelevantProperties
     /** Cassandra jmx remote port */
     CASSANDRA_JMX_REMOTE_PORT("cassandra.jmx.remote.port"),
 
+    /** Cassandra jmx local port */
+    CASSANDRA_JMX_LOCAL_PORT("cassandra.jmx.local.port"),
+
     /** This property  indicates whether SSL is enabled for monitoring remotely. Default is set to false. */
     COM_SUN_MANAGEMENT_JMXREMOTE_SSL ("com.sun.management.jmxremote.ssl"),
 
@@ -261,7 +264,9 @@ public enum CassandraRelevantProperties
     DISABLED_AUTO_COMPACTION_PROPERTY("cassandra.disabled_auto_compaction"),
 
     /** Which class to use for dynamic snitch severity values */
-    DYNAMIC_SNITCH_SEVERITY_PROVIDER("cassandra.dynamic_snitch_severity_provider");
+    DYNAMIC_SNITCH_SEVERITY_PROVIDER("cassandra.dynamic_snitch_severity_provider"),
+
+    NEVER_PURGE_TOMBSTONES_PROPERTY("cassandra.never_purge_tombstones");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

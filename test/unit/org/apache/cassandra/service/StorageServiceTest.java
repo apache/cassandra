@@ -68,6 +68,7 @@ import org.apache.cassandra.locator.SystemReplicas;
 import org.apache.cassandra.locator.TokenMetadata;
 
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService.LeavingReplica;
 import org.apache.cassandra.utils.FBUtilities;
@@ -141,6 +142,7 @@ public class StorageServiceTest
         DatabaseDescriptor.setEndpointSnitch(snitch);
 
         CommitLog.instance.start();
+        Nodes.peers().get().forEach(p -> Nodes.peers().remove(p.getPeerAddressAndPort(), false, true));
     }
 
     private AbstractReplicationStrategy simpleStrategy(TokenMetadata tmd)
@@ -270,6 +272,7 @@ public class StorageServiceTest
     @Test
     public void testPopulateTokenMetadata()
     {
+        StorageService.instance.getTokenMetadata().clearUnsafe();
         IPartitioner partitioner = StorageService.instance.getTokenMetadata().partitioner;
         Token origToken = StorageService.instance.getTokenFactory().fromString("42");
         Token newToken = StorageService.instance.getTokenFactory().fromString("88");
@@ -405,7 +408,7 @@ public class StorageServiceTest
         // Start new node with same hostId as us, we should win (retain the hostId).
         InetAddressAndPort newNode = InetAddressAndPort.getByName("127.0.0.100");
         InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
-        UUID localHostId = Gossiper.instance.getHostId(localAddress);
+        UUID localHostId = Nodes.localOrPeerInfo(localAddress).getHostId();
         Util.joinNodeToRing(newNode, token, partitioner, localHostId, 1);
         assertEquals("Host ID not registered to local address", localAddress, tmd.getEndpointForHostId(localHostId));
         ss.onChange(newNode, ApplicationState.STATUS_WITH_PORT, valueFactory.normal(Collections.singleton(token)));

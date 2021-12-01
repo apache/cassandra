@@ -39,6 +39,7 @@ public class DynamicEndpointSnitchTest
     @BeforeClass
     public static void setupDD()
     {
+        System.setProperty("cassandra.nodes.disablePersitingToSystemKeyspace", "true");
         DatabaseDescriptor.daemonInitialization();
     }
 

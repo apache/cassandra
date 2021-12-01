@@ -2554,7 +2554,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 indexManager.truncateAllIndexesBlocking(truncatedAt);
                 viewManager.truncateBlocking(replayAfter, truncatedAt);
 
-                SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
+                SystemKeyspace.saveTruncationRecord(metadata.id, truncatedAt, replayAfter);
                 logger.trace("cleaning out row cache");
                 invalidateCaches();
 

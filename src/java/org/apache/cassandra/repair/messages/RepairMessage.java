@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair.messages;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -30,6 +31,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.nodes.NodeInfo;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.CassandraVersion;
 
@@ -89,8 +92,8 @@ public abstract class RepairMessage
 
     private static boolean supportsTimeouts(InetAddressAndPort from, UUID parentSessionId)
     {
-        CassandraVersion remoteVersion = Gossiper.instance.getReleaseVersion(from);
-        if (remoteVersion != null && remoteVersion.compareTo(SUPPORTS_TIMEOUTS) >= 0)
+        Optional<CassandraVersion> remoteVersion = Nodes.peers().getOpt(from).map(NodeInfo::getReleaseVersion);
+        if (remoteVersion.filter(v -> v.compareTo(SUPPORTS_TIMEOUTS) >= 0).isPresent())
             return true;
         logger.warn("[#{}] Not failing repair due to remote host {} not supporting repair message timeouts (version = {})", parentSessionId, from, remoteVersion);
         return false;

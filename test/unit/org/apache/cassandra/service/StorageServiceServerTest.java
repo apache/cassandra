@@ -667,15 +667,15 @@ public class StorageServiceServerTest
         InetAddressAndPort internalAddress = InetAddressAndPort.getByName(internalAddressString);
         Gossiper.instance.addSavedEndpoint(internalAddress);
         //Default to using the provided address with the configured port
-        assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
+        assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeAddress(internalAddress, true));
 
         VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
         //If we don't have the port use the gossip address, but with the configured port
         Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("127.0.0.3")));
-        assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
+        assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeAddress(internalAddress, true));
         //If we have the address and port in gossip use that
         Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(InetAddressAndPort.getByName("127.0.0.3:666")));
-        assertEquals("127.0.0.3:666", StorageService.instance.getNativeaddress(internalAddress, true));
+        assertEquals("127.0.0.3:666", StorageService.instance.getNativeAddress(internalAddress, true));
     }
 
     @Test
@@ -688,16 +688,16 @@ public class StorageServiceServerTest
         Gossiper.instance.addSavedEndpoint(internalAddressIPV6);
 
         //Default to using the provided address with the configured port
-        assertEquals("[0:0:0:0:0:0:0:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddressIPV6, true));
+        assertEquals("[0:0:0:0:0:0:0:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeAddress(internalAddressIPV6, true));
 
         VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
         //If RPC_ADDRESS is present with an IPv6 address, we should properly bracket encode the IP with the configured port.
         Gossiper.instance.getEndpointStateForEndpoint(internalAddressIPV6).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("0:0:0:0:0:0:5a:3")));
-        assertEquals("[0:0:0:0:0:0:5a:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddressIPV6, true));
+        assertEquals("[0:0:0:0:0:0:5a:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeAddress(internalAddressIPV6, true));
 
         //If we have the address and port in gossip use that
         Gossiper.instance.getEndpointStateForEndpoint(internalAddressIPV6).addApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(InetAddressAndPort.getByName("[0:0:0:0:0:0:5c:3]:8675")));
-        assertEquals("[0:0:0:0:0:0:5c:3]:8675", StorageService.instance.getNativeaddress(internalAddressIPV6, true));
+        assertEquals("[0:0:0:0:0:0:5c:3]:8675", StorageService.instance.getNativeAddress(internalAddressIPV6, true));
     }
 
     @Test

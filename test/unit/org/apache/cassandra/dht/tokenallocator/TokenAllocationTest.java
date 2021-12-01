@@ -62,8 +62,8 @@ public class TokenAllocationTest
     {
         DatabaseDescriptor.daemonInitialization();
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        SchemaLoader.startGossiper();
         SchemaLoader.prepareServer();
+        SchemaLoader.startGossiper();
         SchemaLoader.schemaDefinition("TokenAllocationTest");
     }
 

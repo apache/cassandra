@@ -57,8 +57,8 @@ public class BootStrapperTest
     {
         DatabaseDescriptor.daemonInitialization();
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        SchemaLoader.startGossiper();
         SchemaLoader.prepareServer();
+        SchemaLoader.startGossiper();
         SchemaLoader.schemaDefinition("BootStrapperTest");
         RangeStreamer.ALIVE_PREDICATE = Predicates.alwaysTrue();
     }

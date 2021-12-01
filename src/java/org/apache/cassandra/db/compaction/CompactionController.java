@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -43,8 +44,6 @@ import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 public class CompactionController extends AbstractCompactionController
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
-    private static final String NEVER_PURGE_TOMBSTONES_PROPERTY = Config.PROPERTY_PREFIX + "never_purge_tombstones";
-    static final boolean NEVER_PURGE_TOMBSTONES = Boolean.getBoolean(NEVER_PURGE_TOMBSTONES_PROPERTY);
 
     private final boolean compactingRepaired;
     // note that overlapTracker will be null if NEVER_PURGE_TOMBSTONES is set - this is a
@@ -79,10 +78,10 @@ public class CompactionController extends AbstractCompactionController
                           ? compacting.stream().mapToLong(SSTableReader::getMinTimestamp).min().getAsLong()
                           : 0;
 
-        if (NEVER_PURGE_TOMBSTONES || realm.getNeverPurgeTombstones())
+        if (CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES_PROPERTY.getBoolean() || realm.getNeverPurgeTombstones())
         {
             overlapTracker = null;
-            if (NEVER_PURGE_TOMBSTONES)
+            if (CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES_PROPERTY.getBoolean())
                 logger.warn("You are running with -Dcassandra.never_purge_tombstones=true, this is dangerous!");
             else
                 logger.debug("Not using overlaps for {}.{} - neverPurgeTombstones is enabled", realm.getKeyspaceName(), realm.getTableName());
@@ -141,7 +140,7 @@ public class CompactionController extends AbstractCompactionController
     {
         logger.trace("Checking droppable sstables in {}", realm);
 
-        if (NEVER_PURGE_TOMBSTONES || compacting == null || realm.getNeverPurgeTombstones())
+        if (CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES_PROPERTY.getBoolean() || compacting == null || realm.getNeverPurgeTombstones())
             return Collections.emptySet();
 
         if (realm.onlyPurgeRepairedTombstones() && !Iterables.all(compacting, CompactionSSTable::isRepaired))

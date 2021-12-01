@@ -34,12 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.nodes.NodeInfo;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -87,8 +86,8 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneRack;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
+        String rack = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getRack).orElse(null);
+        if (rack == null)
         {
             if (savedEndpoints == null)
                 savedEndpoints = SystemKeyspace.loadDcRackInfo();
@@ -96,15 +95,15 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
                 return savedEndpoints.get(endpoint).get("rack");
             return DEFAULT_RACK;
         }
-        return state.getApplicationState(ApplicationState.RACK).value;
+        return rack;
     }
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneDc;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.DC) == null)
+        String dc = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getDataCenter).orElse(null);
+        if (dc == null)
         {
             if (savedEndpoints == null)
                 savedEndpoints = SystemKeyspace.loadDcRackInfo();
@@ -112,7 +111,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
                 return savedEndpoints.get(endpoint).get("data_center");
             return DEFAULT_DC;
         }
-        return state.getApplicationState(ApplicationState.DC).value;
+        return dc;
     }
 
     String csQueryMetadata(String url) throws ConfigurationException, IOException

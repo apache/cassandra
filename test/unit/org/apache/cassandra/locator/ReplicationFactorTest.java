@@ -33,6 +33,7 @@ public class ReplicationFactorTest
     @BeforeClass
     public static void setupClass()
     {
+        System.setProperty("cassandra.nodes.disablePersitingToSystemKeyspace", "true");
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         Gossiper.instance.start(1);

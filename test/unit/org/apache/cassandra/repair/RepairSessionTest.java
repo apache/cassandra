@@ -56,6 +56,7 @@ public class RepairSessionTest
     @BeforeClass
     public static void initDD()
     {
+        System.setProperty("cassandra.nodes.disablePersitingToSystemKeyspace", "true");
         DatabaseDescriptor.daemonInitialization();
     }
 

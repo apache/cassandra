@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -282,7 +283,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
     protected boolean worthDroppingTombstones(CompactionSSTable sstable, int gcBefore)
     {
         if (options.isDisableTombstoneCompactions()
-            || CompactionController.NEVER_PURGE_TOMBSTONES
+            || CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES_PROPERTY.getBoolean()
             || realm.getNeverPurgeTombstones())
             return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
