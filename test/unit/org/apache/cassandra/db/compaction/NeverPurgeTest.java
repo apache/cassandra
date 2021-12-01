@@ -32,6 +32,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -99,7 +100,7 @@ public class NeverPurgeTest extends CQLTester
 
     private void verifyContainsTombstones(Collection<SSTableReader> sstables, int expectedTombstoneCount) throws Exception
     {
-        assertTrue(sstables.size() == 1); // always run a major compaction before calling this
+        assertThat(sstables).hasSize(1); // always run a major compaction before calling this
         SSTableReader sstable = sstables.iterator().next();
         int tombstoneCount = 0;
         try (ISSTableScanner scanner = sstable.getScanner())

@@ -21,12 +21,15 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.nodes.LocalInfo;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -78,7 +81,7 @@ public class SystemKeyspaceTest
     {
         BytesToken token = new BytesToken(ByteBufferUtil.bytes("token3"));
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.2");
-        SystemKeyspace.updateTokens(address, Collections.<Token>singletonList(token));
+        SystemKeyspace.updateTokens(address, Sets.newHashSet(token));
         assert SystemKeyspace.loadTokens().get(address).contains(token);
         SystemKeyspace.removeEndpoint(address);
         assert !SystemKeyspace.loadTokens().containsValue(token);
@@ -178,17 +181,14 @@ public class SystemKeyspaceTest
     {
         // besides the release_version, we also need to insert the cluster_name or the check
         // in SystemKeyspace.checkHealth were we verify it matches DatabaseDescriptor will fail
-        QueryProcessor.executeInternal(String.format("INSERT INTO system.local(key, release_version, cluster_name) " +
-                                                     "VALUES ('local', '%s', '%s')",
-                                                     version,
-                                                     DatabaseDescriptor.getClusterName()));
+        Nodes.local().update(current -> current.setReleaseVersion(new CassandraVersion(version)).setClusterName(DatabaseDescriptor.getClusterName()), true);
         String r = readLocalVersion();
         assertEquals(String.format("Expected %s, got %s", version, r), version, r);
     }
 
     private String readLocalVersion()
     {
-        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT release_version FROM system.local WHERE key='local'");
-        return rs.isEmpty() || !rs.one().has("release_version") ? null : rs.one().getString("release_version");
+        LocalInfo info = Nodes.local().get();
+        return info != null && info.getReleaseVersion() != null ? info.getReleaseVersion().toString() : null;
     }
 }

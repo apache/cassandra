@@ -119,7 +119,7 @@ public class TableViews extends AbstractCollection<View>
         for (ColumnFamilyStore viewCfs : allViewsCfs())
         {
             viewCfs.discardSSTables(truncatedAt);
-            SystemKeyspace.saveTruncationRecord(viewCfs, truncatedAt, replayAfter);
+            SystemKeyspace.saveTruncationRecord(viewCfs.metadata.id, truncatedAt, replayAfter);
         }
     }
 

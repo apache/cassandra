@@ -33,9 +33,9 @@ import org.slf4j.LoggerFactory;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -284,9 +284,9 @@ public class OutboundConnections
                     continue;
 
                 if (cur.small == prev.small && cur.large == prev.large && cur.urgent == prev.urgent
-                    && !Gossiper.instance.isKnownEndpoint(connections.template.to))
+                    && !Nodes.isKnownEndpoint(connections.template.to))
                 {
-                    logger.info("Closing outbound connections to {}, as inactive and not known by Gossiper",
+                    logger.info("Closing outbound connections to {}, as inactive and not known",
                                 connections.template.to);
                     // close entirely if no traffic and the endpoint is unknown
                     messagingService.closeOutboundNow(connections);

@@ -657,15 +657,15 @@ public class StorageServiceServerTest
         InetAddressAndPort internalAddress = InetAddressAndPort.getByName(internalAddressString);
         Gossiper.instance.addSavedEndpoint(internalAddress);
         //Default to using the provided address with the configured port
-        assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
+        assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeAddress(internalAddress, true));
 
         VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
         //If we don't have the port use the gossip address, but with the configured port
         Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("127.0.0.3")));
-        assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddress, true));
+        assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeAddress(internalAddress, true));
         //If we have the address and port in gossip use that
         Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(InetAddressAndPort.getByName("127.0.0.3:666")));
-        assertEquals("127.0.0.3:666", StorageService.instance.getNativeaddress(internalAddress, true));
+        assertEquals("127.0.0.3:666", StorageService.instance.getNativeAddress(internalAddress, true));
     }
 
     @Test

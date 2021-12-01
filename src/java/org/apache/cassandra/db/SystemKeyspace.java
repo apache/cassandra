@@ -36,6 +36,8 @@ import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.commons.lang3.ObjectUtils;
+
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,13 +56,15 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.nodes.NodeInfo;
+import org.apache.cassandra.nodes.Nodes;
+import org.apache.cassandra.nodes.PeerInfo;
+import org.apache.cassandra.nodes.TruncationRecord;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -466,8 +470,6 @@ public final class SystemKeyspace
                         .build();
     }
 
-    private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
-
     public enum BootstrapState
     {
         NEEDS_BOOTSTRAP,
@@ -483,38 +485,20 @@ public final class SystemKeyspace
 
     public static void persistLocalMetadata()
     {
-        String req = "INSERT INTO system.%s (" +
-                     "key," +
-                     "cluster_name," +
-                     "release_version," +
-                     "cql_version," +
-                     "native_protocol_version," +
-                     "data_center," +
-                     "rack," +
-                     "partitioner," +
-                     "rpc_address," +
-                     "rpc_port," +
-                     "broadcast_address," +
-                     "broadcast_port," +
-                     "listen_address," +
-                     "listen_port" +
-                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        executeOnceInternal(format(req, LOCAL),
-                            LOCAL,
-                            DatabaseDescriptor.getClusterName(),
-                            FBUtilities.getReleaseVersionString(),
-                            QueryProcessor.CQL_VERSION.toString(),
-                            String.valueOf(ProtocolVersion.CURRENT.asInt()),
-                            snitch.getLocalDatacenter(),
-                            snitch.getLocalRack(),
-                            DatabaseDescriptor.getPartitioner().getClass().getName(),
-                            DatabaseDescriptor.getRpcAddress(),
-                            DatabaseDescriptor.getNativeTransportPort(),
-                            FBUtilities.getJustBroadcastAddress(),
-                            DatabaseDescriptor.getStoragePort(),
-                            FBUtilities.getJustLocalAddress(),
-                            DatabaseDescriptor.getStoragePort());
+        Nodes.local().update(info -> {
+            info.setClusterName(DatabaseDescriptor.getClusterName());
+            info.setReleaseVersion(SystemKeyspace.CURRENT_VERSION);
+            info.setCqlVersion(QueryProcessor.CQL_VERSION);
+            info.setNativeProtocolVersion(ProtocolVersion.CURRENT);
+            info.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
+            info.setDataCenter(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter());
+            info.setRack(DatabaseDescriptor.getEndpointSnitch().getLocalRack());
+            info.setPartitionerClass(DatabaseDescriptor.getPartitioner().getClass());
+            info.setNativeTransportAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getNativeTransportPort()));
+            info.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
+            info.setListenAddressAndPort(FBUtilities.getLocalAddressAndPort());
+            return info;
+        }, true, true);
     }
 
     public static void updateCompactionHistory(UUID id,
@@ -638,142 +622,57 @@ public final class SystemKeyspace
         return status;
     }
 
-    public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
+    public static void saveTruncationRecord(TableId tableId, long truncatedAt, CommitLogPosition position)
     {
-        String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
-        executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
-        truncationRecords = null;
-        forceBlockingFlush(LOCAL);
+        Nodes.local().update(info -> info.addTruncationRecord(tableId.asUUID(), new TruncationRecord(position, truncatedAt)), true);
     }
 
     /**
      * This method is used to remove information about truncation time for specified column family
      */
-    public static synchronized void removeTruncationRecord(TableId id)
+    public static void removeTruncationRecord(TableId id)
     {
-        Pair<CommitLogPosition, Long> truncationRecord = getTruncationRecord(id);
-        if (truncationRecord == null)
-            return;
-
-        String req = "DELETE truncated_at[?] from system.%s WHERE key = '%s'";
-        executeInternal(format(req, LOCAL, LOCAL), id.asUUID());
-        truncationRecords = null;
-        forceBlockingFlush(LOCAL);
-    }
-
-    private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
-    {
-        try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
-        {
-            CommitLogPosition.serializer.serialize(position, out);
-            out.writeLong(truncatedAt);
-            return singletonMap(cfs.metadata.id.asUUID(), out.asNewBuffer());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        Nodes.local().update(info -> info.removeTruncationRecord(id.asUUID()), true);
     }
 
     public static CommitLogPosition getTruncatedPosition(TableId id)
     {
-        Pair<CommitLogPosition, Long> record = getTruncationRecord(id);
-        return record == null ? null : record.left;
+        TruncationRecord record = Nodes.local().get().getTruncationRecords().get(id.asUUID());
+        return record != null ? record.position : null;
     }
 
     public static long getTruncatedAt(TableId id)
     {
-        Pair<CommitLogPosition, Long> record = getTruncationRecord(id);
-        return record == null ? Long.MIN_VALUE : record.right;
-    }
-
-    private static synchronized Pair<CommitLogPosition, Long> getTruncationRecord(TableId id)
-    {
-        if (truncationRecords == null)
-            truncationRecords = readTruncationRecords();
-        return truncationRecords.get(id);
-    }
-
-    private static Map<TableId, Pair<CommitLogPosition, Long>> readTruncationRecords()
-    {
-        UntypedResultSet rows = executeInternal(format("SELECT truncated_at FROM system.%s WHERE key = '%s'", LOCAL, LOCAL));
-
-        Map<TableId, Pair<CommitLogPosition, Long>> records = new HashMap<>();
-
-        if (!rows.isEmpty() && rows.one().has("truncated_at"))
-        {
-            Map<UUID, ByteBuffer> map = rows.one().getMap("truncated_at", UUIDType.instance, BytesType.instance);
-            for (Map.Entry<UUID, ByteBuffer> entry : map.entrySet())
-                records.put(TableId.fromUUID(entry.getKey()), truncationRecordFromBlob(entry.getValue()));
-        }
-
-        return records;
-    }
-
-    private static Pair<CommitLogPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)
-    {
-        try (RebufferingInputStream in = new DataInputBuffer(bytes, true))
-        {
-            return Pair.create(CommitLogPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        TruncationRecord record = Nodes.local().get().getTruncationRecords().get(id.asUUID());
+        return record != null ? record.truncatedAt : Long.MIN_VALUE;
     }
 
     /**
      * Record tokens being used by another node
      */
-    public static synchronized void updateTokens(InetAddressAndPort ep, Collection<Token> tokens)
+    public static void updateTokens(InetAddressAndPort ep, Collection<Token> tokens)
     {
         if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return;
 
-        String req = "INSERT INTO system.%s (peer, tokens) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address, tokensAsSet(tokens));
-        req = "INSERT INTO system.%s (peer, peer_port, tokens) VALUES (?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, tokensAsSet(tokens));
+        Nodes.peers().update(ep, peer -> peer.setTokens(tokens), false);
     }
 
-    public static synchronized boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
+    public static boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferredIP)
     {
-        if (preferred_ip.equals(getPreferredIP(ep)))
+        if (preferredIP.equals(getPreferredIP(ep)))
             return false;
 
-        String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address, preferred_ip.address);
-        req = "INSERT INTO system.%s (peer, peer_port, preferred_ip, preferred_port) VALUES (?, ?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, preferred_ip.address, preferred_ip.port);
-        forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
+        Nodes.peers().update(ep, info -> info.setPreferredAddressAndPort(preferredIP), true);
         return true;
     }
 
-    public static synchronized void updatePeerInfo(InetAddressAndPort ep, String columnName, Object value)
+    public static void updatePeerNativeAddress(InetAddressAndPort ep, InetAddressAndPort address)
     {
         if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return;
 
-        String req = "INSERT INTO system.%s (peer, %s) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS, columnName), ep.address, value);
-        //This column doesn't match across the two tables
-        if (columnName.equals("rpc_address"))
-        {
-            columnName = "native_address";
-        }
-        req = "INSERT INTO system.%s (peer, peer_port, %s) VALUES (?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2, columnName), ep.address, ep.port, value);
-    }
-
-    public static synchronized void updatePeerNativeAddress(InetAddressAndPort ep, InetAddressAndPort address)
-    {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return;
-
-        String req = "INSERT INTO system.%s (peer, rpc_address) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address, address.address);
-        req = "INSERT INTO system.%s (peer, peer_port, native_address, native_port) VALUES (?, ?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, address.address, address.port);
+        Nodes.peers().update(ep, info -> info.setNativeTransportAddressAndPort(address), false);
     }
 
 
@@ -786,58 +685,26 @@ public final class SystemKeyspace
         executeInternal(String.format(req, PEER_EVENTS_V2), timePeriod, value, ep.address, ep.port);
     }
 
-    public static synchronized void updateSchemaVersion(UUID version)
+    public static void updateSchemaVersion(UUID version)
     {
-        String req = "INSERT INTO system.%s (key, schema_version) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), version);
-    }
-
-    private static Set<String> tokensAsSet(Collection<Token> tokens)
-    {
-        if (tokens.isEmpty())
-            return Collections.emptySet();
-        Token.TokenFactory factory = StorageService.instance.getTokenFactory();
-        Set<String> s = new HashSet<>(tokens.size());
-        for (Token tk : tokens)
-            s.add(factory.toString(tk));
-        return s;
-    }
-
-    private static Collection<Token> deserializeTokens(Collection<String> tokensStrings)
-    {
-        Token.TokenFactory factory = StorageService.instance.getTokenFactory();
-        List<Token> tokens = new ArrayList<>(tokensStrings.size());
-        for (String tk : tokensStrings)
-            tokens.add(factory.fromString(tk));
-        return tokens;
+        Nodes.local().update(info -> info.setSchemaVersion(version), false);
     }
 
     /**
      * Remove stored tokens being used by another node
      */
-    public static synchronized void removeEndpoint(InetAddressAndPort ep)
+    public static void removeEndpoint(InetAddressAndPort ep)
     {
-        String req = "DELETE FROM system.%s WHERE peer = ?";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address);
-        req = String.format("DELETE FROM system.%s WHERE peer = ? AND peer_port = ?", PEERS_V2);
-        executeInternal(req, ep.address, ep.port);
-        forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
+        Nodes.peers().remove(ep, true, false);
     }
 
     /**
      * This method is used to update the System Keyspace with the new tokens for this node
      */
-    public static synchronized void updateTokens(Collection<Token> tokens)
+    public static void updateTokens(Collection<Token> tokens)
     {
         assert !tokens.isEmpty() : "removeEndpoint should be used instead";
-
-        Collection<Token> savedTokens = getSavedTokens();
-        if (tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
-            return;
-
-        String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), tokensAsSet(tokens));
-        forceBlockingFlush(LOCAL);
+        Nodes.getInstance().getLocal().update(info -> info.setTokens(tokens), true);
     }
 
     public static void forceBlockingFlush(String ...cfnames)
@@ -863,15 +730,7 @@ public final class SystemKeyspace
     public static SetMultimap<InetAddressAndPort, Token> loadTokens()
     {
         SetMultimap<InetAddressAndPort, Token> tokenMap = HashMultimap.create();
-        for (UntypedResultSet.Row row : executeInternal("SELECT peer, peer_port, tokens FROM system." + PEERS_V2))
-        {
-            InetAddress address = row.getInetAddress("peer");
-            Integer port = row.getInt("peer_port");
-            InetAddressAndPort peer = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
-            if (row.has("tokens"))
-                tokenMap.putAll(peer, deserializeTokens(row.getSet("tokens", UTF8Type.instance)));
-        }
-
+        Nodes.peers().get().filter(PeerInfo::isExisting).forEach(info -> tokenMap.putAll(info.getPeerAddressAndPort(), info.getTokens()));
         return tokenMap;
     }
 
@@ -881,18 +740,7 @@ public final class SystemKeyspace
      */
     public static Map<InetAddressAndPort, UUID> loadHostIds()
     {
-        Map<InetAddressAndPort, UUID> hostIdMap = new HashMap<>();
-        for (UntypedResultSet.Row row : executeInternal("SELECT peer, peer_port, host_id FROM system." + PEERS_V2))
-        {
-            InetAddress address = row.getInetAddress("peer");
-            Integer port = row.getInt("peer_port");
-            InetAddressAndPort peer = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
-            if (row.has("host_id"))
-            {
-                hostIdMap.put(peer, row.getUUID("host_id"));
-            }
-        }
-        return hostIdMap;
+        return Nodes.peers().get().filter(PeerInfo::isExisting).collect(Collectors.toMap(PeerInfo::getPeerAddressAndPort, NodeInfo::getHostId));
     }
 
     /**
@@ -903,36 +751,27 @@ public final class SystemKeyspace
      */
     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
     {
-        String req = "SELECT preferred_ip, preferred_port FROM system.%s WHERE peer=? AND peer_port = ?";
-        UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
-        if (!result.isEmpty() && result.one().has("preferred_ip"))
-        {
-            UntypedResultSet.Row row = result.one();
-            return InetAddressAndPort.getByAddressOverrideDefaults(row.getInetAddress("preferred_ip"), row.getInt("preferred_port"));
-        }
-        return ep;
+        PeerInfo info = Nodes.peers().get(ep);
+        if (info != null && info.getPreferredAddressAndPort() != null && info.isExisting())
+            return info.getPreferredAddressAndPort();
+        else
+            return ep;
     }
 
     /**
      * Return a map of IP addresses containing a map of dc and rack info
      */
-    public static Map<InetAddressAndPort, Map<String,String>> loadDcRackInfo()
+    public static Map<InetAddressAndPort, Map<String, String>> loadDcRackInfo()
     {
-        Map<InetAddressAndPort, Map<String, String>> result = new HashMap<>();
-        for (UntypedResultSet.Row row : executeInternal("SELECT peer, peer_port, data_center, rack from system." + PEERS_V2))
-        {
-            InetAddress address = row.getInetAddress("peer");
-            Integer port = row.getInt("peer_port");
-            InetAddressAndPort peer = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
-            if (row.has("data_center") && row.has("rack"))
-            {
-                Map<String, String> dcRack = new HashMap<>();
-                dcRack.put("data_center", row.getString("data_center"));
-                dcRack.put("rack", row.getString("rack"));
-                result.put(peer, dcRack);
-            }
-        }
-        return result;
+        return Nodes.peers()
+                    .get()
+                    .filter(p -> p.getDataCenter() != null && p.getRack() != null && p.isExisting())
+                    .collect(Collectors.toMap(PeerInfo::getPeerAddressAndPort, p -> {
+                        Map<String, String> dcRack = new HashMap<>();
+                        dcRack.put("data_center", p.getDataCenter());
+                        dcRack.put("rack", p.getRack());
+                        return dcRack;
+                    }));
     }
 
     /**
@@ -944,26 +783,10 @@ public final class SystemKeyspace
      */
     public static CassandraVersion getReleaseVersion(InetAddressAndPort ep)
     {
-        try
-        {
-            if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
-            {
-                return CURRENT_VERSION;
-            }
-            String req = "SELECT release_version FROM system.%s WHERE peer=? AND peer_port=?";
-            UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
-            if (result != null && result.one().has("release_version"))
-            {
-                return new CassandraVersion(result.one().getString("release_version"));
-            }
-            // version is unknown
-            return null;
-        }
-        catch (IllegalArgumentException e)
-        {
-            // version string cannot be parsed
-            return null;
-        }
+        if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
+            return CURRENT_VERSION;
+        else
+            return Nodes.peers().getOpt(ep).filter(PeerInfo::isExisting).map(NodeInfo::getReleaseVersion).orElse(null);
     }
 
     /**
@@ -989,11 +812,8 @@ public final class SystemKeyspace
         }
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(LOCAL);
 
-        String req = "SELECT cluster_name FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        if (result.isEmpty() || !result.one().has("cluster_name"))
-        {
+        String savedClusterName = Nodes.local().get().getClusterName();
+        if (savedClusterName == null) {
             // this is a brand new node
             if (!cfs.getLiveSSTables().isEmpty())
                 throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
@@ -1001,23 +821,18 @@ public final class SystemKeyspace
             // no system files.  this is a new node.
             return;
         }
-
-        String savedClusterName = result.one().getString("cluster_name");
         if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
             throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
     }
 
     public static Collection<Token> getSavedTokens()
     {
-        String req = "SELECT tokens FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-        return result.isEmpty() || !result.one().has("tokens")
-             ? Collections.<Token>emptyList()
-             : deserializeTokens(result.one().getSet("tokens", UTF8Type.instance));
+        return Nodes.local().get().getTokens();
     }
 
     public static int incrementAndGetGeneration()
     {
+        // gossip generation is specific to Gossip thus it is not handled by Nodes.Local
         String req = "SELECT gossip_generation FROM system.%s WHERE key='%s'";
         UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
 
@@ -1055,13 +870,7 @@ public final class SystemKeyspace
 
     public static BootstrapState getBootstrapState()
     {
-        String req = "SELECT bootstrapped FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        if (result.isEmpty() || !result.one().has("bootstrapped"))
-            return BootstrapState.NEEDS_BOOTSTRAP;
-
-        return BootstrapState.valueOf(result.one().getString("bootstrapped"));
+        return ObjectUtils.firstNonNull(Nodes.local().get().getBootstrapState(), BootstrapState.NEEDS_BOOTSTRAP);
     }
 
     public static boolean bootstrapComplete()
@@ -1081,12 +890,7 @@ public final class SystemKeyspace
 
     public static void setBootstrapState(BootstrapState state)
     {
-        if (getBootstrapState() == state)
-            return;
-
-        String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), state.name());
-        forceBlockingFlush(LOCAL);
+        Nodes.local().update(info -> info.setBootstrapState(state), true);
     }
 
     public static boolean isIndexBuilt(String keyspaceName, String indexName)
@@ -1125,14 +929,7 @@ public final class SystemKeyspace
      */
     public static UUID getLocalHostId()
     {
-        String req = "SELECT host_id FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        // Look up the Host UUID (return it if found)
-        if (result != null && !result.isEmpty() && result.one().has("host_id"))
-            return result.one().getUUID("host_id");
-
-        return null;
+        return Nodes.local().get().getHostId();
     }
 
     /**
@@ -1154,11 +951,9 @@ public final class SystemKeyspace
     /**
      * Sets the local host ID explicitly.  Should only be called outside of SystemTable when replacing a node.
      */
-    public static synchronized UUID setLocalHostId(UUID hostId)
+    public static UUID setLocalHostId(UUID hostId)
     {
-        String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), hostId);
-        return hostId;
+        return Nodes.local().update(info -> info.setHostId(hostId), false).getHostId();
     }
 
     /**
@@ -1166,13 +961,7 @@ public final class SystemKeyspace
      */
     public static UUID getSchemaVersion()
     {
-        String req = "SELECT schema_version FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        if (!result.isEmpty() && result.one().has("schema_version"))
-            return result.one().getUUID("schema_version");
-
-        return null;
+        return Nodes.local().get().getSchemaVersion();
     }
 
     /**
@@ -1180,14 +969,7 @@ public final class SystemKeyspace
      */
     public static String getRack()
     {
-        String req = "SELECT rack FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        // Look up the Rack (return it if found)
-        if (!result.isEmpty() && result.one().has("rack"))
-            return result.one().getString("rack");
-
-        return null;
+        return Nodes.local().get().getRack();
     }
 
     /**
@@ -1195,14 +977,7 @@ public final class SystemKeyspace
      */
     public static String getDatacenter()
     {
-        String req = "SELECT data_center FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        // Look up the Data center (return it if found)
-        if (!result.isEmpty() && result.one().has("data_center"))
-            return result.one().getString("data_center");
-
-        return null;
+        return Nodes.local().get().getDataCenter();
     }
 
     public static PaxosState loadPaxosState(DecoratedKey key, TableMetadata metadata, int nowInSec)
@@ -1515,7 +1290,7 @@ public final class SystemKeyspace
      * Primary source of truth is the release version in system.local. If the previous
      * version cannot be determined by looking there then either:
      * * the node never had a C* install before
-     * * the was a very old version (pre 1.2) installed, which did not include system.local
+     * * the node was at very old version (pre 1.2), which did not include system.local
      *
      * @return either a version read from the system.local table or one of two special values
      * indicating either no previous version (SystemUpgrade.NULL_VERSION) or an unreadable,
@@ -1523,9 +1298,8 @@ public final class SystemKeyspace
      */
     private static String getPreviousVersionString()
     {
-        String req = "SELECT release_version FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
-        if (result.isEmpty() || !result.one().has("release_version"))
+        CassandraVersion version = Nodes.local().get().getReleaseVersion();
+        if (version == null)
         {
             // it isn't inconceivable that one might try to upgrade a node straight from <= 1.1 to whatever
             // the current version is. If we couldn't read a previous version from system.local we check for
@@ -1544,7 +1318,7 @@ public final class SystemKeyspace
             return NULL_VERSION.toString();
         }
         // report back whatever we found in the system table
-        return result.one().getString("release_version");
+        return version.toString();
     }
 
     @VisibleForTesting

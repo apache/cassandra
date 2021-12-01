@@ -101,6 +101,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -515,6 +516,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
+
+                Nodes.getInstance().reload();
 
                 // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
                 StorageService.instance.populateTokenMetadata();

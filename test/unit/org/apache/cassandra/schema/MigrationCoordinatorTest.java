@@ -89,6 +89,7 @@ public class MigrationCoordinatorTest
 
     static
     {
+        System.setProperty("cassandra.nodes.disablePersitingToSystemKeyspace", "true");
         try
         {
             EP1 = InetAddressAndPort.getByName("10.0.0.1");

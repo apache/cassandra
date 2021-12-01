@@ -125,6 +125,7 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -286,7 +287,7 @@ public class Util
 
         // check that all nodes are in token metadata
         for (int i=0; i<endpointTokens.size(); ++i)
-            assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
+            assertThat(ss.getTokenMetadata().isMember(hosts.get(i))).withFailMessage("%s is not a member of token metadata", hosts.get(i)).isTrue();
     }
 
     public static Future<?> compactAll(ColumnFamilyStore cfs, int gcBefore)
