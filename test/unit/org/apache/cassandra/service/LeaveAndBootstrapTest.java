@@ -53,8 +53,10 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -664,7 +666,7 @@ public class LeaveAndBootstrapTest
 
         assertFalse(tmd.isMember(hosts.get(2)));
 
-        // node hosts.get(4) goes to bootstrap
+        // node hosts.get(3) goes to bootstrap
         Gossiper.instance.injectApplicationState(hosts.get(3), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1))));
 
@@ -677,7 +679,7 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.computeExpireTime()));
 
-        assertTrue(tmd.getBootstrapTokens().size() == 0);
+        Assertions.assertThat(tmd.getBootstrapTokens()).isEmpty();
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
     }
@@ -697,8 +699,8 @@ public class LeaveAndBootstrapTest
         Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
 
         InetAddressAndPort toRemove = hosts.get(1);
-        SystemKeyspace.updatePeerInfo(toRemove, "data_center", "dc42");
-        SystemKeyspace.updatePeerInfo(toRemove, "rack", "rack42");
+        Nodes.peers().update(toRemove, info -> info.setDataCenter("dc42"), false);
+        Nodes.peers().update(toRemove, info -> info.setRack("rack42"), false);
         assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
 
         // mark the node as removed
