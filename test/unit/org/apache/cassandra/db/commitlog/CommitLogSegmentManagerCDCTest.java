@@ -388,7 +388,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private void testWithNonblockingMode(Testable test) throws Throwable
     {
-        boolean original = DatabaseDescriptor.shouldCDCBlockWrites();
+        boolean original = DatabaseDescriptor.getCDCBlockWrites();
         CommitLog.instance.setCDCBlockWrites(false);
         try
         {
@@ -428,7 +428,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     private void bulkWrite(String tableName) throws Throwable
     {
         TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(tableName).metadata();
-        boolean blockWrites = DatabaseDescriptor.shouldCDCBlockWrites();
+        boolean blockWrites = DatabaseDescriptor.getCDCBlockWrites();
         // Spin to make sure we hit CDC capacity
         try
         {
@@ -451,7 +451,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     private void testSegmentFlaggingOnCreation0() throws Throwable
     {
         testWithCDCSpaceInMb(16, () -> {
-            boolean blockWrites = DatabaseDescriptor.shouldCDCBlockWrites();
+            boolean blockWrites = DatabaseDescriptor.getCDCBlockWrites();
 
             createTableAndBulkWrite();
 

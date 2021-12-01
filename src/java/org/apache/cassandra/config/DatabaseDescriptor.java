@@ -2076,6 +2076,13 @@ public class DatabaseDescriptor
         return (int) ByteUnit.MEBI_BYTES.toBytes(conf.commitlog_segment_size_in_mb);
     }
 
+    /**
+     * Update commitlog_segment_size_in_mb in the tests.
+     * {@link CommitLogSegmentManagerCDC} uses the CommitLogSegmentSize to estimate the file size on allocation.
+     * It is important to keep the value unchanged for the estimation to be correct.
+     * @param sizeMegabytes
+     */
+    @VisibleForTesting /* Only for testing */
     public static void setCommitLogSegmentSize(int sizeMegabytes)
     {
         conf.commitlog_segment_size_in_mb = sizeMegabytes;
@@ -3138,14 +3145,13 @@ public class DatabaseDescriptor
         conf.cdc_enabled = cdc_enabled;
     }
 
-    public static boolean shouldCDCBlockWrites()
+    public static boolean getCDCBlockWrites()
     {
         return conf.cdc_block_writes;
     }
 
     public static void setCDCBlockWrites(boolean val)
     {
-        Thread.dumpStack();
         conf.cdc_block_writes = val;
     }
 

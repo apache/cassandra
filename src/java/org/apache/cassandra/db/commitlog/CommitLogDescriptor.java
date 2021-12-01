@@ -34,7 +34,6 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -228,13 +227,14 @@ public class CommitLogDescriptor
 
     /**
      * Infer the corresponding cdc index file using its cdc commitlog file
-     * @param cdcFile
-     * @return cdc index file
+     * @param cdcCommitLogSegment
+     * @return cdc index file or null if the cdc index file cannot be inferred.
      */
-    public static File inferCdcIndexFile(File cdcFile)
+    public static File inferCdcIndexFile(File cdcCommitLogSegment)
     {
-        Preconditions.checkArgument(isValid(cdcFile.name()), "Invalid commit log");
-        String cdcFileName = cdcFile.name();
+        if (!isValid(cdcCommitLogSegment.name()))
+            return null;
+        String cdcFileName = cdcCommitLogSegment.name();
         String indexFileName = cdcFileName.substring(0, cdcFileName.length() - FILENAME_EXTENSION.length()) + INDEX_FILENAME_SUFFIX;
         return new File(DatabaseDescriptor.getCDCLogLocation(), indexFileName);
     }

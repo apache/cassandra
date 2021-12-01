@@ -424,7 +424,7 @@ public class CommitLog implements CommitLogMBean
     @Override
     public boolean getCDCBlockWrites()
     {
-        return DatabaseDescriptor.shouldCDCBlockWrites();
+        return DatabaseDescriptor.getCDCBlockWrites();
     }
 
     @Override
@@ -433,8 +433,9 @@ public class CommitLog implements CommitLogMBean
         Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(),
                                  "Unable to set block_writes (%s): CDC is not enabled.", val);
         Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
-                                 "Unexpected commit log segment manager type: %s", segmentManager.getClass().getName());
-        boolean oldVal = DatabaseDescriptor.shouldCDCBlockWrites();
+                                 "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
+                                 "Please report this as bug.", segmentManager.getClass().getName());
+        boolean oldVal = DatabaseDescriptor.getCDCBlockWrites();
         CommitLogSegment currentSegment = segmentManager.allocatingFrom();
         // Update the current segment CDC state to PERMITTED if block_writes is disabled now, and it was in FORBIDDEN state
         if (!val && currentSegment.getCDCState() == CommitLogSegment.CDCState.FORBIDDEN)
