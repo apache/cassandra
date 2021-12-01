@@ -60,7 +60,7 @@ public class TokenRange
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         for (InetAddressAndPort ep : endpoints)
             details.add(new EndpointDetails(ep,
-                                            StorageService.instance.getNativeaddress(ep, withPorts),
+                                            StorageService.instance.getNativeAddress(ep, withPorts),
                                             snitch.getDatacenter(ep),
                                             snitch.getRack(ep)));
         return new TokenRange(tokenFactory, range, details);

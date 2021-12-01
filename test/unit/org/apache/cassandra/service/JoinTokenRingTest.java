@@ -36,8 +36,8 @@ public class JoinTokenRingTest
     public static void setup() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
-        SchemaLoader.startGossiper();
         SchemaLoader.prepareServer();
+        SchemaLoader.startGossiper();
         SchemaLoader.schemaDefinition("JoinTokenRingTest");
     }
 
