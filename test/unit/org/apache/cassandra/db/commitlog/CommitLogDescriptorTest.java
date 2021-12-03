@@ -29,10 +29,12 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.net.MessagingService;
@@ -308,5 +310,20 @@ public class CommitLogDescriptorTest
 
         CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, enabledEncryption);
         Assert.assertEquals(desc1, desc2);
+    }
+
+    @Test
+    public void testInferCDCIndexFile()
+    {
+        DatabaseDescriptor.daemonInitialization();
+        String fileNameSuffix = "CommitLog-2-1340512736956320000";
+        File validCdcLink = new File(fileNameSuffix + ".log");
+        File inferredIndexFile = CommitLogDescriptor.inferCdcIndexFile(validCdcLink);
+        Assert.assertNotNull(inferredIndexFile);
+        Assert.assertEquals(fileNameSuffix + "_cdc.idx", inferredIndexFile.name());
+
+        File invalidCdcLink = new File(fileNameSuffix + ".invalidlog");
+        inferredIndexFile = CommitLogDescriptor.inferCdcIndexFile(invalidCdcLink);
+        Assert.assertNull(inferredIndexFile);
     }
 }

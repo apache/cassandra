@@ -281,6 +281,9 @@ public class Config
 
     // Change-data-capture logs
     public boolean cdc_enabled = false;
+    // When true, new CDC mutations are rejected/blocked when reaching max CDC storage.
+    // When false, new CDC mutations can always be added. But it will remove the oldest CDC commit log segment on full.
+    public volatile boolean cdc_block_writes = true;
     public String cdc_raw_directory;
     public int cdc_total_space_in_mb = 0;
     public int cdc_free_space_check_interval_ms = 250;
