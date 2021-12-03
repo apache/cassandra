@@ -69,7 +69,7 @@ public abstract class CommitLogSegment
         FORBIDDEN,
         CONTAINS
     }
-    Object cdcStateLock = new Object();
+    final Object cdcStateLock = new Object();
 
     private final static AtomicInteger nextId = new AtomicInteger(1);
     private static long replayLimitId;

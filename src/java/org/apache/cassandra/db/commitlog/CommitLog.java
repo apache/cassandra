@@ -28,6 +28,7 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.util.File;
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -418,6 +419,29 @@ public class CommitLog implements CommitLogMBean
         for (CommitLogSegment seg : segmentManager.getActiveSegments())
             segmentRatios.put(seg.getName(), 1.0 * seg.onDiskSize() / seg.contentSize());
         return segmentRatios;
+    }
+
+    @Override
+    public boolean getCDCBlockWrites()
+    {
+        return DatabaseDescriptor.getCDCBlockWrites();
+    }
+
+    @Override
+    public void setCDCBlockWrites(boolean val)
+    {
+        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(),
+                                 "Unable to set block_writes (%s): CDC is not enabled.", val);
+        Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
+                                 "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
+                                 "Please report this as bug.", segmentManager.getClass().getName());
+        boolean oldVal = DatabaseDescriptor.getCDCBlockWrites();
+        CommitLogSegment currentSegment = segmentManager.allocatingFrom();
+        // Update the current segment CDC state to PERMITTED if block_writes is disabled now, and it was in FORBIDDEN state
+        if (!val && currentSegment.getCDCState() == CommitLogSegment.CDCState.FORBIDDEN)
+            currentSegment.setCDCState(CommitLogSegment.CDCState.PERMITTED);
+        DatabaseDescriptor.setCDCBlockWrites(val);
+        logger.info("Updated CDC block_writes from {} to {}", oldVal, val);
     }
 
     /**
