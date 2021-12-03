@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.service.reads;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -205,6 +208,13 @@ public abstract class AbstractReadExecutor
             return new AlwaysSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
         else // PERCENTILE or CUSTOM.
             return new SpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
+    }
+
+    public List<String> getContactedReplicas() {
+        return replicaPlan().contacts()
+                            .stream()
+                            .map(r -> r.endpoint().getHostAddress(true))
+                            .collect(Collectors.toList());
     }
 
     /**
