@@ -152,7 +152,10 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     {
         if (buffer.remaining() < Long.BYTES)
         {
-            writeSlow(register, bytes);
+            for (int i = 1; i <= bytes; i++)
+            {
+                writeByte((int) (register >>> (64 - (8 * i))));
+            }
         }
         else
         {
