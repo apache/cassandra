@@ -31,7 +31,10 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.io.util.File;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,6 +101,7 @@ public class StartupChecks
                                                                       checkNativeLibraryInitialization,
                                                                       initSigarLibrary,
                                                                       checkMaxMapCount,
+                                                                      checkReadAheadKbSetting,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
@@ -282,6 +286,86 @@ public class StartupChecks
         public void execute()
         {
             SigarLibrary.instance.warnIfRunningInDegradedMode();
+        }
+    };
+
+    public static final StartupCheck checkReadAheadKbSetting = new StartupCheck()
+    {
+        // This value is in KB.
+        private static final long MAX_RECOMMENDED_READ_AHEAD_KB_SETTING = 128;
+
+        /**
+         * Function to get the block device system path(Example: /dev/sda) from the
+         * data directories defined in cassandra config.(cassandra.yaml)
+         * @param dataDirectories list of data directories from cassandra.yaml
+         * @return Map of block device path and data directory
+         */
+        private Map<String, String> getBlockDevices(String[] dataDirectories) {
+            Map<String, String> blockDevices = new HashMap<String, String>();
+
+            for (String dataDirectory : dataDirectories)
+            {
+                try
+                {
+                    Path p = Paths.get(dataDirectory);
+                    FileStore fs = Files.getFileStore(p);
+
+                    String blockDirectory = fs.name();
+                    if(StringUtils.isNotEmpty(blockDirectory))
+                    {
+                        blockDevices.put(blockDirectory, dataDirectory);
+                    }
+                }
+                catch (IOException e)
+                {
+                    logger.warn("IO exception while reading file {}.", dataDirectory, e);
+                }
+            }
+            return blockDevices;
+        }
+
+        @Override
+        public void execute()
+        {
+            if (!FBUtilities.isLinux)
+                return;
+
+            String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
+            Map<String, String> blockDevices = getBlockDevices(dataDirectories);
+
+            for (Map.Entry<String, String> entry: blockDevices.entrySet())
+            {
+                String blockDeviceDirectory = entry.getKey();
+                String dataDirectory = entry.getValue();
+                try
+                {
+                    Path readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
+
+                    if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
+                    {
+                        logger.debug("No 'read_ahead_kb' setting found for device {} of data directory {}.", blockDeviceDirectory, dataDirectory);
+                        continue;
+                    }
+
+                    final List<String> data = Files.readAllLines(readAheadKBPath);
+                    if (data.isEmpty())
+                        continue;
+
+                    int readAheadKbSetting = Integer.parseInt(data.get(0));
+
+                    if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
+                    {
+                        logger.warn("Detected high '{}' setting of {} for device '{}' of data directory '{}'. It is " +
+                                    "recommended to set this value to 8KB (or lower) on SSDs or 64KB (or lower) on HDDs " +
+                                    "to prevent excessive IO usage and page cache churn on read-intensive workloads.",
+                                    readAheadKBPath, readAheadKbSetting, blockDeviceDirectory, dataDirectory);
+                    }
+                }
+                catch (final IOException e)
+                {
+                    logger.warn("IO exception while reading file {}.", blockDeviceDirectory, e);
+                }
+            }
         }
     };
 
@@ -497,6 +581,32 @@ public class StartupChecks
         if (errMsg.isPresent())
             throw new StartupException(StartupException.ERR_WRONG_CONFIG, errMsg.get());
     };
+
+    @VisibleForTesting
+    public static Path getReadAheadKBPath(String blockDirectoryPath)
+    {
+        Path readAheadKBPath = null;
+
+        final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/%s/queue/read_ahead_kb";
+        try
+        {
+            String[] blockDirComponents = blockDirectoryPath.split("/");
+            if (blockDirComponents.length >= 2 && blockDirComponents[1].equals("dev"))
+            {
+                String deviceName = blockDirComponents[2].replaceAll("[0-9]*$", "");
+                if (StringUtils.isNotEmpty(deviceName))
+                {
+                    readAheadKBPath = Paths.get(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            logger.error("Error retrieving device path for {}.", blockDirectoryPath);
+        }
+
+        return readAheadKBPath;
+    }
 
     @VisibleForTesting
     static Optional<String> checkLegacyAuthTablesMessage()
