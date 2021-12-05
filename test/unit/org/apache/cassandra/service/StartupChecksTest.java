@@ -104,6 +104,13 @@ public class StartupChecksTest
     }
 
     @Test
+    public void checkReadAheadKbSettingCheck() throws Exception
+    {
+        startupChecks = startupChecks.withTest(StartupChecks.checkReadAheadKbSetting);
+        startupChecks.verify();
+    }
+
+    @Test
     public void maxMapCountCheck() throws Exception
     {
         startupChecks = startupChecks.withTest(StartupChecks.checkMaxMapCount);

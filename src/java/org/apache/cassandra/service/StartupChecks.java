@@ -98,6 +98,7 @@ public class StartupChecks
                                                                       checkNativeLibraryInitialization,
                                                                       initSigarLibrary,
                                                                       checkMaxMapCount,
+                                                                      checkReadAheadKbSetting,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
@@ -282,6 +283,49 @@ public class StartupChecks
         public void execute()
         {
             SigarLibrary.instance.warnIfRunningInDegradedMode();
+        }
+    };
+
+    public static final StartupCheck checkReadAheadKbSetting = new StartupCheck()
+    {
+        // This value is in KB.
+        private static final long EXPECTED_READ_AHEAD_KB_SETTING = 8;
+        private static final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/sda/queue/read_ahead_kb";
+
+        @Override
+        public void execute() throws StartupException
+        {
+            if (!FBUtilities.isLinux)
+                return;
+
+            final Path path = Paths.get(READ_AHEAD_KB_SETTING_PATH);
+            try (final BufferedReader bufferedReader = Files.newBufferedReader(path))
+            {
+                final String data = bufferedReader.readLine();
+                if (data != null)
+                {
+                    try
+                    {
+                        Integer readAheadKbSetting = Integer.parseInt(data);
+
+                        if (readAheadKbSetting > EXPECTED_READ_AHEAD_KB_SETTING)
+                        {
+                            logger.warn("High Read Ahead Kb setting: It is Recommended to set this value to 8KB " +
+                                        "or lower as a higher value can cause high IO usage and cache " +
+                                        "churn on read-intensive workloads.",
+                                        readAheadKbSetting, EXPECTED_READ_AHEAD_KB_SETTING);
+                        }
+                    }
+                    catch (final NumberFormatException e)
+                    {
+                        logger.warn("Unable to parse {}.", path, e);
+                    }
+                }
+            }
+            catch (final IOException e)
+            {
+                logger.warn("IO exception while reading file {}.", path, e);
+            }
         }
     };
 
