@@ -104,6 +104,31 @@ public class StartupChecksTest
     }
 
     @Test
+    public void checkReadAheadKbSettingCheck() throws Exception
+    {
+        // This test just validates if the verify function
+        // doesn't throw any exceptions
+        startupChecks = startupChecks.withTest(StartupChecks.checkReadAheadKbSetting);
+        startupChecks.verify();
+    }
+
+    @Test
+    public void testGetReadAheadKBPath()
+    {
+        Path sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12");
+        Assert.assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
+
+        Path scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1");
+        Assert.assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
+
+        Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
+        Assert.assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
+
+        Path invalidDir = StartupChecks.getReadAheadKBPath("/tmp/xpto");
+        Assert.assertNull(invalidDir);
+    }
+
+    @Test
     public void maxMapCountCheck() throws Exception
     {
         startupChecks = startupChecks.withTest(StartupChecks.checkMaxMapCount);
