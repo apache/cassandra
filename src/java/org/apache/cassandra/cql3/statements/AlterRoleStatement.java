@@ -35,7 +35,7 @@ public class AlterRoleStatement extends AuthenticationStatement
     private final RoleResource role;
     private final RoleOptions opts;
     final DCPermissions dcPermissions;
-    private final boolean ifRoleExists;
+    private final boolean ifExists;
 
     public AlterRoleStatement(RoleName name, RoleOptions opts)
     {
@@ -47,7 +47,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         this.role = RoleResource.role(name.getName());
         this.opts = opts;
         this.dcPermissions = dcPermissions;
-        this.ifRoleExists = ifExists;
+        this.ifExists = ifExists;
     }
 
     public void validate(ClientState state) throws RequestValidationException
@@ -66,8 +66,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         state.ensureNotAnonymous();
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
         {
-            if (ifRoleExists) return;
-            throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
+            RequestValidations.checkTrue(ifExists, String.format("Role %s doesn't exist", role.getRoleName()));
         }
     }
 

@@ -934,29 +934,26 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement.Raw stmt]
  * ALTER TABLE [IF EXISTS] <table> WITH <property> = <value>;
  */
 alterTableStatement returns [AlterTableStatement.Raw stmt]
-    @init {
-        boolean ifExists = false;
-        boolean ifNotExists = false;
-    }
+    @init { boolean ifExists = false; }
     : K_ALTER K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )?
       cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf, ifExists); }
       (
         K_ALTER id=cident K_TYPE v=comparatorType { $stmt.alter(id, v); }
 
-      | K_ADD ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-              (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b, ifNotExists);  }
-               | ('('  id1=ident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1, ifNotExists); }
-                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn, ifNotExists); } )* ')') )
+      | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
+              (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
+               | ('('  id1=ident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1); }
+                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn); } )* ')') )
 
-      | K_DROP ( K_IF K_EXISTS { ifExists = true;} )?
-               (       id=ident { $stmt.drop(id, ifExists);  }
-               | ('('  id1=ident { $stmt.drop(id1, ifExists); }
-                 ( ',' idn=ident { $stmt.drop(idn, ifExists); } )* ')') )
+      | K_DROP ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
+               (       id=ident { $stmt.drop(id);  }
+               | ('('  id1=ident { $stmt.drop(id1); }
+                 ( ',' idn=ident { $stmt.drop(idn); } )* ')') )
                ( K_USING K_TIMESTAMP t=INTEGER { $stmt.timestamp(Long.parseLong(Constants.Literal.integer($t.text).getText())); } )?
 
-      | K_RENAME ( K_IF K_EXISTS { ifExists = true;} )?
-               (        id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1, ifExists); }
-                ( K_AND idn=ident K_TO toIdn=ident { $stmt.rename(idn, toIdn, ifExists); } )* )
+      | K_RENAME ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
+               (        id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1); }
+                ( K_AND idn=ident K_TO toIdn=ident { $stmt.rename(idn, toIdn); } )* )
 
       | K_DROP K_COMPACT K_STORAGE { $stmt.dropCompactStorage(); }
 
@@ -996,10 +993,10 @@ alterTypeStatement returns [AlterTypeStatement.Raw stmt]
       (
         K_ALTER   f=fident K_TYPE v=comparatorType { $stmt.alter(f, v); }
 
-      | K_ADD (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?     f=fident v=comparatorType        { $stmt.add(f, v, ifNotExists); }
+      | K_ADD (K_IF K_NOT K_EXISTS { $stmt.ifFieldNotExists(true); } )?     f=fident v=comparatorType        { $stmt.add(f, v); }
 
-      | K_RENAME (K_IF K_EXISTS { ifExists = true;} )? f1=fident K_TO toF1=fident        { $stmt.rename(f1, toF1, ifExists); }
-         ( K_AND fn=fident K_TO toFn=fident        { $stmt.rename(fn, toFn, ifExists); } )*
+      | K_RENAME (K_IF K_EXISTS { $stmt.ifFieldExists(true); } )? f1=fident K_TO toF1=fident        { $stmt.rename(f1, toF1); }
+         ( K_AND fn=fident K_TO toFn=fident        { $stmt.rename(fn, toFn); } )*
       )
     ;
 

@@ -53,13 +53,13 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     private final HashSet<String> clientWarnings = new HashSet<>();
 
     private final KeyspaceAttributes attrs;
-    private final boolean ifKeyspaceExists;
+    private final boolean ifExists;
 
-    public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifKeyspaceExists)
+    public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifExists)
     {
         super(keyspaceName);
         this.attrs = attrs;
-        this.ifKeyspaceExists = ifKeyspaceExists;
+        this.ifExists = ifExists;
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -69,8 +69,9 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
         {
-            if(ifKeyspaceExists) return schema;
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+            if (!ifExists)
+                throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+            return schema;
         }
 
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
@@ -121,8 +122,8 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             return;
 
         Stream<InetAddressAndPort> unreachableNotAdministrativelyInactive =
-            Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                      !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
+        Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
+                                                                              !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
         Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(),
                                                              unreachableNotAdministrativelyInactive);
         List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
@@ -200,18 +201,18 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     {
         private final String keyspaceName;
         private final KeyspaceAttributes attrs;
-        private final boolean ifKeyspaceExists;
+        private final boolean ifExists;
 
-        public Raw(String keyspaceName, KeyspaceAttributes attrs, boolean ifKeyspaceExists)
+        public Raw(String keyspaceName, KeyspaceAttributes attrs, boolean ifExists)
         {
             this.keyspaceName = keyspaceName;
             this.attrs = attrs;
-            this.ifKeyspaceExists = ifKeyspaceExists;
+            this.ifExists = ifExists;
         }
 
         public AlterKeyspaceStatement prepare(ClientState state)
         {
-            return new AlterKeyspaceStatement(keyspaceName, attrs, ifKeyspaceExists);
+            return new AlterKeyspaceStatement(keyspaceName, attrs, ifExists);
         }
     }
 }
