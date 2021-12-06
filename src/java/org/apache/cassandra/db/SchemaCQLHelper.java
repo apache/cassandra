@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -46,34 +47,10 @@ public class SchemaCQLHelper
         // Types come first, as table can't be created without them
         Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, types, true);
 
-        return Stream.concat(udts,
-                             reCreateStatements(metadata,
-                                                true,
-                                                true,
-                                                true,
-                                                true));
-    }
+        Stream<String> tableMatadata = Stream.of(SchemaCQLHelper.getTableMetadataAsCQL(metadata));
 
-    public static Stream<String> reCreateStatements(TableMetadata metadata,
-                                                    boolean includeDroppedColumns,
-                                                    boolean internals,
-                                                    boolean ifNotExists,
-                                                    boolean includeIndexes)
-    {
-        // Record re-create schema statements
-        Stream<String> r = Stream.of(metadata)
-                                         .map((tm) -> SchemaCQLHelper.getTableMetadataAsCQL(tm,
-                                                                                            includeDroppedColumns,
-                                                                                            internals,
-                                                                                            ifNotExists));
-
-        if (includeIndexes)
-        {
-            // Indexes applied as last, since otherwise they may interfere with column drops / re-additions
-            r = Stream.concat(r, SchemaCQLHelper.getIndexesAsCQL(metadata, ifNotExists));
-        }
-
-        return r;
+        Stream<String> indexes = SchemaCQLHelper.getIndexesAsCQL(metadata, true);
+        return Stream.of(udts, tableMatadata, indexes).flatMap(Function.identity());
     }
 
     /**
@@ -83,20 +60,25 @@ public class SchemaCQLHelper
      * that will not contain everything needed for user types.
      */
     @VisibleForTesting
-    public static String getTableMetadataAsCQL(TableMetadata metadata,
-                                               boolean includeDroppedColumns,
-                                               boolean internals,
-                                               boolean ifNotExists)
+    public static String getTableMetadataAsCQL(TableMetadata metadata)
     {
         if (metadata.isView())
         {
             KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
             ViewMetadata viewMetadata = keyspaceMetadata.views.get(metadata.name).orElse(null);
             assert viewMetadata != null;
-            return viewMetadata.toCqlString(internals, ifNotExists);
+            /*
+             * first argument(withInternals) indicates to include table metadata id and clustering columns order,
+             * second argument(ifNotExists) instructs to include IF NOT EXISTS statement within creation statements.
+             */
+            return viewMetadata.toCqlString(true, true);
         }
 
-        return metadata.toCqlString(includeDroppedColumns, internals, ifNotExists);
+        /*
+         * With addition to withInternals and ifNotExists arguments, includeDroppedColumns will include dropped
+         * columns as ALTER TABLE statements appended into the snapshot.
+         */
+        return metadata.toCqlString(true, true, true);
     }
 
     /**
@@ -162,7 +144,7 @@ public class SchemaCQLHelper
     private static UserType getType(TableMetadata metadata, Types types, ByteBuffer name)
     {
         return types.get(name)
-                    .orElseThrow(() -> new IllegalStateException(String.format("user type %s is part of table %s definition but its definition was missing", 
+                    .orElseThrow(() -> new IllegalStateException(String.format("user type %s is part of table %s definition but its definition was missing",
                                                                               UTF8Type.instance.getString(name),
                                                                               metadata)));
     }

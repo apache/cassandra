@@ -1149,17 +1149,17 @@ public class TableMetadata implements SchemaElement
     }
 
     public String toCqlString(boolean includeDroppedColumns,
-                              boolean internals,
+                              boolean withInternals,
                               boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, includeDroppedColumns, internals, ifNotExists);
+        appendCqlTo(builder, includeDroppedColumns, withInternals, ifNotExists);
         return builder.toString();
     }
 
     public void appendCqlTo(CqlBuilder builder,
                             boolean includeDroppedColumns,
-                            boolean internals,
+                            boolean withInternals,
                             boolean ifNotExists)
     {
         assert !isView();
@@ -1198,7 +1198,7 @@ public class TableMetadata implements SchemaElement
         builder.append(" WITH ")
                .increaseIndent();
 
-        appendTableOptions(builder, internals);
+        appendTableOptions(builder, withInternals);
 
         builder.decreaseIndent();
 
@@ -1281,9 +1281,9 @@ public class TableMetadata implements SchemaElement
                .newLine();
     }
 
-    void appendTableOptions(CqlBuilder builder, boolean internals)
+    void appendTableOptions(CqlBuilder builder, boolean withInternals)
     {
-        if (internals)
+        if (withInternals)
             builder.append("ID = ")
                    .append(id.toString())
                    .newLine()
