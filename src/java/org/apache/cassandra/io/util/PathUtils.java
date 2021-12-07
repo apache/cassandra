@@ -631,7 +631,7 @@ public final class PathUtils
     {
         try
         {
-            Path ancestor = findExistingAncestor(path.normalize());
+            Path ancestor = findExistingAncestor(path.toAbsolutePath().normalize());
             if (ancestor == null)
             {
                 orElse.accept(new NoSuchFileException(path.toString()));
