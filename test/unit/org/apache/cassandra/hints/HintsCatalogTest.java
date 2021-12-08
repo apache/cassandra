@@ -30,7 +30,9 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static junit.framework.Assert.*;
 import static org.apache.cassandra.Util.dk;
@@ -54,18 +56,14 @@ public class HintsCatalogTest
                 SchemaLoader.standardCFMD(KEYSPACE, TABLE2));
     }
 
+    @Rule
+    public TemporaryFolder testFolder = new TemporaryFolder();
+
     @Test
     public void loadCompletenessAndOrderTest() throws IOException
     {
-        File directory = new File(Files.createTempDirectory(null));
-        try
-        {
-            loadCompletenessAndOrderTest(directory);
-        }
-        finally
-        {
-            directory.deleteOnExit();
-        }
+        File directory = new File(testFolder.newFolder());
+        loadCompletenessAndOrderTest(directory);
     }
 
     private void loadCompletenessAndOrderTest(File directory) throws IOException
@@ -107,7 +105,7 @@ public class HintsCatalogTest
     @Test
     public void deleteHintsTest() throws IOException
     {
-        File directory = new File(Files.createTempDirectory(null));
+        File directory = new File(testFolder.newFolder());
         UUID hostId1 = UUID.randomUUID();
         UUID hostId2 = UUID.randomUUID();
         long now = System.currentTimeMillis();
@@ -138,14 +136,27 @@ public class HintsCatalogTest
     @Test
     public void exciseHintFiles() throws IOException
     {
-        File directory = new File(Files.createTempDirectory(null));
-        try
+        File directory = new File(testFolder.newFolder());
+        exciseHintFiles(directory);
+    }
+
+    @Test
+    public void hintsTotalSizeTest() throws IOException
+    {
+        File directory = new File(testFolder.newFolder());
+        UUID hostId = UUID.randomUUID();
+        long now = System.currentTimeMillis();
+        long totalSize = 0;
+        HintsCatalog catalog = HintsCatalog.load(directory, ImmutableMap.of());
+        HintsStore store = catalog.get(hostId);
+        assertEquals(totalSize, store.getTotalFileSize());
+        for (int i = 0; i < 3; i++)
         {
-            exciseHintFiles(directory);
-        }
-        finally
-        {
-            directory.deleteOnExit();
+            HintsDescriptor descriptor = new HintsDescriptor(hostId, now + i);
+            writeDescriptor(directory, descriptor);
+            store.offerLast(descriptor);
+            assertTrue("Total file size should increase after writing more hints", store.getTotalFileSize() > totalSize);
+            totalSize = store.getTotalFileSize();
         }
     }
 

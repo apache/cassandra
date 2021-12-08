@@ -38,6 +38,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - New configuration max_hints_size_per_host_in_mb to limit the size of local hints files per host. Setting to
+      non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure
+      the total size of the hints files per host does not exceed the limit.
     - Added ability to configure auth caches through corresponding `nodetool` commands.
     - CDC data flushing now can be configured to be non-blocking with the configuration cdc_block_writes. Setting to true,
       any writes to the CDC-enabled tables will be blocked when reaching to the limit for CDC data on disk, which is the

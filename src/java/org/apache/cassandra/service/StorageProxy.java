@@ -2275,16 +2275,40 @@ public class StorageProxy implements StorageProxyMBean
         DatabaseDescriptor.setMaxHintWindow(ms);
     }
 
+    public int getMaxHintsSizePerHostInMb()
+    {
+        return DatabaseDescriptor.getMaxHintsSizePerHostInMb();
+    }
+
+    public void setMaxHintsSizePerHostInMb(int value)
+    {
+        DatabaseDescriptor.setMaxHintsSizePerHostInMb(value);
+    }
+
     public static boolean shouldHint(Replica replica)
     {
         return shouldHint(replica, true);
     }
 
+    /**
+     * Determines whether a hint should be stored or not.
+     * It rejects early if any of the condition is met:
+     * - Hints disabled entirely or for the belonging datacetner of the replica
+     * - The replica is transient or is the self node
+     * - The replica is no longer part of the ring
+     * - The hint window has expired
+     * - The hints have reached to the size limit for the node
+     * Otherwise, it permits.
+     *
+     * @param replica, the replica for the hint
+     * @param tryEnablePersistentWindow, true to consider hint_window_persistent_enabled; otherwise, ignores
+     * @return true to permit or false to reject hint
+     */
     public static boolean shouldHint(Replica replica, boolean tryEnablePersistentWindow)
     {
-        if (!DatabaseDescriptor.hintedHandoffEnabled())
-            return false;
-        if (replica.isTransient() || replica.isSelf())
+        if (!DatabaseDescriptor.hintedHandoffEnabled()
+            || replica.isTransient()
+            || replica.isSelf())
             return false;
 
         Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
@@ -2303,26 +2327,38 @@ public class StorageProxy implements StorageProxyMBean
         long endpointDowntime = Gossiper.instance.getEndpointDowntime(endpoint);
         boolean hintWindowExpired = endpointDowntime > maxHintWindow;
 
+        UUID hostIdForEndpoint = StorageService.instance.getHostIdForEndpoint(endpoint);
+        if (hostIdForEndpoint == null)
+        {
+            Tracing.trace("Discarding hint for endpoint not part of ring: {}", endpoint);
+            return false;
+        }
+
+        // if persisting hints window, hintWindowExpired might be updated according to the timestamp of the earliest hint
         if (tryEnablePersistentWindow && !hintWindowExpired && DatabaseDescriptor.hintWindowPersistentEnabled())
         {
-            UUID hostIdForEndpoint = StorageService.instance.getHostIdForEndpoint(endpoint);
-            if (hostIdForEndpoint != null)
-            {
-                long earliestHint = HintsService.instance.getEarliestHintForHost(hostIdForEndpoint);
-                hintWindowExpired = Clock.Global.currentTimeMillis() - maxHintWindow > earliestHint;
-                if (hintWindowExpired)
-                    Tracing.trace("Not hinting {} for which there is the earliest hint stored at {}", replica, earliestHint);
-            }
-        }
-        else if (hintWindowExpired)
-        {
-            Tracing.trace("Not hinting {} which has been down {} ms", replica, endpointDowntime);
+            long earliestHint = HintsService.instance.getEarliestHintForHost(hostIdForEndpoint);
+            hintWindowExpired = Clock.Global.currentTimeMillis() - maxHintWindow > earliestHint;
+            if (hintWindowExpired)
+                Tracing.trace("Not hinting {} for which there is the earliest hint stored at {}", replica, earliestHint);
         }
 
         if (hintWindowExpired)
-            HintsService.instance.metrics.incrPastWindow(replica.endpoint());
+        {
+            HintsService.instance.metrics.incrPastWindow(endpoint);
+            Tracing.trace("Not hinting {} which has been down {} ms", endpoint, endpointDowntime);
+            return false;
+        }
 
-        return !hintWindowExpired;
+        long maxHintsSize = DatabaseDescriptor.getMaxHintsSizePerHost();
+        boolean hasHintsReachedMaxSize = maxHintsSize > 0 && HintsService.instance.getTotalHintsSize(hostIdForEndpoint) > maxHintsSize;
+        if (hasHintsReachedMaxSize)
+        {
+            Tracing.trace("Not hinting {} which has reached to the max hints size {} bytes on disk", endpoint, DatabaseDescriptor.getMaxHintsSizePerHost());
+            return false;
+        }
+
+        return true;
     }
 
     /**

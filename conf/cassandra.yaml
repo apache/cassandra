@@ -63,6 +63,11 @@ hinted_handoff_enabled: true
 # created until it has been seen alive and gone down again.
 max_hint_window: 3h
 
+# The file size limit to store hints for an unreachable host.
+# Once the local hints files have reached the limit, no more new hints will be created.
+# Set a non-positive value will disable the size limit.
+max_hints_size_per_host_in_mb: 0
+
 # Maximum throttle in KBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
 # are two nodes in the cluster, each delivery thread will use the maximum

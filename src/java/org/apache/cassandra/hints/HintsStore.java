@@ -209,7 +209,7 @@ final class HintsStore
 
     void delete(HintsDescriptor descriptor)
     {
-        File hintsFile = new File(hintsDirectory, descriptor.fileName());
+        File hintsFile = descriptor.file(hintsDirectory);
         if (hintsFile.tryDelete())
             logger.info("Deleted hint file {}", descriptor.fileName());
         else if (hintsFile.exists())
@@ -218,7 +218,7 @@ final class HintsStore
             logger.info("Already deleted hint file {}", descriptor.fileName());
 
         //noinspection ResultOfMethodCallIgnored
-        new File(hintsDirectory, descriptor.checksumFileName()).tryDelete();
+        descriptor.checksumFile(hintsDirectory).delete();
     }
 
     boolean hasFiles()
@@ -234,6 +234,17 @@ final class HintsStore
     void markDispatchOffset(HintsDescriptor descriptor, InputPosition inputPosition)
     {
         dispatchPositions.put(descriptor, inputPosition);
+    }
+
+    // returns total length of all files belonging to the hints store, in bytes.
+    long getTotalFileSize()
+    {
+        long total = 0;
+        for (HintsDescriptor descriptor : Iterables.concat(dispatchDequeue, corruptedFiles))
+        {
+            total += descriptor.file(hintsDirectory).length();
+        }
+        return total;
     }
 
     void cleanUp(HintsDescriptor descriptor)

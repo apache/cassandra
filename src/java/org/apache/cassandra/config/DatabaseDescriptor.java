@@ -2643,6 +2643,21 @@ public class DatabaseDescriptor
         return conf.max_hint_window.toMillisecondsAsInt();
     }
 
+    public static void setMaxHintsSizePerHostInMb(int value)
+    {
+        conf.max_hints_size_per_host_in_mb = value;
+    }
+
+    public static int getMaxHintsSizePerHostInMb()
+    {
+        return conf.max_hints_size_per_host_in_mb;
+    }
+
+    public static long getMaxHintsSizePerHost()
+    {
+        return conf.max_hints_size_per_host_in_mb * 1024L * 1024L;
+    }
+
     public static File getHintsDirectory()
     {
         return new File(conf.hints_directory);
