@@ -20,6 +20,8 @@ package org.apache.cassandra.net;
 
 import java.util.UUID;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -32,6 +34,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -39,10 +42,25 @@ import static org.apache.cassandra.locator.ReplicaUtils.full;
 
 public class WriteCallbackInfoTest
 {
+    private InetAddressAndPort testEp;
+
     @BeforeClass
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Before
+    public void setup() throws Exception
+    {
+        testEp = InetAddressAndPort.getByName("192.168.1.1");
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), testEp);
+    }
+
+    @After
+    public void teardown()
+    {
+        StorageService.instance.getTokenMetadata().removeEndpoint(testEp);
     }
 
     @Test
@@ -57,14 +75,14 @@ public class WriteCallbackInfoTest
         }
     }
 
-    private void testShouldHint(Verb verb, ConsistencyLevel cl, boolean allowHints, boolean expectHint) throws Exception
+    private void testShouldHint(Verb verb, ConsistencyLevel cl, boolean allowHints, boolean expectHint)
     {
         TableMetadata metadata = MockSchema.newTableMetadata("", "");
         Object payload = verb == Verb.PAXOS_COMMIT_REQ
                          ? new Commit(UUID.randomUUID(), new PartitionUpdate.Builder(metadata, ByteBufferUtil.EMPTY_BYTE_BUFFER, RegularAndStaticColumns.NONE, 1).build())
                          : new Mutation(PartitionUpdate.simpleBuilder(metadata, "").build());
 
-        RequestCallbacks.WriteCallbackInfo wcbi = new RequestCallbacks.WriteCallbackInfo(Message.out(verb, payload), full(InetAddressAndPort.getByName("192.168.1.1")), null, cl, allowHints);
+        RequestCallbacks.WriteCallbackInfo wcbi = new RequestCallbacks.WriteCallbackInfo(Message.out(verb, payload), full(testEp), null, cl, allowHints);
         Assert.assertEquals(expectHint, wcbi.shouldHint());
         if (expectHint)
         {

@@ -86,6 +86,11 @@ hints_flush_period: 10000ms
 # Maximum size for a single hints file, in megabytes.
 max_hints_file_size: 128MiB
 
+# The file size limit to store hints for an unreachable host, in megabytes.
+# Once the local hints files have reached the limit, no more new hints will be created.
+# Set a non-positive value will disable the size limit.
+# max_hints_size_per_host: 0MiB
+
 # Enable / disable automatic cleanup for the expired and orphaned hints file.
 # Disable the option in order to preserve those hints on the disk.
 auto_hints_cleanup_enabled: false

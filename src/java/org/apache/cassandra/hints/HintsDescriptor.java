@@ -209,6 +209,16 @@ final class HintsDescriptor
         return String.format("%s-%s-%s.crc32", hostId, timestamp, version);
     }
 
+    File file(File hintsDirectory)
+    {
+        return new File(hintsDirectory, fileName());
+    }
+
+    File checksumFile(File hintsDirectory)
+    {
+        return new File(hintsDirectory, checksumFileName());
+    }
+
     int messagingVersion()
     {
         return messagingVersion(version);
