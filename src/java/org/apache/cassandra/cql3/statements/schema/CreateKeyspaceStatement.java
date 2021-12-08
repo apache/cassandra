@@ -33,6 +33,7 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -111,8 +112,18 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     }
 
     @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        // Guardrail on number of keyspaces
+        Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, state);
+    }
+
+    @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        // this threshold is deprecated, it will be replaced by the guardrail used in #validate(ClientState)
         int keyspaceCount = Schema.instance.getKeyspaces().size();
         if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
         {

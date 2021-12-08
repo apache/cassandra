@@ -617,7 +617,9 @@ public class Config
         isClientMode = clientMode;
     }
 
+    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public volatile int table_count_warn_threshold = 150;
+    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public volatile int keyspace_count_warn_threshold = 40;
 
     public volatile int consecutive_message_errors_threshold = 1;

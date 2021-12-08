@@ -49,6 +49,24 @@ public interface GuardrailsMBean
     void setEnabled(boolean enabled);
 
     /**
+     * @return The threshold to warn when creating more user keyspaces than threshold.
+     * -1 means disabled.
+     */
+    int getKeyspacesWarnThreshold();
+
+    /**
+     * @return The threshold to prevent creating more user keyspaces than threshold.
+     * -1 means disabled.
+     */
+    int getKeyspacesAbortThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating more user keyspaces than threshold. -1 means disabled.
+     * @param abort The threshold to prevent creating more user keyspaces than threshold. -1 means disabled.
+     */
+    void setKeyspacesThreshold(int warn, int abort);
+
+    /**
      * @return The threshold to warn when creating more tables than threshold.
      * -1 means disabled.
      */

@@ -37,18 +37,23 @@ import static java.lang.String.format;
  */
 public class Values<T> extends Guardrail
 {
-    private final Function<ClientState, Config<T>> configProvider;
+    private final Function<ClientState, Set<T>> ignoredValues;
+    private final Function<ClientState, Set<T>> disallowedValues;
     private final String what;
 
     /**
      * Creates a new values guardrail.
      *
-     * @param configProvider a {@link ClientState}-based provider of {@link Config}s.
-     * @param what           The feature that is guarded by this guardrail (for reporting in error messages).
+     * @param ignoredValues    a {@link ClientState}-based of the values that are ignored.
+     * @param disallowedValues a {@link ClientState}-based of the values that are disallowed.
+     * @param what             The feature that is guarded by this guardrail (for reporting in error messages).
      */
-    public Values(Function<ClientState, Config<T>> configProvider, String what)
+    public Values(Function<ClientState, Set<T>> ignoredValues,
+                  Function<ClientState, Set<T>> disallowedValues,
+                  String what)
     {
-        this.configProvider = configProvider;
+        this.ignoredValues = ignoredValues;
+        this.disallowedValues = disallowedValues;
         this.what = what;
     }
 
@@ -67,37 +72,19 @@ public class Values<T> extends Guardrail
         if (!enabled(state))
             return;
 
-        Config<T> config = configProvider.apply(state);
-
-        Set<T> disallowed = config.getDisallowed();
+        Set<T> disallowed = disallowedValues.apply(state);
         Set<T> toDisallow = Sets.intersection(values, disallowed);
         if (!toDisallow.isEmpty())
             abort(format("Provided values %s are not allowed for %s (disallowed values are: %s)",
-                         toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed.toString()));
+                         toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed));
 
-        Set<T> ignored = config.getIgnored();
+        Set<T> ignored = ignoredValues.apply(state);
         Set<T> toIgnore = Sets.intersection(values, ignored);
         if (!toIgnore.isEmpty())
         {
             warn(format("Ignoring provided values %s as they are not supported for %s (ignored values are: %s)",
-                        toIgnore.stream().sorted().collect(Collectors.toList()), what, ignored.toString()));
+                        toIgnore.stream().sorted().collect(Collectors.toList()), what, ignored));
             toIgnore.forEach(ignoreAction);
         }
-    }
-
-    /**
-     * Configuration class containing the sets of values to ignore and/or reject.
-     */
-    public interface Config<T>
-    {
-        /**
-         * @return The values to be ignored.
-         */
-        Set<T> getIgnored();
-
-        /**
-         * @return The values to be rejected.
-         */
-        Set<T> getDisallowed();
     }
 }

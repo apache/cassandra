@@ -895,9 +895,14 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean autoOptimisePreviewRepairStreams();
     public void setAutoOptimisePreviewRepairStreams(boolean enabled);
 
+    // warning thresholds will be replaced by equivalent guardrails
+    @Deprecated
     int getTableCountWarnThreshold();
+    @Deprecated
     void setTableCountWarnThreshold(int value);
+    @Deprecated
     int getKeyspaceCountWarnThreshold();
+    @Deprecated
     void setKeyspaceCountWarnThreshold(int value);
 
     public void setCompactionTombstoneWarningThreshold(int count);

@@ -86,6 +86,11 @@ Upgrading
 
 Deprecation
 -----------
+    - The properties `keyspace_count_warn_threshold` and `table_count_warn_threshold` in cassandra.yaml have been
+      deprecated in favour of the new `guardrails.keyspaces` and `guardrails.tables` properties and will be removed
+      in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
+      `org.apache.cassandra.db:type=StorageService`, which are equally deprecated in favour of the analogous methods
+      in the JMX MBean `org.apache.cassandra.db:type=Guardrails`. See CASSANDRA-17195 for further details.
 
 4.0
 ===

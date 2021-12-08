@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.service.ClientState;
@@ -33,18 +33,23 @@ import org.apache.cassandra.service.ClientState;
  */
 public class Threshold extends Guardrail
 {
-    private final Function<ClientState, Config> configProvider;
+    private final ToLongFunction<ClientState> warnThreshold;
+    private final ToLongFunction<ClientState> abortThreshold;
     private final ErrorMessageProvider messageProvider;
 
     /**
      * Creates a new threshold guardrail.
      *
-     * @param configProvider  a {@link ClientState}-based provider of {@link Config}s.
+     * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
+     * @param abortThreshold  a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
-    public Threshold(Function<ClientState, Config> configProvider, ErrorMessageProvider messageProvider)
+    public Threshold(ToLongFunction<ClientState> warnThreshold,
+                     ToLongFunction<ClientState> abortThreshold,
+                     ErrorMessageProvider messageProvider)
     {
-        this.configProvider = configProvider;
+        this.warnThreshold = warnThreshold;
+        this.abortThreshold = abortThreshold;
         this.messageProvider = messageProvider;
     }
 
@@ -56,15 +61,15 @@ public class Threshold extends Guardrail
                                              thresholdValue);
     }
 
-    private long abortValue(Config config)
+    private long abortValue(ClientState state)
     {
-        long abortValue = config.getAbortThreshold();
+        long abortValue = abortThreshold.applyAsLong(state);
         return abortValue < 0 ? Long.MAX_VALUE : abortValue;
     }
 
-    private long warnValue(Config config)
+    private long warnValue(ClientState state)
     {
-        long warnValue = config.getWarnThreshold();
+        long warnValue = warnThreshold.applyAsLong(state);
         return warnValue < 0 ? Long.MAX_VALUE : warnValue;
     }
 
@@ -74,8 +79,7 @@ public class Threshold extends Guardrail
         if (!super.enabled(state))
             return false;
 
-        Config config = configProvider.apply(state);
-        return config.getAbortThreshold() >= 0 || config.getWarnThreshold() >= 0;
+        return abortThreshold.applyAsLong(state) >= 0 || warnThreshold.applyAsLong(state) >= 0;
     }
 
     /**
@@ -93,16 +97,14 @@ public class Threshold extends Guardrail
         if (!enabled(state))
             return;
 
-        Config config = configProvider.apply(state);
-
-        long abortValue = abortValue(config);
+        long abortValue = abortValue(state);
         if (value > abortValue)
         {
             triggerAbort(value, abortValue, what);
             return;
         }
 
-        long warnValue = warnValue(config);
+        long warnValue = warnValue(state);
         if (value > warnValue)
             triggerWarn(value, warnValue, what);
     }
@@ -132,22 +134,5 @@ public class Threshold extends Guardrail
          * @param threshold The threshold that was passed to trigger the guardrail (as a string).
          */
         String createMessage(boolean isWarning, String what, long value, long threshold);
-    }
-
-    /**
-     * Configuration class containing the thresholds to be used to check if the guarded value should trigger a warning
-     * or abort the operation.
-     */
-    public interface Config
-    {
-        /**
-         * @return The threshold to warn when the guarded value exceeds it. A negative value means disabled.
-         */
-        public long getWarnThreshold();
-
-        /**
-         * @return The threshold to abort the operation when the guarded value exceeds it. A negative value means disabled.
-         */
-        public long getAbortThreshold();
     }
 }

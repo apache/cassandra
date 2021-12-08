@@ -1,4 +1,5 @@
 4.1
+ * Migrate thresholds for number of keyspaces and tables to guardrails (CASSANDRA-17195)
  * Remove self-reference in SSTableTidier (CASSANDRA-17205)
  * Add guardrail for query page size (CASSANDRA-17189)
  * Allow column_index_size_in_kb to be configurable through nodetool (CASSANDRA-17121)

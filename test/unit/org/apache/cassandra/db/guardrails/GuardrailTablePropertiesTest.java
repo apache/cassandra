@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 
 import static java.lang.String.format;
@@ -44,6 +45,10 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
     private static final String CREATE_VIEW = "CREATE MATERIALIZED VIEW %s.%s as SELECT * FROM %s.%s " +
                                               "WHERE pk IS NOT null and ck IS NOT null PRIMARY KEY(ck, pk) %s";
     private static final String ALTER_VIEW = "ALTER MATERIALIZED VIEW %s.%s WITH %s";
+
+    private static final String PROPERTY_NAME = DatabaseDescriptor.getGuardrailsConfig().getTableProperties().getName();
+    private static final String IGNORED_PROPERTY_NAME = PROPERTY_NAME + ".ignored";
+    private static final String DISALLOWED_PROPERTY_NAME = PROPERTY_NAME + ".disallowed";
 
     @Before
     public void before()
@@ -62,9 +67,9 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
     @Test
     public void testConfigValidation()
     {
-        String message = "Invalid value for %s properties: null is not allowed";
-        assertInvalidProperty(Guardrails::setTablePropertiesIgnored, (Set<String>) null, message, "ignored");
-        assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, (Set<String>) null, message, "disallowed");
+        String message = "Invalid value for %s: null is not allowed";
+        assertInvalidProperty(Guardrails::setTablePropertiesIgnored, (Set<String>) null, message, IGNORED_PROPERTY_NAME);
+        assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, (Set<String>) null, message, DISALLOWED_PROPERTY_NAME);
 
         assertValidProperty(Collections.emptySet());
         assertValidProperty(TableAttributes.allKeywords());
@@ -82,9 +87,9 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
 
     private void assertInvalidProperty(Set<String> properties, Set<String> rejected)
     {
-        String message = "Invalid value for %s properties: '%s' do not parse as valid table properties";
-        assertInvalidProperty(Guardrails::setTablePropertiesIgnored, properties, message, "ignored", rejected);
-        assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, properties, message, "disallowed", rejected);
+        String message = "Invalid value for %s: '%s' do not parse as valid table properties";
+        assertInvalidProperty(Guardrails::setTablePropertiesIgnored, properties, message, IGNORED_PROPERTY_NAME, rejected);
+        assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, properties, message, DISALLOWED_PROPERTY_NAME, rejected);
     }
 
     @Test

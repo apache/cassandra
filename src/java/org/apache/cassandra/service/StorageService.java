@@ -6166,11 +6166,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
+    @Deprecated
     public int getTableCountWarnThreshold()
     {
         return DatabaseDescriptor.tableCountWarnThreshold();
     }
 
+    @Deprecated
     public void setTableCountWarnThreshold(int value)
     {
         if (value < 0)
@@ -6179,11 +6181,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setTableCountWarnThreshold(value);
     }
 
+    @Deprecated
     public int getKeyspaceCountWarnThreshold()
     {
         return DatabaseDescriptor.keyspaceCountWarnThreshold();
     }
 
+    @Deprecated
     public void setKeyspaceCountWarnThreshold(int value)
     {
         if (value < 0)
