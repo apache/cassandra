@@ -110,7 +110,7 @@ public class HintsDescriptorTest
             try (HintsWriter ignored = HintsWriter.create(directory, expected))
             {
             }
-            HintsDescriptor actual = HintsDescriptor.readFromFile(new File(directory, expected.fileName()));
+            HintsDescriptor actual = HintsDescriptor.readFromFile(expected.file(directory));
             assertEquals(expected, actual);
         }
         finally

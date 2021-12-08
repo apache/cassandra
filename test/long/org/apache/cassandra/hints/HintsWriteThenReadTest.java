@@ -98,8 +98,8 @@ public class HintsWriteThenReadTest
 
     private static void verifyChecksum(File directory, HintsDescriptor descriptor) throws IOException
     {
-        File hintsFile = new File(directory, descriptor.fileName());
-        File checksumFile = new File(directory, descriptor.checksumFileName());
+        File hintsFile = descriptor.file(directory);
+        File checksumFile = descriptor.checksumFile(directory);
 
         assertTrue(checksumFile.exists());
 
@@ -114,7 +114,7 @@ public class HintsWriteThenReadTest
         long baseTimestamp = descriptor.timestamp;
         int index = 0;
 
-        try (HintsReader reader = HintsReader.open(new File(directory, descriptor.fileName())))
+        try (HintsReader reader = HintsReader.open(descriptor.file(directory)))
         {
             for (HintsReader.Page page : reader)
             {

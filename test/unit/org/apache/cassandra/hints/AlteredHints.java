@@ -103,7 +103,7 @@ public abstract class AlteredHints
             }
         }
 
-        try (HintsReader reader = HintsReader.open(new File(dir, descriptor.fileName())))
+        try (HintsReader reader = HintsReader.open(descriptor.file(dir)))
         {
             Assert.assertTrue(looksLegit(reader.getInput()));
             List<Hint> deserialized = new ArrayList<>(hintNum);

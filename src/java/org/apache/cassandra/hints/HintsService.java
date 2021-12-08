@@ -247,6 +247,19 @@ public final class HintsService implements HintsServiceMBean
     }
 
     /**
+     * Get the total size in bytes of all the hints files associating with the host on disk.
+     * @param hostId, belonging host
+     * @return total file size, in bytes
+     */
+    public long getTotalHintsSize(UUID hostId)
+    {
+        HintsStore store = catalog.getNullable(hostId);
+        if (store == null)
+            return 0;
+        return store.getTotalFileSize();
+    }
+
+    /**
      * Gracefully and blockingly shut down the service.
      *
      * Will abort dispatch sessions that are currently in progress (which is okay, it's idempotent),

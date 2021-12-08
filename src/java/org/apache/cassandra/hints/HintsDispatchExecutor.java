@@ -276,7 +276,7 @@ final class HintsDispatchExecutor
 
         private boolean deliver(HintsDescriptor descriptor, InetAddressAndPort address)
         {
-            File file = new File(hintsDirectory, descriptor.fileName());
+            File file = descriptor.file(hintsDirectory);
             InputPosition offset = store.getDispatchOffset(descriptor);
 
             BooleanSupplier shouldAbort = () -> !isAlive.test(address) || isPaused.get();
@@ -321,7 +321,7 @@ final class HintsDispatchExecutor
         // for each hint in the hints file for a node that isn't part of the ring anymore, write RF hints for each replica
         private void convert(HintsDescriptor descriptor)
         {
-            File file = new File(hintsDirectory, descriptor.fileName());
+            File file = descriptor.file(hintsDirectory);
 
             try (HintsReader reader = HintsReader.open(file, rateLimiter))
             {
