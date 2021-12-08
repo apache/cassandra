@@ -37,6 +37,7 @@ import static org.junit.Assert.fail;
  */
 public abstract class ThresholdTester extends GuardrailTester
 {
+    private final String name;
     private final long warnThreshold;
     private final long abortThreshold;
     private final GuardrailsOptions.Threshold config;
@@ -51,6 +52,7 @@ public abstract class ThresholdTester extends GuardrailTester
                               ToLongFunction<Guardrails> warnGetter,
                               ToLongFunction<Guardrails> abortGetter)
     {
+        this.name = config.getName();
         this.warnThreshold = warnThreshold;
         this.abortThreshold = abortThreshold;
         this.config = config;
@@ -90,7 +92,7 @@ public abstract class ThresholdTester extends GuardrailTester
     @Test
     public void testConfigValidation()
     {
-        testValidationOfThresholdProperties("warn threshold", "abort threshold");
+        testValidationOfThresholdProperties(name + ".warn_threshold", name + ".abort_threshold");
     }
 
     protected void testValidationOfThresholdProperties(String warnName, String abortName)
@@ -102,7 +104,8 @@ public abstract class ThresholdTester extends GuardrailTester
 
         setter.accept(guardrails(), -1L, -1L);
         Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), 2L, 1L))
-                  .hasMessageContaining("The warn threshold 2 should be lower than the abort threshold 1");
+                  .hasMessageContaining(format("The warn threshold 2 for %s should be lower than the abort threshold 1",
+                                               name));
     }
 
     protected void assertThresholdValid(String query) throws Throwable
