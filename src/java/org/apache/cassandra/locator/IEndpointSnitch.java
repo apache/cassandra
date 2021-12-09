@@ -88,4 +88,13 @@ public interface IEndpointSnitch
     {
         return true;
     }
+
+    /**
+     * Get this endpoint address to advertise for connections to provided remote endpoint.
+     */
+    default InetAddressAndPort getPreferredAddress(InetAddressAndPort remoteEndpoint)
+    {
+        return FBUtilities.getBroadcastAddressAndPort();
+    }
+
 }
