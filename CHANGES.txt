@@ -11,6 +11,7 @@
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)
 Merged from 3.0:
+ * Fix slow keycache load which blocks startup for tables with many sstables (CASSANDRA-14898)
  * Fix rare NPE caused by batchlog replay / node decomission races (CASSANDRA-17049)
  * Allow users to view permissions of the roles they created (CASSANDRA-16902)
  * Fix failure handling in inter-node communication (CASSANDRA-16334)
