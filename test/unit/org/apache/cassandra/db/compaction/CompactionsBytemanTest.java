@@ -18,15 +18,16 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.concurrent.TimeUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -119,7 +120,7 @@ public class CompactionsBytemanTest extends CQLTester
             targetMethod = "submitBackground",
             targetLocation = "AT INVOKE java.util.concurrent.Future.isCancelled",
             condition = "!$cfs.keyspace.getName().contains(\"system\")",
-            action = "Thread.sleep(1000)")
+            action = "Thread.sleep(5000)")
     public void testCompactingCFCounting() throws Throwable
     {
         createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c))");
@@ -127,9 +128,10 @@ public class CompactionsBytemanTest extends CQLTester
         cfs.enableAutoCompaction();
 
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 1, 1);
-        assertEquals(0, CompactionManager.instance.compactingCF.count(cfs));
+        Util.spinAssertEquals(true, () -> CompactionManager.instance.compactingCF.count(cfs) == 0, 5);
         cfs.forceBlockingFlush();
 
+        Util.spinAssertEquals(true, () -> CompactionManager.instance.compactingCF.count(cfs) == 0, 5);
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
         assertEquals(0, CompactionManager.instance.compactingCF.count(cfs));
     }
