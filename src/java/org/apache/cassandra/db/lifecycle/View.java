@@ -136,7 +136,7 @@ public class View
             case NONCOMPACTING:
                 return filter(sstables, (s) -> !compacting.contains(s));
             case CANONICAL:
-                Set<SSTableReader> canonicalSSTables = new HashSet<>();
+                Set<SSTableReader> canonicalSSTables = new HashSet<>(sstables.size() + compacting.size());
                 for (SSTableReader sstable : compacting)
                     if (sstable.openReason != SSTableReader.OpenReason.EARLY)
                         canonicalSSTables.add(sstable);
