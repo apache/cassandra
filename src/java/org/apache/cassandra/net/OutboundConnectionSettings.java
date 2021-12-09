@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.net;
 
+import java.util.Objects;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
@@ -357,6 +359,11 @@ public class OutboundConnectionSettings
 
     public InetAddressAndPort from()
     {
+        InetAddressAndPort from = this.from;
+        InetAddressAndPort preferredLocalAddress = DatabaseDescriptor.getEndpointSnitch().getPreferredAddress(connectTo());
+        if (!Objects.equals(preferredLocalAddress, from))
+            from = preferredLocalAddress;
+
         return from != null ? from : FBUtilities.getBroadcastAddressAndPort();
     }
 
