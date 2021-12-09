@@ -332,6 +332,8 @@ public class Config
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
+    public int cache_load_timeout_seconds = 30;
+
     public Long paxos_cache_size_in_mb = null;
 
     private static boolean isClientMode = false;
