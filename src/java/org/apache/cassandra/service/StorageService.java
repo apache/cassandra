@@ -5860,6 +5860,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
     }
 
+    public int getColumnIndexSizeInKB()
+    {
+        return DatabaseDescriptor.getColumnIndexSizeInKB();
+    }
+
+    public void setColumnIndexSize(int columnIndexSizeInKB)
+    {
+        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKB();
+        DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
+        logger.info("Updated column_index_size_in_kb to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKB);
+    }
+
     public int getColumnIndexCacheSize()
     {
         return DatabaseDescriptor.getColumnIndexCacheSizeInKB();
