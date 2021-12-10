@@ -190,7 +190,7 @@ public final class PEMReader
     }
 
     /**
-     * Logs X509 certificate details for the debugging purpose with {@code DEBUG} level log.
+     * Logs X509 certificate details for the debugging purpose with {@code INFO} level log.
      * Namely, it prints- Subject DN, Issuer DN, Certificate serial number and the certificate expiry date which
      * could be very valuable for debugging any certificate related issues.
      *
@@ -198,11 +198,11 @@ public final class PEMReader
      */
     private static void logCertificateDetails(X509Certificate certificate)
     {
-        logger.debug("*********** Certificate Details *****************");
-        logger.debug("Subject DN: {}", certificate.getSubjectDN());
-        logger.debug("Issuer DN: {}", certificate.getIssuerDN());
-        logger.debug("Serial Number: {}", certificate.getSerialNumber());
-        logger.debug("Expiry: {}", certificate.getNotAfter());
+        logger.info("*********** Certificate Details *****************");
+        logger.info("Subject DN: {}", certificate.getSubjectDN());
+        logger.info("Issuer DN: {}", certificate.getIssuerDN());
+        logger.info("Serial Number: {}", certificate.getSerialNumber());
+        logger.info("Expiry: {}", certificate.getNotAfter());
     }
 
     /**
