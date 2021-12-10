@@ -1,3 +1,6 @@
+4.0.5
+ * Optimise BTree build,update and transform operations (CASSANDRA-15510)
+
 4.0.4
  * Clean up schema migration coordinator and tests (CASSANDRA-17533)
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)

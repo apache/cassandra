@@ -138,7 +138,7 @@ public class BTreeSearchIteratorTest
     @Test
     public void testTreeIteratorNormal()
     {
-        Object[] btree = BTree.build(seq(30), UpdateFunction.noOp());
+        Object[] btree = BTree.build(seq(30));
         BTreeSearchIterator fullIter = new FullBTreeSearchIterator<>(btree, CMP, Dir.ASC);
         BTreeSearchIterator leafIter = new LeafBTreeSearchIterator<>(btree, CMP, Dir.ASC);
         assertBTreeSearchIteratorEquals(fullIter, leafIter);
@@ -181,7 +181,7 @@ public class BTreeSearchIteratorTest
     @Test
     public void testTreeIteratorOneElem()
     {
-        Object[] btree = BTree.build(seq(1), UpdateFunction.noOp());
+        Object[] btree = BTree.build(seq(1));
         BTreeSearchIterator fullIter = new FullBTreeSearchIterator(btree, CMP, Dir.ASC);
         BTreeSearchIterator leafIter = new LeafBTreeSearchIterator(btree, CMP, Dir.ASC);
         assertBTreeSearchIteratorEquals(fullIter, leafIter);
@@ -217,7 +217,7 @@ public class BTreeSearchIteratorTest
     @Test
     public void testTreeIteratorNotFound()
     {
-        Object[] btree = BTree.build(seq(31, 0, 3), UpdateFunction.noOp());
+        Object[] btree = BTree.build(seq(31, 0, 3));
         BTreeSearchIterator fullIter = new FullBTreeSearchIterator(btree, CMP, Dir.ASC);
         BTreeSearchIterator leafIter = new LeafBTreeSearchIterator(btree, CMP, Dir.ASC);
         assertBTreeSearchIteratorEquals(fullIter, leafIter, 3 * 5 + 1);
