@@ -858,8 +858,8 @@ public class PartitionUpdate extends AbstractBTreePartition
             // assert that we are not calling build() several times
             assert !isBuilt : "A PartitionUpdate.Builder should only get built once";
             Object[] add = rowBuilder.build();
-            Object[] merged = BTree.<Row>merge(tree, add, metadata.comparator,
-                                               UpdateFunction.Simple.of(Rows::merge));
+            Object[] merged = BTree.<Row, Row, Row>update(tree, add, metadata.comparator,
+                                                          UpdateFunction.Simple.of(Rows::merge));
 
             EncodingStats newStats = EncodingStats.Collector.collect(staticRow, BTree.iterator(merged), deletionInfo);
 
@@ -907,7 +907,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         public Builder updateAllTimestamp(long newTimestamp)
         {
             deletionInfo.updateAllTimestamp(newTimestamp - 1);
-            tree = BTree.<Row>transformAndFilter(tree, (x) -> x.updateAllTimestamp(newTimestamp));
+            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateAllTimestamp(newTimestamp));
             staticRow = this.staticRow.updateAllTimestamp(newTimestamp);
             return this;
         }

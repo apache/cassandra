@@ -21,15 +21,10 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.junit.Assert;
 
-import static org.apache.cassandra.utils.btree.BTree.EMPTY_LEAF;
-import static org.apache.cassandra.utils.btree.BTree.FAN_FACTOR;
-import static org.apache.cassandra.utils.btree.BTree.FAN_SHIFT;
-import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
 
@@ -38,7 +33,7 @@ public class BTreeTest
     static Integer[] ints = new Integer[20];
     static
     {
-        System.setProperty("cassandra.btree.fanfactor", "4");
+        System.setProperty("cassandra.btree.branchshift", "2");
         for (int i = 0 ; i < ints.length ; i++)
             ints[i] = new Integer(i);
     }
@@ -50,41 +45,13 @@ public class BTreeTest
             return ints[update];
         }
 
-        public boolean abortEarly()
+        public void onAllocatedOnHeap(long heapSize)
         {
-            return false;
-        }
-
-        public void allocated(long heapSize)
-        {
-
         }
 
         public Integer apply(Integer integer)
         {
             return ints[integer];
-        }
-    };
-
-    private static final UpdateFunction<Integer, Integer> noOp = new UpdateFunction<Integer, Integer>()
-    {
-        public Integer apply(Integer replacing, Integer update)
-        {
-            return update;
-        }
-
-        public boolean abortEarly()
-        {
-            return false;
-        }
-
-        public void allocated(long heapSize)
-        {
-        }
-
-        public Integer apply(Integer k)
-        {
-            return k;
         }
     };
 
@@ -102,27 +69,7 @@ public class BTreeTest
         return seq(count, 1);
     }
 
-    private static List<Integer> rand(int count)
-    {
-        Random rand = ThreadLocalRandom.current();
-        List<Integer> r = seq(count);
-        for (int i = 0 ; i < count - 1 ; i++)
-        {
-            int swap = i + rand.nextInt(count - i);
-            Integer tmp = r.get(i);
-            r.set(i, r.get(swap));
-            r.set(swap, tmp);
-        }
-        return r;
-    }
-
-    private static final Comparator<Integer> CMP = new Comparator<Integer>()
-    {
-        public int compare(Integer o1, Integer o2)
-        {
-            return Integer.compare(o1, o2);
-        }
-    };
+    private static final Comparator<Integer> CMP = Integer::compare;
 
     @Test
     public void testBuilding_UpdateFunctionReplacement()
@@ -135,14 +82,14 @@ public class BTreeTest
     public void testUpdate_UpdateFunctionReplacement()
     {
         for (int i = 0; i < 20 ; i++)
-            checkResult(i, BTree.update(BTree.build(seq(i), noOp), CMP, seq(i), updateF));
+            checkResult(i, BTree.update(BTree.build(seq(i)), BTree.build(seq(i)), CMP, updateF));
     }
 
     @Test
     public void testApply()
     {
         List<Integer> input = seq(71);
-        Object[] btree = BTree.build(input, noOp);
+        Object[] btree = BTree.build(input);
 
         final List<Integer> result = new ArrayList<>();
         BTree.<Integer>apply(btree, i -> result.add(i));
@@ -154,7 +101,7 @@ public class BTreeTest
     public void inOrderAccumulation()
     {
         List<Integer> input = seq(71);
-        Object[] btree = BTree.build(input, noOp);
+        Object[] btree = BTree.build(input);
         long result = BTree.<Integer>accumulate(btree, (o, l) -> {
             Assert.assertEquals((long) o, l + 1);
             return o;
@@ -169,7 +116,7 @@ public class BTreeTest
         for (int interval=1; interval<=5; interval++)
         {
             List<Integer> input = seq(limit, interval);
-            Object[] btree = BTree.build(input, noOp);
+            Object[] btree = BTree.build(input);
             for (int start=0; start<=limit; start+=interval)
             {
                 int thisInterval = interval;
@@ -190,7 +137,7 @@ public class BTreeTest
     public void accumulateFromEnd()
     {
         List<Integer> input = seq(100);
-        Object[] btree = BTree.build(input, noOp);
+        Object[] btree = BTree.build(input);
         long result = BTree.accumulate(btree, (o, l) -> 1, Integer::compareTo, 101, 0L);
         Assert.assertEquals(0, result);
     }
@@ -202,35 +149,35 @@ public class BTreeTest
     @Test
     public void testUpdate_UpdateFunctionCallBack()
     {
-        Object[] btree = new Object[1];
+        Object[] btree = BTree.singleton(1);
         CallsMonitor monitor = new CallsMonitor();
 
-        btree = BTree.update(btree, CMP, Arrays.asList(1), monitor);
+        btree = BTree.update(btree, BTree.singleton(1), CMP, monitor);
         assertArrayEquals(new Object[] {1}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
 
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(2), monitor);
+        btree = BTree.update(btree, BTree.singleton(2), CMP, monitor);
         assertArrayEquals(new Object[] {1, 2, null}, btree);
         assertEquals(1, monitor.getNumberOfCalls(2));
 
         // with existing value
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(1), monitor);
+        btree = BTree.update(btree, BTree.singleton(1), CMP, monitor);
         assertArrayEquals(new Object[] {1, 2, null}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
 
         // with two non-existing values
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(3, 4), monitor);
-        assertArrayEquals(new Object[] {1, 2, 3, 4, null}, btree);
+        btree = BTree.update(btree, BTree.build(Arrays.asList(3, 4)), CMP, monitor);
+        assertArrayEquals(new Object[] {3, new Object[]{1, 2, null}, new Object[]{4}, new int[]{2, 4}}, btree);
         assertEquals(1, monitor.getNumberOfCalls(3));
         assertEquals(1, monitor.getNumberOfCalls(4));
 
         // with one existing value and one non existing value
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(2, 5), monitor);
-        assertArrayEquals(new Object[] {3, new Object[]{1, 2, null}, new Object[]{4, 5, null},  new int[]{2, 5}}, btree);
+        btree = BTree.update(btree, BTree.build(Arrays.asList(2, 5)), CMP, monitor);
+        assertArrayEquals(new Object[] {3, new Object[]{1, 2, null}, new Object[]{4, 5, null}, new int[]{2, 5}}, btree);
         assertEquals(1, monitor.getNumberOfCalls(2));
         assertEquals(1, monitor.getNumberOfCalls(5));
     }
@@ -323,6 +270,9 @@ public class BTreeTest
         builder.reuse(Comparator.reverseOrder());
         for (int i = 0; i < 12; i++)
             builder.add(sorted.get(i));
+        System.out.println(BTree.MAX_KEYS);
+        System.out.println(BTree.MIN_KEYS);
+        System.out.println(BTree.toString(builder.build()));
         checkResult(12, builder.build(), BTree.Dir.DESC);
 
         builder.reuse();
@@ -458,49 +408,12 @@ public class BTreeTest
 
     private static void checkResult(int count, Object[] btree, BTree.Dir dir)
     {
+        assertTrue(BTree.isWellFormed(btree, BTree.Dir.DESC == dir ? CMP.reversed() : CMP));
         Iterator<Integer> iter = BTree.slice(btree, CMP, dir);
         int i = 0;
         while (iter.hasNext())
             assertEquals(iter.next(), ints[i++]);
         assertEquals(count, i);
-    }
-
-    @Test
-    public void testClearOnAbort()
-    {
-        Object[] btree = BTree.build(seq(2), noOp);
-        Object[] copy = Arrays.copyOf(btree, btree.length);
-        BTree.update(btree, CMP, seq(94), new AbortAfterX(90));
-
-        assertArrayEquals(copy, btree);
-
-        btree = BTree.update(btree, CMP, seq(94), noOp);
-        assertTrue(BTree.isWellFormed(btree, CMP));
-    }
-
-    private static final class AbortAfterX implements UpdateFunction<Integer, Integer>
-    {
-        int counter;
-        final int abortAfter;
-        private AbortAfterX(int abortAfter)
-        {
-            this.abortAfter = abortAfter;
-        }
-        public Integer apply(Integer replacing, Integer update)
-        {
-            return update;
-        }
-        public boolean abortEarly()
-        {
-            return counter++ > abortAfter;
-        }
-        public void allocated(long heapSize)
-        {
-        }
-        public Integer apply(Integer v)
-        {
-            return v;
-        }
     }
 
     /**
@@ -510,22 +423,20 @@ public class BTreeTest
     {
         private int[] numberOfCalls = new int[20];
 
+        @Override
         public Integer apply(Integer replacing, Integer update)
         {
             numberOfCalls[update] = numberOfCalls[update] + 1;
             return update;
         }
 
-        public boolean abortEarly()
-        {
-            return false;
-        }
-
-        public void allocated(long heapSize)
+        @Override
+        public void onAllocatedOnHeap(long heapSize)
         {
 
         }
 
+        @Override
         public Integer apply(Integer integer)
         {
             numberOfCalls[integer] = numberOfCalls[integer] + 1;
@@ -540,108 +451,6 @@ public class BTreeTest
         public void clear()
         {
             Arrays.fill(numberOfCalls, 0);
-        }
-    }
-
-    @Test
-    public void testTransformAndFilter()
-    {
-        List<Integer> r = seq(100);
-
-        Object[] b1 = BTree.build(r, UpdateFunction.noOp());
-
-        // replace all values
-        Object[] b2 = BTree.transformAndFilter(b1, (x) -> (Integer) x * 2);
-        assertEquals(BTree.size(b1), BTree.size(b2));
-
-        // remove odd numbers
-        Object[] b3 = BTree.transformAndFilter(b1, (x) -> (Integer) x % 2 == 1 ? x : null);
-        assertEquals(BTree.size(b1) / 2, BTree.size(b3));
-
-        // remove all values
-        Object[] b4 = BTree.transformAndFilter(b1, (x) -> null);
-        assertEquals(0, BTree.size(b4));
-    }
-
-    private <C, K extends C, V extends C> Object[] buildBTreeLegacy(Iterable<K> source, UpdateFunction<K, V> updateF, int size)
-    {
-        assert updateF != null;
-        NodeBuilder current = new NodeBuilder();
-
-        while ((size >>= FAN_SHIFT) > 0)
-            current = current.ensureChild();
-
-        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, updateF, null);
-        for (K key : source)
-            current.addNewKey(key);
-
-        current = current.ascendToRoot();
-
-        Object[] r = current.toNode();
-        current.clear();
-        return r;
-    }
-
-    // Basic BTree validation to check the values and sizeOffsets. Return tree size.
-    private int validateBTree(Object[] tree, int[] startingPos, boolean isRoot)
-    {
-        if (BTree.isLeaf(tree))
-        {
-            int size = BTree.size(tree);
-            if (!isRoot)
-            {
-                assertTrue(size >= FAN_FACTOR / 2);
-                assertTrue(size <= FAN_FACTOR);
-            }
-            for (int i = 0; i < size; i++)
-            {
-                assertEquals((int)tree[i], startingPos[0]);
-                startingPos[0]++;
-            }
-            return size;
-        }
-
-        int childNum = BTree.getChildCount(tree);
-        assertTrue(childNum >= FAN_FACTOR / 2);
-        assertTrue(childNum <= FAN_FACTOR + 1);
-
-        int childStart = BTree.getChildStart(tree);
-        int[] sizeOffsets = BTree.getSizeMap(tree);
-        int pos = 0;
-        for (int i = 0; i < childNum; i++)
-        {
-            int childSize = validateBTree((Object[])tree[i + childStart], startingPos, false);
-
-            pos += childSize;
-            assertEquals(sizeOffsets[i], pos);
-            if (i != childNum - 1)
-            {
-                assertEquals((int)tree[i], startingPos[0]);
-                pos++;
-                startingPos[0]++;
-            }
-
-        }
-        return BTree.size(tree);
-    }
-
-    @Test
-    public void testBuildTree()
-    {
-        int maxCount = 1000;
-
-        for (int count = 0; count < maxCount; count++)
-        {
-            List<Integer> r = seq(count);
-            Object[] b1 = BTree.build(r, UpdateFunction.noOp());
-            Object[] b2 = buildBTreeLegacy(r, UpdateFunction.noOp(), count);
-            assertTrue(BTree.equals(b1, b2));
-
-            int[] startingPos = new int[1];
-            startingPos[0] = 0;
-            assertEquals(count, validateBTree(b1, startingPos, true));
-            startingPos[0] = 0;
-            assertEquals(count, validateBTree(b2, startingPos, true));
         }
     }
 }

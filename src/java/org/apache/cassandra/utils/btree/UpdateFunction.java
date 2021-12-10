@@ -35,14 +35,9 @@ public interface UpdateFunction<K, V> extends Function<K, V>
     V apply(V replacing, K update);
 
     /**
-     * @return true if we should fail the update
-     */
-    boolean abortEarly();
-
-    /**
      * @param heapSize extra heap space allocated (over previous tree)
      */
-    void allocated(long heapSize);
+    void onAllocatedOnHeap(long heapSize);
 
     public static final class Simple<V> implements UpdateFunction<V, V>
     {
@@ -52,14 +47,31 @@ public interface UpdateFunction<K, V> extends Function<K, V>
             this.wrapped = wrapped;
         }
 
-        public V apply(V v) { return v; }
-        public V apply(V replacing, V update) { return wrapped.apply(replacing, update); }
-        public boolean abortEarly() { return false; }
-        public void allocated(long heapSize) { }
+        @Override
+        public V apply(V v)
+        {
+            return v;
+        }
+
+        @Override
+        public V apply(V replacing, V update)
+        {
+            return wrapped.apply(replacing, update);
+        }
+
+        @Override
+        public void onAllocatedOnHeap(long heapSize)
+        {
+        }
 
         public static <V> Simple<V> of(BiFunction<V, V, V> f)
         {
             return new Simple<>(f);
+        }
+
+        Simple<V> flip()
+        {
+            return of((a, b) -> wrapped.apply(b, a));
         }
     }
 
