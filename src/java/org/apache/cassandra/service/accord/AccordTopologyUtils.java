@@ -27,27 +27,32 @@ import java.util.stream.Collectors;
 
 import accord.topology.Shard;
 import accord.topology.Topology;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 
 public class AccordTopologyUtils
 {
-    private static Shard createShard(Range<Token> range, EndpointsForToken natural, EndpointsForToken pending)
+    private static Shard createShard(TableId tableId, Range<Token> range, EndpointsForToken natural, EndpointsForToken pending)
     {
-        return new Shard(new TokenRange(range),
+        return new Shard(new TokenRange(tableId, range),
                          natural.stream().map(EndpointMapping::getId).collect(Collectors.toList()),
                          natural.stream().map(EndpointMapping::getId).collect(Collectors.toSet()),
                          pending.stream().map(EndpointMapping::getId).collect(Collectors.toSet()));
     }
 
-    public static Topology createTopology(long epoch, String keyspace, AbstractReplicationStrategy replication, TokenMetadata metadata)
+    public static Topology createTopology(long epoch, TableMetadata tableMetadata, TokenMetadata tokenMetadata)
     {
-        Set<Token> tokenSet = new HashSet<>(metadata.sortedTokens());
-        tokenSet.addAll(metadata.getBootstrapTokens().keySet());
-        metadata.getMovingEndpoints().forEach(p -> tokenSet.add(p.left));
+        String keyspace = tableMetadata.keyspace;
+        AbstractReplicationStrategy replication = Keyspace.open(keyspace).getReplicationStrategy();
+        Set<Token> tokenSet = new HashSet<>(tokenMetadata.sortedTokens());
+        tokenSet.addAll(tokenMetadata.getBootstrapTokens().keySet());
+        tokenMetadata.getMovingEndpoints().forEach(p -> tokenSet.add(p.left));
 
         List<Token> tokens = new ArrayList<>(tokenSet);
         tokens.sort(Comparator.naturalOrder());
@@ -67,8 +72,8 @@ public class AccordTopologyUtils
         {
             Range<Token> range = ranges.get(i);
             EndpointsForToken natural = replication.getNaturalReplicasForToken(range.right);
-            EndpointsForToken pending = metadata.pendingEndpointsForToken(range.right, keyspace);
-            shards[i] = createShard(range, natural, pending);
+            EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(range.right, keyspace);
+            shards[i] = createShard(tableMetadata.id, range, natural, pending);
         }
 
         return new Topology(epoch, shards);

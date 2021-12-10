@@ -36,7 +36,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
 
     public AccordWrite(List<PartitionUpdate> items)
     {
-        super(items, PartitionUpdate::partitionKey);
+        super(items);
     }
 
     @Override

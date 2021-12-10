@@ -24,16 +24,10 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
-import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
-
 import accord.api.Data;
-import accord.api.Key;
-import accord.api.KeyRange;
 import accord.api.Read;
 import accord.api.Store;
 import accord.topology.KeyRanges;
-import accord.txn.Keys;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -51,7 +45,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
 {
     public AccordRead(List<SinglePartitionReadCommand> items)
     {
-        super(items, SinglePartitionReadCommand::partitionKey);
+        super(items);
     }
 
     @Override
@@ -78,12 +72,11 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         return new AccordRead(reads);
     }
 
-    public static final IVersionedSerializer<AccordRead> serializer = new IVersionedSerializer<AccordRead>()
+    public static final IVersionedSerializer<AccordRead> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AccordRead read, DataOutputPlus out, int version) throws IOException
         {
-            List<SinglePartitionReadCommand> commands = read.items;
             out.writeInt(read.items.size());
             for (int i=0, mi=read.items.size(); i<mi; i++)
             {

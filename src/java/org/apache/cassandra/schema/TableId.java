@@ -36,7 +36,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely named class make
  * the code more readable.
  */
-public class TableId
+public class TableId implements Comparable<TableId>
 {
     // TODO: should this be a TimeUUID?
     private final UUID id;
@@ -89,6 +89,12 @@ public class TableId
     public UUID asUUID()
     {
         return id;
+    }
+
+    @Override
+    public int compareTo(TableId that)
+    {
+        return this.id.compareTo(that.id);
     }
 
     @Override

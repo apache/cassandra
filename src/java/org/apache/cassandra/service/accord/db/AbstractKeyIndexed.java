@@ -21,33 +21,33 @@ package org.apache.cassandra.service.accord.db;
 import java.util.List;
 import java.util.function.Consumer;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 
 import accord.api.Key;
 import accord.api.KeyRange;
 import accord.topology.KeyRanges;
 import accord.txn.Keys;
+import org.apache.cassandra.service.accord.api.AccordKey;
 
-public abstract class AbstractKeyIndexed<T>
+public abstract class AbstractKeyIndexed<T extends AccordKey>
 {
     private final Keys keys;
     final List<T> items;
 
-    private static <T> Keys extractKeys(List<T> items, Function<T, Key<?>> keyExtractor)
+    private static <T extends AccordKey> Keys extractKeys(List<T> items)
     {
         Key[] keys = new Key[items.size()];
         for (int i=0, mi=items.size(); i<mi; i++)
         {
-            keys[i] = keyExtractor.apply(items.get(i));
+            keys[i] = items.get(i);
             Preconditions.checkState(i == 0 || keys[i].compareTo(keys[i-1]) > 0);
         }
         return new Keys(keys);
     }
 
-    public AbstractKeyIndexed(List<T> items, Function<T, Key<?>> keyExtractor)
+    public AbstractKeyIndexed(List<T> items)
     {
-        this(extractKeys(items, keyExtractor), items);
+        this(extractKeys(items), items);
     }
 
     public AbstractKeyIndexed(Keys keys, List<T> items)
