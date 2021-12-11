@@ -170,4 +170,22 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     void setUserTimestampsEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when requested page size greater than threshold.
+     * -1 means disabled.
+     */
+    int getPageSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent requesting page with more elements than threshold.
+     * -1 means disabled.
+     */
+    int getPageSizeAbortThreshold();
+
+    /**
+     * @param warn The threshold to warn when the requested page size is greater than threshold. -1 means disabled.
+     * @param abort The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
+     */
+    void setPageSizeThreshold(int warn, int abort);
 }

@@ -198,6 +198,6 @@ public class DeleteStatement extends ModificationStatement
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.DELETE, keyspace(), columnFamily());
+        return new AuditLogContext(AuditLogEntryType.DELETE, keyspace(), table());
     }
 }

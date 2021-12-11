@@ -79,4 +79,9 @@ public interface GuardrailsConfig
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     boolean getUserTimestampsEnabled();
+
+    /**
+     * @return The threshold to warn or abort when page size exceeds given size.
+     */
+    Threshold.Config getPageSize();
 }

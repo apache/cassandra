@@ -233,10 +233,10 @@ public class BatchStatement implements CQLStatement
             String cfName = null;
             for (ModificationStatement stmt : statements)
             {
-                if (ksName != null && (!stmt.keyspace().equals(ksName) || !stmt.columnFamily().equals(cfName)))
+                if (ksName != null && (!stmt.keyspace().equals(ksName) || !stmt.table().equals(cfName)))
                     throw new InvalidRequestException("Batch with conditions cannot span multiple tables");
                 ksName = stmt.keyspace();
-                cfName = stmt.columnFamily();
+                cfName = stmt.table();
             }
         }
     }

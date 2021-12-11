@@ -334,6 +334,6 @@ public class UpdateStatement extends ModificationStatement
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.UPDATE, keyspace(), columnFamily());
+        return new AuditLogContext(AuditLogEntryType.UPDATE, keyspace(), table());
     }
 }

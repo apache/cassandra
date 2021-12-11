@@ -1,4 +1,5 @@
 4.1
+ * Add guardrail for query page size (CASSANDRA-17189)
  * Allow column_index_size_in_kb to be configurable through nodetool (CASSANDRA-17121)
  * Emit a metric for number of local read and write calls 
  * Add non-blocking mode for CDC writes (CASSANDRA-17001)
