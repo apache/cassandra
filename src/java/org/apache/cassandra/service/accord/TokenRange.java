@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
+
 import com.google.common.base.Preconditions;
 
 import accord.api.KeyRange;
@@ -25,8 +27,12 @@ import accord.topology.KeyRanges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
 
 public class TokenRange extends KeyRange.EndInclusive<AccordKey>
 {
@@ -37,21 +43,21 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
 
     public TokenRange(TableId tableId, Token start, Token end)
     {
-        this(new AccordKey.TokenKey(tableId, start.maxKeyBound()),
-             new AccordKey.TokenKey(tableId, end.maxKeyBound()));
+        this(new TokenKey(tableId, start.maxKeyBound()),
+             new TokenKey(tableId, end.maxKeyBound()));
         Preconditions.checkArgument(start().tableId().equals(end().tableId()));
     }
 
-    public TokenRange(AccordKey.TokenKey start, AccordKey.TokenKey end)
+    public TokenRange(TokenKey start, TokenKey end)
     {
         super(start, end);
     }
 
-    private static AccordKey.TokenKey toAccordToken(AccordKey key)
+    private static TokenKey toAccordToken(AccordKey key)
     {
-        if (key instanceof AccordKey.TokenKey)
-            return (AccordKey.TokenKey) key;
-        return new AccordKey.TokenKey(key.tableId(),
+        if (key instanceof TokenKey)
+            return (TokenKey) key;
+        return new TokenKey(key.tableId(),
                                       key.partitionKey().getToken().maxKeyBound());
     }
 
@@ -83,4 +89,28 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
 
         return new KeyRanges(ranges);
     }
+
+    public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<TokenRange>()
+    {
+        @Override
+        public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
+        {
+            TokenKey.serializer.serialize((TokenKey) range.start(), out, version);
+            TokenKey.serializer.serialize((TokenKey) range.end(), out, version);
+        }
+
+        @Override
+        public TokenRange deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return new TokenRange(TokenKey.serializer.deserialize(in, version),
+                                  TokenKey.serializer.deserialize(in, version));
+        }
+
+        @Override
+        public long serializedSize(TokenRange range, int version)
+        {
+            return TokenKey.serializer.serializedSize((TokenKey) range.start(), version)
+                 + TokenKey.serializer.serializedSize((TokenKey) range.end(), version);
+        }
+    };
 }

@@ -28,11 +28,8 @@ import accord.messages.PreAccept;
 import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 
 import static org.apache.cassandra.service.accord.EndpointMapping.getEndpoint;
@@ -49,34 +46,6 @@ public class CassandraMessageSink implements MessageSink
         RESPONSE_VERBS = ImmutableMap.<Class<? extends Reply>, Verb>builder()
                             .put(PreAccept.PreAcceptOk.class, Verb.ACCORD_PREACCEPT_RSP)
                             .build();
-    }
-
-    private static class AccordCallback<T extends Reply> implements RequestCallback<T>
-    {
-        private final Callback<T> callback;
-
-        public AccordCallback(Callback<T> callback)
-        {
-            this.callback = callback;
-        }
-
-        @Override
-        public void onResponse(Message<T> msg)
-        {
-            callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload);
-        }
-
-        @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-        {
-            callback.onFailure(EndpointMapping.endpointToId(from), new RuntimeException(failureReason.toString()));
-        }
-
-        @Override
-        public boolean invokeOnFailure()
-        {
-            return true;
-        }
     }
 
     @Override

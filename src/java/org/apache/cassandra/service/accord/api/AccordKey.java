@@ -18,11 +18,20 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.io.IOException;
+
 import accord.api.Key;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public interface AccordKey extends Key<AccordKey>
 {
@@ -70,6 +79,37 @@ public interface AccordKey extends Key<AccordKey>
         {
             super(tableId, key);
         }
+
+        @Override
+        public DecoratedKey partitionKey()
+        {
+            return (DecoratedKey) super.partitionKey();
+        }
+
+        public static final IVersionedSerializer<PartitionKey> serializer = new IVersionedSerializer<PartitionKey>()
+        {
+            @Override
+            public void serialize(PartitionKey key, DataOutputPlus out, int version) throws IOException
+            {
+                key.tableId().serialize(out);
+                ByteBufferUtil.writeWithVIntLength(key.partitionKey().getKey(), out);
+            }
+
+            @Override
+            public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
+            {
+                TableId tableId = TableId.deserialize(in);
+                TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+                DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+                return new PartitionKey(tableId, key);
+            }
+
+            @Override
+            public long serializedSize(PartitionKey key, int version)
+            {
+                return key.tableId().serializedSize() + ByteBufferUtil.serializedSizeWithVIntLength(key.partitionKey().getKey());
+            }
+        };
     }
 
     public static class TokenKey extends AbstractKey<Token.KeyBound>
@@ -78,5 +118,42 @@ public interface AccordKey extends Key<AccordKey>
         {
             super(tableId, key);
         }
+
+        @Override
+        public Token.KeyBound partitionKey()
+        {
+            return (Token.KeyBound) super.partitionKey();
+        }
+
+        public static final IVersionedSerializer<TokenKey> serializer = new IVersionedSerializer<TokenKey>()
+        {
+            @Override
+            public void serialize(TokenKey key, DataOutputPlus out, int version) throws IOException
+            {
+                key.tableId().serialize(out);
+                Token.KeyBound bound = key.partitionKey();
+                out.writeBoolean(bound.isMinimumBound);
+                Token.serializer.serialize(bound.getToken(), out, version);
+            }
+
+            @Override
+            public TokenKey deserialize(DataInputPlus in, int version) throws IOException
+            {
+                TableId tableId = TableId.deserialize(in);
+                TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+                boolean isMinimumBound = in.readBoolean();
+                Token token = Token.serializer.deserialize(in, metadata.partitioner, version);
+                return new TokenKey(tableId, isMinimumBound ? token.minKeyBound() : token.maxKeyBound());
+            }
+
+            @Override
+            public long serializedSize(TokenKey key, int version)
+            {
+                Token.KeyBound bound = key.partitionKey();
+                return key.tableId().serializedSize()
+                     + TypeSizes.sizeof(bound.isMinimumBound)
+                     + Token.serializer.serializedSize(bound.getToken(), version);
+            }
+        };
     }
 }
