@@ -98,6 +98,18 @@ public final class Guardrails implements GuardrailsMBean
     new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
                     "User provided timestamps (USING TIMESTAMP)");
 
+    /**
+     * Guardrail on the number of elements returned within page.
+     */
+    public static final Threshold pageSize =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPageSize(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Aborting %s table query, page size %s exceeds abort threshold of %s.",
+                                     what, value, threshold));
+
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -266,6 +278,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setUserTimestampsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setUserTimestampsEnabled(enabled);
+    }
+
+    @Override
+    public int getPageSizeWarnThreshold()
+    {
+        return (int) DEFAULT_CONFIG.getPageSize().getWarnThreshold();
+    }
+
+    @Override
+    public int getPageSizeAbortThreshold()
+    {
+        return (int) DEFAULT_CONFIG.getPageSize().getAbortThreshold();
+    }
+
+    @Override
+    public void setPageSizeThreshold(int warn, int abort)
+    {
+        DEFAULT_CONFIG.getPageSize().setThresholds(warn, abort);
     }
 
     private static String toCSV(Set<String> values)

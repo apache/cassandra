@@ -57,6 +57,8 @@ public class GuardrailsOptions implements GuardrailsConfig
     public final IntThreshold secondary_indexes_per_table = new IntThreshold();
     public final IntThreshold materialized_views_per_table = new IntThreshold();
     public final TableProperties table_properties = new TableProperties();
+    public final IntThreshold page_size = new IntThreshold();
+
     public volatile boolean user_timestamps_enabled = true;
 
     public void validate()
@@ -66,6 +68,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         secondary_indexes_per_table.validate("guardrails.secondary_indexes_per_table");
         materialized_views_per_table.validate("guardrails.materialized_views_per_table");
         table_properties.validate("guardrails.table_properties");
+        page_size.validate("guardrails.page_size");
     }
 
     @Override
@@ -118,6 +121,12 @@ public class GuardrailsOptions implements GuardrailsConfig
     public boolean getUserTimestampsEnabled()
     {
         return user_timestamps_enabled;
+    }
+
+    @Override
+    public IntThreshold getPageSize()
+    {
+        return page_size;
     }
 
     public void setUserTimestampsEnabled(boolean enabled)
