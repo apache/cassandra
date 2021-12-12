@@ -467,6 +467,11 @@ public class NodeProbe implements AutoCloseable
         return result;
     }
 
+    public double getDroppableTombstoneRatio(String keyspace, String table) {
+        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, table);
+        return cfsProxy.getDroppableTombstoneRatio();
+    }
+
     public void invalidateCounterCache()
     {
         cacheService.invalidateCounterCache();

@@ -63,6 +63,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 5.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 1\n" +
         "\tDropped Mutations: 0\n" +
+        "\tDroppable tombstone ratio: 0.00000\n" +
         "\n";
 
     public static final String expectedDefaultTable2Output =
@@ -102,6 +103,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 4.001\n" +
         "\tMaximum tombstones per slice (last five minutes): 2\n" +
         "\tDropped Mutations: 222\n" +
+        "\tDroppable tombstone ratio: 0.22222\n" +
         "\n";
 
     public static final String expectedDefaultTable3Output =
@@ -136,6 +138,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): NaN\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
         "\tDropped Mutations: 33333\n" +
+        "\tDroppable tombstone ratio: 0.33333\n" +
         "\n";
 
     public static final String expectedDefaultTable4Output =
@@ -175,6 +178,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 0.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
         "\tDropped Mutations: 4444\n" +
+        "\tDroppable tombstone ratio: 0.44444\n" +
         "\n";
 
     public static final String expectedDefaultTable5Output =
@@ -209,6 +213,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
         "\tMaximum tombstones per slice (last five minutes): 5\n" +
         "\tDropped Mutations: 0\n" +
+        "\tDroppable tombstone ratio: 0.55556\n" +
         "\n";
 
     public static final String expectedDefaultTable6Output =
@@ -248,6 +253,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 6.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 6\n" +
         "\tDropped Mutations: 666666\n" +
+        "\tDroppable tombstone ratio: 0.66667\n" +
         "\n";
 
     /**
