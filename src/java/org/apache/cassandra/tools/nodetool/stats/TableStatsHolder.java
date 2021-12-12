@@ -161,6 +161,8 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("maximum_tombstones_per_slice_last_five_minutes",
                     table.maximumTombstonesPerSliceLastFiveMinutes);
         mpTable.put("dropped_mutations", table.droppedMutations);
+        mpTable.put("droppable_tombstone_ratio",
+                    String.format("%01.5f", table.droppableTombstoneRatio));
         if (locationCheck)
             mpTable.put("sstables_in_correct_location", table.isInCorrectLocation);
         return mpTable;
@@ -345,6 +347,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.averageTombstonesPerSliceLastFiveMinutes = histogram.getMean();
                 statsTable.maximumTombstonesPerSliceLastFiveMinutes = histogram.getMax();
                 statsTable.droppedMutations = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "DroppedMutations"), humanReadable);
+                statsTable.droppableTombstoneRatio = probe.getDroppableTombstoneRatio(keyspaceName, tableName);
                 statsKeyspace.tables.add(statsTable);
             }
             keyspaces.add(statsKeyspace);

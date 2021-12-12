@@ -294,6 +294,13 @@ public class TableStatsTestBase
         table4.sstableCount = 2000;
         table5.sstableCount = 40000;
         table6.sstableCount = 1000;
+        // Droppable Tombstone ratio
+        table1.droppableTombstoneRatio = 0;
+        table2.droppableTombstoneRatio = 0.222222;
+        table3.droppableTombstoneRatio = 0.333333;
+        table4.droppableTombstoneRatio = 0.444444;
+        table5.droppableTombstoneRatio = 0.555555;
+        table6.droppableTombstoneRatio = 0.666666;
         // set even numbered tables to have some offheap usage
         table2.offHeapUsed = true;
         table4.offHeapUsed = true;
