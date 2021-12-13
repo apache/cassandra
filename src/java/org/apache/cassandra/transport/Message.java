@@ -33,6 +33,7 @@ import io.netty.channel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.metrics.RequestMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
@@ -86,6 +87,7 @@ public abstract class Message
         public final int opcode;
         public final Direction direction;
         public final Codec<?> codec;
+        public final RequestMetrics metrics;
 
         private static final Type[] opcodeIdx;
         static
@@ -107,6 +109,7 @@ public abstract class Message
             this.opcode = opcode;
             this.direction = direction;
             this.codec = codec;
+            this.metrics = direction == Direction.REQUEST ? new RequestMetrics(this.toString()) : null;
         }
 
         public static Type fromOpcode(int opcode, Direction direction)
@@ -199,6 +202,7 @@ public abstract class Message
 
     public static abstract class Request extends Message
     {
+        protected long startNanoTime;
         private boolean tracingRequested;
 
         protected Request(Type type)
