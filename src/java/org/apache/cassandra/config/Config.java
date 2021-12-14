@@ -223,7 +223,7 @@ public class Config
     public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
-    public int column_index_size_in_kb = 64;
+    public volatile int column_index_size_in_kb = 64;
     public volatile int column_index_cache_size_in_kb = 2;
     public volatile int batch_size_warn_threshold_in_kb = 5;
     public volatile int batch_size_fail_threshold_in_kb = 50;
