@@ -274,7 +274,7 @@ public class Tracker
 
     public Throwable dropSSTables(Throwable accumulate)
     {
-        return dropSSTables(Predicates.alwaysTrue(), OperationType.UNKNOWN, accumulate);
+        return dropSSTables(Predicates.alwaysTrue(), OperationType.DROP_TABLE, accumulate);
     }
 
     /**
@@ -341,7 +341,7 @@ public class Tracker
      */
     public void removeUnreadableSSTables(final File directory)
     {
-        maybeFail(dropSSTables(reader -> reader.descriptor.directory.equals(directory), OperationType.UNKNOWN, null));
+        maybeFail(dropSSTables(reader -> reader.descriptor.directory.equals(directory), OperationType.REMOVE_UNREADEABLE, null));
     }
 
 
