@@ -2351,10 +2351,12 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         long maxHintsSize = DatabaseDescriptor.getMaxHintsSizePerHost();
-        boolean hasHintsReachedMaxSize = maxHintsSize > 0 && HintsService.instance.getTotalHintsSize(hostIdForEndpoint) > maxHintsSize;
+        long actualTotalHintsSize = HintsService.instance.getTotalHintsSize(hostIdForEndpoint);
+        boolean hasHintsReachedMaxSize = maxHintsSize > 0 && actualTotalHintsSize > maxHintsSize;
         if (hasHintsReachedMaxSize)
         {
-            Tracing.trace("Not hinting {} which has reached to the max hints size {} bytes on disk", endpoint, DatabaseDescriptor.getMaxHintsSizePerHost());
+            Tracing.trace("Not hinting {} which has reached to the max hints size {} bytes on disk. The actual hints size on disk: {}",
+                          endpoint, maxHintsSize, actualTotalHintsSize);
             return false;
         }
 

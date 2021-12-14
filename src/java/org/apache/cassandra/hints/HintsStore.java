@@ -218,7 +218,7 @@ final class HintsStore
             logger.info("Already deleted hint file {}", descriptor.fileName());
 
         //noinspection ResultOfMethodCallIgnored
-        descriptor.checksumFile(hintsDirectory).delete();
+        descriptor.checksumFile(hintsDirectory).tryDelete();
     }
 
     boolean hasFiles()
@@ -236,7 +236,10 @@ final class HintsStore
         dispatchPositions.put(descriptor, inputPosition);
     }
 
-    // returns total length of all files belonging to the hints store, in bytes.
+
+    /**
+     * @return the total size of all files belonging to the hints store, in bytes.
+     */
     long getTotalFileSize()
     {
         long total = 0;
