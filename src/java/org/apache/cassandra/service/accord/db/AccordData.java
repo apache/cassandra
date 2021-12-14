@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.db;
 
+import java.io.IOException;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
@@ -27,17 +28,30 @@ import com.google.common.base.Preconditions;
 import accord.api.Data;
 import accord.api.Result;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.api.AccordKey;
 
 public class AccordData implements Data, Result
 {
-    private final NavigableMap<DecoratedKey, FilteredPartition> partitions = new TreeMap<>();
+    private final NavigableMap<AccordKey, FilteredPartition> partitions = new TreeMap<>(AccordKey::compare);
 
     void put(FilteredPartition partition)
     {
         DecoratedKey key = partition.partitionKey();
         Preconditions.checkArgument(!partitions.containsKey(key) || partitions.get(key).equals(partition));
-        partitions.put(key, partition);
+        partitions.put(partition, partition);
     }
 
     FilteredPartition get(DecoratedKey key)
@@ -59,4 +73,67 @@ public class AccordData implements Data, Result
     {
         partitions.values().forEach(consumer);
     }
+
+    private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
+        {
+            partition.tableId().serialize(out);
+            try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
+            {
+                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.NONE, out, version, partition.rowCount());
+            }
+        }
+
+        @Override
+        public FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
+        {
+            TableMetadata metadata = Schema.instance.getTableMetadata(TableId.deserialize(in));
+            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.NONE, DeserializationHelper.Flag.FROM_REMOTE))
+            {
+                return new FilteredPartition(UnfilteredRowIterators.filter(partition, 0));
+            }
+        }
+
+        @Override
+        public long serializedSize(FilteredPartition partition, int version)
+        {
+            long size = partition.tableId().serializedSize();
+            try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
+            {
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.NONE, version, partition.rowCount());
+            }
+        }
+    };
+
+    public static final IVersionedSerializer<AccordData> serializer = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(AccordData data, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(data.partitions.size());
+            for (FilteredPartition partition : data.partitions.values())
+                partitionSerializer.serialize(partition, out, version);
+        }
+
+        @Override
+        public AccordData deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readInt();
+            AccordData data = new AccordData();
+            for (int i=0; i<size; i++)
+                data.put(partitionSerializer.deserialize(in, version));
+            return data;
+        }
+
+        @Override
+        public long serializedSize(AccordData data, int version)
+        {
+            long size = TypeSizes.sizeof(data.partitions.size());
+            for (FilteredPartition partition : data.partitions.values())
+                size += partitionSerializer.serializedSize(partition, version);
+            return size;
+        }
+    };
 }

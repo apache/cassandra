@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord.db;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
@@ -27,7 +29,12 @@ import accord.api.Write;
 import accord.topology.KeyRanges;
 import accord.txn.Timestamp;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 
 public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements Write
@@ -48,6 +55,35 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
             Mutation mutation = new Mutation(new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build());
             mutation.apply();
         });
-
     }
+
+    public static final IVersionedSerializer<AccordWrite> serializer = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(AccordWrite write, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(write.items.size());
+            for (PartitionUpdate update : write.items)
+                PartitionUpdate.serializer.serialize(update, out, version);
+        }
+
+        @Override
+        public AccordWrite deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readInt();
+            List<PartitionUpdate> writes = new ArrayList<>(size);
+            for (int i=0; i<size; i++)
+                writes.add(PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE));
+            return new AccordWrite(writes);
+        }
+
+        @Override
+        public long serializedSize(AccordWrite write, int version)
+        {
+            long size = TypeSizes.sizeof(write.items.size());
+            for (PartitionUpdate update : write.items)
+                size += PartitionUpdate.serializer.serializedSize(update, version);
+            return size;
+        }
+    };
 }

@@ -22,12 +22,14 @@ import java.io.IOException;
 import java.util.Map;
 
 import accord.local.Node;
+import accord.local.Status;
 import accord.txn.Ballot;
 import accord.txn.Dependencies;
 import accord.txn.Keys;
 import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
+import accord.txn.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -35,6 +37,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
+import org.apache.cassandra.service.accord.db.AccordWrite;
 
 public class CommandSerializers
 {
@@ -86,7 +89,7 @@ public class CommandSerializers
         }
     }
 
-    public static final IVersionedSerializer<Txn> txn = new IVersionedSerializer<Txn>()
+    public static final IVersionedSerializer<Txn> txn = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Txn txn, DataOutputPlus out, int version) throws IOException
@@ -125,7 +128,29 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Dependencies> deps = new IVersionedSerializer<Dependencies>()
+    public static final IVersionedSerializer<Status> status = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(Status status, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(status.ordinal());
+
+        }
+
+        @Override
+        public Status deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return Status.values()[in.readInt()];
+        }
+
+        @Override
+        public long serializedSize(Status status, int version)
+        {
+            return TypeSizes.sizeof(status.ordinal());
+        }
+    };
+
+    public static final IVersionedSerializer<Dependencies> deps = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Dependencies deps, DataOutputPlus out, int version) throws IOException
@@ -157,6 +182,34 @@ public class CommandSerializers
                 size += txnId.serializedSize(entry.getKey(), version);
                 size += txn.serializedSize(entry.getValue(), version);
             }
+            return size;
+        }
+    };
+
+    public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(Writes writes, DataOutputPlus out, int version) throws IOException
+        {
+            timestamp.serialize(writes.executeAt, out, version);
+            KeySerializers.keys.serialize(writes.keys, out, version);
+            AccordWrite.serializer.serialize((AccordWrite) writes.write, out, version);
+        }
+
+        @Override
+        public Writes deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return new Writes(timestamp.deserialize(in, version),
+                              KeySerializers.keys.deserialize(in, version),
+                              AccordWrite.serializer.deserialize(in, version));
+        }
+
+        @Override
+        public long serializedSize(Writes writes, int version)
+        {
+            long size = timestamp.serializedSize(writes.executeAt, version);
+            size += KeySerializers.keys.serializedSize(writes.keys, version);
+            size += AccordWrite.serializer.serializedSize((AccordWrite) writes.write, version);
             return size;
         }
     };
