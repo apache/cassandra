@@ -1513,7 +1513,6 @@ public class DatabaseDescriptor
         return conf.column_index_size_in_kb;
     }
 
-    @VisibleForTesting
     public static void setColumnIndexSize(int val)
     {
         checkValidForByteConversion(val, "column_index_size_in_kb", ByteUnit.KIBI_BYTES);
