@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.joran.ReconfigureOnChangeTask;
 import ch.qos.logback.classic.spi.TurboFilterList;
 import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
 import ch.qos.logback.classic.turbo.TurboFilter;
@@ -59,6 +60,7 @@ import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static ch.qos.logback.core.CoreConstants.RECONFIGURE_ON_CHANGE_TASK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -1871,6 +1873,16 @@ public class AggregationTest extends CQLTester
                 break;
             }
         }
+
+        ReconfigureOnChangeTask roct = (ReconfigureOnChangeTask) ctx.getObject(RECONFIGURE_ON_CHANGE_TASK);
+        if (roct != null)
+        {
+            // New functionality in logback - they replaced ReconfigureOnChangeFilter (which runs in the logging code)
+            // with an async ReconfigureOnChangeTask - i.e. in a thread that does not become sandboxed.
+            // Let the test run anyway, just we cannot reconfigure it (and it is pointless to reconfigure).
+            return;
+        }
+
         assertTrue("ReconfigureOnChangeFilter not in logback's turbo-filter list - do that by adding scan=\"true\" to logback-test.xml's configuration element", done);
     }
 
