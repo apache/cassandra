@@ -1,4 +1,5 @@
 4.1
+ * Avoid unecessary array allocations and initializations when performing query checks (CASSANDRA-17209)
  * Add guardrail for list operations that require read before write (CASSANDRA-17154)
  * Migrate thresholds for number of keyspaces and tables to guardrails (CASSANDRA-17195)
  * Remove self-reference in SSTableTidier (CASSANDRA-17205)
