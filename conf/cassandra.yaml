@@ -1612,3 +1612,6 @@ enable_drop_compact_storage: false
 #     page_size:
 #       warn_threshold: -1
 #       abort_threshold: -1
+# Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
+# removing list elements by either index or value. Defaults to true.
+#     read_before_write_list_operations_enabled: true

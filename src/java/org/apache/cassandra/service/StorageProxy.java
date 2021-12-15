@@ -315,7 +315,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // Create the desired updates
-                PartitionUpdate updates = request.makeUpdates(current);
+                PartitionUpdate updates = request.makeUpdates(current, state);
 
                 long size = updates.dataSize();
                 casWriteMetrics.mutationSize.update(size);

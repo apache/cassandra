@@ -476,7 +476,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             cl.validateForWrite();
 
         List<? extends IMutation> mutations =
-            getMutations(options,
+            getMutations(queryState.getClientState(),
+                         options,
                          false,
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
@@ -639,7 +640,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         int nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(options, true, timestamp, nowInSeconds, queryStartNanoTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, queryStartNanoTime))
             mutation.apply();
         return null;
     }
@@ -648,13 +649,13 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         CQL3CasRequest request = makeCasRequest(state, options);
 
-        try (RowIterator result = casInternal(request, options.getTimestamp(state), options.getNowInSeconds(state)))
+        try (RowIterator result = casInternal(state.getClientState(), request, options.getTimestamp(state), options.getNowInSeconds(state)))
         {
             return new ResultMessage.Rows(buildCasResultSet(result, state, options));
         }
     }
 
-    static RowIterator casInternal(CQL3CasRequest request, long timestamp, int nowInSeconds)
+    static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, int nowInSeconds)
     {
         UUID ballot = UUIDGen.getTimeUUIDFromMicros(timestamp);
 
@@ -669,7 +670,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (!request.appliesTo(current))
             return current.rowIterator();
 
-        PartitionUpdate updates = request.makeUpdates(current);
+        PartitionUpdate updates = request.makeUpdates(current, state);
         updates = TriggerExecutor.instance.execute(updates);
 
         Commit proposal = Commit.newProposal(ballot, updates);
@@ -680,27 +681,30 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     /**
      * Convert statement into a list of mutations to apply on the server
      *
+     * @param state the client state
      * @param options value for prepared statement markers
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
      * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided.
      *
      * @return list of the mutations
      */
-    private List<? extends IMutation> getMutations(QueryOptions options,
-                                                         boolean local,
-                                                         long timestamp,
-                                                         int nowInSeconds,
-                                                         long queryStartNanoTime)
+    private List<? extends IMutation> getMutations(ClientState state,
+                                                   QueryOptions options,
+                                                   boolean local,
+                                                   long timestamp,
+                                                   int nowInSeconds,
+                                                   long queryStartNanoTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-        addUpdates(collector, keys, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
         return collector.toMutations();
     }
 
     final void addUpdates(UpdatesCollector collector,
                           List<ByteBuffer> keys,
+                          ClientState state,
                           QueryOptions options,
                           boolean local,
                           long timestamp,
@@ -717,6 +721,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
             UpdateParameters params = makeUpdateParameters(keys,
                                                            new ClusteringIndexSliceFilter(slices, false),
+                                                           state,
                                                            options,
                                                            DataLimits.NONE,
                                                            local,
@@ -742,7 +747,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
 
             for (ByteBuffer key : keys)
             {
@@ -789,6 +794,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
                                                   NavigableSet<Clustering<?>> clusterings,
+                                                  ClientState state,
                                                   QueryOptions options,
                                                   boolean local,
                                                   long timestamp,
@@ -798,6 +804,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
                                         new ClusteringIndexSliceFilter(Slices.ALL, false),
+                                        state,
                                         options,
                                         DataLimits.cqlLimits(1),
                                         local,
@@ -807,6 +814,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
+                                    state,
                                     options,
                                     DataLimits.NONE,
                                     local,
@@ -817,6 +825,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
                                                   ClusteringIndexFilter filter,
+                                                  ClientState state,
                                                   QueryOptions options,
                                                   DataLimits limits,
                                                   boolean local,
@@ -836,6 +845,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         return new UpdateParameters(metadata(),
                                     updatedColumns(),
+                                    state,
                                     options,
                                     getTimestamp(timestamp, options),
                                     nowInSeconds,

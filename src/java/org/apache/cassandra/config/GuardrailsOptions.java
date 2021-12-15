@@ -60,6 +60,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     public final IntThreshold page_size = new IntThreshold();
 
     public volatile boolean user_timestamps_enabled = true;
+    public volatile boolean read_before_write_list_operations_enabled = true;
 
     public void validate()
     {
@@ -132,6 +133,17 @@ public class GuardrailsOptions implements GuardrailsConfig
     public void setUserTimestampsEnabled(boolean enabled)
     {
         user_timestamps_enabled = enabled;
+    }
+
+    @Override
+    public boolean getReadBeforeWriteListOperationsEnabled()
+    {
+        return read_before_write_list_operations_enabled;
+    }
+
+    public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
+    {
+        read_before_write_list_operations_enabled = enabled;
     }
 
     public static abstract class Threshold implements org.apache.cassandra.db.guardrails.Threshold.Config

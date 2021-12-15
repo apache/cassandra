@@ -188,4 +188,18 @@ public interface GuardrailsMBean
      * @param abort The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
      */
     void setPageSizeThreshold(int warn, int abort);
+
+    /**
+     * Returns whether list operations that require read before write are allowed.
+     *
+     * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
+     * Sets whether list operations that require read before write are allowed.
+     *
+     * @param enabled {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    void setReadBeforeWriteListOperationsEnabled(boolean enabled);
 }

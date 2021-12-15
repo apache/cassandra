@@ -84,4 +84,11 @@ public interface GuardrailsConfig
      * @return The threshold to warn or abort when page size exceeds given size.
      */
     Threshold.Config getPageSize();
+
+    /**
+     * Returns whether list operations that require read before write are allowed.
+     *
+     * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    boolean getReadBeforeWriteListOperationsEnabled();
 }
