@@ -66,12 +66,6 @@ public class SetGetStreamThroughputTest extends CQLTester
     }
 
     @Test
-    public void testNegative()
-    {
-        assertSetGetValidThroughput(-7, Double.MAX_VALUE);
-    }
-
-    @Test
     public void testUnparseable()
     {
         assertSetInvalidThroughput("1.2", "stream_throughput: can not convert \"1.2\" to a int");
@@ -103,7 +97,7 @@ public class SetGetStreamThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current stream throughput: " + expected + " Mb/s");
+            assertThat(tool.getStdout()).contains("Current stream throughput: " + expected + " MiB/s");
         else
             assertThat(tool.getStdout()).contains("Current stream throughput: unlimited");
     }

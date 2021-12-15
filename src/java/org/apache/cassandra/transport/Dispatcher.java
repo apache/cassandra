@@ -50,8 +50,8 @@ public class Dispatcher
 {
     private static final Logger logger = LoggerFactory.getLogger(Dispatcher.class);
     
-    private static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
-                                                                                     DatabaseDescriptor::setNativeTransportMaxThreads,
+    private static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getMaxNativeTransportThreads(),
+                                                                                     DatabaseDescriptor::setMaxNativeTransportThreads,
                                                                                      "transport",
                                                                                      "Native-Transport-Requests");
 

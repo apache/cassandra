@@ -30,7 +30,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import com.google.common.primitives.Ints;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,7 +98,7 @@ public class QueryProcessor implements QueryHandler
     {
         preparedStatements = Caffeine.newBuilder()
                              .executor(ImmediateExecutor.INSTANCE)
-                             .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
+                             .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()))
                              .weigher(QueryProcessor::measure)
                              .removalListener((key, prepared, cause) -> {
                                  MD5Digest md5Digest = (MD5Digest) key;
@@ -116,11 +115,11 @@ public class QueryProcessor implements QueryHandler
             if (count > 0)
                 logger.warn("{} prepared statements discarded in the last minute because cache limit reached ({} MB)",
                             count,
-                            DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
+                            DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
         }, 1, 1, TimeUnit.MINUTES);
 
         logger.info("Initialized prepared statement caches with {} MB",
-                    DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
+                    DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
     }
 
     private static long capacityToBytes(long cacheSizeMB)
@@ -564,10 +563,10 @@ public class QueryProcessor implements QueryHandler
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
         long statementSize = ObjectSizes.measureDeep(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
-        if (statementSize > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
+        if (statementSize > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()))
             throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d MB: %s...",
                                                             statementSize,
-                                                            DatabaseDescriptor.getPreparedStatementsCacheSizeMB(),
+                                                            DatabaseDescriptor.getPreparedStatementsCacheSizeMiB(),
                                                             queryString.substring(0, 200)));
         MD5Digest statementId = computeId(queryString, keyspace);
         preparedStatements.put(statementId, prepared);

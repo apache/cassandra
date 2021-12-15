@@ -76,7 +76,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  *     samples</i> (list of {@link IndexInfo} objects) and those who don't.
  *     For each <i>portion</i> of data for a single partition in the data file,
  *     an index sample is created. The size of that <i>portion</i> is defined
- *     by {@link org.apache.cassandra.config.Config#column_index_size_in_kb}.
+ *     by {@link org.apache.cassandra.config.Config#column_index_size}.
  * </p>
  * <p>
  *     Index entries with less than 2 index samples, will just store the
@@ -97,9 +97,9 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  *     "acceptable" amount of index samples per partition and those
  *     with an "enormous" amount of index samples. The barrier
  *     is controlled by the configuration parameter
- *     {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb}.
+ *     {@link org.apache.cassandra.config.Config#column_index_cache_size}.
  *     Index entries with a total serialized size of index samples up to
- *     {@code column_index_cache_size_in_kb} will be held in an array.
+ *     {@code column_index_cache_size} will be held in an array.
  *     Index entries exceeding that value will always be accessed from
  *     disk.
  * </p>
@@ -110,9 +110,9 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  *     <li>{@link RowIndexEntry} just stores the offset in the data file.</li>
  *     <li>{@link IndexedEntry} is for index entries with index samples
  *     and used for both current and legacy sstables, which do not exceed
- *     {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb}.</li>
+ *     {@link org.apache.cassandra.config.Config#column_index_cache_size}.</li>
  *     <li>{@link ShallowIndexedEntry} is for index entries with index samples
- *     that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb}
+ *     that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size}
  *     for sstables with an offset table to the index samples.</li>
  * </ul>
  * <p>
@@ -193,7 +193,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
      * @param headerLength      deletion time of {@link RowIndexEntry}
      * @param columnIndexCount  number of {@link IndexInfo} entries in the {@link RowIndexEntry}
      * @param indexedPartSize   serialized size of all serialized {@link IndexInfo} objects and their offsets
-     * @param indexSamples      list with IndexInfo offsets (if total serialized size is less than {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb}
+     * @param indexSamples      list with IndexInfo offsets (if total serialized size is less than {@link org.apache.cassandra.config.Config#column_index_cache_size}
      * @param offsets           offsets of IndexInfo offsets
      * @param idxInfoSerializer the {@link IndexInfo} serializer
      */
@@ -205,14 +205,14 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     {
         // If the "partition building code" in BigTableWriter.append() via ColumnIndex returns a list
         // of IndexInfo objects, which is the case if the serialized size is less than
-        // Config.column_index_cache_size_in_kb, AND we have more than one IndexInfo object, we
+        // Config.column_index_cache_size, AND we have more than one IndexInfo object, we
         // construct an IndexedEntry object. (note: indexSamples.size() and columnIndexCount have the same meaning)
         if (indexSamples != null && indexSamples.size() > 1)
             return new IndexedEntry(dataFilePosition, deletionTime, headerLength,
                                     indexSamples.toArray(new IndexInfo[indexSamples.size()]), offsets,
                                     indexedPartSize, idxInfoSerializer);
         // Here we have to decide whether we have serialized IndexInfo objects that exceeds
-        // Config.column_index_cache_size_in_kb (not exceeding case covered above).
+        // Config.column_index_cache_size (not exceeding case covered above).
         // Such a "big" indexed-entry is represented as a shallow one.
         if (columnIndexCount > 1)
             return new ShallowIndexedEntry(dataFilePosition, indexFilePosition,
@@ -355,8 +355,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getTrackWarningsEnabled())
                 return;
 
-            int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKb() * 1024;
-            int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKb() * 1024;
+            int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKiB() * 1024;
+            int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKiB() * 1024;
             if (warnThreshold == 0 && abortThreshold == 0)
                 return;
 

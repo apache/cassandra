@@ -99,9 +99,9 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<KeyCacheKey, RowIndexEntry> initKeyCache()
     {
-        logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
+        logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMiB());
 
-        long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMB() * 1024 * 1024;
+        long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMiB() * 1024 * 1024;
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
@@ -121,10 +121,10 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<RowCacheKey, IRowCacheEntry> initRowCache()
     {
-        logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
+        logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMiB());
 
         CacheProvider<RowCacheKey, IRowCacheEntry> cacheProvider;
-        String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMB() > 0
+        String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMiB() > 0
                                         ? DatabaseDescriptor.getRowCacheClassName() : "org.apache.cassandra.cache.NopCacheProvider";
         try
         {
@@ -150,9 +150,9 @@ public class CacheService implements CacheServiceMBean
 
     private AutoSavingCache<CounterCacheKey, ClockAndCount> initCounterCache()
     {
-        logger.info("Initializing counter cache with capacity of {} MBs", DatabaseDescriptor.getCounterCacheSizeInMB());
+        logger.info("Initializing counter cache with capacity of {} MBs", DatabaseDescriptor.getCounterCacheSizeInMiB());
 
-        long capacity = DatabaseDescriptor.getCounterCacheSizeInMB() * 1024 * 1024;
+        long capacity = DatabaseDescriptor.getCounterCacheSizeInMiB() * 1024 * 1024;
 
         AutoSavingCache<CounterCacheKey, ClockAndCount> cache =
             new AutoSavingCache<>(CaffeineCache.create(capacity),

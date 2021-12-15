@@ -39,7 +39,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Duration;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -214,7 +214,7 @@ public class Keyspace
      * @param rateLimiter Rate limiter for hardlinks-per-second
      * @throws IOException if the column family doesn't exist
      */
-    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime) throws IOException
+    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime) throws IOException
     {
         assert snapshotName != null;
         boolean tookSnapShot = false;
@@ -481,7 +481,7 @@ public class Keyspace
      *                       may happen concurrently, depending on the CL Executor type.
      * @param makeDurable    if true, don't return unless write has been made durable
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
-     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
+     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout
      */
     public void apply(final Mutation mutation,
                       final boolean makeDurable,
@@ -498,7 +498,7 @@ public class Keyspace
      *                       may happen concurrently, depending on the CL Executor type.
      * @param makeDurable    if true, don't return unless write has been made durable
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
-     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
+     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout
      * @param isDeferrable   true if caller is not waiting for future to complete, so that future may be deferred
      */
     private Future<?> applyInternal(final Mutation mutation,

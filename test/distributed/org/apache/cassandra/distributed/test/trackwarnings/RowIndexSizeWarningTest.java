@@ -36,8 +36,8 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
         AbstractClientSizeWarning.setupClass();
 
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setRowIndexSizeWarnThresholdKb(1);
-            DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(2);
+            DatabaseDescriptor.setRowIndexSizeWarnThresholdKiB(1);
+            DatabaseDescriptor.setRowIndexSizeAbortThresholdKiB(2);
 
             // hack to force multiple index entries
             DatabaseDescriptor.setColumnIndexCacheSize(1 << 20);
@@ -93,14 +93,14 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold)").contains("bytes in RowIndexEntry and issued warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold_kb)").contains("bytes in RowIndexEntry and aborted the query");
+        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold)").contains("bytes in RowIndexEntry and aborted the query");
     }
 
     @Override

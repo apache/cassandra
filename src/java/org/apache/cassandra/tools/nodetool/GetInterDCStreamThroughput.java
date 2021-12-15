@@ -22,7 +22,7 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getinterdcstreamthroughput", description = "Print the Mb/s throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system")
+@Command(name = "getinterdcstreamthroughput", description = "Print the MiB/s throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system")
 public class GetInterDCStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
@@ -36,6 +36,6 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
 
         probe.output().out.printf("Current %sinter-datacenter stream throughput: %s%n",
                                   entireSSTableThroughput ? "entire SSTable " : "",
-                                  throughput > 0 ? throughput + " Mb/s" : "unlimited");
+                                  throughput > 0 ? throughput + " MiB/s" : "unlimited");
     }
 }

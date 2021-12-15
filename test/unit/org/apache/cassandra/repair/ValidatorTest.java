@@ -80,20 +80,20 @@ public class ValidatorTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
         partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
-        testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+        testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
     @After
     public void tearDown()
     {
         MessagingService.instance().outboundSink.clear();
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMegabytes);
     }
 
     @Before
     public void setup()
     {
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMegabytes);
     }
 
     @Test
@@ -233,7 +233,7 @@ public class ValidatorTest
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
         cfs.clearUnsafe();
 
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(1);
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -292,7 +292,7 @@ public class ValidatorTest
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
         cfs.clearUnsafe();
 
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(1);
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();

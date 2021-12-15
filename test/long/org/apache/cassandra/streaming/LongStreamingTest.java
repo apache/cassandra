@@ -137,7 +137,7 @@ public class LongStreamingTest
         loader.stream().get();
 
         long millis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
-        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f Mb/sec",
+        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f MiB/sec",
                                          millis/1000d,
                                          (dataSize / (1 << 20) / (millis / 1000d)) * 8));
 
@@ -164,7 +164,7 @@ public class LongStreamingTest
         loader.stream().get();
 
         millis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
-        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f Mb/sec",
+        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f MiB/sec",
                                          millis/1000d,
                                          (dataSize / (1 << 20) / (millis / 1000d)) * 8));
 
@@ -174,7 +174,7 @@ public class LongStreamingTest
         Keyspace.open(KS).getColumnFamilyStore(TABLE).forceMajorCompaction();
         millis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
 
-        System.err.println(String.format("Finished Compacting in %.2f seconds: %.2f Mb/sec",
+        System.err.println(String.format("Finished Compacting in %.2f seconds: %.2f MiB/sec",
                                          millis / 1000d,
                                          (dataSize * 2 / (1 << 20) / (millis / 1000d)) * 8));
 

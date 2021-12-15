@@ -57,7 +57,7 @@ public class ValidationManager
 
         // The repair coordinator must hold RF trees in memory at once, so a given validation compaction can only
         // use 1 / RF of the allowed space.
-        long availableBytes = (DatabaseDescriptor.getRepairSessionSpaceInMegabytes() * 1048576) /
+        long availableBytes = (DatabaseDescriptor.getRepairSessionSpaceInMiB() * 1048576) /
                               cfs.keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
 
         for (Range<Token> range : ranges)

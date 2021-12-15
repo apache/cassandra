@@ -672,14 +672,14 @@ public class SecondaryIndexTest extends CQLTester
         long batchSizeThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
         try
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
+            DatabaseDescriptor.setBatchSizeFailThresholdInKiB((TOO_BIG / 1024) * 2);
             succeedInsert("BEGIN BATCH\n" +
                           "INSERT INTO %s (a, b, c) VALUES (1, 1, ?) IF NOT EXISTS;\n" +
                           "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
         }
         finally
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB((int) (batchSizeThreshold / 1024));
+            DatabaseDescriptor.setBatchSizeFailThresholdInKiB((int) (batchSizeThreshold / 1024));
         }
     }
 
@@ -725,14 +725,14 @@ public class SecondaryIndexTest extends CQLTester
         long batchSizeThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
         try
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
+            DatabaseDescriptor.setBatchSizeFailThresholdInKiB((TOO_BIG / 1024) * 2);
             succeedInsert("BEGIN BATCH\n" +
                           "INSERT INTO %s (a, b, c) VALUES (1, 1, ?) IF NOT EXISTS;\n" +
                           "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
         }
         finally
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB((int)(batchSizeThreshold / 1024));
+            DatabaseDescriptor.setBatchSizeFailThresholdInKiB((int)(batchSizeThreshold / 1024));
         }
     }
 

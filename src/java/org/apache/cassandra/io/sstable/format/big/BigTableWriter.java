@@ -71,7 +71,7 @@ public class BigTableWriter extends SSTableWriter
 
     private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
                                                         .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                        .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
+                                                        .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
                                                         .build();
 
     public BigTableWriter(Descriptor descriptor,

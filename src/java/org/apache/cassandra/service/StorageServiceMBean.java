@@ -536,12 +536,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*
-      Update dynamic_snitch_update_interval_in_ms
+      Update dynamic_snitch_update_interval in ms
      */
     public void setDynamicUpdateInterval(int dynamicUpdateInterval);
 
     /*
-      Get dynamic_snitch_update_interval_in_ms
+      Get dynamic_snitch_update_interval in ms
      */
     public int getDynamicUpdateInterval();
 

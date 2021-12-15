@@ -33,6 +33,24 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+5.0
+===
+
+New features
+------------
+
+Upgrading
+---------
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
+      memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
+      parameters. (CASSANDRA-15234)
+      Backward compatibility with the old cassandra.yaml file will be in place until the next major version.
+    - Many cassandra.yaml parameters' names have been changed. Full list can be found on ...... (ADD LINK LATER WHEN PAGE
+      IS CREATED) (CASSANDRA-15234)
+
+Deprecation
+-----------
+
 4.1
 ===
 
@@ -56,11 +74,11 @@ New features
       to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
       setting to true will enable this feature.  Each check has its own warn/abort thresholds, currently
       tombstones (tombstone_warn_threshold, and tombstone_failure_threshold), coordinator result set
-      materialized size (track_warnings.coordinator_large_read.warn_threshold_kb, and
-      track_warnings.coordinator_large_read.abort_threshold_kb), local read materialized heap size
-      (track_warnings.local_read_size.warn_threshold_kb and track_warnings.local_read_size.abort_threshold_kb),
-      and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
-      track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
+      materialized size (track_warnings.coordinator_large_read.warn_threshold, and
+      track_warnings.coordinator_large_read.abort_threshold), local read materialized heap size
+      (track_warnings.local_read_size.warn_threshold and track_warnings.local_read_size.abort_threshold),
+      and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold and
+      track_warnings.row_index_size.abort_threshold) are supported; more checks will be added over time.
     - Prior to this version, the hint system was storing a window of hints as defined by
       configuration property max_hint_window_in_ms, however this window is not persistent across restarts.
       For example, if a node is restarted, it will be still eligible for a hint to be sent to it because it

@@ -211,8 +211,8 @@ public class PipelineConfigurator
         ChannelPipeline pipeline = channel.pipeline();
 
         // Add the ConnectionLimitHandler to the pipeline if configured to do so.
-        if (DatabaseDescriptor.getNativeTransportMaxConcurrentConnections() > 0
-            || DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp() > 0)
+        if (DatabaseDescriptor.getMaxNativeTransportConcurrentConnections() > 0
+            || DatabaseDescriptor.getMaxNativeTransportConcurrentConnectionsPerIp() > 0)
         {
             // Add as first to the pipeline so the limit is enforced as first action.
             pipeline.addFirst(CONNECTION_LIMIT_HANDLER, connectionLimitHandler);

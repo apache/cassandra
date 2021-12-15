@@ -44,8 +44,8 @@ num_tokens: 16
 allocate_tokens_for_local_replication_factor: 3
 
 # initial_token allows you to specify tokens manually.  While you can use it with
-# vnodes (num_tokens > 1, above) -- in which case you should provide a 
-# comma-separated list -- it's primarily used when adding nodes to legacy clusters 
+# vnodes (num_tokens > 1, above) -- in which case you should provide a
+# comma-separated list -- it's primarily used when adding nodes to legacy clusters
 # that do not have vnodes enabled.
 # initial_token:
 
@@ -61,14 +61,14 @@ hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, new hints for it will not be
 # created until it has been seen alive and gone down again.
-max_hint_window_in_ms: 10800000 # 3 hours
+max_hint_window: 10800000ms # 3 hours
 
 # Maximum throttle in KBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
 # are two nodes in the cluster, each delivery thread will use the maximum
 # rate; if there are three, each will throttle to half of the maximum,
 # since we expect two nodes to be delivering hints simultaneously.)
-hinted_handoff_throttle_in_kb: 1024
+hinted_handoff_throttle: 1024KiB
 
 # Number of threads with which to deliver hints;
 # Consider increasing this number when you have multi-dc deployments, since
@@ -81,10 +81,10 @@ max_hints_delivery_threads: 2
 
 # How often hints should be flushed from the internal buffers to disk.
 # Will *not* trigger fsync.
-hints_flush_period_in_ms: 10000
+hints_flush_period: 10000ms
 
 # Maximum size for a single hints file, in megabytes.
-max_hints_file_size_in_mb: 128
+max_hints_file_size: 128MiB
 
 # Enable / disable automatic cleanup for the expired and orphaned hints file.
 # Disable the option in order to preserve those hints on the disk.
@@ -101,10 +101,10 @@ auto_hints_cleanup_enabled: false
 # Enable / disable persistent hint windows.
 #
 # If set to false, a hint will be stored only in case a respective node
-# that hint is for is down less than or equal to max_hint_window_in_ms.
+# that hint is for is down less than or equal to max_hint_window.
 #
 # If set to true, a hint will be stored in case there is not any
-# hint which was stored earlier than max_hint_window_in_ms. This is for cases
+# hint which was stored earlier than max_hint_window. This is for cases
 # when a node keeps to restart and hints are not delivered yet, we would be saving
 # hints for that node indefinitely.
 #
@@ -114,7 +114,7 @@ auto_hints_cleanup_enabled: false
 
 # Maximum throttle in KBs per second, total. This will be
 # reduced proportionally to the number of nodes in the cluster.
-batchlog_replay_throttle_in_kb: 1024
+batchlog_replay_throttle: 1024KiB
 
 # Authentication backend, implementing IAuthenticator; used to identify users
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthenticator,
@@ -172,21 +172,21 @@ network_authorizer: AllowAllNetworkAuthorizer
 # Will be disabled automatically for AllowAllAuthenticator.
 # For a long-running cache using roles_cache_active_update, consider
 # setting to something longer such as a daily validation: 86400000
-roles_validity_in_ms: 2000
+roles_validity: 2000ms
 
 # Refresh interval for roles cache (if enabled).
 # After this interval, cache entries become eligible for refresh. Upon next
 # access, an async reload is scheduled and the old value returned until it
-# completes. If roles_validity_in_ms is non-zero, then this must be
+# completes. If roles_validity is non-zero, then this must be
 # also.
 # This setting is also used to inform the interval of auto-updating if
 # using roles_cache_active_update.
-# Defaults to the same value as roles_validity_in_ms.
+# Defaults to the same value as roles_validity.
 # For a long-running cache, consider setting this to 60000 (1 hour) etc.
-# roles_update_interval_in_ms: 2000
+# roles_update_interval: 2000ms
 
 # If true, cache contents are actively updated by a background task at the
-# interval set by roles_update_interval_in_ms. If false, cache entries
+# interval set by roles_update_interval. If false, cache entries
 # become eligible for refresh after their update interval. Upon next access,
 # an async reload is scheduled and the old value returned until it completes.
 # roles_cache_active_update: false
@@ -197,21 +197,21 @@ roles_validity_in_ms: 2000
 # Will be disabled automatically for AllowAllAuthorizer.
 # For a long-running cache using permissions_cache_active_update, consider
 # setting to something longer such as a daily validation: 86400000
-permissions_validity_in_ms: 2000
+permissions_validity: 2000ms
 
 # Refresh interval for permissions cache (if enabled).
 # After this interval, cache entries become eligible for refresh. Upon next
 # access, an async reload is scheduled and the old value returned until it
-# completes. If permissions_validity_in_ms is non-zero, then this must be
+# completes. If permissions_validity is non-zero, then this must be
 # also.
 # This setting is also used to inform the interval of auto-updating if
 # using permissions_cache_active_update.
-# Defaults to the same value as permissions_validity_in_ms.
+# Defaults to the same value as permissions_validity.
 # For a longer-running permissions cache, consider setting to update hourly (60000)
-# permissions_update_interval_in_ms: 2000
+# permissions_update_interval: 2000ms
 
 # If true, cache contents are actively updated by a background task at the
-# interval set by permissions_update_interval_in_ms. If false, cache entries
+# interval set by permissions_update_interval. If false, cache entries
 # become eligible for refresh after their update interval. Upon next access,
 # an async reload is scheduled and the old value returned until it completes.
 # permissions_cache_active_update: false
@@ -227,21 +227,21 @@ permissions_validity_in_ms: 2000
 # Defaults to 2000, set to 0 to disable credentials caching.
 # For a long-running cache using credentials_cache_active_update, consider
 # setting to something longer such as a daily validation: 86400000
-credentials_validity_in_ms: 2000
+credentials_validity: 2000ms
 
 # Refresh interval for credentials cache (if enabled).
 # After this interval, cache entries become eligible for refresh. Upon next
 # access, an async reload is scheduled and the old value returned until it
-# completes. If credentials_validity_in_ms is non-zero, then this must be
+# completes. If credentials_validity is non-zero, then this must be
 # also.
 # This setting is also used to inform the interval of auto-updating if
 # using credentials_cache_active_update.
-# Defaults to the same value as credentials_validity_in_ms.
+# Defaults to the same value as credentials_validity.
 # For a longer-running permissions cache, consider setting to update hourly (60000)
-# credentials_update_interval_in_ms: 2000
+# credentials_update_interval: 2000ms
 
 # If true, cache contents are actively updated by a background task at the
-# interval set by credentials_update_interval_in_ms. If false (default), cache entries
+# interval set by credentials_update_interval. If false (default), cache entries
 # become eligible for refresh after their update interval. Upon next access,
 # an async reload is scheduled and the old value returned until it completes.
 # credentials_cache_active_update: false
@@ -259,7 +259,7 @@ credentials_validity_in_ms: 2000
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
 # Directories where Cassandra should store data on disk. If multiple
-# directories are specified, Cassandra will spread data evenly across 
+# directories are specified, Cassandra will spread data evenly across
 # them by partitioning the token ranges.
 # If not set, the default directory is $CASSANDRA_HOME/data/data.
 # data_file_directories:
@@ -345,7 +345,7 @@ commit_failure_policy: stop
 # Constantly re-preparing statements is a performance penalty.
 #
 # Default value ("auto") is 1/256th of the heap or 10MB, whichever is greater
-prepared_statements_cache_size_mb:
+prepared_statements_cache_size:
 
 # Maximum size of the key cache in memory.
 #
@@ -359,9 +359,9 @@ prepared_statements_cache_size_mb:
 # NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
 #
 # Default value is empty to make it "auto" (min(5% of Heap (in MB), 100MB)). Set to 0 to disable key cache.
-key_cache_size_in_mb:
+key_cache_size:
 
-# Duration in seconds after which Cassandra should
+# DurationSpec in seconds after which Cassandra should
 # save the key cache. Caches are saved to saved_caches_directory as
 # specified in this configuration file.
 #
@@ -394,9 +394,9 @@ key_cache_save_period: 14400
 # headroom for OS block level cache. Do never allow your system to swap.
 #
 # Default value is 0, to disable row caching.
-row_cache_size_in_mb: 0
+row_cache_size: 0MiB
 
-# Duration in seconds after which Cassandra should save the row cache.
+# DurationSpec in seconds after which Cassandra should save the row cache.
 # Caches are saved to saved_caches_directory as specified in this configuration file.
 #
 # Saved caches greatly improve cold-start speeds, and is relatively cheap in
@@ -423,9 +423,9 @@ row_cache_save_period: 0
 #
 # Default value is empty to make it "auto" (min(2.5% of Heap (in MB), 50MB)). Set to 0 to disable counter cache.
 # NOTE: if you perform counter deletes and rely on low gcgs, you should disable the counter cache.
-counter_cache_size_in_mb:
+counter_cache_size:
 
-# Duration in seconds after which Cassandra should
+# DurationSpec in seconds after which Cassandra should
 # save the counter cache (keys only). Caches are saved to saved_caches_directory as
 # specified in this configuration file.
 #
@@ -446,29 +446,31 @@ counter_cache_save_period: 7200
 # cache_load_timeout_seconds: 30
 
 # commitlog_sync may be either "periodic", "group", or "batch." 
-# 
+#
 # When in batch mode, Cassandra won't ack writes until the commit log
 # has been flushed to disk.  Each incoming write will trigger the flush task.
-# commitlog_sync_batch_window_in_ms is a deprecated value. Previously it had
+# commitlog_sync_batch_window is a deprecated value. Previously it had
 # almost no value, and is being removed.
 #
-# commitlog_sync_batch_window_in_ms: 2
+# commitlog_sync_batch_window: 2ms
+# commitlog_sync may be either "periodic", "group", or "batch."
+
 #
 # group mode is similar to batch mode, where Cassandra will not ack writes
 # until the commit log has been flushed to disk. The difference is group
-# mode will wait up to commitlog_sync_group_window_in_ms between flushes.
+# mode will wait up to commitlog_sync_group_window between flushes.
 #
-# commitlog_sync_group_window_in_ms: 1000
+# commitlog_sync_group_window: 1000ms
 #
 # the default option is "periodic" where writes may be acked immediately
-# and the CommitLog is simply synced every commitlog_sync_period_in_ms
+# and the CommitLog is simply synced every commitlog_sync_period
 # milliseconds.
 commitlog_sync: periodic
-commitlog_sync_period_in_ms: 10000
+commitlog_sync_period: 10000ms
 
 # When in periodic commitlog mode, the number of milliseconds to block writes
 # while waiting for a slow disk flush to complete.
-# periodic_commitlog_sync_lag_block_in_ms: 
+# periodic_commitlog_sync_lag_block:
 
 # The size of the individual commitlog file segments.  A commitlog
 # segment may be archived, deleted, or recycled once all the data
@@ -479,14 +481,14 @@ commitlog_sync_period_in_ms: 10000
 # archiving commitlog segments (see commitlog_archiving.properties),
 # then you probably want a finer granularity of archiving; 8 or 16 MB
 # is reasonable.
-# Max mutation size is also configurable via max_mutation_size_in_kb setting in
-# cassandra.yaml. The default is half the size commitlog_segment_size_in_mb * 1024.
+# Max mutation size is also configurable via max_mutation_size setting in
+# cassandra.yaml. The default is half the size commitlog_segment_size * 1024.
 # This should be positive and less than 2048.
 #
-# NOTE: If max_mutation_size_in_kb is set explicitly then commitlog_segment_size_in_mb must
-# be set to at least twice the size of max_mutation_size_in_kb / 1024
+# NOTE: If max_mutation_size is set explicitly then commitlog_segment_size must
+# be set to at least twice the size of max_mutation_size / 1024
 #
-commitlog_segment_size_in_mb: 32
+commitlog_segment_size: 32MiB
 
 # Compression to apply to the commit log. If omitted, the commit log
 # will be written uncompressed.  LZ4, Snappy, and Deflate compressors
@@ -514,15 +516,15 @@ commitlog_segment_size_in_mb: 32
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
 seed_provider:
-    # Addresses of hosts that are deemed contact points. 
-    # Cassandra nodes use this list of hosts to find each other and learn
-    # the topology of the ring.  You must change this if you are running
-    # multiple nodes!
-    - class_name: org.apache.cassandra.locator.SimpleSeedProvider
-      parameters:
-          # seeds is actually a comma-delimited list of addresses.
-          # Ex: "<ip1>,<ip2>,<ip3>"
-          - seeds: "127.0.0.1:7000"
+  # Addresses of hosts that are deemed contact points.
+  # Cassandra nodes use this list of hosts to find each other and learn
+  # the topology of the ring.  You must change this if you are running
+  # multiple nodes!
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      # seeds is actually a comma-delimited list of addresses.
+      # Ex: "<ip1>,<ip2>,<ip3>"
+      - seeds: "127.0.0.1:7000"
 
 # For workloads with more data than can fit in memory, Cassandra's
 # bottleneck will be reads that need to fetch data from
@@ -550,7 +552,7 @@ concurrent_materialized_view_writes: 32
 # overhead which is roughly 128 bytes per chunk (i.e. 0.2% of the reserved size
 # if the default 64k chunk size is used).
 # Memory is only allocated when needed.
-# networking_cache_size_in_mb: 128
+# networking_cache_size: 128MiB
 
 # Enable the sstable chunk cache.  The chunk cache will store recently accessed
 # sections of the sstable in-memory as uncompressed buffers.
@@ -564,11 +566,11 @@ concurrent_materialized_view_writes: 32
 # overhead which is roughly 128 bytes per chunk (i.e. 0.2% of the reserved size
 # if the default 64k chunk size is used).
 # Memory is only allocated when needed.
-# file_cache_size_in_mb: 512
+# file_cache_size: 512MiB
 
 # Flag indicating whether to allocate on or off heap when the sstable buffer
 # pool is exhausted, that is when it has exceeded the maximum memory
-# file_cache_size_in_mb, beyond which it will not cache buffers but allocate on request.
+# file_cache_size, beyond which it will not cache buffers but allocate on request.
 
 # buffer_pool_use_heap_if_exhausted: true
 
@@ -582,8 +584,8 @@ concurrent_materialized_view_writes: 32
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
 # If omitted, Cassandra will set both to 1/4 the size of the heap.
-# memtable_heap_space_in_mb: 2048
-# memtable_offheap_space_in_mb: 2048
+# memtable_heap_space: 2048MiB
+# memtable_offheap_space: 2048MiB
 
 # memtable_cleanup_threshold is deprecated. The default calculation
 # is the only reasonable choice. See the comments on  memtable_flush_writers
@@ -620,7 +622,7 @@ memtable_allocation_type: heap_buffers
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
 #
-# repair_session_space_in_mb:
+# repair_session_space:
 
 # Total space to use for commit logs on disk.
 #
@@ -631,7 +633,7 @@ memtable_allocation_type: heap_buffers
 # The default value is the smaller of 8192, and 1/4 of the total space
 # of the commitlog volume.
 #
-# commitlog_total_space_in_mb: 8192
+# commitlog_total_space: 8192MiB
 
 # This sets the number of memtable flush writer threads per disk
 # as well as the total number of memtables that can be flushed concurrently.
@@ -668,14 +670,14 @@ memtable_allocation_type: heap_buffers
 # on Mutations including tables with CDC enabled. A CDCCompactor is responsible
 # for parsing the raw CDC logs and deleting them when parsing is completed.
 #
-# The default value is the min of 4096 mb and 1/8th of the total space
+# The default value is the min of 4096 MiB and 1/8th of the total space
 # of the drive where cdc_raw_directory resides.
-# cdc_total_space_in_mb: 4096
+# cdc_total_space: 4096MiB
 
 # When we hit our cdc_raw limit and the CDCCompactor is either running behind
 # or experiencing backpressure, we check at the following interval to see if any
 # new space for cdc-tracked tables has been made available. Default to 250ms
-# cdc_free_space_check_interval_ms: 250
+# cdc_free_space_check_interval: 250ms
 
 # A fixed memory pool size in MB for for SSTable index summaries. If left
 # empty, this will default to 5% of the heap size. If the memory usage of
@@ -683,13 +685,13 @@ memtable_allocation_type: heap_buffers
 # shrink their index summaries in order to meet this limit.  However, this
 # is a best-effort process. In extreme conditions Cassandra may need to use
 # more than this amount of memory.
-index_summary_capacity_in_mb:
+index_summary_capacity:
 
 # How frequently index summaries should be resampled.  This is done
 # periodically to redistribute memory from the fixed-size pool to sstables
 # proportional their recent read rates.  Setting to -1 will disable this
 # process, leaving existing index summaries at their current sampling level.
-index_summary_resize_interval_in_minutes: 60
+index_summary_resize_interval: 60m
 
 # Whether to, when doing sequential writing, fsync() at intervals in
 # order to force the operating system to flush the dirty
@@ -697,7 +699,7 @@ index_summary_resize_interval_in_minutes: 60
 # impacting read latencies. Almost always a good idea on SSDs; not
 # necessarily on platters.
 trickle_fsync: false
-trickle_fsync_interval_in_kb: 10240
+trickle_fsync_interval: 10240KiB
 
 # TCP port, for commands and data
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
@@ -770,8 +772,8 @@ native_transport_port: 9042
 #
 # The maximum size of allowed frame. Frame (requests) larger than this will
 # be rejected as invalid. The default is 16MB. If you're changing this parameter,
-# you may want to adjust max_value_size_in_mb accordingly. This should be positive and less than 2048.
-# native_transport_max_frame_size_in_mb: 16
+# you may want to adjust max_value_size accordingly. This should be positive and less than 2048.
+# native_transport_max_frame_size: 16MiB
 
 # The maximum number of concurrent client connections.
 # The default is -1, which means unlimited.
@@ -793,7 +795,7 @@ native_transport_allow_older_protocols: true
 # values for heartbeat intervals have to be set on the client side.
 #
 # Idle connection timeouts are disabled by default.
-# native_transport_idle_timeout_in_ms: 60000
+# native_transport_idle_timeout: 60000ms
 
 # The address or interface to bind the native transport server to.
 #
@@ -856,7 +858,7 @@ incremental_backups: false
 snapshot_before_compaction: false
 
 # Whether or not a snapshot is taken of the data before keyspace truncation
-# or dropping of column families. The STRONGLY advised default of true 
+# or dropping of column families. The STRONGLY advised default of true
 # should be used to provide data safety. If you set this flag to false, you will
 # lose data on truncation or drop.
 auto_snapshot: true
@@ -878,7 +880,7 @@ snapshot_links_per_second: 0
 # - but, Cassandra will keep the collation index in memory for hot
 #   rows (as part of the key cache), so a larger granularity means
 #   you can cache more hot rows
-column_index_size_in_kb: 64
+column_index_size: 64KiB
 
 # Per sstable indexed key cache entries (the collation index in memory
 # mentioned above) exceeding this size will not be held on heap.
@@ -887,7 +889,7 @@ column_index_size_in_kb: 64
 #
 # Note that this size refers to the size of the
 # serialized index information and not the size of the partition.
-column_index_cache_size_in_kb: 2
+column_index_cache_size: 2KiB
 
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
@@ -896,11 +898,11 @@ column_index_cache_size_in_kb: 2
 # during a single long running compactions. The default is usually
 # fine and if you experience problems with compaction running too
 # slowly or too fast, you should look at
-# compaction_throughput_mb_per_sec first.
+# compaction_throughput first.
 #
 # concurrent_compactors defaults to the smaller of (number of disks,
 # number of cores), with a minimum of 2 and a maximum of 8.
-# 
+#
 # If your data directories are backed by SSD, you should increase this
 # to the number of cores.
 #concurrent_compactors: 1
@@ -924,18 +926,18 @@ concurrent_materialized_view_builders: 1
 # Setting this to 0 disables throttling. Note that this accounts for all types
 # of compaction, including validation compaction (building Merkle trees
 # for repairs).
-compaction_throughput_mb_per_sec: 64
+compaction_throughput: 64MiB/s
 
 # When compacting, the replacement sstable(s) can be opened before they
 # are completely written, and used in place of the prior sstables for
-# any range that has been written. This helps to smoothly transfer reads 
+# any range that has been written. This helps to smoothly transfer reads
 # between the sstables, reducing page cache churn and keeping hot rows hot
-sstable_preemptive_open_interval_in_mb: 50
+sstable_preemptive_open_interval: 50MiB
 
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
 # This speeds up the network transfer significantly subject to
-# throttling specified by entire_sstable_stream_throughput_outbound_megabits_per_sec,
+# throttling specified by entire_sstable_stream_throughput_outbound,
 # and entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec
 # for inter-DC transfers.
 # Enabling this will reduce the GC pressure on sending and receiving node.
@@ -947,27 +949,27 @@ sstable_preemptive_open_interval_in_mb: 50
 # Throttles entire SSTable outbound streaming file transfers on
 # this node to the given total throughput in Mbps.
 # Setting this value to 0 it disables throttling.
-# When unset, the default is 200 Mbps or 25 MB/s.
-# entire_sstable_stream_throughput_outbound_megabits_per_sec: 200
+# When unset, the default is 200 Mbps or 25 MiB/s.
+# entire_sstable_stream_throughput_outbound: 25MiB/s
 
 # Throttles entire SSTable file streaming between datacenters.
 # Setting this value to 0 disables throttling for entire SSTable inter-DC file streaming.
-# When unset, the default is 200 Mbps or 25 MB/s.
-# entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec: 200
+# When unset, the default is 200 Mbps or 25 MiB/s.
+# entire_sstable_inter_dc_stream_throughput_outbound 25MiB/S
 
 # Throttles all outbound streaming file transfers on this node to the
 # given total throughput in Mbps. This is necessary because Cassandra does
 # mostly sequential IO when streaming data during bootstrap or repair, which
 # can lead to saturating the network connection and degrading rpc performance.
-# When unset, the default is 200 Mbps or 25 MB/s.
-# stream_throughput_outbound_megabits_per_sec: 200
+# When unset, the default is 200 Mbps or 25 MiB/S.
+# stream_throughput_outbound: 25MiB/S
 
 # Throttles all streaming file transfer between the datacenters,
 # this setting allows users to throttle inter dc stream throughput in addition
 # to throttling all network stream traffic as configured with
-# stream_throughput_outbound_megabits_per_sec
-# When unset, the default is 200 Mbps or 25 MB/s.
-# inter_dc_stream_throughput_outbound_megabits_per_sec: 200
+# stream_throughput_outbound
+# When unset, the default is 200 Mbps or 25 MiB/S
+# inter_dc_stream_throughput_outbound: 25MiB/S
 
 # Server side timeouts for requests. The server will return a timeout exception
 # to the client if it can't complete an operation within the corresponding
@@ -984,44 +986,47 @@ sstable_preemptive_open_interval_in_mb: 50
 
 # How long the coordinator should wait for read operations to complete.
 # Lowest acceptable value is 10 ms.
-read_request_timeout_in_ms: 5000
+read_request_timeout: 5000ms
 # How long the coordinator should wait for seq or index scans to complete.
 # Lowest acceptable value is 10 ms.
-range_request_timeout_in_ms: 10000
+range_request_timeout: 10000ms
 # How long the coordinator should wait for writes to complete.
 # Lowest acceptable value is 10 ms.
-write_request_timeout_in_ms: 2000
+write_request_timeout: 2000ms
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
-counter_write_request_timeout_in_ms: 5000
+counter_write_request_timeout: 5000ms
 # How long a coordinator should continue to retry a CAS operation
 # that contends with other proposals for the same row.
 # Lowest acceptable value is 10 ms.
-cas_contention_timeout_in_ms: 1000
+cas_contention_timeout: 1000ms
 # How long the coordinator should wait for truncates to complete
 # (This can be much longer, because unless auto_snapshot is disabled
 # we need to flush first so we can snapshot before removing the data.)
 # Lowest acceptable value is 10 ms.
-truncate_request_timeout_in_ms: 60000
+truncate_request_timeout: 60000ms
 # The default timeout for other, miscellaneous operations.
 # Lowest acceptable value is 10 ms.
-request_timeout_in_ms: 10000
+request_timeout: 10000ms
 
 # Defensive settings for protecting Cassandra from true network partitions.
 # See (CASSANDRA-14358) for details.
 #
 # The amount of time to wait for internode tcp connections to establish.
-# internode_tcp_connect_timeout_in_ms: 2000
+# internode_tcp_connect_timeout = 2000ms
 #
 # The amount of time unacknowledged data is allowed on a connection before we throw out the connection
 # Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
 # (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
 # which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-# internode_tcp_user_timeout_in_ms: 30000
+# internode_tcp_user_timeout: 30000ms
 
 # The amount of time unacknowledged data is allowed on a streaming connection.
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-# internode_streaming_tcp_user_timeout_in_ms: 300000
+# internode_streaming_tcp_user_timeout = 300000ms
+
+# The maximum continuous period a connection may be unwritable in application space
+# internode_application_timeout_in_ms = 30000
 
 # Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 # and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
@@ -1029,7 +1034,7 @@ request_timeout_in_ms: 10000
 #
 # The basic per-link limit is consumed in isolation before any endpoint or global limit is imposed.
 # Each node-pair has three links: urgent, small and large.  So any given node may have a maximum of
-# N*3*(internode_application_send_queue_capacity_in_bytes+internode_application_receive_queue_capacity_in_bytes)
+# N*3*(internode_application_send_queue_capacity+internode_application_receive_queue_capacity)
 # messages queued without any coordination between them although in practice, with token-aware routing, only RF*tokens
 # nodes should need to communicate with significant bandwidth.
 #
@@ -1038,28 +1043,28 @@ request_timeout_in_ms: 10000
 # The global limit is imposed on all messages exceeding the per-link limit, simultaneously with the per-endpoint limit,
 # on all links to or from any node in the cluster.
 #
-# internode_application_send_queue_capacity_in_bytes: 4194304                       #4MiB
-# internode_application_send_queue_reserve_endpoint_capacity_in_bytes: 134217728    #128MiB
-# internode_application_send_queue_reserve_global_capacity_in_bytes: 536870912      #512MiB
-# internode_application_receive_queue_capacity_in_bytes: 4194304                    #4MiB
-# internode_application_receive_queue_reserve_endpoint_capacity_in_bytes: 134217728 #128MiB
-# internode_application_receive_queue_reserve_global_capacity_in_bytes: 536870912   #512MiB
+# internode_application_send_queue_capacity: 4Mib
+# internode_application_send_queue_reserve_endpoint_capacity: 128MiB
+# internode_application_send_queue_reserve_global_capacity: 512MiB
+# internode_application_receive_queue_capacity: 4MiB
+# internode_application_receive_queue_reserve_endpoint_capacity: 128MiB
+# internode_application_receive_queue_reserve_global_capacity: 512MiB
 
 
 # How long before a node logs slow queries. Select queries that take longer than
 # this timeout to execute, will generate an aggregated log message, so that slow queries
 # can be identified. Set this value to zero to disable slow query logging.
-slow_query_log_timeout_in_ms: 500
+slow_query_log_timeout: 500ms
 
 # Enable operation timeout information exchange between nodes to accurately
 # measure request timeouts.  If disabled, replicas will assume that requests
 # were forwarded to them instantly by the coordinator, which means that
-# under overload conditions we will waste that much extra time processing 
+# under overload conditions we will waste that much extra time processing
 # already-timed-out requests.
 #
-# Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync, 
+# Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync,
 # since this is a requirement for general correctness of last write wins.
-#cross_node_timeout: true
+# internode_timeout: true
 
 # Set keep-alive period for streaming
 # This node will send a keep-alive message periodically with this period.
@@ -1067,7 +1072,7 @@ slow_query_log_timeout_in_ms: 500
 # 2 keep-alive cycles the stream session times out and fail
 # Default value is 300s (5 minutes), which means stalled stream
 # times out in 10 minutes by default
-# streaming_keep_alive_period_in_secs: 300
+# streaming_keep_alive_period: 300s
 
 # Limit number of connections per host for streaming
 # Increase this when you notice that joins are CPU-bound rather that network
@@ -1076,19 +1081,20 @@ slow_query_log_timeout_in_ms: 500
 
 # Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
 # operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
-# enable_partition_denylist: false
 
-# enable_denylist_writes: true
-# enable_denylist_reads: true
-# enable_denylist_range_reads: true
+# partition_denylist_enabled_: false
+
+# denylist_writes_enabled: true
+# denylist_reads_enabled: true
+# denylist_range_reads__enabled: true
 
 # The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
 # Note: this serves only as a fail-safe, as the usage pattern is expected to be "mutate state, refresh cache" on any
 # changes to the underlying denylist entries. See documentation for details.
-# denylist_refresh_seconds: 600
+# denylist_refresh: 600s
 
 # In the event of errors on attempting to load the denylist cache, retry on this interval.
-# denylist_initial_load_retry_seconds: 5
+# denylist_initial_load_retry: 5s
 
 # We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Nodes will warn above
 # this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering
@@ -1176,10 +1182,10 @@ endpoint_snitch: SimpleSnitch
 
 # controls how often to perform the more expensive part of host score
 # calculation
-dynamic_snitch_update_interval_in_ms: 100 
+dynamic_snitch_update_interval: 100ms
 # controls how often to reset all host scores, allowing a bad host to
 # possibly recover
-dynamic_snitch_reset_interval_in_ms: 600000
+dynamic_snitch_reset_interval: 600000ms
 # if set greater than zero, this will allow
 # 'pinning' of replicas to hosts in order to increase cache capacity.
 # The badness threshold will control how much worse the pinned host has to be
@@ -1212,39 +1218,39 @@ dynamic_snitch_badness_threshold: 1.0
 # Step 2: Set optional=false (or remove it) and if you generated truststores and want to use mutual
 # auth set require_client_auth=true. Restart all nodes
 server_encryption_options:
-    # On outbound connections, determine which type of peers to securely connect to.
-    #   The available options are :
-    #     none : Do not encrypt outgoing connections
-    #     dc   : Encrypt connections to peers in other datacenters but not within datacenters
-    #     rack : Encrypt connections to peers in other racks but not within racks
-    #     all  : Always use encrypted connections
-    internode_encryption: none
-    # When set to true, encrypted and unencrypted connections are allowed on the storage_port
-    # This should _only be true_ while in unencrypted or transitional operation
-    # optional defaults to true if internode_encryption is none
-    # optional: true
-    # If enabled, will open up an encrypted listening socket on ssl_storage_port. Should only be used
-    # during upgrade to 4.0; otherwise, set to false.
-    enable_legacy_ssl_storage_port: false
-    # Set to a valid keystore if internode_encryption is dc, rack or all
-    keystore: conf/.keystore
-    keystore_password: cassandra
-    # Verify peer server certificates
-    require_client_auth: false
-    # Set to a valid trustore if require_client_auth is true
-    truststore: conf/.truststore
-    truststore_password: cassandra
-    # Verify that the host name in the certificate matches the connected host
-    require_endpoint_verification: false
-    # More advanced defaults:
-    # protocol: TLS
-    # store_type: JKS
-    # cipher_suites: [
-    #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-    #   TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-    #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
-    #   TLS_RSA_WITH_AES_256_CBC_SHA
-    # ]
+  # On outbound connections, determine which type of peers to securely connect to.
+  #   The available options are :
+  #     none : Do not encrypt outgoing connections
+  #     dc   : Encrypt connections to peers in other datacenters but not within datacenters
+  #     rack : Encrypt connections to peers in other racks but not within racks
+  #     all  : Always use encrypted connections
+  internode_encryption: none
+  # When set to true, encrypted and unencrypted connections are allowed on the storage_port
+  # This should _only be true_ while in unencrypted or transitional operation
+  # optional defaults to true if internode_encryption is none
+  # optional: true
+  # If enabled, will open up an encrypted listening socket on ssl_storage_port. Should only be used
+  # during upgrade to 4.0; otherwise, set to false.
+  enable_legacy_ssl_storage_port: false
+  # Set to a valid keystore if internode_encryption is dc, rack or all
+  keystore: conf/.keystore
+  keystore_password: cassandra
+  # Verify peer server certificates
+  require_client_auth: false
+  # Set to a valid trustore if require_client_auth is true
+  truststore: conf/.truststore
+  truststore_password: cassandra
+  # Verify that the host name in the certificate matches the connected host
+  require_endpoint_verification: false
+  # More advanced defaults:
+  # protocol: TLS
+  # store_type: JKS
+  # cipher_suites: [
+  #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+  #   TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+  #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
+  #   TLS_RSA_WITH_AES_256_CBC_SHA
+  # ]
 
 # Configure client-to-server encryption.
 #
@@ -1259,29 +1265,29 @@ server_encryption_options:
 # Step 2: Set optional=false (or remove it) and if you generated truststores and want to use mutual
 # auth set require_client_auth=true. Restart all nodes
 client_encryption_options:
-    # Enable client-to-server encryption
-    enabled: false
-    # When set to true, encrypted and unencrypted connections are allowed on the native_transport_port
-    # This should _only be true_ while in unencrypted or transitional operation
-    # optional defaults to true when enabled is false, and false when enabled is true.
-    # optional: true
-    # Set keystore and keystore_password to valid keystores if enabled is true
-    keystore: conf/.keystore
-    keystore_password: cassandra
-    # Verify client certificates
-    require_client_auth: false
-    # Set trustore and truststore_password if require_client_auth is true
-    # truststore: conf/.truststore
-    # truststore_password: cassandra
-    # More advanced defaults:
-    # protocol: TLS
-    # store_type: JKS
-    # cipher_suites: [
-    #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-    #   TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-    #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
-    #   TLS_RSA_WITH_AES_256_CBC_SHA
-    # ]
+  # Enable client-to-server encryption
+  enabled: false
+  # When set to true, encrypted and unencrypted connections are allowed on the native_transport_port
+  # This should _only be true_ while in unencrypted or transitional operation
+  # optional defaults to true when enabled is false, and false when enabled is true.
+  # optional: true
+  # Set keystore and keystore_password to valid keystores if enabled is true
+  keystore: conf/.keystore
+  keystore_password: cassandra
+  # Verify client certificates
+  require_client_auth: false
+  # Set trustore and truststore_password if require_client_auth is true
+  # truststore: conf/.truststore
+  # truststore_password: cassandra
+  # More advanced defaults:
+  # protocol: TLS
+  # store_type: JKS
+  # cipher_suites: [
+  #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+  #   TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+  #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
+  #   TLS_RSA_WITH_AES_256_CBC_SHA
+  # ]
 
 # internode_compression controls whether traffic between nodes is
 # compressed.
@@ -1304,20 +1310,20 @@ internode_compression: dc
 inter_dc_tcp_nodelay: false
 
 # TTL for different trace types used during logging of the repair process.
-tracetype_query_ttl: 86400
-tracetype_repair_ttl: 604800
+trace_type_query_ttl: 1d
+trace_type_repair_ttl: 7d
 
-# If unset, all GC Pauses greater than gc_log_threshold_in_ms will log at
+# If unset, all GC Pauses greater than gc_log_threshold will log at
 # INFO level
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
-enable_user_defined_functions: false
+user_defined_functions_enabled: false
 
 # Enables scripted UDFs (JavaScript UDFs).
-# Java UDFs are always enabled, if enable_user_defined_functions is true.
+# Java UDFs are always enabled, if user_defined_functions_enabled is true.
 # Enable this option to be able to use UDFs with "language javascript" or any custom JSR-223 provider.
-# This option has no effect, if enable_user_defined_functions is false.
-enable_scripted_user_defined_functions: false
+# This option has no effect, if user_defined_functions_enabled is false.
+scripted_user_defined_functions_enabled: false
 
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
@@ -1340,19 +1346,19 @@ windows_timer_interval: 1
 # Currently, only the following file types are supported for transparent data encryption, although
 # more are coming in future cassandra releases: commitlog, hints
 transparent_data_encryption_options:
-    enabled: false
-    chunk_length_kb: 64
-    cipher: AES/CBC/PKCS5Padding
-    key_alias: testing:1
-    # CBC IV length for AES needs to be 16 bytes (which is also the default size)
-    # iv_length: 16
-    key_provider:
-      - class_name: org.apache.cassandra.security.JKSKeyProvider
-        parameters:
-          - keystore: conf/.keystore
-            keystore_password: cassandra
-            store_type: JCEKS
-            key_password: cassandra
+  enabled: false
+  chunk_length_kb: 64
+  cipher: AES/CBC/PKCS5Padding
+  key_alias: testing:1
+  # CBC IV length for AES needs to be 16 bytes (which is also the default size)
+  # iv_length: 16
+  key_provider:
+    - class_name: org.apache.cassandra.security.JKSKeyProvider
+      parameters:
+        - keystore: conf/.keystore
+          keystore_password: cassandra
+          store_type: JCEKS
+          key_password: cassandra
 
 
 #####################
@@ -1391,35 +1397,35 @@ replica_filtering_protection:
     cached_rows_warn_threshold: 2000
     cached_rows_fail_threshold: 32000
 
-# Log WARN on any multiple-partition batch size exceeding this value. 5kb per batch by default.
+# Log WARN on any multiple-partition batch size exceeding this value. 5KiB per batch by default.
 # Caution should be taken on increasing the size of this threshold as it can lead to node instability.
-batch_size_warn_threshold_in_kb: 5
+batch_size_warn_threshold: 5KiB
 
-# Fail any multiple-partition batch exceeding this value. 50kb (10x warn threshold) by default.
-batch_size_fail_threshold_in_kb: 50
+# Fail any multiple-partition batch exceeding this value. 50KiB (10x warn threshold) by default.
+batch_size_fail_threshold: 50KiB
 
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
 
 # Log a warning when compacting partitions larger than this value
-compaction_large_partition_warning_threshold_mb: 100
+compaction_large_partition_warning_threshold: 100MiB
 
 # Log a warning when writing more tombstones than this value to a partition
 compaction_tombstone_warning_threshold: 100000
 
 # GC Pauses greater than 200 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
-# gc_log_threshold_in_ms: 200
+# gc_log_threshold: 200ms
 
-# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
+# GC Pauses greater than gc_warn_threshold will be logged at WARN level
 # Adjust the threshold based on your application throughput requirement. Setting to 0
 # will deactivate the feature.
-# gc_warn_threshold_in_ms: 1000
+# gc_warn_threshold: 1000ms
 
 # Maximum size of any value in SSTables. Safety measure to detect SSTable corruption
 # early. Any value size larger than this threshold will result into marking an SSTable
 # as corrupted. This should be positive and less than 2048.
-# max_value_size_in_mb: 256
+# max_value_size: 256MiB
 
 # ** Impact on keyspace creation **
 # If replication factor is not mentioned as part of keyspace creation, default_keyspace_rf would apply.
@@ -1454,36 +1460,36 @@ compaction_tombstone_warning_threshold: 100000
 # Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
 # on audit_logging for full details about the various configuration options.
 audit_logging_options:
-    enabled: false
-    logger:
-      - class_name: BinAuditLogger
-    # audit_logs_dir:
-    # included_keyspaces:
-    # excluded_keyspaces: system, system_schema, system_virtual_schema
-    # included_categories:
-    # excluded_categories:
-    # included_users:
-    # excluded_users:
-    # roll_cycle: HOURLY
-    # block: true
-    # max_queue_weight: 268435456 # 256 MiB
-    # max_log_size: 17179869184 # 16 GiB
-    ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
-    # archive_command:
-    # max_archive_retries: 10
+  enabled: false
+  logger:
+    - class_name: BinAuditLogger
+  # audit_logs_dir:
+  # included_keyspaces:
+  # excluded_keyspaces: system, system_schema, system_virtual_schema
+  # included_categories:
+  # excluded_categories:
+  # included_users:
+  # excluded_users:
+  # roll_cycle: HOURLY
+  # block: true
+  # max_queue_weight: 268435456 # 256 MiB
+  # max_log_size: 17179869184 # 16 GiB
+  ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+  # archive_command:
+  # max_archive_retries: 10
 
 
-# default options for full query logging - these can be overridden from command line when executing
-# nodetool enablefullquerylog
-#full_query_logging_options:
-    # log_dir:
-    # roll_cycle: HOURLY
-    # block: true
-    # max_queue_weight: 268435456 # 256 MiB
-    # max_log_size: 17179869184 # 16 GiB
-    ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
-    # archive_command:
-    # max_archive_retries: 10
+  # default options for full query logging - these can be overridden from command line when executing
+  # nodetool enablefullquerylog
+  #full_query_logging_options:
+  # log_dir:
+  # roll_cycle: HOURLY
+  # block: true
+  # max_queue_weight: 268435456 # 256 MiB
+  # max_log_size: 17179869184 # 16 GiB
+  ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+  # archive_command:
+  # max_archive_retries: 10
 
 # validate tombstones on reads and compaction
 # can be either "disabled", "warn" or "exception"
@@ -1536,19 +1542,19 @@ report_unconfirmed_repaired_data_mismatches: false
 
 # Enables materialized view creation on this node.
 # Materialized views are considered experimental and are not recommended for production use.
-enable_materialized_views: false
+materialized_views_enabled: false
 
 # Enables SASI index creation on this node.
 # SASI indexes are considered experimental and are not recommended for production use.
-enable_sasi_indexes: false
+sasi_indexes_enabled: false
 
 # Enables creation of transiently replicated keyspaces on this node.
 # Transient replication is experimental and is not recommended for production use.
-enable_transient_replication: false
+transient_replication_enabled: false
 
 # Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
-enable_drop_compact_storage: false
+drop_compact_storage_enabled: false
 
 # When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
 # a client metric showing this; this logic will exclude specific subnets from updating these
@@ -1564,23 +1570,23 @@ enable_drop_compact_storage: false
 # Scheduled to enable in 4.2
 #     enabled: true
 # When track_warnings.enabled: true, this tracks the materialized size of a query on the
-# coordinator. If coordinator_large_read.warn_threshold_kb is greater than 0, this will emit a warning
+# coordinator. If coordinator_large_read.warn_threshold is greater than 0, this will emit a warning
 # to clients with details on what query triggered this as well as the size of the result set; if
-# coordinator_large_read.abort_threshold_kb is greater than 0, this will abort the query after it
+# coordinator_large_read.abort_threshold is greater than 0, this will abort the query after it
 # has exceeded this threshold, returning a read error to the user.
 #     coordinator_read_size:
-#         warn_threshold_kb: 0
-#         abort_threshold_kb: 0
+#         warn_threshold: 0KiB
+#         abort_threshold: 0KiB
 # When track_warnings.enabled: true, this tracks the size of the local read (as defined by
 # heap size), and will warn/abort based off these thresholds; 0 disables these checks.
 #     local_read_size:
-#         warn_threshold_kb: 0
-#         abort_threshold_kb: 0
+#         warn_threshold: 0KiB
+#         abort_threshold: 0KiB
 # When track_warnings.enabled: true, this tracks the expected memory size of the RowIndexEntry
 # and will warn/abort based off these thresholds; 0 disables these checks.
 #     row_index_size:
-#         warn_threshold_kb: 0
-#         abort_threshold_kb: 0
+#         warn_threshold: 0KiB
+#         abort_threshold: 0KiB
 
 # Guardrails settings.
 # guardrails:

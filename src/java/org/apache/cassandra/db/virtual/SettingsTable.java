@@ -50,6 +50,13 @@ final class SettingsTable extends AbstractVirtualTable
               .collect(Collectors.toMap(Field::getName, Functions.identity()));
 
     @VisibleForTesting
+    static final Map<String, Field> ANNOTATED_FIELDS =
+    Arrays.stream(Config.class.getFields())
+          .filter(f -> !Modifier.isStatic(f.getModifiers()))
+          .filter(f -> f.isAnnotationPresent(Replaces.class))
+          .collect(Collectors.toMap(Field::getName, Functions.identity()));
+
+    @VisibleForTesting
     final Map<String, BiConsumer<SimpleDataSet, Field>> overrides =
         ImmutableMap.<String, BiConsumer<SimpleDataSet, Field>>builder()
                     .put("audit_logging_options", this::addAuditLoggingOptions)
@@ -108,6 +115,10 @@ final class SettingsTable extends AbstractVirtualTable
             if (value.getClass().isArray())
                 value = Arrays.toString((Object[]) value);
             result.row(f.getName()).column(VALUE, value.toString());
+
+            if(ANNOTATED_FIELDS.containsKey(f.getName()))
+                result.row(f.getAnnotation(Replaces.class).oldName())
+                      .column(VALUE, f.getAnnotation(Replaces.class).converter().reverseApply(value).toString());
         }
     }
 
@@ -173,7 +184,7 @@ final class SettingsTable extends AbstractVirtualTable
         {
             EncryptionOptions.ServerEncryptionOptions server = (EncryptionOptions.ServerEncryptionOptions) value;
             result.row(f.getName() + "_internode_encryption").column(VALUE, server.internode_encryption.toString());
-            result.row(f.getName() + "_legacy_ssl_storage_port").column(VALUE, Boolean.toString(server.enable_legacy_ssl_storage_port));
+            result.row(f.getName() + "_legacy_ssl_storage_port").column(VALUE, Boolean.toString(server.legacy_ssl_storage_port_enabled));
         }
     }
 

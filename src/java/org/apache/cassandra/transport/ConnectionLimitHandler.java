@@ -52,7 +52,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
     public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
         final long count = counter.incrementAndGet();
-        long limit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnections();
+        long limit = DatabaseDescriptor.getMaxNativeTransportConcurrentConnections();
         // Setting the limit to -1 disables it.
         if(limit < 0)
         {
@@ -66,7 +66,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
         }
         else
         {
-            long perIpLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp();
+            long perIpLimit = DatabaseDescriptor.getMaxNativeTransportConcurrentConnectionsPerIp();
             if (perIpLimit > 0)
             {
                 InetAddress address = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();

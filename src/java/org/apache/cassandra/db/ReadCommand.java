@@ -661,8 +661,8 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)
     {
-        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarnThresholdKb() * 1024;
-        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKb() * 1024;
+        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarnThresholdKiB() * 1024;
+        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKiB() * 1024;
         if (!shouldTrackSize(warnThresholdBytes, abortThresholdBytes))
             return iterator;
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
@@ -708,7 +708,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 this.sizeInBytes += size;
                 if (abortThresholdBytes != 0 && this.sizeInBytes >= abortThresholdBytes)
                 {
-                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see track_warnings.local_read_size.abort_threshold_kb)",
+                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see track_warnings.local_read_size.abort_threshold)",
                                                ReadCommand.this.toCQLString(), this.sizeInBytes, abortThresholdBytes);
                     Tracing.trace(msg);
                     MessageParams.remove(ParamType.LOCAL_READ_SIZE_WARN);

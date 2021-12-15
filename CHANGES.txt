@@ -1,3 +1,5 @@
+5.0
+ * Standaridize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
 4.1
  * Prewarm role and credential caches to avoid timeouts at startup (CASSANDRA-16958)
  * Make capacity/validity/updateinterval/activeupdate for Auth Caches configurable via nodetool (CASSANDRA-17063)

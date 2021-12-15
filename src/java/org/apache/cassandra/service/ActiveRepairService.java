@@ -241,13 +241,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     @Override
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
     {
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(sizeInMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMegabytes);
     }
 
     @Override
     public int getRepairSessionSpaceInMegabytes()
     {
-        return DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+        return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
     public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString)

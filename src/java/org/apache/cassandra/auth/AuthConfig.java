@@ -56,11 +56,11 @@ public final class AuthConfig
         // work with PasswordAuthenticator, so log a message if some other authenticator
         // is in use and non-default values are detected
         if (!(authenticator instanceof PasswordAuthenticator)
-            && (conf.credentials_update_interval_in_ms != -1
-                || conf.credentials_validity_in_ms != 2000
+            && (conf.credentials_update_interval.toMilliseconds() != 0
+                || conf.credentials_validity.toMilliseconds() != 2000
                 || conf.credentials_cache_max_entries != 1000))
         {
-            logger.info("Configuration options credentials_update_interval_in_ms, credentials_validity_in_ms and " +
+            logger.info("Configuration options credentials_update_interval, credentials_validity and " +
                         "credentials_cache_max_entries may not be applicable for the configured authenticator ({})",
                         authenticator.getClass().getName());
         }

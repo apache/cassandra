@@ -46,7 +46,7 @@ public class NativeMixedVersionTest extends TestBaseImpl
                                                   c.with(Feature.values())
                                                    .set("track_warnings", ImmutableMap.of(
                                                        "enabled", true,
-                                                       "local_read_size", ImmutableMap.of("warn_threshold_kb", 1)
+                                                       "local_read_size", ImmutableMap.of("warn_threshold", "1KiB")
                                                    ))
                                       )
                                       .start())

@@ -48,7 +48,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     public static void setUpClass()
     {
         DatabaseDescriptor.setCDCEnabled(true);
-        DatabaseDescriptor.setCDCSpaceInMB(1024);
+        DatabaseDescriptor.setCDCSpaceInMiB(1024);
         CQLTester.setUpClass();
     }
 
@@ -143,8 +143,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
         new RowUpdateBuilder(currentTableMetadata(), 0, 1)
-            .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-            .build().apply();
+        .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+        .build().apply();
 
         CommitLog.instance.sync(true);
         CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
@@ -189,8 +189,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=false;");
         new RowUpdateBuilder(currentTableMetadata(), 0, 1)
-            .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-            .build().apply();
+        .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+        .build().apply();
         CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
 
         // Confirm that, with no CDC data present, we've hard-linked but have no index file
@@ -219,8 +219,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         Assert.assertFalse("Expected no index file before flush but found: " + cdcIndexFile, cdcIndexFile.exists());
 
         new RowUpdateBuilder(currentTableMetadata(), 0, 1)
-            .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
-            .build().apply();
+        .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+        .build().apply();
 
         Path linked = new File(DatabaseDescriptor.getCDCLogLocation(), currentSegment.logFile.name()).toPath();
         // Confirm that, with CDC data present but not yet flushed, we've hard-linked but have no index file
@@ -382,7 +382,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             logger.error("expectCurrentCDCState violation! Expected state: {}. Found state: {}. Current CDC allocation: {}",
                          expectedState, currentState, ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).updateCDCTotalSize());
             Assert.fail(String.format("Received unexpected CDCState on current allocatingFrom segment. Expected: %s. Received: %s",
-                        expectedState, currentState));
+                                      expectedState, currentState));
         }
     }
 
@@ -406,15 +406,15 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private void testWithCDCSpaceInMb(int size, Testable test) throws Throwable
     {
-        int origSize = DatabaseDescriptor.getCDCSpaceInMB();
-        DatabaseDescriptor.setCDCSpaceInMB(size);
+        int origSize = DatabaseDescriptor.getCDCSpaceInMiB();
+        DatabaseDescriptor.setCDCSpaceInMiB(size);
         try
         {
             test.run();
         }
         finally
         {
-            DatabaseDescriptor.setCDCSpaceInMB(origSize);
+            DatabaseDescriptor.setCDCSpaceInMiB(origSize);
         }
     }
 

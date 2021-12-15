@@ -107,7 +107,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: " + expected + " Mb/s");
+            assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: " + expected + " MiB/s");
         else
             assertThat(tool.getStdout()).contains("Current entire SSTable stream throughput: unlimited");
     }

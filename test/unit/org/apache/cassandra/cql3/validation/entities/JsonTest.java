@@ -51,7 +51,7 @@ public class JsonTest extends CQLTester
     public static void setUpClass()
     {
         if (ROW_CACHE_SIZE_IN_MB > 0)
-            DatabaseDescriptor.setRowCacheSizeInMB(ROW_CACHE_SIZE_IN_MB);
+            DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MB);
 
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
 

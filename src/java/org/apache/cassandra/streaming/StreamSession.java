@@ -669,7 +669,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (e instanceof SocketTimeoutException)
         {
             logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
-                         "If not, maybe try increasing streaming_keep_alive_period_in_secs.", planId(),
+                         "If not, maybe try increasing streaming_keep_alive_period.", planId(),
                          hostAddressAndPort(channel.peer()),
                          channel.peer().equals(channel.connectedTo()) ? "" : " through " + hostAddressAndPort(channel.connectedTo()),
                          2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),
@@ -813,7 +813,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                                  "The time taken ({} ms) for processing the incoming stream message ({})" +
                                  " exceeded internode streaming TCP user timeout ({} ms).\n" +
                                  "The streaming connection might be closed due to tcp user timeout.\n" +
-                                 "Try to increase the internode_streaming_tcp_user_timeout_in_ms" +
+                                 "Try to increase the internode_streaming_tcp_user_timeout" +
                                  " or set it to 0 to use system defaults.",
                                  latencyMs, message, timeout);
         }

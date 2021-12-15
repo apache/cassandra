@@ -208,7 +208,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             logger.trace("Replay cancelled as there are no peers in the ring.");
             return;
         }
-        setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKB());
+        setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKiB());
 
         UUID limitUuid = UUIDGen.maxTimeUUID(currentTimeMillis() - getBatchlogTimeout());
         ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
