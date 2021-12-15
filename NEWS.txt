@@ -81,6 +81,12 @@ New features
 
 Upgrading
 ---------
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
+      memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
+      parameters. (CASSANDRA-15234)
+      Backward compatibility with the old cassandra.yaml file will be in place until at least the next major version.
+    - Many cassandra.yaml parameters' names have been changed. Full list can be found on ...... (ADD LINK LATER WHEN PAGE
+      IS CREATED) (CASSANDRA-15234)
     - Before you upgrade, if you are using `cassandra.auth_bcrypt_gensalt_log2_rounds` property,
       confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
       for further details. You also need to regenerate passwords for users for who the password
