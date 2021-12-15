@@ -1,4 +1,5 @@
 4.1
+ * Standardize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
  * Remove support for Windows (CASSANDRA-16956)
  * Runtime-configurable YAML option to prohibit USE statements (CASSANDRA-17318)
  * When streaming sees a ClosedChannelException this triggers the disk failure policy (CASSANDRA-17116)
