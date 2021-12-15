@@ -26,10 +26,24 @@ import java.util.List;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.commons.lang3.ArrayUtils.EMPTY_OBJECT_ARRAY;
-
 /**
  * Utility methods use to perform request validation.
+ *
+ * <p>This class use overloaded methods to allow to specify different numbers of message arguments. While
+ * this introduces some clutter in the API, it avoids array allocation, initialization, and garbage collection
+ * overhead that is incurred by varargs calls. </p>
+ *
+ * <b>Warning about performance</b>
+ *
+ * <p>The goal of this class is to improve readability of code, but in some circumstances this may come at a
+ * significant performance cost. Remember that argument values for message construction must all be computed eagerly,
+ * and autoboxing may happen as well, even when the check succeeds. If the message arguments are expensive to create
+ * you should use the customary form:
+ *  <pre>
+ *      if (value < 0.0) {
+ *          throw RequestValidations.invalidRequest("negative value: %s", toReadableText(value));
+ *  </pre>
+ * </p>
  */
 public final class RequestValidations
 {
@@ -43,7 +57,8 @@ public final class RequestValidations
      */
     public static void checkTrue(boolean expression, String message) throws InvalidRequestException
     {
-        checkTrue(expression, message, EMPTY_OBJECT_ARRAY);
+        if (!expression)
+            throw invalidRequest(message);
     }
 
     /**
@@ -52,16 +67,95 @@ public final class RequestValidations
      *
      * @param expression the expression to test
      * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
+     * @param messageArg the message argument
      * @throws InvalidRequestException if the specified expression is <code>false</code>.
      */
     public static void checkTrue(boolean expression,
                                  String messageTemplate,
-                                 Object... messageArgs)
-                                 throws InvalidRequestException
+                                 Object messageArg) throws InvalidRequestException
     {
         if (!expression)
-            throw invalidRequest(messageTemplate, messageArgs);
+            throw invalidRequest(messageTemplate, messageArg);
+    }
+
+    /**
+     * Checks that the specified expression is <code>true</code>. If not an <code>InvalidRequestException</code> will
+     * be thrown.
+     *
+     * @param expression the expression to test
+     * @param messageTemplate the template used to build the error message
+     * @param firstArg the first message argument
+     * @param secondArg the second message argument
+     * @throws InvalidRequestException if the specified expression is <code>false</code>.
+     */
+    public static void checkTrue(boolean expression,
+                                 String messageTemplate,
+                                 Object firstArg,
+                                 Object secondArg) throws InvalidRequestException
+    {
+        if (!expression)
+            throw invalidRequest(messageTemplate, firstArg, secondArg);
+    }
+
+    /**
+     * Checks that the specified expression is <code>true</code>. If not an <code>InvalidRequestException</code> will
+     * be thrown.
+     *
+     * @param expression the expression to test
+     * @param messageTemplate the template used to build the error message
+     * @param firstArg the first message argument
+     * @param secondArg the second message argument
+     * @param thirdArg the third message argument
+     * @throws InvalidRequestException if the specified expression is <code>false</code>.
+     */
+    public static void checkTrue(boolean expression,
+                                 String messageTemplate,
+                                 Object firstArg,
+                                 Object secondArg,
+                                 Object thirdArg) throws InvalidRequestException
+    {
+        if (!expression)
+            throw invalidRequest(messageTemplate, firstArg, secondArg, thirdArg);
+    }
+
+    /**
+     * Checks that the specified collections is NOT <code>empty</code>.
+     * If it is an <code>InvalidRequestException</code> will be throws.
+     *
+     * @param collection the collection to test
+     * @param messageTemplate the template used to build the error message
+     * @param messageArg the message argument
+     * @return the collection
+     * @throws InvalidRequestException if the specified collection is <code>empty</code>.
+     */
+    public static <T extends Collection<E>, E> T checkNotEmpty(T collection,
+                                                               String messageTemplate,
+                                                               Object messageArg)
+                                                               throws InvalidRequestException
+    {
+        checkTrue(!collection.isEmpty(), messageTemplate, messageArg);
+        return collection;
+    }
+
+    /**
+     * Checks that the specified collections is NOT <code>empty</code>.
+     * If it is an <code>InvalidRequestException</code> will be throws.
+     *
+     * @param collection the collection to test
+     * @param messageTemplate the template used to build the error message
+     * @param firstArg the first message argument
+     * @param secondArg the second message argument
+     * @return the collection
+     * @throws InvalidRequestException if the specified collection is <code>empty</code>.
+     */
+    public static <T extends Collection<E>, E> T checkNotEmpty(T collection,
+                                                               String messageTemplate,
+                                                               Object firstArg,
+                                                               Object secondArg)
+                                                               throws InvalidRequestException
+    {
+        checkTrue(!collection.isEmpty(), messageTemplate, firstArg, secondArg);
+        return collection;
     }
 
     /**
@@ -101,17 +195,53 @@ public final class RequestValidations
      *
      * @param expression the expression to test
      * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
+     * @param messageArg the message argument
      * @throws InvalidRequestException if the specified expression is <code>true</code>.
      */
     public static void checkFalse(boolean expression,
                                   String messageTemplate,
-                                  Object... messageArgs)
-                                  throws InvalidRequestException
+                                  Object messageArg) throws InvalidRequestException
     {
-        checkTrue(!expression, messageTemplate, messageArgs);
+        checkTrue(!expression, messageTemplate, messageArg);
     }
 
+    /**
+     * Checks that the specified expression is <code>false</code>. If not an <code>InvalidRequestException</code> will
+     * be thrown.
+     *
+     * @param expression the expression to test
+     * @param messageTemplate the template used to build the error message
+     * @param firstArg the first message argument
+     * @param secondArg the second message argument
+     * @throws InvalidRequestException if the specified expression is <code>true</code>.
+     */
+    public static void checkFalse(boolean expression,
+                                  String messageTemplate,
+                                  Object firstArg,
+                                  Object secondArg) throws InvalidRequestException
+    {
+        checkTrue(!expression, messageTemplate, firstArg, secondArg);
+    }
+
+    /**
+     * Checks that the specified expression is <code>false</code>. If not an <code>InvalidRequestException</code> will
+     * be thrown.
+     *
+     * @param expression the expression to test
+     * @param messageTemplate the template used to build the error message
+     * @param firstArg the first message argument
+     * @param secondArg the second message argument
+     * @param thirdArg the third message argument
+     * @throws InvalidRequestException if the specified expression is <code>true</code>.
+     */
+    public static void checkFalse(boolean expression,
+                                  String messageTemplate,
+                                  Object firstArg,
+                                  Object secondArg,
+                                  Object thirdArg) throws InvalidRequestException
+    {
+        checkTrue(!expression, messageTemplate, firstArg, secondArg, thirdArg);
+    }
     /**
      * Checks that the specified expression is <code>false</code>. If not an <code>InvalidRequestException</code> will
      * be thrown.
@@ -130,33 +260,50 @@ public final class RequestValidations
      * If it is an <code>InvalidRequestException</code> will be throws.
      *
      * @param object the object to test
-     * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
+     * @param message the error message
      * @return the object
      * @throws InvalidRequestException if the specified object is <code>null</code>.
      */
-    public static <T> T checkNotNull(T object, String messageTemplate, Object... messageArgs)
-            throws InvalidRequestException
+    public static <T> T checkNotNull(T object, String message) throws InvalidRequestException
     {
-        checkTrue(object != null, messageTemplate, messageArgs);
+        checkTrue(object != null, message);
         return object;
     }
 
     /**
-     * Checks that the specified collections is NOT <code>empty</code>.
+     * Checks that the specified object is NOT <code>null</code>.
      * If it is an <code>InvalidRequestException</code> will be throws.
      *
-     * @param collection the collection to test
+     * @param object the object to test
      * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
-     * @return the collection
-     * @throws InvalidRequestException if the specified collection is <code>empty</code>.
+     * @param messageArg the message argument
+     * @return the object
+     * @throws InvalidRequestException if the specified object is <code>null</code>.
      */
-    public static <T extends Collection<E>, E> T checkNotEmpty(T collection, String messageTemplate, Object... messageArgs)
-            throws InvalidRequestException
+    public static <T> T checkNotNull(T object, String messageTemplate, Object messageArg) throws InvalidRequestException
     {
-        checkTrue(!collection.isEmpty(), messageTemplate, messageArgs);
-        return collection;
+        checkTrue(object != null, messageTemplate, messageArg);
+        return object;
+    }
+
+    /**
+     * Checks that the specified object is NOT <code>null</code>.
+     * If it is an <code>InvalidRequestException</code> will be throws.
+     *
+     * @param object the object to test
+     * @param messageTemplate the template used to build the error message
+     * @param firstArg the first message argument
+     * @param secondArg the second message argument
+     * @return the object
+     * @throws InvalidRequestException if the specified object is <code>null</code>.
+     */
+    public static <T> T checkNotNull(T object,
+                                     String messageTemplate,
+                                     Object firstArg,
+                                     Object secondArg) throws InvalidRequestException
+    {
+        checkTrue(object != null, messageTemplate, firstArg, secondArg);
+        return object;
     }
 
     /**
@@ -165,13 +312,12 @@ public final class RequestValidations
      *
      * @param b the <code>ByteBuffer</code> to test
      * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
+     * @param messageArg the message argument
      * @throws InvalidRequestException if the specified bind marker value is not set to a meaningful value.
      */
-    public static void checkBindValueSet(ByteBuffer b, String messageTemplate, Object... messageArgs)
-            throws InvalidRequestException
+    public static void checkBindValueSet(ByteBuffer b, String messageTemplate, Object messageArg) throws InvalidRequestException
     {
-        checkTrue(b != ByteBufferUtil.UNSET_BYTE_BUFFER, messageTemplate, messageArgs);
+        checkTrue(b != ByteBufferUtil.UNSET_BYTE_BUFFER, messageTemplate, messageArg);
     }
 
     /**
@@ -180,14 +326,13 @@ public final class RequestValidations
      *
      * @param object the object to test
      * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
+     * @param messageArg the message argument
      * @return the object
      * @throws InvalidRequestException if the specified object is not <code>null</code>.
      */
-    public static <T> T checkNull(T object, String messageTemplate, Object... messageArgs)
-            throws InvalidRequestException
+    public static <T> T checkNull(T object, String messageTemplate, Object messageArg) throws InvalidRequestException
     {
-        checkTrue(object == null, messageTemplate, messageArgs);
+        checkTrue(object == null, messageTemplate, messageArg);
         return object;
     }
 
@@ -202,7 +347,19 @@ public final class RequestValidations
      */
     public static <T> T checkNull(T object, String message) throws InvalidRequestException
     {
-        return checkNull(object, message, EMPTY_OBJECT_ARRAY);
+        checkTrue(object == null, message);
+        return object;
+    }
+
+    /**
+     * Returns an <code>InvalidRequestException</code> with the specified message.
+     *
+     * @param message the error message
+     * @return an <code>InvalidRequestException</code> with the specified message.
+     */
+    public static InvalidRequestException invalidRequest(String message)
+    {
+        return new InvalidRequestException(message);
     }
 
     /**
