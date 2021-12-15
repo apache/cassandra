@@ -547,7 +547,8 @@ public class QueryProcessor implements QueryHandler
             return null;
 
         checkTrue(queryString.equals(existing.rawCQLStatement),
-                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+                  "MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'",
+                  existing.rawCQLStatement);
 
         ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(existing.statement);
         ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(existing.statement);
