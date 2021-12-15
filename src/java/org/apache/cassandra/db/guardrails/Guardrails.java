@@ -106,7 +106,7 @@ public final class Guardrails implements GuardrailsMBean
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
                                      what, value, threshold)
-                            : format("Aborting %s table query, page size %s exceeds abort threshold of %s.",
+                            : format("Aborting query for table %s, page size %s exceeds abort threshold of %s.",
                                      what, value, threshold));
 
 

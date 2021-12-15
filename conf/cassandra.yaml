@@ -1602,8 +1602,8 @@ enable_drop_compact_storage: false
 #         disallowed: []
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 #     user_timestamps_enabled: true
-# Guardrail to warn or abort when user a page size greater than threshold.
+# Guardrail to warn or abort when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 #     page_size:
-#       warn_threshold: 2000
-#       abort_threshold: 4000
+#       warn_threshold: -1
+#       abort_threshold: -1

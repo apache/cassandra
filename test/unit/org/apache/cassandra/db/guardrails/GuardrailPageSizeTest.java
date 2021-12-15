@@ -61,20 +61,44 @@ public class GuardrailPageSizeTest extends ThresholdTester
     @Test
     public void testSelectStatementAgainstPageSize() throws Throwable
     {
-        assertPagingValid("SELECT * FROM %s", 3);
-        assertPagingValid("SELECT * FROM %s", PAGE_SIZE_WARN_THRESHOLD);
+        // regular query
+        String query = "SELECT * FROM %s";
+        assertPagingValid(query, 3);
+        assertPagingValid(query, PAGE_SIZE_WARN_THRESHOLD);
+        assertPagingWarns(query, 6);
+        assertPagingWarns(query, PAGE_SIZE_ABORT_THRESHOLD);
+        assertPagingAborts(query, 11);
 
-        assertPagingWarns("SELECT * FROM %s", 6, format("Query for table %s with page size %s exceeds warning threshold of %s.", currentTable(), 6, PAGE_SIZE_WARN_THRESHOLD));
-        assertPagingWarns("SELECT * FROM %s", PAGE_SIZE_ABORT_THRESHOLD, format("Query for table %s with page size %s exceeds warning threshold of %s.", currentTable(), PAGE_SIZE_ABORT_THRESHOLD, PAGE_SIZE_WARN_THRESHOLD));
+        // aggregation query
+        query = "SELECT COUNT(*) FROM %s WHERE k=0";
+        assertPagingValid(query, 3);
+        assertPagingValid(query, PAGE_SIZE_WARN_THRESHOLD);
+        assertPagingWarns(query, 6);
+        assertPagingWarns(query, PAGE_SIZE_ABORT_THRESHOLD);
+        assertPagingAborts(query, 11);
 
-        assertPagingAborts("SELECT * FROM %s", 11, format("Aborting %s table query, page size %s exceeds abort threshold of %s.", currentTable(), 11, PAGE_SIZE_ABORT_THRESHOLD));
+        // query with limit over thresholds
+        query = "SELECT * FROM %s LIMIT 100";
+        assertPagingValid(query, 3);
+        assertPagingValid(query, PAGE_SIZE_WARN_THRESHOLD);
+        assertPagingWarns(query, 6);
+        assertPagingWarns(query, PAGE_SIZE_ABORT_THRESHOLD);
+        assertPagingAborts(query, 11);
+
+        // query with limit under thresholds
+        query = "SELECT * FROM %s LIMIT 1";
+        assertPagingValid(query, 3);
+        assertPagingValid(query, PAGE_SIZE_WARN_THRESHOLD);
+        assertPagingValid(query, 6);
+        assertPagingValid(query, PAGE_SIZE_ABORT_THRESHOLD);
+        assertPagingValid(query, 11);
     }
 
     @Test
-    public void testIgnoreInternalClients() throws Throwable
+    public void testExcludedUsers() throws Throwable
     {
-        assertPagingIgnored("SELECT * FROM %s", PAGE_SIZE_WARN_THRESHOLD);
-        assertPagingIgnored("SELECT * FROM %s", PAGE_SIZE_ABORT_THRESHOLD);
+        assertPagingIgnored("SELECT * FROM %s", PAGE_SIZE_WARN_THRESHOLD + 1);
+        assertPagingIgnored("SELECT * FROM %s", PAGE_SIZE_ABORT_THRESHOLD + 1);
     }
 
     private void assertPagingValid(String query, int pageSize) throws Throwable
@@ -88,14 +112,16 @@ public class GuardrailPageSizeTest extends ThresholdTester
         assertValid(() -> executeWithPaging(systemClientState, query, pageSize));
     }
 
-    private void assertPagingWarns(String query, int pageSize, String message) throws Throwable
+    private void assertPagingWarns(String query, int pageSize) throws Throwable
     {
-        assertWarns(() -> executeWithPaging(userClientState, query, pageSize), message);
+        assertWarns(() -> executeWithPaging(userClientState, query, pageSize),
+                    format("Query for table %s with page size %s exceeds warning threshold of %s.", currentTable(), pageSize, PAGE_SIZE_WARN_THRESHOLD));
     }
 
-    private void assertPagingAborts(String query, int pageSize, String message) throws Throwable
+    private void assertPagingAborts(String query, int pageSize) throws Throwable
     {
-        assertAborts(() -> executeWithPaging(userClientState, query, pageSize), message);
+        assertAborts(() -> executeWithPaging(userClientState, query, pageSize),
+                     format("Aborting query for table %s, page size %s exceeds abort threshold of %s.", currentTable(), pageSize, PAGE_SIZE_ABORT_THRESHOLD));
     }
 
     private void executeWithPaging(ClientState state, String query, int pageSize)
@@ -121,6 +147,6 @@ public class GuardrailPageSizeTest extends ThresholdTester
     //not used by page-size guardrail tests.
     protected long currentValue()
     {
-        return 0;
+        throw new UnsupportedOperationException();
     }
 }
