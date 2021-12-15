@@ -27,6 +27,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * Groups the parameters of an update query, and make building updates easier.
@@ -35,6 +36,7 @@ public class UpdateParameters
 {
     public final TableMetadata metadata;
     public final RegularAndStaticColumns updatedColumns;
+    public final ClientState clientState;
     public final QueryOptions options;
 
     private final int nowInSec;
@@ -54,6 +56,7 @@ public class UpdateParameters
 
     public UpdateParameters(TableMetadata metadata,
                             RegularAndStaticColumns updatedColumns,
+                            ClientState clientState,
                             QueryOptions options,
                             long timestamp,
                             int nowInSec,
@@ -63,6 +66,7 @@ public class UpdateParameters
     {
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
+        this.clientState = clientState;
         this.options = options;
 
         this.nowInSec = nowInSec;

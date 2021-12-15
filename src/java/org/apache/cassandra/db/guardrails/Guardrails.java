@@ -127,6 +127,13 @@ public final class Guardrails implements GuardrailsMBean
                             : format("Aborting query for table %s, page size %s exceeds abort threshold of %s.",
                                      what, value, threshold));
 
+    /**
+     * Guardrail disabling operations on lists that require read before write.
+     */
+    public static final DisableFlag readBeforeWriteListOperationsEnabled =
+    new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
+                    "List operation requiring read before write");
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -331,6 +338,17 @@ public final class Guardrails implements GuardrailsMBean
     public void setPageSizeThreshold(int warn, int abort)
     {
         DEFAULT_CONFIG.getPageSize().setThresholds(warn, abort);
+    }
+
+    public boolean getReadBeforeWriteListOperationsEnabled()
+    {
+        return DEFAULT_CONFIG.getReadBeforeWriteListOperationsEnabled();
+    }
+
+    @Override
+    public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setReadBeforeWriteListOperationsEnabled(enabled);
     }
 
     private static String toCSV(Set<String> values)

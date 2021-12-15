@@ -66,6 +66,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     public final IntThreshold page_size = new IntThreshold();
 
     public volatile boolean user_timestamps_enabled = true;
+    public volatile boolean read_before_write_list_operations_enabled = true;
 
     public void validate()
     {
@@ -148,6 +149,20 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   enabled,
                                   () -> user_timestamps_enabled,
                                   x -> user_timestamps_enabled = x);
+    }
+
+    @Override
+    public boolean getReadBeforeWriteListOperationsEnabled()
+    {
+        return read_before_write_list_operations_enabled;
+    }
+
+    public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging(NAME_PREFIX + "read_before_write_list_operations_enabled",
+                                  enabled,
+                                  () -> read_before_write_list_operations_enabled,
+                                  x -> read_before_write_list_operations_enabled = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)

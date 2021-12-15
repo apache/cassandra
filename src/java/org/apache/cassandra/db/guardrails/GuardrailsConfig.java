@@ -93,6 +93,13 @@ public interface GuardrailsConfig
     IntThreshold getPageSize();
 
     /**
+     * Returns whether list operations that require read before write are allowed.
+     *
+     * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
      * Configuration of {@code int}-based thresholds to check if the guarded value should trigger a warning or abort the
      * operation.
      */
