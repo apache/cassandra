@@ -25,12 +25,16 @@ import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
@@ -39,7 +43,6 @@ import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 
 import org.apache.cassandra.io.util.File;
-import org.apache.commons.lang3.SystemUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +68,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     /**
      * Inspect the classpath to find storage configuration file
      */
+    @VisibleForTesting
     private static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
@@ -106,6 +110,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         if (storageConfigURL == null)
             storageConfigURL = getStorageConfigURL();
+
+        isConfigFileValid();
         return loadConfig(storageConfigURL);
     }
 
@@ -125,7 +131,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-
             Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
@@ -137,9 +142,48 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
         catch (YAMLException e)
         {
-            throw new ConfigurationException("Invalid yaml: " + url + SystemUtils.LINE_SEPARATOR
-                                             +  " Error: " + e.getMessage(), false);
+            throw new ConfigurationException("Invalid yaml: " + url, e);
         }
+    }
+
+    private static String readStorageConfig(URL url)
+    {
+        String content;
+
+        try
+        {
+            content = new String (Files.readAllBytes(Paths.get(String.valueOf(url).substring(5))));
+        }
+        catch (IOException e)
+        {
+            throw new ConfigurationException("Invalid yaml: " + url, e);
+        }
+
+        return content;
+    }
+
+    private static void isConfigFileValid()
+    {
+        String content = YamlConfigurationLoader.readStorageConfig(storageConfigURL);
+
+        if (isBlank("commitlog_sync_period", content))
+            throw new IllegalArgumentException("You should provide a value for commitlog_sync_period or comment it in " +
+                                               "order to get a default one");
+
+        if (isBlank("commitlog_sync_group_window", content))
+            throw new IllegalArgumentException("You should provide a value for commitlog_sync_group_window or comment it in " +
+                                               "order to get a default one");
+    }
+
+    /**
+     * This method helps to preserve the behavior of parameters which were originally of primitive type and
+     * without default value in Config.java (CASSANDRA-15234)
+     */
+    private static boolean isBlank(String property, String content)
+    {
+        Pattern p = Pattern.compile(String.format("%s%s *: *$", '^', property), Pattern.MULTILINE);
+        Matcher m = p.matcher(content);
+        return m.find();
     }
 
     @VisibleForTesting
@@ -171,6 +215,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return value;
     }
 
+    @VisibleForTesting
     static class CustomConstructor extends CustomClassLoaderConstructor
     {
         CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
@@ -213,6 +258,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * Utility class to check that there are no extra properties and that properties that are not null by default
      * are not set to null.
      */
+    @VisibleForTesting
     private static class PropertiesChecker extends PropertyUtils
     {
         private final Set<String> missingProperties = new HashSet<>();
@@ -223,22 +269,23 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private final Map<Class<?>, Map<String, Replacement>> replacements;
 
-        public PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
+        PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
         {
             this.replacements = Objects.requireNonNull(replacements, "Replacements should not be null");
             setSkipMissingProperties(true);
         }
 
         @Override
-        public Property getProperty(Class<? extends Object> type, String name)
+        public Property getProperty(Class<?> type, String name)
         {
             final Property result;
             Map<String, Replacement> typeReplacements = replacements.getOrDefault(type, Collections.emptyMap());
             if (typeReplacements.containsKey(name))
             {
                 Replacement replacement = typeReplacements.get(name);
+
                 final Property newProperty = super.getProperty(type, replacement.newName);
-                result = new Property(replacement.oldName, newProperty.getType())
+                result = new Property(replacement.oldName, replacement.oldType)
                 {
                     @Override
                     public Class<?>[] getActualTypeArguments()
@@ -249,7 +296,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     @Override
                     public void set(Object o, Object o1) throws Exception
                     {
-                        newProperty.set(o, o1);
+                        Object migratedValue = replacement.converter.apply(o1);
+                        newProperty.set(o, migratedValue);
                     }
 
                     @Override
@@ -293,6 +341,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     {
                         nullProperties.add(getName());
                     }
+
                     result.set(object, value);
                 }
 
@@ -331,7 +380,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml", false);
 
             if (!deprecationWarnings.isEmpty())
-                logger.warn("{} parameters have been deprecated. They have new names; For more information, please refer to NEWS.txt", deprecationWarnings);
+                logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
         }
     }
 
@@ -339,9 +388,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * @param klass to get replacements for
      * @return map of old names and replacements needed.
      */
-    private static Map<Class<?>, Map<String, Replacement>> getNameReplacements(Class<?> klass)
+    private static Map<Class<? extends Object>, Map<String, Replacement>> getNameReplacements(Class<? extends Object> klass)
     {
-        List<Replacement> replacements = getReplacements(klass);
+        List<Replacement> replacements = getReplacementsRecursive(klass);
         Map<Class<?>, Map<String, Replacement>> objectOldNames = new HashMap<>();
         for (Replacement r : replacements)
         {
@@ -357,24 +406,52 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return objectOldNames;
     }
 
+    /**
+     * @param klass to get replacements for
+     * @return map of old names and replacements needed.
+     */
+    private static List<Replacement> getReplacementsRecursive(Class<?> klass)
+    {
+        Set<Class<?>> seen = new HashSet<>(); // to make sure not to process the same type twice
+        List<Replacement> accum = new ArrayList<>();
+        getReplacementsRecursive(seen, accum, klass);
+        return accum.isEmpty() ? Collections.emptyList() : accum;
+    }
+
+    private static void getReplacementsRecursive(Set<Class<?>> seen,
+                                                 List<Replacement> accum,
+                                                 Class<?> klass)
+    {
+        accum.addAll(getReplacements(klass));
+        for (Field field : klass.getDeclaredFields())
+        {
+            if (seen.add(field.getType()))
+            {
+                // first time looking at this type, walk it
+                getReplacementsRecursive(seen, accum, field.getType());
+            }
+        }
+    }
+
     private static List<Replacement> getReplacements(Class<?> klass)
     {
         List<Replacement> replacements = new ArrayList<>();
         for (Field field : klass.getDeclaredFields())
         {
             String newName = field.getName();
+            Class<?> newType = field.getType();
             final ReplacesList[] byType = field.getAnnotationsByType(ReplacesList.class);
             if (byType == null || byType.length == 0)
             {
                 Replaces r = field.getAnnotation(Replaces.class);
                 if (r != null)
-                    addReplacement(klass, replacements, newName, r);
+                    addReplacement(klass, replacements, newName, newType, r);
             }
             else
             {
                 for (ReplacesList replacesList : byType)
                     for (Replaces r : replacesList.value())
-                        addReplacement(klass, replacements, newName, r);
+                        addReplacement(klass, replacements, newName, newType, r);
             }
         }
         return replacements.isEmpty() ? Collections.emptyList() : replacements;
@@ -382,24 +459,28 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static void addReplacement(Class<?> klass,
                                        List<Replacement> replacements,
-                                       String newName,
+                                       String newName, Class<?> newType,
                                        Replaces r)
     {
         String oldName = r.oldName();
+
         boolean deprecated = r.deprecated();
 
-        replacements.add(new Replacement(klass, oldName, newName, deprecated));
+        Class<?> oldType = r.converter().getInputType();
+        if (oldType == null)
+            oldType = newType;
+
+        replacements.add(new Replacement(klass, oldName, oldType, newName, r.converter(), deprecated));
     }
 
     /**
-     * Holder for replacements to support backward compatibility between old and new names for configuration parameters
-     * backported partially from trunk(CASSANDRA-15234) to support a bug fix/improvement in Cassadra 4.0
-     * (CASSANDRA-17141)
+     * Holder for replacements to support backward compatibility between old and new names and types
+     * of configuration parameters (CASSANDRA-15234)
      */
     static final class Replacement
     {
         /**
-         * Currently we use for Config class
+         * Currently we use Config class
          */
         final Class<?> parent;
         /**
@@ -407,22 +488,29 @@ public class YamlConfigurationLoader implements ConfigurationLoader
          */
         final String oldName;
         /**
+         * Old type of the configuration parameter
+         */
+        final Class<?> oldType;
+        /**
          * New name used for the configuration parameter
          */
         final String newName;
         /**
-         * A flag to mark whether the old name is deprecated and fire a warning to the user. By default we set it to false.
+         * Converter to be used according to the old default unit which was provided as a suffix of the configuration
+         * parameter
          */
+        final Converters converter;
         final boolean deprecated;
 
         Replacement(Class<?> parent,
-                    String oldName,
-                    String newName,
-                    boolean deprecated)
+                    String oldName, Class<?> oldType,
+                    String newName, Converters converter, boolean deprecated)
         {
             this.parent = Objects.requireNonNull(parent);
             this.oldName = Objects.requireNonNull(oldName);
+            this.oldType = Objects.requireNonNull(oldType);
             this.newName = Objects.requireNonNull(newName);
+            this.converter = Objects.requireNonNull(converter);
             // by default deprecated is false
             this.deprecated = deprecated;
         }
