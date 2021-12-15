@@ -55,7 +55,7 @@ class CqlshCompletionCase(BaseTestCase):
         env = os.environ.copy()
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
-             env['LC_CTYPE'] = 'en_US.utf8'
+            env['LC_CTYPE'] = 'en_US.utf8'
         self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
@@ -102,7 +102,7 @@ class CqlshCompletionCase(BaseTestCase):
 
         if split_completed_lines:
             completed_lines = list(map(set, (completion_separation_re.split(line.strip())
-                                  for line in choice_lines)))
+                                             for line in choice_lines)))
 
             if not completed_lines:
                 return set()
@@ -153,7 +153,6 @@ class CqlshCompletionCase(BaseTestCase):
                 # retry once
                 self.cqlsh.send(CTRL_C)
                 self.cqlsh.read_to_next_prompt(timeout=10.0)
- 
 
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
@@ -612,7 +611,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc',
+                                     'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
                             choices=['bloom_filter_fp_chance', 'compaction',
                                      'compression',
@@ -621,7 +621,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc',
+                                     'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance ',
                             immediate='= ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance = ',
@@ -669,7 +670,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc',
+                                     'read_repair'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'DateTieredCompactionStrategy', '",
                             choices=['base_time_seconds', 'max_sstable_age_days',
@@ -684,7 +686,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones','provide_overlapping_tombstones'])
+                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])
@@ -822,7 +824,47 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')
         self.trycompletions('ALTER KEYSPACE ', '', choices=[self.cqlsh.keyspace, 'system_auth',
-                                                            'system_distributed', 'system_traces'])
+                                                            'system_distributed', 'system_traces', 'IF'])
+        self.trycompletions('ALTER KEYSPACE I', immediate='F EXISTS ')
         self.trycompletions('ALTER KEYSPACE system_trac', "es WITH replication = {'class': '")
         self.trycompletions("ALTER KEYSPACE system_traces WITH replication = {'class': '", '',
                             choices=['NetworkTopologyStrategy', 'SimpleStrategy'])
+
+    def test_complete_in_alter_table(self):
+        self.trycompletions('ALTER TABLE I', immediate='F EXISTS ')
+        self.trycompletions('ALTER TABLE IF', immediate=' EXISTS ')
+        self.trycompletions('ALTER TABLE ', choices=['IF', 'twenty_rows_table',
+                                                     'ascii_with_special_chars', 'users',
+                                                     'has_all_types', 'system.',
+                                                     'empty_composite_table', 'empty_table',
+                                                     'system_auth.', 'undefined_values_table',
+                                                     'dynamic_columns',
+                                                     'twenty_rows_composite_table',
+                                                     'utf8_with_special_chars',
+                                                     'system_traces.', 'songs', 'system_views.',
+                                                     'system_virtual_schema.',
+                                                     'system_schema.', 'system_distributed.',
+                                                     self.cqlsh.keyspace + '.'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ADD ', choices=['<new_column_name>', 'IF'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table DROP ', choices=['IF', '<quotedName>', '<identifier>'])
+
+    def test_complete_in_alter_type(self):
+        self.trycompletions('ALTER TYPE I', immediate='F EXISTS ')
+        self.trycompletions('ALTER TYPE ', choices=['IF', 'system_views.',
+                                                    'tags', 'system_traces.', 'system_distributed.',
+                                                    'phone_number', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                    'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
+                                                    ])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type ADD ', choices=['<new_field_name>', 'IF'])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type ADD IF NOT EXISTS ', choices=['<new_field_name>'])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+
+    def test_complete_in_alter_user(self):
+        self.trycompletions('ALTER USER ', choices=['<identifier>', 'IF', '<pgStringLiteral>', '<quotedStringLiteral>'])
+
+    def test_complete_in_alter_role(self):
+        self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
