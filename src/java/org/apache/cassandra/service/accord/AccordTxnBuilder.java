@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 
@@ -39,6 +40,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -50,8 +52,8 @@ import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
+import org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate;
 import org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class AccordTxnBuilder
 {
@@ -59,7 +61,7 @@ public class AccordTxnBuilder
     private List<SinglePartitionReadCommand> reads = new ArrayList<>();
     private AccordQuery query = AccordQuery.ALL;
     private List<PartitionUpdate> updates = new ArrayList<>();
-    private List<AccordUpdate.UpdatePredicate> predicates = new ArrayList<>();
+    private List<UpdatePredicate> predicates = new ArrayList<>();
 
     public AccordTxnBuilder withRead(String query, Object... values)
     {
@@ -67,8 +69,8 @@ public class AccordTxnBuilder
         Preconditions.checkArgument(prepared.statement instanceof SelectStatement);
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        // TODO: make sure all timestamps are updated on application
-        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) select.getQuery(QueryProcessor.makeInternalOptions(prepared.statement, values), FBUtilities.nowInSeconds());
+        ReadQuery readQuery = select.getQuery(QueryProcessor.makeInternalOptions(prepared.statement, values), 0);
+        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
         for (SinglePartitionReadCommand command : selectQuery.queries)
         {
             keys.add(new AccordKey.PartitionKey(command.tableId(), command.partitionKey()));
@@ -82,7 +84,6 @@ public class AccordTxnBuilder
         QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
         Preconditions.checkArgument(prepared.statement instanceof ModificationStatement);
         ModificationStatement modification = (ModificationStatement) prepared.statement;
-        // TODO: make sure all timestamps are updated on application
         // TODO: look into getting partition updates directly
         List<? extends IMutation> mutations = modification.getMutations(QueryProcessor.makeInternalOptions(prepared.statement, values), false, 0, 0, 0);
         for (IMutation mutation : mutations)
@@ -143,6 +144,16 @@ public class AccordTxnBuilder
         }
         else
         {
+            List<UpdatePredicate> unsatisfiable = predicates.stream()
+                                                            .filter(predicate -> !reads.stream().anyMatch(predicate::supportedByRead))
+                                                            .collect(Collectors.toList());
+
+            if (!unsatisfiable.isEmpty())
+            {
+                String msg = String.format("Some predicates are unsupported by a read, and are unsatisfiable: %s", unsatisfiable);
+                throw new IllegalStateException(msg);
+            }
+
             return new Txn(new Keys(keyArray), new AccordRead(reads), query, new AccordUpdate(updates, predicates));
         }
     }

@@ -28,6 +28,7 @@ import accord.api.Data;
 import accord.api.Read;
 import accord.api.Store;
 import accord.topology.KeyRanges;
+import accord.txn.Timestamp;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -40,6 +41,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.AccordTimestamps;
 
 public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> implements Read
 {
@@ -49,11 +51,13 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Data read(KeyRanges ranges, Store store)
+    public Data read(KeyRanges ranges, Timestamp executeAt, Store store)
     {
         AccordData result = new AccordData();
+        int nowInSeconds = AccordTimestamps.timestampToSeconds(executeAt);
         forEachIntersecting(ranges, read -> {
             // TODO: put into read stage
+            read = read.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
                  UnfilteredPartitionIterator partition = read.executeLocally(controller))
             {

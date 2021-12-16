@@ -26,12 +26,23 @@ public class AccordTimestamps
 {
     public static long uniqueNow()
     {
-        return System.currentTimeMillis();
+        return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
     }
 
     public static long timestampToMicros(Timestamp timestamp)
     {
-        // FIXME: how to get node id in here
-        return TimeUnit.MILLISECONDS.toMicros(timestamp.real) + timestamp.logical;
+        /*
+        FIXME: since we can't fit the node.id in the timestamp, we need to track the most recent timestamp for each key
+         and take the max(real+logical, prev+1) to deal with real+logical collisions. Not sure if this will require
+         coordinating with each key for all writes. It may be inferable from deps. We could also just track this locally,
+         with the expectation that all operations on a table will be through accord and we can correct any collision
+         related timestamp drift locally
+         */
+        return timestamp.real + timestamp.logical;
+    }
+
+    public static int timestampToSeconds(Timestamp timestamp)
+    {
+        return (int) TimeUnit.MICROSECONDS.toSeconds(timestampToMicros(timestamp));
     }
 }

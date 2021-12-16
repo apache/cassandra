@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.local.CommandStore;
@@ -47,7 +49,7 @@ public class AccordService
         this.node = new Node(localId,
                              messageSink,
                              configService,
-                             System::currentTimeMillis,
+                             AccordTimestamps::uniqueNow,
                              () -> null,
                              new AccordAgent(),
                              scheduler,
@@ -64,5 +66,10 @@ public class AccordService
     public void createEpochFromConfigUnsafe()
     {
         configService.createEpochFromConfig();
+    }
+
+    public static long nowInMicros()
+    {
+        return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
     }
 }
