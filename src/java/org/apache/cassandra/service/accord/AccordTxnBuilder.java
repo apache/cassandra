@@ -113,16 +113,14 @@ public class AccordTxnBuilder
         DecoratedKey decoratedKey = metadata.partitioner.decorateKey(decompose(metadata.partitionKeyType, key));
         Clustering<ByteBuffer> clusteringBytes = Clustering.make(decompose(metadata.comparator.subtype(0), clustering));
 
-        ColumnMetadata columnMetadata = metadata.getColumn(new ColumnIdentifier(column, true));
-        Preconditions.checkNotNull(columnMetadata);
-
-        Preconditions.checkArgument(keys.contains(new AccordKey.PartitionKey(metadata.id, decoratedKey)));
         if (isExistsPredicate)
         {
             predicates.add(new AccordUpdate.ExistsPredicate(type, metadata, decoratedKey, clusteringBytes));
         }
         else
         {
+            ColumnMetadata columnMetadata = metadata.getColumn(new ColumnIdentifier(column, true));
+            Preconditions.checkNotNull(columnMetadata);
             ByteBuffer valueBytes = decompose(columnMetadata.type, value);
             predicates.add(new AccordUpdate.ValuePredicate(type, metadata, decoratedKey, clusteringBytes, columnMetadata, valueBytes));
         }
@@ -130,9 +128,9 @@ public class AccordTxnBuilder
         return this;
     }
 
-    public AccordTxnBuilder withCondition(String keyspace, String table, Object key, Object clustering, String column, Type type)
+    public AccordTxnBuilder withCondition(String keyspace, String table, Object key, Object clustering, Type type)
     {
-        return withCondition(keyspace, table, key, clustering, column, type, null);
+        return withCondition(keyspace, table, key, clustering, null, type, null);
     }
 
     public Txn build()

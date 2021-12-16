@@ -34,6 +34,7 @@ import accord.api.Write;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -132,6 +133,13 @@ public class AccordUpdate implements Update
         public boolean applies(FilteredPartition partition)
         {
             return applies(partition.getRow(clustering));
+        }
+
+        public boolean supportedByRead(SinglePartitionReadCommand read)
+        {
+            return read.metadata().id.equals(table.id)
+                   && read.partitionKey().equals(key)
+                   && read.clusteringIndexFilter().selects(clustering);
         }
 
         protected abstract boolean applies(Row row);
@@ -233,6 +241,12 @@ public class AccordUpdate implements Update
         private <T> int compare(Cell<T> cell)
         {
             return column.type.compare(cell.value(), cell.accessor(), value, ByteBufferAccessor.instance);
+        }
+
+        @Override
+        public boolean supportedByRead(SinglePartitionReadCommand read)
+        {
+            return super.supportedByRead(read) && read.columnFilter().fetches(column);
         }
 
         @Override

@@ -46,7 +46,7 @@ public class AccordIntegrationTest extends TestBaseImpl
                 AccordTxnBuilder txnBuilder = new AccordTxnBuilder();
                 txnBuilder.withRead("SELECT * FROM " + KEYSPACE + ".tbl WHERE k=0 AND c=0");
                 txnBuilder.withWrite("INSERT INTO " + KEYSPACE + ".tbl (k, c, v) VALUES (0, 0, 1)");
-                txnBuilder.withCondition(KEYSPACE, "tbl", 0, 0, "v", NOT_EXISTS);
+                txnBuilder.withCondition(KEYSPACE, "tbl", 0, 0, NOT_EXISTS);
                 try
                 {
                     AccordData result = (AccordData) AccordService.instance.node.coordinate(txnBuilder.build()).toCompletableFuture().get();

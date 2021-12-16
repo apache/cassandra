@@ -48,7 +48,7 @@ public class AccordUpdateTest
         AccordTxnBuilder txnBuilder = new AccordTxnBuilder();
         txnBuilder.withRead("SELECT * FROM ks.tbl WHERE k=0 AND c=0");
         txnBuilder.withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
-        txnBuilder.withCondition("ks", "tbl", 0, 0, "v", NOT_EXISTS);
+        txnBuilder.withCondition("ks", "tbl", 0, 0, NOT_EXISTS);
         Txn txn = txnBuilder.build();
 
 
