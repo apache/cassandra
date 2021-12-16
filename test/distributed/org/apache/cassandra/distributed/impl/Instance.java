@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -632,12 +633,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 else
                 {
+                    Stream peers = cluster.stream().filter(instance -> ((IInstance) instance).isValid());
                     if (config.has(BLANK_GOSSIP))
-                        cluster.stream().forEach(peer -> GossipHelper.statusToBlank((IInvokableInstance) peer).accept(this));
+                        peers.forEach(peer -> GossipHelper.statusToBlank((IInvokableInstance) peer).accept(this));
                     else if (cluster instanceof Cluster)
-                        cluster.stream().forEach(peer -> GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this));
+                        peers.forEach(peer -> GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this));
                     else
-                        cluster.stream().forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
+                        peers.forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
 
                     StorageService.instance.setUpDistributedSystemKeyspaces();
                     StorageService.instance.setNormalModeUnsafe();
