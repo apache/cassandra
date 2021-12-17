@@ -46,7 +46,6 @@ public class DurationSpecTest
         assertEquals(DurationSpec.inDoubleMilliseconds(0.7), new DurationSpec("1ms"));
         assertEquals(DurationSpec.inDoubleMilliseconds(0.33), new DurationSpec("0ms"));
         assertEquals(DurationSpec.inDoubleMilliseconds(0.333), new DurationSpec("0ms"));
-        assertEquals(0, new DurationSpec("0.333555555ms").toMilliseconds());
     }
 
     @Test
@@ -85,6 +84,8 @@ public class DurationSpecTest
                                                           .hasMessageContaining("Invalid duration: -10s");
         assertThatThrownBy(() -> new DurationSpec("10xd")).isInstanceOf(IllegalArgumentException.class)
                                                           .hasMessageContaining("Invalid duration: 10xd");
+        assertThatThrownBy(() -> new DurationSpec("0.333555555ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                   .hasMessageContaining("Invalid duration: 0.333555555ms");
     }
 
     @Test

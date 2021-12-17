@@ -38,7 +38,6 @@ public final class DurationSpec
      * The Regexp used to parse the duration provided as String.
      */
     private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)"));
-    private static final Pattern DOUBLE_TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+\\.\\d+)(d|h|s|ms|us|µs|ns|m)$"));
 
     public final long quantity;
 
@@ -55,17 +54,11 @@ public final class DurationSpec
 
         //parse the string field value
         Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
-        Matcher matcherDouble = DOUBLE_TIME_UNITS_PATTERN.matcher(value);
 
         if(matcher.find())
         {
             quantity = Long.parseLong(matcher.group(1));
             unit = fromSymbol(matcher.group(2));
-        }
-        else if(matcherDouble.find())
-        {
-            quantity = Math.round(Double.parseDouble(matcherDouble.group(1)));
-            unit = fromSymbol(matcherDouble.group(2));
         }
         else {
             throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
