@@ -1319,14 +1319,6 @@ enable_user_defined_functions: false
 # This option has no effect, if enable_user_defined_functions is false.
 enable_scripted_user_defined_functions: false
 
-# The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
-# Lowering this value on Windows can provide much tighter latency and better throughput, however
-# some virtualized environments may see a negative performance impact from changing this setting
-# below their system default. The sysinternals 'clockres' tool can confirm your system's default
-# setting.
-windows_timer_interval: 1
-
-
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
 # the "key_alias" is the only key that will be used for encrypt opertaions; previously used keys

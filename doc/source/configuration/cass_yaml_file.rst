@@ -1786,17 +1786,6 @@ This option has no effect, if enable_user_defined_functions is false.
 
 *Default Value:* false
 
-``windows_timer_interval``
---------------------------
-
-The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
-Lowering this value on Windows can provide much tighter latency and better throughput, however
-some virtualized environments may see a negative performance impact from changing this setting
-below their system default. The sysinternals 'clockres' tool can confirm your system's default
-setting.
-
-*Default Value:* 1
-
 ``transparent_data_encryption_options``
 ---------------------------------------
 

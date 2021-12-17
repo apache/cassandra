@@ -59,7 +59,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
-import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -83,7 +82,6 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.utils.NativeLibrary;
-import org.apache.cassandra.utils.WindowsTimer;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
@@ -239,10 +237,6 @@ public class CassandraDaemon
         {
             exitOrFail(StartupException.ERR_WRONG_DISK_STATE, e.getMessage(), e);
         }
-
-        // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
-        if (FBUtilities.isWindows)
-            WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
         maybeInitJmx();
 
@@ -692,11 +686,6 @@ public class CassandraDaemon
         destroyClientTransports();
         StorageService.instance.setRpcReady(false);
 
-        // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
-        // We rely on the shutdown hook to drain the node
-        if (FBUtilities.isWindows)
-            System.exit(0);
-
         if (jmxServer != null)
         {
             try
@@ -736,13 +725,6 @@ public class CassandraDaemon
             applyConfig();
 
             registerNativeAccess();
-
-            if (FBUtilities.isWindows)
-            {
-                // We need to adjust the system timer on windows from the default 15ms down to the minimum of 1ms as this
-                // impacts timer intervals, thread scheduling, driver interrupts, etc.
-                WindowsTimer.startTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
-            }
 
             setup();
 

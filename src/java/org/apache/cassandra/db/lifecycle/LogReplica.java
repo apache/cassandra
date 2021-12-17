@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
@@ -42,14 +41,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MIS
  *
  * Each replica contains the exact same content but we do allow for final
  * partial records in case we crashed after writing to one replica but
- * before compliting the write to another replica.
+ * before completing the write to another replica.
  *
  * @see LogFile
  */
 final class LogReplica implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(LogReplica.class);
-    private static final boolean REQUIRE_FD = !FBUtilities.isWindows && !IGNORE_MISSING_NATIVE_FILE_HINTS.getBoolean();
+    private static final boolean REQUIRE_FD = !IGNORE_MISSING_NATIVE_FILE_HINTS.getBoolean();
 
     private final File file;
     private int directoryDescriptor;
@@ -67,7 +66,7 @@ final class LogReplica implements AutoCloseable
     static LogReplica open(File file)
     {
         int folderFD = NativeLibrary.tryOpenDirectory(file.parent().path());
-        if (folderFD == -1 && !FBUtilities.isWindows)
+        if (folderFD == -1)
             throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.parent().path())), file.parent().path());
 
         return new LogReplica(file, folderFD);
