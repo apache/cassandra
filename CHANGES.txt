@@ -1,4 +1,5 @@
 4.0.2
+ * Update ant-junit to version 1.10.12 (CASSANDRA-17218)
  * Add droppable tombstone metrics to nodetool tablestats (CASSANDRA-16308)
  * Fix disk failure triggered when enabling FQL on an unclean directory (CASSANDRA-17136)
  * Fixed broken classpath when multiple jars in build directory (CASSANDRA-17129)
