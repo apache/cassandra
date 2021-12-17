@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.exceptions.UncheckedInternalRequestExecutionException;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -497,4 +498,12 @@ public class KeyspaceTest extends CQLTester
         assertRowsInResult(cfs, command);
     }
 
+    @Test(expected = UncheckedInternalRequestExecutionException.class)
+    public void testStopMutations() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+        Keyspace keyspace = Keyspace.open(KEYSPACE_PER_TEST);
+        keyspace.stopMutations();
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "0", 0, 0);
+    }
 }

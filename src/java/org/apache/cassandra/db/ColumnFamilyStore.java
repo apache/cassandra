@@ -437,10 +437,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
         // Create Memtable only on online
-        Memtable initialMemtable = null;
-        if (DatabaseDescriptor.isDaemonInitialized())
-            initialMemtable = createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
-        data = new Tracker(this, initialMemtable, loadSSTables);
+        if (DatabaseDescriptor.enableMemtableAndCommitLog())
+        {
+            Memtable initialMemtable  = createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
+            data = new Tracker(this, initialMemtable, loadSSTables);
+        }
+        else
+            data = new Tracker(this, null, false);
 
         // Note that this needs to happen before we load the first sstables, or the global sstable tracker will not
         // be notified on the initial loading.
@@ -579,6 +582,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public Directories getDirectories()
     {
         return directories;
+    }
+
+    public StorageHandler getStorageHandler()
+    {
+        return storageHandler;
     }
 
     public List<String> getDataPaths() throws IOException
