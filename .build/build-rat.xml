@@ -53,6 +53,7 @@
                  <exclude name="**/cassandra.yaml"/>
                  <exclude name="**/cassandra-murmur.yaml"/>
                  <exclude name="**/cassandra-seeds.yaml"/>
+                 <exclude NAME="**/doc/antora.yml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
                  <exclude name="**/test/conf/cassandra_encryption.yaml"/>
                  <exclude name="**/test/conf/cdc.yaml"/>
@@ -67,6 +68,8 @@
                  <exclude name="**/tools/cqlstress-example.yaml"/>
                  <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
                  <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
+                 <!-- Documentation files -->
+                 <exclude NAME="**/doc/modules/**/*"/>
                  <!-- NOTICE files -->
                  <exclude NAME="**/NOTICE.md"/>
                  <!-- LICENSE files -->
