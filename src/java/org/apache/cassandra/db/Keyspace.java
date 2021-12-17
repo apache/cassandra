@@ -46,12 +46,14 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.UncheckedInternalRequestExecutionException;
 import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
@@ -65,6 +67,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -98,6 +101,9 @@ public class Keyspace
     //OpOrder is defined globally since we need to order writes across
     //Keyspaces in the case of Views (batchlog of view mutations)
     public static final OpOrder writeOrder = new OpOrder();
+
+    // Set during draining to indicate that no more mutations should be accepted
+    private volatile OpOrder.Barrier writeBarrier = null;
 
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<TableId, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<>();
@@ -506,6 +512,20 @@ public class Keyspace
     }
 
     /**
+     * Close this keyspace to further mutations, called when draining or shutting down.
+     *
+     * A final write barrier is issued and returned. After this barrier is set, new mutations
+     * will be rejected, see {@link Keyspace#applyInternal(Mutation, boolean, boolean, boolean, boolean, CompletableFuture)}.
+     */
+    public OpOrder.Barrier stopMutations()
+    {
+        assert writeBarrier == null : "Keyspace has already been closed to mutations";
+        writeBarrier = writeOrder.newBarrier();
+        writeBarrier.issue();
+        return writeBarrier;
+    }
+
+    /**
      * This method appends a row to the global CommitLog, then updates memtables and indexes.
      *
      * @param mutation       the row to write.  Must not be modified after calling apply, since commitlog append
@@ -524,6 +544,9 @@ public class Keyspace
     {
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
+
+        if (writeBarrier != null)
+            return failDueToWriteBarrier(mutation, future);
 
         Lock[] locks = null;
 
@@ -666,6 +689,19 @@ public class Keyspace
                         lock.unlock();
             }
         }
+    }
+
+    private CompletableFuture<?> failDueToWriteBarrier(Mutation mutation, CompletableFuture<?> future)
+    {
+        assert writeBarrier != null : "Expected non null write barrier";
+
+        logger.debug(FBUtilities.Debug.getStackTrace());
+        logger.error("Attempted to apply mutation {} after final write barrier", mutation);
+        if (future != null)
+        {
+            future.completeExceptionally(new UncheckedInternalRequestExecutionException(RequestFailureReason.UNKNOWN, "Keyspace closed to new mutations"));
+        }
+        throw new UncheckedInternalRequestExecutionException(RequestFailureReason.UNKNOWN, "Keyspace closed to new mutations");
     }
 
     public AbstractReplicationStrategy getReplicationStrategy()
