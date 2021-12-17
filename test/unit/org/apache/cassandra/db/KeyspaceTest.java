@@ -36,6 +36,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.UncheckedInternalRequestExecutionException;
 import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -501,6 +502,15 @@ public class KeyspaceTest extends CQLTester
         command = SinglePartitionReadCommand.create(
                 cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command);
+    }
+
+    @Test(expected = UncheckedInternalRequestExecutionException.class)
+    public void testStopMutations() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+        Keyspace keyspace = Keyspace.open(KEYSPACE_PER_TEST);
+        keyspace.stopMutations();
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "0", 0, 0);
     }
 
     @Test

@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.net.*;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -153,7 +152,8 @@ public class DatabaseDescriptor
     private static boolean clientInitialized;
     private static boolean toolInitialized;
     private static boolean daemonInitialized;
-
+    private static boolean enableMemtableAndCommitLog;
+    
     private static final int searchConcurrencyFactor = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "search_concurrency_factor", "1"));
 
     private static volatile boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
@@ -298,6 +298,20 @@ public class DatabaseDescriptor
     public static boolean isDaemonInitialized()
     {
         return daemonInitialized;
+    }
+
+    /**
+     * Enables lifecycle transactions via {@link org.apache.cassandra.db.lifecycle.Tracker} and
+     * memtable via {@link org.apache.cassandra.db.ColumnFamilyStore}.
+     */
+    public static void setEnableMemtableAndCommitLog()
+    {
+        enableMemtableAndCommitLog = true;
+    }
+    
+    public static boolean enableMemtableAndCommitLog()
+    {
+        return daemonInitialized || enableMemtableAndCommitLog;
     }
 
     public static Config getRawConfig()

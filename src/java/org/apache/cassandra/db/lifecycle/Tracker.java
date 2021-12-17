@@ -549,7 +549,7 @@ public class Tracker
 
     public boolean isDummy()
     {
-        return cfstore == null || !DatabaseDescriptor.isDaemonInitialized();
+        return cfstore == null || !DatabaseDescriptor.enableMemtableAndCommitLog();
     }
 
     public void subscribe(INotificationConsumer consumer)
