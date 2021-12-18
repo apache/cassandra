@@ -18,10 +18,23 @@
 
 package org.apache.cassandra.db.marshal;
 
+import java.nio.ByteBuffer;
+
 public abstract class StringType extends AbstractType<String>
 {
     protected StringType(ComparisonType comparisonType)
     {
         super(comparisonType);
+    }
+
+    public ByteBuffer concat(StringType leftType,
+                             ByteBuffer left,
+                             StringType rightType,
+                             ByteBuffer right)
+    {
+        String leftS = leftType.compose(left);
+        String rightS = rightType.compose(right);
+
+        return decompose(leftS + rightS);
     }
 }

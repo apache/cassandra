@@ -33,6 +33,20 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 public class OperationFctsTest extends CQLTester
 {
+
+    @Test
+    public void testStringConcatenation() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b ascii, c text, PRIMARY KEY(a, b, c))");
+        execute("INSERT INTO %S (a, b, c) VALUES ('जॉन', 'Doe', 'जॉन Doe')");
+
+        assertColumnNames(execute("SELECT a + a, a + b, b + a, b + b FROM %s WHERE a = 'जॉन' AND b = 'Doe' AND c = 'जॉन Doe'"),
+                "a + a", "a + b", "b + a", "b + b");
+
+        assertRows(execute("SELECT a + ' ' + a, a + ' ' + b, b + ' ' + a, b + ' ' + b FROM %s WHERE a = 'जॉन' AND b = 'Doe' AND c = 'जॉन Doe'"),
+                row("जॉन जॉन", "जॉन Doe", "Doe जॉन", "Doe Doe"));
+    }
+
     @Test
     public void testSingleOperations() throws Throwable
     {

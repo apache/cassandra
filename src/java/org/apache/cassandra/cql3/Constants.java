@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,18 @@ public abstract class Constants
 
     public enum Type
     {
-        STRING,
+        STRING
+        {
+            public AbstractType<?> getPreferedTypeFor(String text)
+            {
+                 if(Charset.forName("US-ASCII").newEncoder().canEncode(text))
+                 {
+                     return AsciiType.instance;
+                 }
+
+                 return UTF8Type.instance;
+            }
+        },
         INTEGER
         {
             public AbstractType<?> getPreferedTypeFor(String text)
