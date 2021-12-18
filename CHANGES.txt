@@ -1,4 +1,5 @@
 4.0.2
+ * Remove support for Windows (CASSANDRA-16956)
  * Fix disk failure triggered when enabling FQL on an unclean directory (CASSANDRA-17136)
  * Fixed broken classpath when multiple jars in build directory (CASSANDRA-17129)
  * DebuggableThreadPoolExecutor does not propagate client warnings (CASSANDRA-17072)

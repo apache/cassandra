@@ -44,7 +44,6 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
@@ -112,8 +111,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     // We need an explicit lock because the transaction tidier cannot store a reference to the transaction
     private final Object lock;
     private final Ref<LogTransaction> selfRef;
-    // Deleting sstables is tricky because the mmapping might not have been finalized yet,
-    // and delete will fail (on Windows) until it is (we only force the unmapping on SUN VMs).
+    // Deleting sstables is tricky because the mmapping might not have been finalized yet.
     // Additionally, we need to make sure to delete the data file first, so on restart the others
     // will be recognized as GCable.
     private static final Queue<Runnable> failedDeletions = new ConcurrentLinkedQueue<>();
@@ -422,9 +420,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         Runnable task;
         while ( null != (task = failedDeletions.poll()))
             ScheduledExecutors.nonPeriodicTasks.submit(task);
-
-        // On Windows, snapshots cannot be deleted so long as a segment of the root element is memory-mapped in NTFS.
-        SnapshotDeletingTask.rescheduleFailedTasks();
     }
 
     static void waitForDeletions()

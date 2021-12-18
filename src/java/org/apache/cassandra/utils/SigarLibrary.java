@@ -111,10 +111,6 @@ public class SigarLibrary
 
     private boolean hasAcceptableAddressSpace()
     {
-        // Check is invalid on Windows
-        if (FBUtilities.isWindows)
-            return true;
-
         try
         {
             long fileMax = sigar.getResourceLimit().getVirtualMemoryMax();

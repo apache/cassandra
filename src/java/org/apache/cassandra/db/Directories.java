@@ -42,7 +42,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
@@ -1031,10 +1030,7 @@ public class Directories
                 }
                 catch (FSWriteError e)
                 {
-                    if (FBUtilities.isWindows)
-                        SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
-                    else
-                        throw e;
+                    throw e;
                 }
             }
         }

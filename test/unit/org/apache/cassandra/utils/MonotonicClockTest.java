@@ -42,11 +42,11 @@ public class MonotonicClockTest
             nowNanos = Math.max(nowNanos, System.nanoTime());
             long convertedNow = approxTime.translate().toMillisSinceEpoch(nowNanos);
 
-            int maxDiff = FBUtilities.isWindows ? 15 : 1;
+            int maxDiff = 1;
             assertTrue("convertedNow = " + convertedNow + " lastConverted = " + lastConverted + " in iteration " + ii,
                        convertedNow >= (lastConverted - maxDiff));
 
-            maxDiff = FBUtilities.isWindows ? 25 : 2;
+            maxDiff = 2;
             assertTrue("now = " + now + " convertedNow = " + convertedNow + " in iteration " + ii,
                        (maxDiff - 2) <= convertedNow);
 

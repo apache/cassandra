@@ -21,11 +21,9 @@
 import locale
 import os
 import re
-from .basecase import BaseTestCase, cqlsh, cqlshlog
+from .basecase import BaseTestCase, cqlsh
 from .cassconnect import create_db, remove_db, testrun_cqlsh
 from .run_cqlsh import TimeoutError
-import unittest
-import sys
 
 BEL = '\x07'  # the terminal-bell character
 CTRL_C = '\x03'
@@ -39,8 +37,6 @@ COMPLETION_RESPONSE_TIME = 0.5
 
 completion_separation_re = re.compile(r'\s+')
 
-
-@unittest.skipIf(sys.platform == "win32", 'Tab completion tests not supported on Windows')
 class CqlshCompletionCase(BaseTestCase):
 
     @classmethod

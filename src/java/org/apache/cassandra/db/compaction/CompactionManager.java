@@ -65,7 +65,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
-import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -404,7 +403,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             catch (Throwable t)
             {
-               // these are handled/logged in CompactionExecutor#afterExecute
+                // these are handled/logged in CompactionExecutor#afterExecute
             }
             Throwable fail = Throwables.close(null, transactions);
             if (fail != null)
@@ -547,12 +546,12 @@ public class CompactionManager implements CompactionManagerMBean
                     if (!needsCleanupFull && !needsCleanupTransient)
                     {
                         logger.debug("Skipping {} ([{}, {}]) for cleanup; all rows should be kept. Needs cleanup full ranges: {} Needs cleanup transient ranges: {} Repaired: {}",
-                                    sstable,
-                                    sstable.first.getToken(),
-                                    sstable.last.getToken(),
-                                    needsCleanupFull,
-                                    needsCleanupTransient,
-                                    sstable.isRepaired());
+                                     sstable,
+                                     sstable.first.getToken(),
+                                     sstable.last.getToken(),
+                                     needsCleanupFull,
+                                     needsCleanupTransient,
+                                     sstable.isRepaired());
                         sstableIter.remove();
                         transaction.cancel(sstable);
                         skippedSStables++;
@@ -1228,7 +1227,7 @@ public class CompactionManager implements CompactionManagerMBean
         long totalkeysWritten = 0;
 
         long expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval,
-                                               SSTableReader.getApproximateKeyCount(txn.originals()));
+                                                SSTableReader.getApproximateKeyCount(txn.originals()));
         if (logger.isTraceEnabled())
             logger.trace("Expected bloom filter size : {}", expectedBloomFilterSize);
 
@@ -1846,10 +1845,6 @@ public class CompactionManager implements CompactionManagerMBean
                     DebuggableThreadPoolExecutor.handleOrLog(t);
                 }
             }
-
-            // Snapshots cannot be deleted on Windows while segments of the root element are mapped in NTFS. Compactions
-            // unmap those segments which could free up a snapshot for successful deletion.
-            SnapshotDeletingTask.rescheduleFailedTasks();
         }
 
         public ListenableFuture<?> submitIfRunning(Runnable task, String name)

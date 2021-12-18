@@ -36,14 +36,6 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     . "$CASSANDRA_CONF/cassandra-env.sh"
 fi
 
-# Special-case path variables.
-case "`uname`" in
-    CYGWIN*|MINGW*) 
-        CLASSPATH="`cygpath -p -w "$CLASSPATH"`"
-        CASSANDRA_CONF="`cygpath -p -w "$CASSANDRA_CONF"`"
-    ;;
-esac
-
 class="org.apache.cassandra.transport.Client"
 cassandra_parms="-Dlogback.configurationFile=logback-tools.xml"
 "$JAVA" $JVM_OPTS $cassandra_parms  -cp "$CLASSPATH" "$class" $@

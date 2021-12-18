@@ -26,6 +26,7 @@ import optparse
 import os
 import platform
 import re
+import subprocess
 import sys
 import traceback
 import warnings
@@ -42,7 +43,6 @@ if platform.python_implementation().startswith('Jython'):
     sys.exit("\nCQL Shell does not run on Jython\n")
 
 UTF8 = 'utf-8'
-CP65001 = 'cp65001'  # Win utf-8 variant
 
 description = "CQL Shell for Apache Cassandra"
 version = "6.0.0"
@@ -90,14 +90,8 @@ if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ
 # use bundled lib for python-cql if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
 ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
-myplatform = platform.system()
-is_win = myplatform == 'Windows'
 
-# Workaround for supporting CP65001 encoding on python < 3.3 (https://bugs.python.org/issue13216)
-if is_win and sys.version_info < (3, 3):
-    codecs.register(lambda name: codecs.lookup(UTF8) if name == CP65001 else None)
-
-if myplatform == 'Linux':
+if platform.system() == 'Linux':
     ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
 
 if os.environ.get('CQLSH_NO_BUNDLED', ''):
@@ -498,7 +492,6 @@ class Shell(cmd.Cmd):
 
         self.tty = tty
         self.encoding = encoding
-        self.check_windows_encoding()
 
         self.output_codec = codecs.lookup(encoding)
 
@@ -533,16 +526,8 @@ class Shell(cmd.Cmd):
 
     @property
     def is_using_utf8(self):
-        # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
-        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8', CP65001]
-
-    def check_windows_encoding(self):
-        if is_win and os.name == 'nt' and self.tty and \
-           self.is_using_utf8 and sys.stdout.encoding != CP65001:
-            self.printerr("\nWARNING: console codepage must be set to cp65001 "
-                          "to support {} encoding on Windows platforms.\n"
-                          "If you experience encoding problems, change your console"
-                          " codepage with 'chcp 65001' before starting cqlsh.\n".format(self.encoding))
+        # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html, except CP65001 which is for Windows
+        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8']
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -814,8 +799,6 @@ class Shell(cmd.Cmd):
             try:
                 import readline
             except ImportError:
-                if is_win:
-                    print("WARNING: pyreadline dependency missing.  Install to enable tab completion.")
                 pass
             else:
                 old_completer = readline.get_completer()
@@ -1883,8 +1866,7 @@ class Shell(cmd.Cmd):
 
         Clears the console.
         """
-        import subprocess
-        subprocess.call(['clear', 'cls'][is_win], shell=True)
+        subprocess.call('clear', shell=True)
     do_cls = do_clear
 
     def do_debug(self, parsed):
@@ -2095,7 +2077,6 @@ def should_use_color():
     if os.environ.get('TERM', '') in ('dumb', ''):
         return False
     try:
-        import subprocess
         p = subprocess.Popen(['tput', 'colors'], stdout=subprocess.PIPE)
         stdout, _ = p.communicate()
         if int(stdout.strip()) < 8:

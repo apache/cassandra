@@ -1291,8 +1291,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     }
 
     // Check either that a temporary file is expected to exist (in the existingFiles) or that
-    // it does not exist any longer (on Windows we need to check File.exists() because a list
-    // might return a file as existing even if it does not)
+    // it does not exist any longer.
     private static void assertFiles(Iterable<String> existingFiles, Set<File> temporaryFiles)
     {
         for (String filePath : existingFiles)

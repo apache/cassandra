@@ -335,8 +335,6 @@ public final class FileUtils
         assert from.exists();
         if (logger.isTraceEnabled())
             logger.trace("Renaming {} to {}", from.getPath(), to.getPath());
-        // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
-        // and Windows is picky about that.
         try
         {
             atomicMoveWithFallback(from.toPath(), to.toPath());
