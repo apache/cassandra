@@ -53,6 +53,16 @@ public final class OperationFcts
             {
                 return type.addDuration(temporal, duration);
             }
+
+            @Override
+            protected ByteBuffer excuteOnStrings(StringType resultType,
+                                                 StringType leftType,
+                                                 ByteBuffer left,
+                                                 StringType rightType,
+                                                 ByteBuffer right)
+            {
+                return resultType.concat(leftType, left, rightType, right);
+            }
         },
         SUBSTRACTION('-', "_substract")
         {
@@ -155,6 +165,25 @@ public final class OperationFcts
         }
 
         /**
+         * Executes the operation on the specified string operand.
+         *
+         * Params: resultType – the result type of the operation
+         *         leftType – the type of the left operand
+         *         left – the left operand
+         *         rightType – the type of the right operand
+         *         right – the right operand
+         * Returns: the operation result
+         */
+        protected ByteBuffer excuteOnStrings(StringType resultType,
+                                              StringType leftType,
+                                              ByteBuffer left,
+                                              StringType rightType,
+                                              ByteBuffer right)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        /**
          * Returns the {@code OPERATOR} associated to the specified function.
          * @param functionName the function name
          * @return the {@code OPERATOR} associated to the specified function
@@ -221,7 +250,17 @@ public final class OperationFcts
             functions.add(new TemporalOperationFunction(SimpleDateType.instance, operation));
         }
 
+        addStringConcatenations(functions);
+
         return functions;
+    }
+
+    private static void addStringConcatenations(List<Function> functions)
+    {
+        functions.add(new StringOperationFunction(UTF8Type.instance, UTF8Type.instance, OPERATION.ADDITION, UTF8Type.instance));
+        functions.add(new StringOperationFunction(AsciiType.instance, AsciiType.instance, OPERATION.ADDITION, AsciiType.instance));
+        functions.add(new StringOperationFunction(UTF8Type.instance, AsciiType.instance, OPERATION.ADDITION, UTF8Type.instance));
+        functions.add(new StringOperationFunction(UTF8Type.instance, UTF8Type.instance, OPERATION.ADDITION, AsciiType.instance));
     }
 
     /**
@@ -412,6 +451,27 @@ public final class OperationFcts
             NumberType<?> resultType = (NumberType<?>) returnType();
 
             return operation.executeOnNumerics(resultType, leftType, left, rightType, right);
+        }
+    }
+
+    private static class StringOperationFunction extends OperationFunction
+    {
+        public StringOperationFunction(StringType returnType,
+                                       StringType left,
+                                       OPERATION operation,
+                                       StringType right)
+        {
+            super(returnType, left, operation, right);
+        }
+
+        @Override
+        protected ByteBuffer doExecute(ByteBuffer left, OPERATION operation, ByteBuffer right)
+        {
+            StringType leftType = (StringType) argTypes().get(0);
+            StringType rightType = (StringType) argTypes().get(1);
+            StringType resultType = (StringType) returnType();
+
+            return operation.excuteOnStrings(resultType, leftType, left, rightType, right);
         }
     }
 
