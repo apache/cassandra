@@ -53,14 +53,24 @@ public final class OperationFcts
             {
                 return type.addDuration(temporal, duration);
             }
+
+            @Override
+            protected ByteBuffer excuteOnStrings(StringType resultType,
+                                                 StringType leftType,
+                                                 ByteBuffer left,
+                                                 StringType rightType,
+                                                 ByteBuffer right)
+            {
+                return resultType.concat(leftType, left, rightType, right);
+            }
         },
         SUBSTRACTION('-', "_substract")
         {
             protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
-                                         NumberType<?> leftType,
-                                         ByteBuffer left,
-                                         NumberType<?> rightType,
-                                         ByteBuffer right)
+                                                   NumberType<?> leftType,
+                                                   ByteBuffer left,
+                                                   NumberType<?> rightType,
+                                                   ByteBuffer right)
             {
                 return resultType.substract(leftType, left, rightType, right);
             }
@@ -76,10 +86,10 @@ public final class OperationFcts
         MULTIPLICATION('*', "_multiply")
         {
             protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
-                                         NumberType<?> leftType,
-                                         ByteBuffer left,
-                                         NumberType<?> rightType,
-                                         ByteBuffer right)
+                                                   NumberType<?> leftType,
+                                                   ByteBuffer left,
+                                                   NumberType<?> rightType,
+                                                   ByteBuffer right)
             {
                 return resultType.multiply(leftType, left, rightType, right);
             }
@@ -87,10 +97,10 @@ public final class OperationFcts
         DIVISION('/', "_divide")
         {
             protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
-                                         NumberType<?> leftType,
-                                         ByteBuffer left,
-                                         NumberType<?> rightType,
-                                         ByteBuffer right)
+                                                   NumberType<?> leftType,
+                                                   ByteBuffer left,
+                                                   NumberType<?> rightType,
+                                                   ByteBuffer right)
             {
                 return resultType.divide(leftType, left, rightType, right);
             }
@@ -98,10 +108,10 @@ public final class OperationFcts
         MODULO('%', "_modulo")
         {
             protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
-                                         NumberType<?> leftType,
-                                         ByteBuffer left,
-                                         NumberType<?> rightType,
-                                         ByteBuffer right)
+                                                   NumberType<?> leftType,
+                                                   ByteBuffer left,
+                                                   NumberType<?> rightType,
+                                                   ByteBuffer right)
             {
                 return resultType.mod(leftType, left, rightType, right);
             }
@@ -150,6 +160,25 @@ public final class OperationFcts
         protected ByteBuffer executeOnTemporals(TemporalType<?> type,
                                                 ByteBuffer temporal,
                                                 ByteBuffer duration)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        /**
+         * Executes the operation between the specified string operand.
+         *
+         * @param resultType the result type of the operation
+         * @param leftType the type of the left operand
+         * @param left the left operand
+         * @param rightType  the type of the right operand
+         * @param right the right operand
+         * @return the operation result
+         */
+        protected ByteBuffer excuteOnStrings(StringType resultType,
+                                             StringType leftType,
+                                             ByteBuffer left,
+                                             StringType rightType,
+                                             ByteBuffer right)
         {
             throw new UnsupportedOperationException();
         }
@@ -221,7 +250,17 @@ public final class OperationFcts
             functions.add(new TemporalOperationFunction(SimpleDateType.instance, operation));
         }
 
+        addStringConcatenations(functions);
+
         return functions;
+    }
+
+    private static void addStringConcatenations(List<Function> functions)
+    {
+        functions.add(new StringOperationFunction(UTF8Type.instance, UTF8Type.instance, OPERATION.ADDITION, UTF8Type.instance));
+        functions.add(new StringOperationFunction(AsciiType.instance, AsciiType.instance, OPERATION.ADDITION, AsciiType.instance));
+        functions.add(new StringOperationFunction(UTF8Type.instance, AsciiType.instance, OPERATION.ADDITION, UTF8Type.instance));
+        functions.add(new StringOperationFunction(UTF8Type.instance, UTF8Type.instance, OPERATION.ADDITION, AsciiType.instance));
     }
 
     /**
@@ -412,6 +451,27 @@ public final class OperationFcts
             NumberType<?> resultType = (NumberType<?>) returnType();
 
             return operation.executeOnNumerics(resultType, leftType, left, rightType, right);
+        }
+    }
+
+    private static class StringOperationFunction extends OperationFunction
+    {
+        public StringOperationFunction(StringType returnType,
+                                       StringType left,
+                                       OPERATION operation,
+                                       StringType right)
+        {
+            super(returnType, left, operation, right);
+        }
+
+        @Override
+        protected ByteBuffer doExecute(ByteBuffer left, OPERATION operation, ByteBuffer right)
+        {
+            StringType leftType = (StringType) argTypes().get(0);
+            StringType rightType = (StringType) argTypes().get(1);
+            StringType resultType = (StringType) returnType();
+
+            return operation.excuteOnStrings(resultType, leftType, left, rightType, right);
         }
     }
 

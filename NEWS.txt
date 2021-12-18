@@ -38,6 +38,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Support for String concatenation has been added through the + operator.
     - New configuration max_hints_size_per_host to limit the size of local hints files per host in megabytes. Setting to
       non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure
       the total size of the hints files per host does not exceed the limit.
