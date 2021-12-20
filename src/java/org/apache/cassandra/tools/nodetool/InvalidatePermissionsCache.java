@@ -182,7 +182,7 @@ public class InvalidatePermissionsCache extends NodeToolCmd
             return FunctionResource.fromName("functions/" + functionsInKeyspace + '/' + function).getName();
         } catch (ConfigurationException e)
         {
-            throw new IllegalArgumentException("An error was encountered when looking up function definition; " + e.getMessage());
+            throw new IllegalArgumentException("An error was encountered when looking up function definition: " + e.getMessage());
         }
     }
 }

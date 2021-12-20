@@ -28,12 +28,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.RoleResource;
@@ -52,14 +53,10 @@ public class InvalidatePermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        SchemaLoader.prepareServer();
-        AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
-        AuthTestUtils.LocalCassandraAuthorizer authorizer = new AuthTestUtils.LocalCassandraAuthorizer();
-        SchemaLoader.setupAuth(roleManager,
-                               new AuthTestUtils.LocalPasswordAuthenticator(),
-                               authorizer,
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+        CQLTester.setUpClass();
+        CQLTester.requireAuthentication();
 
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
 
@@ -78,6 +75,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                 JMXResource.root(),
                 JMXResource.mbean("org.apache.cassandra.auth:type=*"));
 
+        IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         for (IResource resource : resources)
         {
             Set<Permission> permissions = resource.applicablePermissions();
@@ -221,7 +219,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                 KEYSPACE, "--function", "f[x]");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
-                .isEqualTo(wrapByDefaultNodetoolMessage("An error was encountered when looking up function definition; Unable to find abstract-type class 'org.apache.cassandra.db.marshal.x'"));
+                .isEqualTo(wrapByDefaultNodetoolMessage("An error was encountered when looking up function definition: Unable to find abstract-type class 'org.apache.cassandra.db.marshal.x'"));
         assertThat(tool.getStderr()).isEmpty();
     }
 

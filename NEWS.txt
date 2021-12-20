@@ -38,6 +38,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added ability to configure auth caches through corresponding `nodetool` commands.
     - CDC data flushing now can be configured to be non-blocking with the configuration cdc_block_writes. Setting to true,
       any writes to the CDC-enabled tables will be blocked when reaching to the limit for CDC data on disk, which is the
       existing and the default behavior. Setting to false, the writes to the CDC-enabled tables will be accepted and
