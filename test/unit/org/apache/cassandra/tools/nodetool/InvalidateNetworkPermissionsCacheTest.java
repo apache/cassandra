@@ -21,9 +21,10 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
 
@@ -37,13 +38,10 @@ public class InvalidateNetworkPermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        SchemaLoader.prepareServer();
-        AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
-        SchemaLoader.setupAuth(roleManager,
-                               new AuthTestUtils.LocalPasswordAuthenticator(),
-                               new AuthTestUtils.LocalCassandraAuthorizer(),
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+        CQLTester.setUpClass();
+        CQLTester.requireAuthentication();
 
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
 

@@ -61,6 +61,7 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.auth.NetworkPermissionsCache;
 import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
 import org.apache.cassandra.auth.PasswordAuthenticator;
@@ -567,6 +568,25 @@ public class NodeProbe implements AutoCloseable
     public void invalidateRowCache()
     {
         cacheService.invalidateRowCache();
+    }
+
+    public AuthCacheMBean getAuthCacheMBean(String cacheName)
+    {
+        switch (cacheName)
+        {
+            case PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME:
+                return ccProxy;
+            case AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME:
+                return jpcProxy;
+            case NetworkPermissionsCacheMBean.CACHE_NAME:
+                return npcProxy;
+            case PermissionsCacheMBean.CACHE_NAME:
+                return pcProxy;
+            case RolesCacheMBean.CACHE_NAME:
+                return rcProxy;
+            default:
+                throw new IllegalArgumentException("Unknown cache name: " + cacheName);
+        }
     }
 
     public void drain() throws IOException, InterruptedException, ExecutionException
