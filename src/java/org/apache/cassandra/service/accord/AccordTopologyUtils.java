@@ -37,6 +37,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -102,8 +103,14 @@ public class AccordTopologyUtils
     {
         List<TableId> tableIds = new ArrayList<>();
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-        for (String ksname: Schema.instance.getNonLocalStrategyKeyspaces())
+        for (String ksname: Schema.instance.getKeyspaces())
         {
+            // TODO: add a table metadata flag to enable and enforce accord use
+            if (SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(ksname))
+                continue;
+            if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksname))
+                continue;
+
             Keyspace keyspace = Keyspace.open(ksname);
             for (TableMetadata tableMetadata : keyspace.getMetadata().tables)
             {
