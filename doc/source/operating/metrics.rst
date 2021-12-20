@@ -348,10 +348,10 @@ Reported name format:
     ViewWriteLatency      Timer          Time between when mutation is applied to base table and when CL.ONE is achieved on view.
     ===================== ============== =============================================================
 
-Cache Metrics
+Weighted Cache Metrics
 ^^^^^^^^^^^^^
 
-Cassandra caches have metrics to track the effectivness of the caches. Though the ``Table Metrics`` might be more useful.
+Cassandra caches have metrics to track the effectivness of weighted caches.
 
 Reported name format:
 
@@ -389,7 +389,51 @@ RowCache                     Cache for rows kept in memory.
 ============================ ===========
 
 .. NOTE::
-    Misses and MissLatency are only defined for the ChunkCache
+   * MissLatency is only defined for the ChunkCache.
+   * ChunkCache MBean is only available if the cache is enabled.
+
+Unweighted Cache Metrics
+^^^^^^^^^^^^^
+
+Cassandra caches have metrics to track the effectivness of unweighted caches.
+
+Reported name format:
+
+**Metric Name**
+    ``org.apache.cassandra.metrics.UnweightedCache.<MetricName>.<CacheName>``
+
+**JMX MBean**
+    ``org.apache.cassandra.metrics:type=UnweightedCache,scope=<CacheName>,name=<MetricName>``
+
+========================== ============== ===========
+Name                       Type           Description
+========================== ============== ===========
+Capacity                   Gauge<Long>    Maximum number of cache entries.
+Entries                    Gauge<Integer> Total number of cache entries.
+FifteenMinuteCacheHitRate  Gauge<Double>  15m cache hit rate.
+FiveMinuteCacheHitRate     Gauge<Double>  5m cache hit rate.
+HitRate                    Gauge<Double>  All time cache hit rate.
+Hits                       Meter          Total number of cache hits.
+MissLatency                Timer          Latency of misses.
+Misses                     Meter          Total number of cache misses.
+OneMinuteCacheHitRate      Gauge<Double>  1m cache hit rate.
+Requests                   Gauge<Long>    Total number of cache requests.
+========================== ============== ===========
+
+The following caches are covered:
+
+============================ ===========
+Name                         Description
+============================ ===========
+CredentialsCache             Auth cache for credentials.
+JmxPermissionsCache          Auth cache for JMX permissions.
+NetworkPermissionsCache      Auth cache for network permissions.
+PermissionsCache             Auth cache for permissions.
+RolesCache                   Auth cache for roles.
+============================ ===========
+
+.. NOTE::
+   * AuthCache MBeans are only available if corresponding authorizers and authenticators are enabled.
 
 CQL Metrics
 ^^^^^^^^^^^

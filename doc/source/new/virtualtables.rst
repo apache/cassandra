@@ -98,7 +98,7 @@ Virtual tables in a virtual keyspace may be listed with ``DESC TABLES``.  The ``
  coordinator_write_latency  local_write_latency             system_properties
  credentials_cache_keys     max_partition_size              thread_pools
  disk_usage                 network_permissions_cache_keys  tombstones_per_read
- internode_inbound          permissions_cache_keys
+ internode_inbound          permissions_cache_keys          unweighted_caches
 
 Some of the salient virtual tables in ``system_views`` virtual keyspace are described in Table 1.
 
@@ -117,11 +117,16 @@ Table 1 : Virtual Tables in system_views
 |                              |max, median, per_second, and                       |
 |                              |table_name.                                        |
 +------------------------------+---------------------------------------------------+
-| caches                       |Displays the general cache information including   |
-|                              |cache name, capacity_bytes, entry_count, hit_count,|
-|                              |hit_ratio double, recent_hit_rate_per_second,      |
+| caches                       |Displays the general weighted cache information    |
+|                              |including cache name, capacity_bytes, entry_count, |
+|                              |hit_count, hit_ratio, recent_hit_rate_per_second,  |
 |                              |recent_request_rate_per_second, request_count, and |
 |                              |size_bytes.                                        |
++------------------------------+---------------------------------------------------+
+| unweighted_caches            |Displays the general unweighted cache information  |
+|                              |including cache name, capacity, entry_count,       |
+|                              |hit_count, hit_ratio, recent_hit_rate_per_second   |
+|                              |recent_request_rate_per_second, and request_count  |
 +------------------------------+---------------------------------------------------+
 | local_reads                  |A table metric for  local reads information.       |
 +------------------------------+---------------------------------------------------+
@@ -203,7 +208,7 @@ The virtual tables may be described with ``DESCRIBE`` statement. The DDL listed 
 
 Caches Virtual Table
 ********************
-The ``caches`` virtual table lists information about the caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details:
+The ``caches`` virtual table lists information about weighted caches. The four caches presently created are chunks, counters, keys and rows. A query on the ``caches`` virtual table returns the following details:
 
 ::
 
@@ -216,6 +221,30 @@ The ``caches`` virtual table lists information about the caches. The four caches
      rows |              0 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
 
  (4 rows)
+
+.. NOTE::
+   * chunk cache is only available if it is enabled.
+
+Unweighted Caches Virtual Table
+********************
+The ``unweighted_caches`` virtual table lists information about unweighted caches. The five caches presently created are credentials, jmx_permissions, network_permissions, permissions and roles. A query on the ``unweighted_caches`` virtual table returns the following details:
+
+::
+
+ cqlsh:system_views> SELECT * FROM system_views.unweighted_caches;
+ name                | capacity | entry_count | hit_count | hit_ratio | recent_hit_rate_per_second | recent_request_rate_per_second | request_count
+ --------------------+----------+-------------+-----------+-----------+----------------------------+--------------------------------+---------------
+         credentials |     1000 |           1 |         2 |         1 |                          0 |                              0 |             2
+     jmx_permissions |     1000 |           0 |         0 |       NaN |                          0 |                              0 |             0
+ network_permissions |     1000 |           1 |        18 |         1 |                          2 |                              2 |            18
+         permissions |     1000 |           1 |         1 |         1 |                          0 |                              0 |             1
+               roles |     1000 |           1 |         9 |         1 |                          0 |                              0 |             9
+
+ (5 rows)
+
+.. NOTE::
+   * auth caches are only available if corresponding authorizers and authenticators are enabled.
+
 
 Settings Virtual Table
 **********************

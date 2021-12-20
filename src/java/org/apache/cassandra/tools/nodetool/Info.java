@@ -29,8 +29,14 @@ import java.util.Map.Entry;
 
 import javax.management.InstanceNotFoundException;
 
+import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.auth.PermissionsCacheMBean;
+import org.apache.cassandra.auth.RolesCacheMBean;
+import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -47,27 +53,27 @@ public class Info extends NodeToolCmd
         boolean gossipInitialized = probe.isGossipRunning();
 
         PrintStream out = probe.output().out;
-        out.printf("%-23s: %s%n", "ID", probe.getLocalHostId());
-        out.printf("%-23s: %s%n", "Gossip active", gossipInitialized);
-        out.printf("%-23s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
-        out.printf("%-23s: %s%n", "Load", probe.getLoadString());
+        out.printf("%-25s: %s%n", "ID", probe.getLocalHostId());
+        out.printf("%-25s: %s%n", "Gossip active", gossipInitialized);
+        out.printf("%-25s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
+        out.printf("%-25s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
-            out.printf("%-23s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
+            out.printf("%-25s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
         else
-            out.printf("%-23s: %s%n", "Generation No", 0);
+            out.printf("%-25s: %s%n", "Generation No", 0);
 
         // Uptime
         long secondsUp = probe.getUptime() / 1000;
-        out.printf("%-23s: %d%n", "Uptime (seconds)", secondsUp);
+        out.printf("%-25s: %d%n", "Uptime (seconds)", secondsUp);
 
         // Memory usage
         MemoryUsage heapUsage = probe.getHeapMemoryUsage();
         double memUsed = (double) heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double) heapUsage.getMax() / (1024 * 1024);
-        out.printf("%-23s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
+        out.printf("%-25s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
         try
         {
-            out.printf("%-23s: %.2f%n", "Off Heap Memory (MB)", getOffHeapMemoryUsed(probe));
+            out.printf("%-25s: %.2f%n", "Off Heap Memory (MB)", getOffHeapMemoryUsed(probe));
         }
         catch (RuntimeException e)
         {
@@ -77,51 +83,22 @@ public class Info extends NodeToolCmd
         }
 
         // Data Center/Rack
-        out.printf("%-23s: %s%n", "Data Center", probe.getDataCenter());
-        out.printf("%-23s: %s%n", "Rack", probe.getRack());
+        out.printf("%-25s: %s%n", "Data Center", probe.getDataCenter());
+        out.printf("%-25s: %s%n", "Rack", probe.getRack());
 
         // Exceptions
-        out.printf("%-23s: %s%n", "Exceptions", probe.getStorageMetric("Exceptions"));
+        out.printf("%-25s: %s%n", "Exceptions", probe.getStorageMetric("Exceptions"));
 
         CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
-        // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
-                "Key Cache",
-                probe.getCacheMetric("KeyCache", "Entries"),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Size")),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Capacity")),
-                probe.getCacheMetric("KeyCache", "Hits"),
-                probe.getCacheMetric("KeyCache", "Requests"),
-                probe.getCacheMetric("KeyCache", "HitRate"),
-                cacheService.getKeyCacheSavePeriodInSeconds());
-
-        // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
-                "Row Cache",
-                probe.getCacheMetric("RowCache", "Entries"),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Size")),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Capacity")),
-                probe.getCacheMetric("RowCache", "Hits"),
-                probe.getCacheMetric("RowCache", "Requests"),
-                probe.getCacheMetric("RowCache", "HitRate"),
-                cacheService.getRowCacheSavePeriodInSeconds());
-
-        // Counter Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
-                "Counter Cache",
-                probe.getCacheMetric("CounterCache", "Entries"),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Size")),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Capacity")),
-                probe.getCacheMetric("CounterCache", "Hits"),
-                probe.getCacheMetric("CounterCache", "Requests"),
-                probe.getCacheMetric("CounterCache", "HitRate"),
-                cacheService.getCounterCacheSavePeriodInSeconds());
+        printAutoSavingCacheStats(probe, out, "Key Cache", CacheService.CacheType.KEY_CACHE, cacheService.getKeyCacheSavePeriodInSeconds());
+        printAutoSavingCacheStats(probe, out, "Row Cache", CacheService.CacheType.ROW_CACHE, cacheService.getRowCacheSavePeriodInSeconds());
+        printAutoSavingCacheStats(probe, out, "Counter Cache", CacheService.CacheType.COUNTER_CACHE, cacheService.getCounterCacheSavePeriodInSeconds());
 
         // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
         try
         {
-            out.printf("%-23s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",
+            out.printf("%-25s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",
                     "Chunk Cache",
                     probe.getCacheMetric("ChunkCache", "Entries"),
                     FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Size")),
@@ -140,8 +117,14 @@ public class Info extends NodeToolCmd
             // Chunk cache is not on.
         }
 
+        printAuthCacheStats(probe, out, "Credentials Cache", PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
+        printAuthCacheStats(probe, out, "JMX Permissions Cache", AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME);
+        printAuthCacheStats(probe, out, "Network Permissions Cache", NetworkPermissionsCacheMBean.CACHE_NAME);
+        printAuthCacheStats(probe, out, "Permissions Cache", PermissionsCacheMBean.CACHE_NAME);
+        printAuthCacheStats(probe, out, "Roles Cache", RolesCacheMBean.CACHE_NAME);
+
         // Global table stats
-        out.printf("%-23s: %s%%%n", "Percent Repaired", probe.getColumnFamilyMetric(null, null, "PercentRepaired"));
+        out.printf("%-25s: %s%%%n", "Percent Repaired", probe.getColumnFamilyMetric(null, null, "PercentRepaired"));
 
         // check if node is already joined, before getting tokens, since it throws exception if not.
         if (probe.isJoined())
@@ -150,14 +133,48 @@ public class Info extends NodeToolCmd
             List<String> tokens = probe.getTokens();
             if (tokens.size() == 1 || this.tokens)
                 for (String token : tokens)
-                    out.printf("%-23s: %s%n", "Token", token);
+                    out.printf("%-25s: %s%n", "Token", token);
             else
-                out.printf("%-23s: (invoke with -T/--tokens to see all %d tokens)%n", "Token",
+                out.printf("%-25s: (invoke with -T/--tokens to see all %d tokens)%n", "Token",
                                   tokens.size());
         }
         else
         {
-            out.printf("%-23s: (node is not joined to the cluster)%n", "Token");
+            out.printf("%-25s: (node is not joined to the cluster)%n", "Token");
+        }
+    }
+
+    private void printAutoSavingCacheStats(NodeProbe probe, PrintStream out, String cacheName, CacheService.CacheType cacheType, int savePeriodInSeconds)
+    {
+        out.printf("%-25s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+                   cacheName,
+                   probe.getCacheMetric(cacheType.toString(), "Entries"),
+                   FileUtils.stringifyFileSize((long) probe.getCacheMetric(cacheType.toString(), "Size")),
+                   FileUtils.stringifyFileSize((long) probe.getCacheMetric(cacheType.toString(), "Capacity")),
+                   probe.getCacheMetric(cacheType.toString(), "Hits"),
+                   probe.getCacheMetric(cacheType.toString(), "Requests"),
+                   probe.getCacheMetric(cacheType.toString(), "HitRate"),
+                   savePeriodInSeconds);
+    }
+
+    private void printAuthCacheStats(NodeProbe probe, PrintStream out, String cacheName, String cacheType)
+    {
+        try
+        {
+            out.printf("%-25s: entries %d, capacity %d, %d hits, %d requests, %.3f recent hit rate%n",
+                       cacheName,
+                       probe.getCacheMetric(cacheType, "Entries"),
+                       probe.getCacheMetric(cacheType, "Capacity"),
+                       probe.getCacheMetric(cacheType, "Hits"),
+                       probe.getCacheMetric(cacheType, "Requests"),
+                       probe.getCacheMetric(cacheType, "HitRate"));
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+
+            // cache is not on
         }
     }
 
