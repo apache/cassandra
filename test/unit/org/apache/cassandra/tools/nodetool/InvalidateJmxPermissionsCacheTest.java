@@ -24,13 +24,15 @@ import javax.security.auth.Subject;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraPrincipal;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
 
@@ -46,21 +48,18 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        SchemaLoader.prepareServer();
-        AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
-        AuthTestUtils.LocalCassandraAuthorizer authorizer = new AuthTestUtils.LocalCassandraAuthorizer();
-        SchemaLoader.setupAuth(roleManager,
-                               new AuthTestUtils.LocalPasswordAuthenticator(),
-                               authorizer,
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+        CQLTester.setUpClass();
+        CQLTester.requireAuthentication();
+
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
 
         JMXResource rootJmxResource = JMXResource.root();
         Set<Permission> jmxPermissions = rootJmxResource.applicablePermissions();
 
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+        IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_A);
-
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
         authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_B);
 
         startJMXServer();
