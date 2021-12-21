@@ -95,6 +95,8 @@ public class QueryProcessor implements QueryHandler
 
     private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
 
+    private static final List<String> DDL_STATEMENTS = Arrays.asList("CREATE", "ALTER", "DROP");
+
     static
     {
         preparedStatements = Caffeine.newBuilder()
@@ -634,13 +636,31 @@ public class QueryProcessor implements QueryHandler
     {
         Tracing.trace("Parsing {}", queryStr);
         CQLStatement.Raw statement = parseStatement(queryStr);
-
         // Set keyspace for statement that require login
         if (statement instanceof QualifiedStatement)
             ((QualifiedStatement) statement).setKeyspace(clientState);
+        logger.info(String.format("Statement is: %s", statement.toString()));
+        if (instance.isDDLStatement(queryStr)){
+            logger.info(String.format("DDL Query: %s, by User: %s, From: %s",
+                                      queryStr,
+                                      clientState.getUser(),
+                                      clientState.getRemoteAddress().getAddress()));
+        }
 
         Tracing.trace("Preparing statement");
         return statement.prepare(clientState);
+    }
+
+    public boolean isDDLStatement(String queryStr)
+    {
+        for (final String ddlStmt : DDL_STATEMENTS)
+        {
+            if (queryStr.toUpperCase().startsWith(ddlStmt))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static <T extends CQLStatement.Raw> T parseStatement(String queryStr, Class<T> klass, String type) throws SyntaxException
