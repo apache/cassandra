@@ -23,6 +23,9 @@ package org.apache.cassandra.index.sai.functional;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.inject.Injection;
@@ -102,25 +105,25 @@ public class NodeRestartTest extends SAITester
     }
 
     @Test
-    public void shouldRestartWithExistingNDIComponents() throws Throwable
+    public void shouldRestartWithExistingIndexComponents() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        verifyIndexFiles(0, 0);
+        verifyNoIndexFiles();
 
         execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
 
-        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
         waitForIndexQueryable();
-        verifyIndexFiles(1, 1);
+        verifyIndexFiles(numericIndexContext,literalIndexContext, 1, 1);
         assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
         assertNumRows(1, "SELECT * FROM %%s WHERE v2 = '0'");
         assertValidationCount(0, 0);
 
         simulateNodeRestart();
 
-        verifyIndexFiles(1, 1);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 1);
 
         assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
         assertNumRows(1, "SELECT * FROM %%s WHERE v2 = '0'");
@@ -167,14 +170,14 @@ public class NodeRestartTest extends SAITester
     void createSingleRowIndex() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        verifyIndexFiles(0, 0);
+        verifyNoIndexFiles();
 
         execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0')");
         flush();
 
-        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
         waitForIndexQueryable();
-        verifyIndexFiles(1, 0);
+        verifyIndexFiles(numericIndexContext, null, 1, 0);
         assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(0, 0);
     }

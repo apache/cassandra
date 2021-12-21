@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.datastax.driver.core.ResultSet;
+import org.apache.cassandra.index.sai.disk.format.Version;
 
 import static org.apache.cassandra.index.sai.metrics.TableQueryMetrics.TABLE_QUERY_METRIC_TYPE;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -303,7 +304,8 @@ public class QueryMetricsTest extends AbstractMetricsTest
         int actualRows = rows.all().size();
         assertEquals(3, actualRows);
 
-        waitForEquals(objectNameNoIndex("TotalPartitionReads", keyspace, table, TABLE_QUERY_METRIC_TYPE), 2);
+        //TODO This needs revisiting with STAR-903 because we are now reading rows one at a time
+        waitForEquals(objectNameNoIndex("TotalPartitionReads", keyspace, table, TABLE_QUERY_METRIC_TYPE), Version.LATEST == Version.AA ? 2 : 3);
         waitForVerifyHistogram(objectNameNoIndex("RowsFiltered", keyspace, table, PER_QUERY_METRIC_TYPE), 1);
         waitForEquals(objectNameNoIndex("TotalRowsFiltered", keyspace, table, TABLE_QUERY_METRIC_TYPE), 3);
     }

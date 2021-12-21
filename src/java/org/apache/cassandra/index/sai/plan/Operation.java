@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -38,7 +32,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -85,10 +79,10 @@ public class Operation
 
         for (final RowFilter.Expression e : expressions)
         {
-            ColumnContext columnContext = controller.getContext(e);
+            IndexContext indexContext = controller.getContext(e);
             List<Expression> perColumn = analyzed.get(e.column());
 
-            AbstractAnalyzer.AnalyzerFactory analyzerFactory = columnContext.getQueryAnalyzerFactory();
+            AbstractAnalyzer.AnalyzerFactory analyzerFactory = indexContext.getQueryAnalyzerFactory();
             AbstractAnalyzer analyzer = analyzerFactory.create();
             try
             {
@@ -107,7 +101,7 @@ public class Operation
                     case EQ:
                         // EQ operator will always be a multiple expression because it is being used by
                         // map entries
-                        isMultiExpression = columnContext.isNonFrozenCollection();
+                        isMultiExpression = indexContext.isNonFrozenCollection();
                         break;
 
                     case CONTAINS:
@@ -127,7 +121,7 @@ public class Operation
                     while (analyzer.hasNext())
                     {
                         final ByteBuffer token = analyzer.next();
-                        perColumn.add(new Expression(columnContext).add(e.operator(), token.duplicate()));
+                        perColumn.add(new Expression(indexContext).add(e.operator(), token.duplicate()));
                     }
                 }
                 else
@@ -138,14 +132,15 @@ public class Operation
                     Expression range;
                     if (perColumn.size() == 0 || op != OperationType.AND)
                     {
-                        perColumn.add((range = new Expression(columnContext)));
+                        range = new Expression(indexContext);
+                        perColumn.add(range);
                     }
                     else
                     {
                         range = Iterables.getLast(perColumn);
                     }
 
-                    if (!TypeUtil.isLiteral(columnContext.getValidator()))
+                    if (!TypeUtil.isLiteral(indexContext.getValidator()))
                     {
                         range.add(e.operator(), e.getIndexValue().duplicate());
                     }

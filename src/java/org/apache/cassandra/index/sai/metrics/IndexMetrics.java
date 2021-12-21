@@ -21,7 +21,7 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -46,7 +46,7 @@ public class IndexMetrics extends AbstractMetrics
     public final Histogram compactionSegmentCellsPerSecond;
     public final Histogram compactionSegmentBytesPerSecond;
 
-    public IndexMetrics(ColumnContext context, TableMetadata table)
+    public IndexMetrics(IndexContext context, TableMetadata table)
     {
         super(table, context.getIndexName(), "IndexMetrics");
 

@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -35,7 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
@@ -52,16 +46,16 @@ public class IndexViewManager
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexViewManager.class);
     
-    private final ColumnContext context;
+    private final IndexContext context;
     private final AtomicReference<View> view = new AtomicReference<>();
 
-    public IndexViewManager(ColumnContext context)
+    public IndexViewManager(IndexContext context)
     {
         this(context, Collections.emptySet());
     }
 
     @VisibleForTesting
-    IndexViewManager(ColumnContext context, Collection<SSTableIndex> indices)
+    IndexViewManager(IndexContext context, Collection<SSTableIndex> indices)
     {
         this.context = context;
         this.view.set(new View(context, indices));
@@ -78,14 +72,13 @@ public class IndexViewManager
      * @param oldSSTables A set of SSTables to remove.
      * @param newSSTableContexts A set of SSTableContexts to add to tracker.
      * @param validate if true, per-column index files' header and footer will be validated.
-     * @param rename if true check whether the per-column index components need renaming
      *
      * @return A set of SSTables which have attached to them invalid index components.
      */
-    public Set<SSTableContext> update(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTableContexts, boolean validate, boolean rename)
+    public Set<SSTableContext> update(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTableContexts, boolean validate)
     {
         // Valid indexes on the left and invalid SSTable contexts on the right...
-        Pair<Set<SSTableIndex>, Set<SSTableContext>> indexes = context.getBuiltIndexes(newSSTableContexts, validate, rename);
+        Pair<Set<SSTableIndex>, Set<SSTableContext>> indexes = context.getBuiltIndexes(newSSTableContexts, validate);
 
         View currentView, newView;
         Collection<SSTableIndex> newViewIndexes = new HashSet<>();
@@ -144,7 +137,7 @@ public class IndexViewManager
             index.markObsolete();
         }
 
-        update(toRemove, Collections.emptyList(), false, false);
+        update(toRemove, Collections.emptyList(), false);
     }
 
     /**

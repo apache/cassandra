@@ -26,14 +26,14 @@ import java.util.List;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
+import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.lucene.util.BytesRef;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.string;
 
-public class RAMStringIndexerTest extends NdiRandomizedTest
+public class RAMStringIndexerTest extends SaiRandomizedTest
 {
     @Test
     public void test() throws Exception

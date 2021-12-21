@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -35,7 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -85,7 +79,7 @@ public class RangeTermTree implements TermTree
 
             if (logger.isTraceEnabled())
             {
-                ColumnContext context = index.getColumnContext();
+                IndexContext context = index.getIndexContext();
                 logger.trace(context.logMessage("Adding index for SSTable {} with minTerm={} and maxTerm={}..."), 
                                                 index.getSSTable().descriptor, 
                                                 comparator.compose(index.minTerm()), 

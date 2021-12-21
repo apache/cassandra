@@ -25,7 +25,7 @@ import org.junit.Test;
 import org.apache.cassandra.index.sai.disk.PostingList;
 
 
-public class PostingListTest extends NdiRandomizedTest
+public class PostingListTest extends SaiRandomizedTest
 {
     @Test
     public void testPeekablePostingList() throws IOException

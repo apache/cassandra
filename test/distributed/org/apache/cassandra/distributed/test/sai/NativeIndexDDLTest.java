@@ -253,7 +253,7 @@ public class NativeIndexDDLTest extends TestBaseImpl
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
                 String indexName = IndexMetadata.generateDefaultIndexName(table, columnID);
                 StorageAttachedIndex index = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
-                return index.getContext().getCellCount();
+                return index.getIndexContext().getCellCount();
             }
             catch (Throwable e)
             {

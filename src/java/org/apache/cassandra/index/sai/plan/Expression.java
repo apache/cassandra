@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -99,7 +99,7 @@ public class Expression
 
     public final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
 
-    public final ColumnContext context;
+    public final IndexContext context;
     public final AbstractType<?> validator;
 
     @VisibleForTesting
@@ -110,11 +110,11 @@ public class Expression
 
     final List<ByteBuffer> exclusions = new ArrayList<>();
 
-    public Expression(ColumnContext columnContext)
+    public Expression(IndexContext indexContext)
     {
-        this.context = columnContext;
-        this.analyzerFactory = columnContext.getQueryAnalyzerFactory();
-        this.validator = columnContext.getValidator();
+        this.context = indexContext;
+        this.analyzerFactory = indexContext.getQueryAnalyzerFactory();
+        this.validator = indexContext.getValidator();
     }
 
     public Expression add(Operator op, ByteBuffer value)

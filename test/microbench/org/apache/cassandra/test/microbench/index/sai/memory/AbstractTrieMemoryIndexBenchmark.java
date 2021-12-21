@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.function.LongConsumer;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -31,7 +30,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.memory.MemoryIndex;
@@ -58,8 +57,8 @@ public abstract class AbstractTrieMemoryIndexBenchmark
 
     protected int randomSeed;
 
-    protected ColumnContext stringContext;
-    protected ColumnContext integerContext;
+    protected IndexContext stringContext;
+    protected IndexContext integerContext;
 
     protected MemoryIndex stringIndex;
     protected MemoryIndex integerIndex;
@@ -99,10 +98,10 @@ public abstract class AbstractTrieMemoryIndexBenchmark
         integerOptions.put(IndexTarget.TARGET_OPTION_NAME, INTEGER_COLUMN);
 
         IndexMetadata stringMetadata = IndexMetadata.fromSchemaMetadata(STRING_INDEX, IndexMetadata.Kind.CUSTOM, stringOptions);
-        stringContext = new ColumnContext(table, stringMetadata);
+        stringContext = new IndexContext(table, stringMetadata);
 
         IndexMetadata integerMetadata = IndexMetadata.fromSchemaMetadata(INTEGER_INDEX, IndexMetadata.Kind.CUSTOM, integerOptions);
-        integerContext = new ColumnContext(table, integerMetadata);
+        integerContext = new IndexContext(table, integerMetadata);
     }
 
 

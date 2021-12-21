@@ -43,16 +43,20 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
@@ -62,6 +66,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -74,13 +79,14 @@ public class QueryController
     private final QueryContext queryContext;
     private final TableQueryMetrics tableQueryMetrics;
     private final RowFilter.FilterElement filterOperation;
-
+    private final IndexFeatureSet indexFeatureSet;
     private final List<DataRange> ranges;
     private final AbstractBounds<PartitionPosition> mergeRange;
 
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
                            RowFilter.FilterElement filterOperation,
+                           IndexFeatureSet indexFeatureSet,
                            QueryContext queryContext,
                            TableQueryMetrics tableQueryMetrics)
     {
@@ -89,6 +95,7 @@ public class QueryController
         this.queryContext = queryContext;
         this.tableQueryMetrics = tableQueryMetrics;
         this.filterOperation = filterOperation;
+        this.indexFeatureSet = indexFeatureSet;
         this.ranges = dataRanges(command);
         DataRange first = ranges.get(0);
         DataRange last = ranges.get(ranges.size() - 1);
@@ -127,11 +134,11 @@ public class QueryController
     /**
      * @return indexed {@code ColumnContext} if index is found; otherwise return non-indexed {@code ColumnContext}.
      */
-    public ColumnContext getContext(RowFilter.Expression expression)
+    public IndexContext getContext(RowFilter.Expression expression)
     {
         StorageAttachedIndex index = getBestIndexFor(expression);
 
-        return index != null ? index.getContext() : new ColumnContext(cfs.metadata(), expression.column());
+        return index != null ? index.getIndexContext() : new IndexContext(cfs.metadata(), expression.column());
     }
 
     public StorageAttachedIndex getBestIndexFor(RowFilter.Expression expression)
@@ -139,7 +146,7 @@ public class QueryController
         return cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class).orElse(null);
     }
 
-    public UnfilteredRowIterator getPartition(DecoratedKey key, ReadExecutionController executionController)
+    public UnfilteredRowIterator getPartition(PrimaryKey key, ReadExecutionController executionController)
     {
         if (key == null)
             throw new IllegalArgumentException("non-null key required");
@@ -151,8 +158,8 @@ public class QueryController
                                                                                      command.columnFilter(),
                                                                                      RowFilter.NONE,
                                                                                      DataLimits.NONE,
-                                                                                     key,
-                                                                                     command.clusteringIndexFilter(key));
+                                                                                     key.partitionKey(),
+                                                                                     makeFilter(key));
 
             return partition.queryMemtableAndDisk(cfs, executionController);
         }
@@ -201,6 +208,45 @@ public class QueryController
         return builder;
     }
 
+    public IndexFeatureSet indexFeatureSet()
+    {
+        return indexFeatureSet;
+    }
+
+    /**
+     * Returns whether this query is selecting the {@link PrimaryKey}.
+     * The query selects the key if any of the following statements is true:
+     *  1. The query is not row-aware
+     *  2. The table associated with the query is not using clustering keys
+     *  3. The clustering index filter for the command wants the row.
+     *
+     *  Item 3 is important in paged queries where the {@link org.apache.cassandra.db.filter.ClusteringIndexSliceFilter} for
+     *  subsequent paged queries may not select rows that are returned by the index
+     *  search because that is initially partition based.
+     *
+     * @param key The {@link PrimaryKey} to be tested
+     * @return true if the key is selected by the query
+     */
+    public boolean selects(PrimaryKey key)
+    {
+        return !indexFeatureSet.isRowAware() ||
+               key.hasEmptyClustering() ||
+               command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
+    }
+
+    // Note: This method assumes that the selects method has already been called for the
+    // key to avoid having to (potentially) call selects twice
+    private ClusteringIndexFilter makeFilter(PrimaryKey key)
+    {
+        ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(key.partitionKey());
+
+        if (!indexFeatureSet.isRowAware() || key.hasEmptyClustering())
+            return clusteringIndexFilter;
+        else
+            return new ClusteringIndexNamesFilter(FBUtilities.singleton(key.clustering(), cfs.metadata().comparator),
+                                                  clusteringIndexFilter.isReversed());
+    }
+
     private static void releaseQuietly(SSTableIndex index)
     {
         try
@@ -209,7 +255,7 @@ public class QueryController
         }
         catch (Throwable e)
         {
-            logger.error(index.getColumnContext().logMessage("Failed to release index on SSTable {}"), index.getSSTable().descriptor, e);
+            logger.error(index.getIndexContext().logMessage("Failed to release index on SSTable {}"), index.getSSTable().descriptor, e);
         }
     }
 
@@ -242,7 +288,7 @@ public class QueryController
 
                 for (SSTableIndex index : view.values().stream().flatMap(Collection::stream).collect(Collectors.toList()))
                 {
-                    indexNames.add(index.getColumnContext().getIndexName());
+                    indexNames.add(index.getIndexContext().getIndexName());
 
                     if (index.reference())
                     {

@@ -27,7 +27,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public abstract class ColumnQueryMetrics extends AbstractMetrics
 {
-    private ColumnQueryMetrics(String indexName, TableMetadata table)
+    protected ColumnQueryMetrics(String indexName, TableMetadata table)
     {
         super(table, indexName, "ColumnQueryMetrics");
     }

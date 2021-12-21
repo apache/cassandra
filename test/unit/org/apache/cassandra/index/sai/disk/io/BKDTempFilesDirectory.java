@@ -23,6 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.File;
@@ -34,8 +37,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 
-import static org.apache.cassandra.index.sai.disk.io.IndexComponents.PER_COLUMN_FILE_NAME_FORMAT;
-
 /**
  * Limited Lucene Directory for use with writing the KD-Tree only
  */
@@ -44,11 +45,13 @@ public class BKDTempFilesDirectory extends Directory
     private static final Logger logger = LoggerFactory.getLogger(BKDTempFilesDirectory.class);
 
     private final AtomicLong nextTempFileCounter;
-    private final IndexComponents delegate;
+    private final IndexDescriptor delegate;
+    private final String index;
 
-    public BKDTempFilesDirectory(IndexComponents delegate, long seed)
+    public BKDTempFilesDirectory(IndexDescriptor delegate, String index, long seed)
     {
         this.delegate = delegate;
+        this.index = index;
         // SequentialWriter#openChannel doesn't fail when we try to create a file that already exist.
         // If tests were running concurrently, it's possible that we could get a tmp file name collision,
         // hence each directory has to have a separate seed.
@@ -59,11 +62,17 @@ public class BKDTempFilesDirectory extends Directory
     public IndexOutput createTempOutput(String prefix, String suffix, IOContext context)
     {
         final String name = prefix + "_" + Long.toString(nextTempFileCounter.getAndIncrement(), Character.MAX_RADIX) + "_" + suffix;
-        final File file = delegate.descriptor.tmpFileFor(new Component(Component.Type.CUSTOM,
-                                                                       String.format(PER_COLUMN_FILE_NAME_FORMAT,
-                                                                                     delegate.indexName,
-                                                                                     name)));
-        return delegate.createOutput(file);
+
+        final File file = delegate.descriptor.tmpFileFor(new Component(Component.Type.CUSTOM, "SAI" +
+                                                                                              "+" +
+                                                                                              Version.LATEST +
+                                                                                              "+" +
+                                                                                              index +
+                                                                                              "+" +
+                                                                                              name +
+                                                                                              ".db"));
+
+        return IndexFileUtils.instance.openOutput(file);
     }
 
     @Override

@@ -20,7 +20,7 @@ package org.apache.cassandra.index.sai.utils;
 import com.google.common.base.MoreObjects;
 
 import org.apache.cassandra.index.sai.disk.PostingList;
-import org.apache.cassandra.index.sai.disk.v1.OrdinalPostingList;
+import org.apache.cassandra.index.sai.disk.v1.postings.OrdinalPostingList;
 
 //TODO Change this whole lot to use longs
 public class ArrayPostingList implements OrdinalPostingList

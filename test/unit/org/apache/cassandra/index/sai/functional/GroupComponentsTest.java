@@ -28,9 +28,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -53,11 +56,11 @@ public class GroupComponentsTest extends SAITester
         SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
 
         Set<Component> components = group.getLiveComponents(sstable, getIndexesFromGroup(group));
-        assertEquals(5, components.size());
+        assertEquals(Version.LATEST.onDiskFormat().perSSTableComponents().size() + 1, components.size());
 
         // index files are released but not removed
         cfs.invalidate(true, false);
-        Assert.assertTrue(index.getContext().getView().getIndexes().isEmpty());
+        Assert.assertTrue(index.getIndexContext().getView().getIndexes().isEmpty());
         for (Component component : components)
             Assert.assertTrue(sstable.descriptor.fileFor(component).exists());
     }
@@ -79,15 +82,14 @@ public class GroupComponentsTest extends SAITester
 
         Set<Component> components = group.getLiveComponents(sstables.iterator().next(), getIndexesFromGroup(group));
 
-        // 4 per-sstable components and column complete marker
-        assertEquals(5, components.size());
+        assertEquals(Version.LATEST.onDiskFormat().perSSTableComponents().size() + 1, components.size());
     }
 
     @Test
     public void getLiveComponentsForPopulatedIndex() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int primary key, value int)");
-        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        IndexContext indexContext = createIndexContext(createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'"), Int32Type.instance);
         waitForIndexQueryable();
         execute("INSERT INTO %s (pk, value) VALUES (1, 1)");
         flush();
@@ -100,8 +102,9 @@ public class GroupComponentsTest extends SAITester
 
         Set<Component> components = group.getLiveComponents(sstables.iterator().next(), getIndexesFromGroup(group));
 
-        // 4 per-sstable components and 4 column components
-        assertEquals(8, components.size());
+        assertEquals(Version.LATEST.onDiskFormat().perSSTableComponents().size() +
+                     Version.LATEST.onDiskFormat().perIndexComponents(indexContext).size(),
+                     components.size());
     }
 
     private Collection<StorageAttachedIndex> getIndexesFromGroup(StorageAttachedIndexGroup group)

@@ -28,7 +28,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
@@ -101,17 +101,17 @@ public class SSTablesSystemView extends AbstractVirtualTable
 
                     for (Index index : group.getIndexes())
                     {
-                        ColumnContext columnContext = ((StorageAttachedIndex)index).getContext();
+                        IndexContext indexContext = ((StorageAttachedIndex)index).getIndexContext();
 
-                        for (SSTableIndex sstableIndex : columnContext.getView())
+                        for (SSTableIndex sstableIndex : indexContext.getView())
                         {
                             SSTableReader sstable = sstableIndex.getSSTable();
                             Descriptor descriptor = sstable.descriptor;
                             AbstractBounds<Token> bounds = sstable.getBounds();
 
-                            dataset.row(ks, columnContext.getIndexName(), sstable.getFilename())
+                            dataset.row(ks, indexContext.getIndexName(), sstable.getFilename())
                                    .column(TABLE_NAME, descriptor.cfname)
-                                   .column(COLUMN_NAME, columnContext.getColumnName())
+                                   .column(COLUMN_NAME, indexContext.getColumnName())
                                    .column(FORMAT_VERSION, sstableIndex.getVersion().toString())
                                    .column(CELL_COUNT, sstableIndex.getRowCount())
                                    .column(MIN_ROW_ID, sstableIndex.minSSTableRowId())
