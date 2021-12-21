@@ -31,7 +31,7 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.view.View;
@@ -106,7 +106,7 @@ public class IndexesSystemView extends AbstractVirtualTable
                 {
                     for (Index index : group.getIndexes())
                     {
-                        ColumnContext context = ((StorageAttachedIndex)index).getContext();
+                        IndexContext context = ((StorageAttachedIndex)index).getIndexContext();
                         String indexName = context.getIndexName();
                         View view = context.getView();
 

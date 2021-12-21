@@ -34,7 +34,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -150,7 +150,7 @@ public class TrieMemoryIndexTest
         options.put("target", REG_COL);
 
         IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("col_index", IndexMetadata.Kind.CUSTOM, options);
-        ColumnContext ci = new ColumnContext(metadata, indexMetadata);
+        IndexContext ci = new IndexContext(metadata, indexMetadata);
         return new TrieMemoryIndex(ci);
     }
 }

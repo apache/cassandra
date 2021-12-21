@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.TermsIteratorMerger;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static org.junit.Assert.assertTrue;

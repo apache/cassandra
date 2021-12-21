@@ -29,7 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -68,7 +68,9 @@ public class SSTableContextManager
                 continue;
             }
 
-            if (!IndexComponents.isGroupIndexComplete(sstable.descriptor))
+            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
+
+            if (!indexDescriptor.isPerSSTableBuildComplete())
             {
                 // Don't even try to validate or add the context if the completion marker is missing.
                 continue;
@@ -77,25 +79,22 @@ public class SSTableContextManager
             try
             {
                 // Only validate on restart or newly refreshed SSTable. Newly built files are unlikely to be corrupted.
-                if (validate && !sstableContexts.containsKey(sstable))
+                if (validate && !sstableContexts.containsKey(sstable) && !indexDescriptor.validatePerSSTableComponents())
                 {
-                    IndexComponents.perSSTable(sstable).validatePerSSTableComponents();
+                    logger.warn(indexDescriptor.logMessage("Invalid per-SSTable component for SSTable {}"), sstable.descriptor);
+                    invalid.add(sstable);
+                    removeInvalidSSTableContext(sstable);
+                    continue;
                 }
-
                 // ConcurrentHashMap#computeIfAbsent guarantees atomicity, so {@link SSTableContext#create(SSTableReader)}}
                 // is called at most once per key.
                 contexts.add(sstableContexts.computeIfAbsent(sstable, SSTableContext::create));
             }
             catch (Throwable t)
             {
-                IndexComponents components = IndexComponents.perSSTable(sstable);
-                logger.warn(components.logMessage("Invalid per-SSTable component after sstable {} add.."), sstable.descriptor, t);
+                logger.warn(indexDescriptor.logMessage("Failed to update per-SSTable components for SSTable {}"), sstable.descriptor, t);
                 invalid.add(sstable);
-                SSTableContext failed = sstableContexts.remove(sstable);
-                if (failed != null)
-                {
-                    failed.close();
-                }
+                removeInvalidSSTableContext(sstable);
             }
         }
 
@@ -112,7 +111,7 @@ public class SSTableContextManager
      */
     int openFiles()
     {
-        return size() * SSTableContext.openFilesPerSSTable();
+        return sstableContexts.values().stream().mapToInt(SSTableContext::openFilesPerSSTable).sum();
     }
 
     /**
@@ -139,5 +138,13 @@ public class SSTableContextManager
     {
         sstableContexts.values().forEach(SSTableContext::close);
         sstableContexts.clear();
+    }
+
+    @SuppressWarnings("resource")
+    private void removeInvalidSSTableContext(SSTableReader sstable)
+    {
+        SSTableContext invalidContext = sstableContexts.remove(sstable);
+        if (invalidContext != null)
+            invalidContext.close();
     }
 }

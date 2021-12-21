@@ -20,9 +20,12 @@ package org.apache.cassandra.index.sai.metrics;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.disk.InvertedIndexSearcher;
-import org.apache.cassandra.index.sai.disk.KDTreeIndexSearcher;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.InvertedIndexSearcher;
+import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -46,6 +49,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         // create first index
         createTable(CREATE_TABLE_TEMPLATE);
         String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        IndexContext v1IndexContext = createIndexContext(v1IndexName, Int32Type.instance);
 
         // no open files
         assertEquals(0, getOpenIndexFiles());
@@ -60,17 +64,20 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
 
         // with 10 sstable
         int indexopenFileCountWithOnlyNumeric = getOpenIndexFiles();
-        assertEquals(sstables * (SSTableContext.openFilesPerSSTable() + KDTreeIndexSearcher.openPerIndexFiles()), indexopenFileCountWithOnlyNumeric);
+        assertEquals(sstables * (Version.LATEST.onDiskFormat().openFilesPerSSTable() +
+                                 Version.LATEST.onDiskFormat().openFilesPerIndex(v1IndexContext)),
+                     indexopenFileCountWithOnlyNumeric);
 
         long diskUsageWithOnlyNumeric = getDiskUsage();
         assertNotEquals(0, diskUsageWithOnlyNumeric);
 
         // create second index
         String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexContext v2IndexContext = createIndexContext(v2IndexName, UTF8Type.instance);
         waitForIndexQueryable();
 
         // same number of sstables, but more string index files.
-        int stringIndexOpenFileCount = sstables * InvertedIndexSearcher.openPerIndexFiles();
+        int stringIndexOpenFileCount = sstables * V1OnDiskFormat.instance.openFilesPerIndex(v2IndexContext);
         assertEquals(indexopenFileCountWithOnlyNumeric, getOpenIndexFiles() - stringIndexOpenFileCount);
 
         // Index Group disk usage doesn't change with more indexes
@@ -81,12 +88,16 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         compact();
 
         long perSSTableFileDiskUsage = getDiskUsage();
-        assertEquals(SSTableContext.openFilesPerSSTable() + KDTreeIndexSearcher.openPerIndexFiles() + InvertedIndexSearcher.openPerIndexFiles(),
+        assertEquals(Version.LATEST.onDiskFormat().openFilesPerSSTable() +
+                     Version.LATEST.onDiskFormat().openFilesPerIndex(v2IndexContext) +
+                     Version.LATEST.onDiskFormat().openFilesPerIndex(v1IndexContext),
                      getOpenIndexFiles());
 
         // drop string index, reduce open string index files, per-sstable file disk usage remains the same
         dropIndex("DROP INDEX %s." + v2IndexName);
-        assertEquals(SSTableContext.openFilesPerSSTable() + KDTreeIndexSearcher.openPerIndexFiles(), getOpenIndexFiles());
+        assertEquals(Version.LATEST.onDiskFormat().openFilesPerSSTable() +
+                     Version.LATEST.onDiskFormat().openFilesPerIndex(v1IndexContext),
+                     getOpenIndexFiles());
         assertEquals(perSSTableFileDiskUsage, getDiskUsage());
 
         // drop last index, no open index files

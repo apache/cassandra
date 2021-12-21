@@ -22,8 +22,8 @@ import java.util.Iterator;
 
 import com.google.common.base.Preconditions;
 
-import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.cursors.IntCursor;
+import com.carrotsearch.hppc.LongArrayList;
+import com.carrotsearch.hppc.cursors.LongCursor;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -34,16 +34,16 @@ public class MemtableTermsIterator implements TermsIterator
 {
     private final ByteBuffer minTerm;
     private final ByteBuffer maxTerm;
-    private final Iterator<Pair<ByteComparable, IntArrayList>> iterator;
+    private final Iterator<Pair<ByteComparable, LongArrayList>> iterator;
 
-    private Pair<ByteComparable, IntArrayList> current;
+    private Pair<ByteComparable, LongArrayList> current;
 
     private long maxSSTableRowId = -1;
     private long minSSTableRowId = Long.MAX_VALUE;
 
     public MemtableTermsIterator(ByteBuffer minTerm,
                                  ByteBuffer maxTerm,
-                                 Iterator<Pair<ByteComparable, IntArrayList>> iterator)
+                                 Iterator<Pair<ByteComparable, LongArrayList>> iterator)
     {
         Preconditions.checkArgument(iterator != null);
         this.minTerm = minTerm;
@@ -70,17 +70,17 @@ public class MemtableTermsIterator implements TermsIterator
     public PostingList postings()
     {
         //TODO Confirm that this can stay an IntArray post DSP-19608
-        final IntArrayList list = current.right;
+        final LongArrayList list = current.right;
 
         assert list.size() > 0;
 
-        final int minSegmentRowID = list.get(0);
-        final int maxSegmentRowID = list.get(list.size() - 1);
+        final long minSegmentRowID = list.get(0);
+        final long maxSegmentRowID = list.get(list.size() - 1);
 
         minSSTableRowId = Math.min(minSSTableRowId, minSegmentRowID);
         maxSSTableRowId = Math.max(maxSSTableRowId, maxSegmentRowID);
 
-        final Iterator<IntCursor> it = list.iterator();
+        final Iterator<LongCursor> it = list.iterator();
 
         return new PostingList()
         {
@@ -122,12 +122,12 @@ public class MemtableTermsIterator implements TermsIterator
         return current.left;
     }
 
-    long getMaxSSTableRowId()
+    public long getMaxSSTableRowId()
     {
         return maxSSTableRowId;
     }
 
-    long getMinSSTableRowId()
+    public long getMinSSTableRowId()
     {
         return minSSTableRowId;
     }

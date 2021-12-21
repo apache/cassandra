@@ -22,8 +22,10 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayIndexInput;
@@ -42,14 +44,14 @@ public class MetadataSource
         this.components = components;
     }
 
-    public static MetadataSource loadGroupMetadata(IndexComponents components) throws IOException
+    public static MetadataSource loadGroupMetadata(IndexDescriptor indexDescriptor) throws IOException
     {
-        return MetadataSource.load(components.openBlockingInput(IndexComponents.GROUP_META));
+        return MetadataSource.load(indexDescriptor.openPerSSTableInput(IndexComponent.GROUP_META));
     }
 
-    public static MetadataSource loadColumnMetadata(IndexComponents components) throws IOException
+    public static MetadataSource loadColumnMetadata(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
     {
-        return MetadataSource.load(components.openBlockingInput(components.meta));
+        return MetadataSource.load(indexDescriptor.openPerIndexInput(IndexComponent.META, indexContext));
     }
 
     private static MetadataSource load(IndexInput indexInput) throws IOException

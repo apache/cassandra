@@ -17,156 +17,149 @@
  */
 package org.apache.cassandra.index.sai.utils;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
-import com.google.common.base.Objects;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
+import org.apache.cassandra.index.sai.disk.v1.PartitionAwarePrimaryKeyFactory;
+import org.apache.cassandra.index.sai.disk.v2.RowAwarePrimaryKeyFactory;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
- * The primary key of a row, composed by the partition key and the clustering key.
+ * Representation of the primary key for a row consisting of the {@link DecoratedKey} and
+ * {@link Clustering} associated with a {@link org.apache.cassandra.db.rows.Row}.
+ *
+ * For legacy V1 support only the {@link DecoratedKey} will ever be supported for a row.
+ *
+ * For the V2 on-disk format the {@link DecoratedKey} and {@link Clustering} are supported.
+ *
  */
-public abstract class PrimaryKey
+public interface PrimaryKey extends Comparable<PrimaryKey>
 {
-    private final DecoratedKey partitionKey;
+    /**
+     * A factory for creating {@link PrimaryKey} instances
+     */
+    interface Factory
+    {
+        /**
+         * Creates a {@link PrimaryKey} that is represented by a {@link Token}.
+         *
+         * {@link Token} only primary keys are used for defining the partition range
+         * of a query.
+         *
+         * @param token the {@link Token}
+         * @return a {@link PrimaryKey} represented by a token only
+         */
+        PrimaryKey createTokenOnly(Token token);
+
+        /**
+         * Creates a {@link PrimaryKey} that is represented by a {@link DecoratedKey}.
+         *
+         * {@link DecoratedKey} only primary keys are used to define the minumum and
+         * maximum coverage of an index.
+         *
+         * @param partitionKey the {@link DecoratedKey}
+         * @return a {@link PrimaryKey} represented by a partition key only
+         */
+        default PrimaryKey createPartitionKeyOnly(DecoratedKey partitionKey)
+        {
+            return create(partitionKey, Clustering.EMPTY);
+        }
+
+        /**
+         * Creates a {@link PrimaryKey} with deferred loading. Deferred loading means
+         * that the key will only be fully loaded when the full representation of the
+         * key is needed for comparison. Before the key is loaded it will be represented
+         * by a token only, so it will only need loading if the token is matched in a
+         * comparison or the byte comparable representation of the key is required.
+         *
+         * @param token the {@link Token}
+         * @param primaryKeySupplier the supplier of the full key
+         * @return a {@link PrimaryKey} the token and a primary key supplier
+         */
+        PrimaryKey createDeferred(Token token, Supplier<PrimaryKey> primaryKeySupplier);
+
+        /**
+         * Creates a {@link PrimaryKey} that is fully represented by partition key
+         * and clustering.
+         *
+         * @param partitionKey the {@link DecoratedKey}
+         * @param clustering the {@link Clustering}
+         * @return a {@link PrimaryKey} contain the partition key and clustering
+         */
+        PrimaryKey create(DecoratedKey partitionKey, Clustering clustering);
+    }
 
     /**
-     * Returns a new primary key composed by the specified partition and clustering keys.
+     * Returns a {@link Factory} for creating {@link PrimaryKey} instances. The factory
+     * returned is based on the capabilities of the {@link IndexFeatureSet}.
      *
-     * @param partitionKey a partition key
-     * @param clustering a clustering key
-     * @return a new primary key composed by {@code partitionKey} and {@code ClusteringKey}
+     * @param clusteringComparator the {@link ClusteringComparator} used by the
+     *                             {@link RowAwarePrimaryKeyFactory} for clustering comparisons
+     * @param indexFeatureSet the {@link IndexFeatureSet} used to decide the type of
+     *                        factory to use
+     * @return a {@link Factory} for {@link PrimaryKey} creation
      */
-    public static PrimaryKey of(DecoratedKey partitionKey, Clustering clustering)
+    static Factory factory(ClusteringComparator clusteringComparator, IndexFeatureSet indexFeatureSet)
     {
-        if (clustering == Clustering.EMPTY)
-            return new Skinny(partitionKey);
-        else if (clustering == Clustering.STATIC_CLUSTERING)
-            return new Static(partitionKey);
-        else
-            return new Wide(partitionKey, clustering);
-    }
-
-    private PrimaryKey(DecoratedKey partitionKey)
-    {
-        this.partitionKey = partitionKey;
+        return indexFeatureSet.isRowAware() ? new RowAwarePrimaryKeyFactory(clusteringComparator)
+                                            : new PartitionAwarePrimaryKeyFactory();
     }
 
     /**
-     * Returns the {@link Token} of the partition key.
+     * Returns the {@link Token} associated with this primary key.
      *
-     * @return the partitioning token of the partition key
+     * @return the {@link Token}
      */
-    public Token token()
-    {
-        return partitionKey.getToken();
-    }
+    Token token();
 
     /**
-     * Returns the partition key.
+     * Returns the {@link DecoratedKey} associated with this primary key.
      *
-     * @return the partition key
+     * @return the {@link DecoratedKey}
      */
-    public DecoratedKey partitionKey()
-    {
-        return partitionKey;
-    }
+    DecoratedKey partitionKey();
 
     /**
-     * Returns the clustering key.
+     * Returns the {@link Clustering} associated with this primary key
      *
-     * @return the clustering key
+     * @return the {@link Clustering}
      */
-    public abstract Clustering clustering();
+    Clustering clustering();
 
-    @Override
-    public boolean equals(Object o)
+    /**
+     * Return whether the primary key has an empty clustering or not.
+     * By default the clustering is empty if the internal clustering
+     * is null or is empty.
+     *
+     * @return {@code true} if the clustering is empty, otherwise {@code false}
+     */
+    default boolean hasEmptyClustering()
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PrimaryKey that = (PrimaryKey) o;
-        return Objects.equal(partitionKey, that.partitionKey) && Objects.equal(clustering(), that.clustering());
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(partitionKey, clustering());
-    }
-
-    public String toString(TableMetadata metadata)
-    {
-        return String.format("PrimaryKey: { partition : %s, clustering: %s}",
-                             metadata.partitionKeyType.getString(partitionKey.getKey()),
-                             clustering().toString(metadata));
-    }
-
-    @Override
-    public String toString()
-    {
-        return String.format("PrimaryKey: { partition : %s, clustering: %s} "+getClass().getSimpleName(),
-                             ByteBufferUtil.bytesToHex(partitionKey.getKey()),
-                             String.join(",", Arrays.stream(clustering().getBufferArray())
-                                                    .map(ByteBufferUtil::bytesToHex)
-                                                    .collect(Collectors.toList())));
+        return clustering() == null || clustering().isEmpty();
     }
 
     /**
-     * {@link PrimaryKey} implementation for rows in tables without a defined clustering key.
+     * Load the primary key from the {@link Supplier<PrimaryKey>} (if one
+     * is available) and fully populate the primary key.
+     *
+     * @return the fully populated {@link PrimaryKey}
      */
-    static class Skinny extends PrimaryKey
-    {
-        Skinny(DecoratedKey partitionKey)
-        {
-            super(partitionKey);
-        }
-
-        @Override
-        public Clustering clustering()
-        {
-            return Clustering.EMPTY;
-        }
-    }
+    PrimaryKey loadDeferred();
 
     /**
-     * {@link PrimaryKey} implementation for static rows in tables with a defined clustering key.
+     * Returns the {@link PrimaryKey} as a {@link ByteSource} byte comparable representation.
+     *
+     * It is important that these representations are only ever used with byte comparables using
+     * the same elements. This means that {@code asComparableBytes} responses can only be used
+     * together from the same {@link PrimaryKey} implementation.
+     *
+     * @param version the {@link ByteComparable.Version} to use for the implementation
+     * @return the {@code ByteSource} byte comparable.
      */
-    static class Static extends PrimaryKey
-    {
-        Static(DecoratedKey partitionKey)
-        {
-            super(partitionKey);
-        }
-
-        @Override
-        public Clustering clustering()
-        {
-            return Clustering.STATIC_CLUSTERING;
-        }
-    }
-
-    /**
-     * {@link PrimaryKey} implementation for regular rows in tables with a defined clustering key.
-     */
-    static class Wide extends PrimaryKey
-    {
-        private final Clustering clustering;
-
-        Wide(DecoratedKey partitionKey, Clustering clustering)
-        {
-            super(partitionKey);
-            this.clustering = clustering;
-        }
-
-        @Override
-        public Clustering clustering()
-        {
-            return clustering;
-        }
-    }
+    ByteSource asComparableBytes(ByteComparable.Version version);
 }

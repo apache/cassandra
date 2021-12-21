@@ -25,7 +25,6 @@ import java.util.PriorityQueue;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.index.sai.Token;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -33,13 +32,13 @@ import org.apache.cassandra.io.util.FileUtils;
  * 1. no generic type to reduce allocation
  * 2. CONCAT iterator type
  */
-public abstract class RangeIterator extends AbstractIterator<Token> implements Closeable
+public abstract class RangeIterator extends AbstractIterator<PrimaryKey> implements Closeable
 {
     private static final Builder.EmptyRangeIterator EMPTY = new Builder.EmptyRangeIterator();
 
-    private final Long min, max;
+    private final PrimaryKey min, max;
     private final long count;
-    private Long current;
+    private PrimaryKey current;
 
     protected RangeIterator(Builder.Statistics statistics)
     {
@@ -51,7 +50,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
         this(range == null ? null : range.min, range == null ? null : range.max, range == null ? -1 : range.count);
     }
 
-    public RangeIterator(Long min, Long max, long count)
+    public RangeIterator(PrimaryKey min, PrimaryKey max, long count)
     {
         if (min == null || max == null || count == 0)
             assert min == null && max == null && (count == 0 || count == -1) : min + " - " + max + " " + count;
@@ -62,17 +61,17 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
         this.count = count;
     }
 
-    public final Long getMinimum()
+    public final PrimaryKey getMinimum()
     {
         return min;
     }
 
-    public final Long getCurrent()
+    public final PrimaryKey getCurrent()
     {
         return current;
     }
 
-    public final Long getMaximum()
+    public final PrimaryKey getMaximum()
     {
         return max;
     }
@@ -92,7 +91,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
      *
      * @return The next current token after the skip was performed
      */
-    public final Token skipTo(Long nextToken)
+    public final PrimaryKey skipTo(PrimaryKey nextToken)
     {
         if (min == null || max == null)
             return endOfData();
@@ -104,7 +103,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
             next = next == null ? recomputeNext() : next;
             if (next == null)
                 return endOfData();
-            else if (next.get().compareTo(nextToken) >= 0)
+            else if (next.compareTo(nextToken) >= 0)
                 return next;
         }
 
@@ -115,9 +114,9 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
         return recomputeNext();
     }
 
-    protected abstract void performSkipTo(Long nextToken);
+    protected abstract void performSkipTo(PrimaryKey nextToken);
 
-    protected Token recomputeNext()
+    protected PrimaryKey recomputeNext()
     {
         return tryToComputeNext() ? peek() : endOfData();
     }
@@ -125,7 +124,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
     protected boolean tryToComputeNext()
     {
         boolean hasNext = super.tryToComputeNext();
-        current = hasNext ? next.get() : getMaximum();
+        current = hasNext ? next : getMaximum();
         return hasNext;
     }
 
@@ -152,15 +151,15 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
         public Builder(IteratorType type)
         {
             statistics = new Statistics(type);
-            ranges = new PriorityQueue<>(16, Comparator.comparingLong(RangeIterator::getCurrent));
+            ranges = new PriorityQueue<>(16, Comparator.comparing(RangeIterator::getCurrent));
         }
 
-        public Long getMinimum()
+        public PrimaryKey getMinimum()
         {
             return statistics.min;
         }
 
-        public Long getMaximum()
+        public PrimaryKey getMaximum()
         {
             return statistics.max;
         }
@@ -214,8 +213,8 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
         public static class EmptyRangeIterator extends RangeIterator
         {
             EmptyRangeIterator() { super(null, null, 0); }
-            public Token computeNext() { return endOfData(); }
-            protected void performSkipTo(Long nextToken) { }
+            public PrimaryKey computeNext() { return endOfData(); }
+            protected void performSkipTo(PrimaryKey nextToken) { }
             public void close() { }
         }
 
@@ -225,7 +224,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
         {
             protected final IteratorType iteratorType;
 
-            protected Long min, max;
+            protected PrimaryKey min, max;
             protected long tokenCount;
 
             // iterator with the least number of items
@@ -262,7 +261,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
                             {
                                 min = range.getMinimum();
                             }
-                            else if (tokenCount > 0 && max > range.getMinimum())
+                            else if (tokenCount > 0 && max.compareTo(range.getMinimum()) > 0)
                             {
                                 throw new IllegalArgumentException("RangeIterator must be sorted, previous max: " + max + ", next min: " + range.getMinimum());
                             }
@@ -343,7 +342,7 @@ public abstract class RangeIterator extends AbstractIterator<Token> implements C
      *  If either range is empty, they're disjoint.
      */
     @VisibleForTesting
-    protected static boolean isOverlapping(Long min, Long max, RangeIterator b)
+    protected static boolean isOverlapping(PrimaryKey min, PrimaryKey max, RangeIterator b)
     {
         return (min != null && max != null) &&
                b.getCount() != 0 &&

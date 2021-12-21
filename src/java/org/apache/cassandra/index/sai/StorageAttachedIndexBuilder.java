@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -49,8 +43,7 @@ import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
-import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
@@ -59,7 +52,6 @@ import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Throwables;
@@ -70,10 +62,10 @@ import static org.apache.cassandra.db.compaction.TableOperation.StopTrigger.TRUN
 
 /**
  * Multiple storage-attached indexes can start building concurrently. We need to make sure:
- * 1. Per-SSTable index files are built only once, eg. {@link IndexComponents#PER_SSTABLE_COMPONENTS}
+ * 1. Per-SSTable index files are built only once
  *      a. Per-SSTable index files already built, do nothing
  *      b. Per-SSTable index files are currently building, we need to wait until it's built in order to consider index built.
- * 2. Per-column index files are built for each column index..{@link IndexComponents#perColumnComponents(String, boolean)}
+ * 2. Per-column index files are built for each column index
  */
 public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 {
@@ -108,6 +100,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     @Override
     public void build()
     {
+        logger.debug(logMessage("Starting full index build"));
         for (Map.Entry<SSTableReader, Set<StorageAttachedIndex>> e : sstables.entrySet())
         {
             SSTableReader sstable = e.getKey();
@@ -136,6 +129,8 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
      */
     private boolean indexSSTable(SSTableReader sstable, Set<StorageAttachedIndex> indexes)
     {
+        logger.debug(logMessage("Starting index build on {}"), sstable.descriptor);
+
         CountDownLatch perSSTableFileLock = null;
         StorageAttachedIndexWriter indexWriter = null;
 
@@ -149,14 +144,16 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
         try (RandomAccessReader dataFile = sstable.openDataReader();
              LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.INDEX_BUILD, tracker.metadata))
         {
-            perSSTableFileLock = shouldWriteTokenOffsetFiles(sstable);
-            boolean perColumnOnly = perSSTableFileLock == null;
+            perSSTableFileLock = shouldWritePerSSTableFiles(sstable);
+            // If we were unable to get the per-SSTable file lock it means that the
+            // per-SSTable components are already being built so we only want to
+            // build the per-index components
+            boolean perIndexComponentsOnly = perSSTableFileLock == null;
             // remove existing per column index files instead of overwriting
-            indexes.forEach(index -> index.deleteIndexFiles(sstable));
+            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
+            indexes.forEach(index -> indexDescriptor.deleteColumnIndex(index.getIndexContext()));
 
-            final CompressionParams compressionParams = CryptoUtils.getCompressionParams(sstable);
-
-            indexWriter = new StorageAttachedIndexWriter(sstable.descriptor, indexes, txn, perColumnOnly, compressionParams);
+            indexWriter = new StorageAttachedIndexWriter(indexDescriptor, indexes, txn, perIndexComponentsOnly);
 
             long previousKeyPosition = 0;
             indexWriter.begin();
@@ -167,6 +164,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                 {
                     if (isStopRequested())
                     {
+                        logger.debug(indexDescriptor.logMessage("Index build has been stopped"));
                         throw new CompactionInterruptedException(getProgress());
                     }
 
@@ -277,11 +275,12 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
      * if the per sstable index files are already created, not need to write it again, unless found corrupted on rebuild
      * if not created, try to acquire a lock, so only one builder will generate per sstable index files
      */
-    private CountDownLatch shouldWriteTokenOffsetFiles(SSTableReader sstable)
+    private CountDownLatch shouldWritePerSSTableFiles(SSTableReader sstable)
     {
         // if per-table files are incomplete or checksum failed during full rebuild.
-        if (!IndexComponents.isGroupIndexComplete(sstable.descriptor) ||
-            (isFullRebuild && !IndexComponents.perSSTable(sstable).validatePerSSTableComponentsChecksum()))
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
+        if (!indexDescriptor.isPerSSTableBuildComplete() ||
+            (isFullRebuild && !indexDescriptor.validatePerSSTableComponentsChecksum()))
         {
             CountDownLatch latch = new CountDownLatch(1);
             if (inProgress.putIfAbsent(sstable, latch) == null)
@@ -326,7 +325,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
         // register custom index components into existing sstables
         sstable.registerComponents(group.getLiveComponents(sstable, existing), tracker);
-        Set<StorageAttachedIndex> incomplete = group.onSSTableChanged(Collections.emptyList(), Collections.singleton(sstable), existing, false, false);
+        Set<StorageAttachedIndex> incomplete = group.onSSTableChanged(Collections.emptyList(), Collections.singleton(sstable), existing, false);
 
         if (!incomplete.isEmpty())
         {
@@ -359,7 +358,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
         if (!dropped.isEmpty())
         {
-            String droppedIndexes = dropped.stream().map(sai -> sai.getContext().getIndexName()).collect(Collectors.toList()).toString();
+            String droppedIndexes = dropped.stream().map(sai -> sai.getIndexContext().getIndexName()).collect(Collectors.toList()).toString();
             if (isFullRebuild)
                 throw new RuntimeException(logMessage(String.format("%s are dropped, will stop index build.", droppedIndexes)));
             else

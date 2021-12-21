@@ -20,8 +20,7 @@ package org.apache.cassandra.test.microbench.index.sai.v1;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.index.sai.utils.LongArray;
-import org.apache.cassandra.io.util.Rebufferer;
+import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
