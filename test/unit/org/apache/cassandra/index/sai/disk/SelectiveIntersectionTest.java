@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.v1.PostingsReader;
+import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.inject.Injections;
 
@@ -37,7 +37,7 @@ import static org.junit.Assert.assertEquals;
 public class SelectiveIntersectionTest extends SAITester
 {
     private static Injections.Counter INTERSECTION_FLOW_COUNTER = Injections.newCounter("IntersectionFlowCounter")
-                                                                            .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.utils.RangeIntersectionIterator$BounceIntersectionIterator").onMethod("<init>"))
+                                                                            .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.utils.RangeIntersectionIterator").onMethod("<init>"))
                                                                             .build();
 
     private static Injections.Counter POSTINGS_READER_OPEN_COUNTER = Injections.newCounter("PostingsReaderOpenCounter")

@@ -21,22 +21,21 @@ import java.io.IOException;
 import java.util.PriorityQueue;
 import java.util.SortedSet;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sai.Token;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 
 public class KeyRangeIterator extends RangeIterator
 {
-    private final PriorityQueue<DecoratedKey> keys;
+    private final PriorityQueue<PrimaryKey> keys;
     private final boolean uniqueKeys;
-    private DecoratedKey lastKey;
+    private volatile PrimaryKey lastKey;
 
     /**
      * An in-memory {@link RangeIterator} that uses a {@link SortedSet} which has no duplication as its backing store.
      */
-    public KeyRangeIterator(SortedSet<DecoratedKey> keys)
+    public KeyRangeIterator(SortedSet<PrimaryKey> keys)
     {
-        super((Long) keys.first().getToken().getTokenValue(), (Long) keys.last().getToken().getTokenValue(), keys.size());
+        super(keys.first(), keys.last(), keys.size());
         this.keys = new PriorityQueue<>(keys);
         this.uniqueKeys = true;
     }
@@ -45,26 +44,26 @@ public class KeyRangeIterator extends RangeIterator
      * An in-memory {@link RangeIterator} that uses a {@link PriorityQueue} which may
      * contain duplicated keys as its backing store.
      */
-    public KeyRangeIterator(Long min, Long max, PriorityQueue<DecoratedKey> keys)
+    public KeyRangeIterator(PrimaryKey min, PrimaryKey max, PriorityQueue<PrimaryKey> keys)
     {
         super(min, max, keys.size());
         this.keys = keys;
         this.uniqueKeys = false;
     }
 
-    protected Token computeNext()
+    protected PrimaryKey computeNext()
     {
-        DecoratedKey key = computeNextKey();
-        return key == null ? endOfData() : new InMemoryToken(key.getToken().getLongValue(), key);
+        PrimaryKey key = computeNextKey();
+        return key == null ? endOfData() : key;
     }
 
-    private DecoratedKey computeNextKey()
+    private PrimaryKey computeNextKey()
     {
-        DecoratedKey next = null;
+        PrimaryKey next = null;
 
         while (!keys.isEmpty())
         {
-            DecoratedKey key = keys.poll();
+            PrimaryKey key = keys.poll();
             if (uniqueKeys)
                 return key;
 
@@ -79,12 +78,12 @@ public class KeyRangeIterator extends RangeIterator
         return next;
     }
 
-    protected void performSkipTo(Long nextToken)
+    protected void performSkipTo(PrimaryKey nextKey)
     {
         while (!keys.isEmpty())
         {
-            DecoratedKey key = keys.peek();
-            if ((long) key.getToken().getTokenValue() >= nextToken)
+            PrimaryKey key = keys.peek();
+            if (key.compareTo(nextKey) >= 0)
                 break;
 
             // consume smaller key

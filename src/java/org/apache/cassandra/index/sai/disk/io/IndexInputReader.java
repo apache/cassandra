@@ -44,13 +44,13 @@ public class IndexInputReader extends IndexInput
         return new IndexInputReader(input, () -> {});
     }
 
-    static IndexInputReader create(RandomAccessReader input, Runnable doOnClose)
+    public static IndexInputReader create(RandomAccessReader input, Runnable doOnClose)
     {
         return new IndexInputReader(input, doOnClose);
     }
 
     @SuppressWarnings("resource")
-    static IndexInputReader create(FileHandle handle)
+    public static IndexInputReader create(FileHandle handle)
     {
         RandomAccessReader reader = handle.createReader();
         return new IndexInputReader(reader, () -> {});

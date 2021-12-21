@@ -37,6 +37,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 @NotThreadSafe
 public class QueryContext
 {
+    private static final boolean DISABLE_TIMEOUT = Boolean.getBoolean("cassandra.sai.test.disable.timeout");
+
     private final long queryStartTimeNanos;
 
     public final long executionQuotaNano;
@@ -93,7 +95,7 @@ public class QueryContext
 
     public void checkpoint()
     {
-        if (totalQueryTimeNs() >= executionQuotaNano)
+        if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
         {
             queryTimeouts++;
             throw new AbortedOperationException();

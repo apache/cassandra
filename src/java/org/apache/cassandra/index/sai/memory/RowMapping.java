@@ -20,23 +20,18 @@ package org.apache.cassandra.index.sai.memory;
 import java.util.Collections;
 import java.util.Iterator;
 
-import com.carrotsearch.hppc.IntArrayList;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.DecoratedKey;
+import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.tries.MemtableTrie;
 import org.apache.cassandra.db.tries.Trie;
-import org.apache.cassandra.index.sai.disk.SegmentBuilder;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * In memory representation of {@link PrimaryKey} to row ID mappings which only contains
@@ -50,27 +45,26 @@ public class RowMapping
     public static final RowMapping DUMMY = new RowMapping()
     {
         @Override
-        public Iterator<Pair<ByteComparable, IntArrayList>> merge(MemtableIndex index) { return Collections.emptyIterator(); }
+        public Iterator<Pair<ByteComparable, LongArrayList>> merge(MemtableIndex index) { return Collections.emptyIterator(); }
 
         @Override
         public void complete() {}
 
         @Override
-        public void add(DecoratedKey key, Unfiltered unfiltered, long sstableRowId) {}
+        public void add(PrimaryKey key, long sstableRowId) {}
     };
 
-    private final MemtableTrie<Integer> rowMapping = new MemtableTrie<>(BufferType.OFF_HEAP);
+    private final MemtableTrie<Long> rowMapping = new MemtableTrie<>(BufferType.OFF_HEAP);
 
     private volatile boolean complete = false;
 
-    public DecoratedKey minKey;
-    public DecoratedKey maxKey;
+    public PrimaryKey minKey;
+    public PrimaryKey maxKey;
 
-    public int maxSegmentRowId = -1;
+    public long maxSegmentRowId = -1;
 
     private RowMapping()
-    {
-    }
+    {}
 
     /**
      * Create row mapping for FLUSH operation only.
@@ -90,32 +84,32 @@ public class RowMapping
      *
      * @return iterator of index term to postings mapping exists in the sstable
      */
-    public Iterator<Pair<ByteComparable, IntArrayList>> merge(MemtableIndex index)
+    public Iterator<Pair<ByteComparable, LongArrayList>> merge(MemtableIndex index)
     {
         assert complete : "RowMapping is not built.";
 
         Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator();
-        return new AbstractIterator<Pair<ByteComparable, IntArrayList>>()
+        return new AbstractIterator<Pair<ByteComparable, LongArrayList>>()
         {
             @Override
-            protected Pair<ByteComparable, IntArrayList> computeNext()
+            protected Pair<ByteComparable, LongArrayList> computeNext()
             {
                 while (iterator.hasNext())
                 {
                     Pair<ByteComparable, PrimaryKeys> pair = iterator.next();
 
-                    IntArrayList postings = null;
+                    LongArrayList postings = null;
                     Iterator<PrimaryKey> primaryKeys = pair.right.iterator();
 
                     while (primaryKeys.hasNext())
                     {
                         PrimaryKey primaryKey = primaryKeys.next();
-                        ByteComparable byteComparable = asComparableBytes(primaryKey.partitionKey(), primaryKey.clustering());
-                        Integer segmentRowId = rowMapping.get(byteComparable);
+                        ByteComparable byteComparable = v -> primaryKey.asComparableBytes(v);
+                        Long segmentRowId = rowMapping.get(byteComparable);
 
                         if (segmentRowId != null)
                         {
-                            postings = postings == null ? new IntArrayList() : postings;
+                            postings = postings == null ? new LongArrayList() : postings;
                             postings.add(segmentRowId);
                         }
                     }
@@ -139,67 +133,23 @@ public class RowMapping
     /**
      * Include PrimaryKey to RowId mapping
      */
-    public void add(DecoratedKey key, Unfiltered unfiltered, long sstableRowId)
+    public void add(PrimaryKey key, long sstableRowId) throws MemtableTrie.SpaceExhaustedException
     {
         assert !complete : "Cannot modify built RowMapping.";
 
-        if (unfiltered.isRangeTombstoneMarker())
-        {
-            // currently we don't record range tombstones..
-        }
-        else
-        {
-            assert unfiltered.isRow();
-            Row row = (Row) unfiltered;
+        ByteComparable byteComparable = v -> key.asComparableBytes(v);
+        rowMapping.apply(Trie.singleton(byteComparable, sstableRowId), (existing, neww) -> neww);
 
-            ByteComparable byteComparable = asComparableBytes(key, row.clustering());
-            int segmentRowId = SegmentBuilder.castToSegmentRowId(sstableRowId, 0);
-            try
-            {
-                rowMapping.apply(Trie.singleton(byteComparable, segmentRowId), (existing, neww) -> neww);
-            }
-            catch (MemtableTrie.SpaceExhaustedException e)
-            {
-                //TODO Work out how to handle this properly
-                throw new RuntimeException(e);
-            }
+        maxSegmentRowId = Math.max(maxSegmentRowId, sstableRowId);
 
-            maxSegmentRowId = Math.max(maxSegmentRowId, segmentRowId);
-
-            // data is written in token sorted order
-            if (minKey == null)
-                minKey = key;
-            maxKey = key;
-        }
+        // data is written in token sorted order
+        if (minKey == null)
+            minKey = key;
+        maxKey = key;
     }
 
     public boolean hasRows()
     {
         return maxSegmentRowId >= 0;
-    }
-
-    private ByteComparable asComparableBytes(DecoratedKey key, Clustering clustering)
-    {
-        return v -> new ByteSource()
-        {
-            ByteSource source = key.asComparableBytes(v);
-            int index = -1;
-
-            @Override
-            public int next()
-            {
-                if (index == clustering.size())
-                    return END_OF_STREAM;
-
-                int b = source.next();
-                if (b > END_OF_STREAM)
-                    return b;
-
-                if (++index == clustering.size())
-                    return v == ByteComparable.Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR;
-                source = ByteSource.of(clustering.accessor(), clustering.get(index), v);
-                return NEXT_COMPONENT;
-            }
-        };
     }
 }

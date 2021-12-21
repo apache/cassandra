@@ -346,6 +346,12 @@ public final class FileUtils
         closeQuietly(Arrays.asList(cs));
     }
 
+    public static void closeQuietly(AutoCloseable... cs)
+    {
+        for (AutoCloseable c : cs)
+            closeQuietly(c);
+    }
+
     public static void closeQuietly(Iterable<? extends AutoCloseable> cs)
     {
         for (AutoCloseable c : cs)

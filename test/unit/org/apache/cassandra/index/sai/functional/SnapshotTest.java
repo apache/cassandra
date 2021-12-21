@@ -21,6 +21,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.inject.Injections;
 
@@ -45,21 +47,23 @@ public class SnapshotTest extends SAITester
     public void shouldTakeAndRestoreSnapshots() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        verifyIndexFiles(0, 0);
+        verifyNoIndexFiles();
 
         // Insert some initial data and create the index over it
         execute("INSERT INTO %s (id1, v1) VALUES ('0', 0);");
-        String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
         waitForIndexQueryable();
         flush();
-        verifyIndexFiles(1, 0);
+        verifyIndexFiles(numericIndexContext, null, 1, 1, 0, 1, 0);
+        // Note: This test will fail here if it is run on its own because the per-index validation
+        // is run if the node is starting up but validatation isn't done once the node is started
         assertValidationCount(0, 0);
         resetValidationCount();
 
         // Add some data into a second sstable
         execute("INSERT INTO %s (id1, v1) VALUES ('1', 0);");
         flush();
-        verifyIndexFiles(2, 0);
+        verifyIndexFiles(numericIndexContext, null, 2, 2, 0, 2, 0);
         assertValidationCount(0, 0);
 
         // Take a snapshot recording the index files last modified date
@@ -76,19 +80,19 @@ public class SnapshotTest extends SAITester
         // Add some data into a third sstable, out of the scope of our snapshot
         execute("INSERT INTO %s (id1, v1) VALUES ('2', 0);");
         flush();
-        verifyIndexFiles(3, 0);
+        verifyIndexFiles(numericIndexContext, null, 3, 3, 0, 3, 0);
         assertNumRows(3, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(0, 0);
 
         // Truncate the table
         truncate(false);
-        waitForAssert(() -> verifyIndexFiles(0, 0));
+        waitForAssert(() -> verifyNoIndexFiles());
         assertNumRows(0, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(0, 0);
 
         // Restore the snapshot, only the two first sstables should be restored
         restoreSnapshot(snapshot);
-        verifyIndexFiles(2, 0);
+        verifyIndexFiles(numericIndexContext, null, 2, 2, 0, 2, 0);
         assertEquals(snapshotLastModified, indexFilesLastModified());
         assertNumRows(2, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(2, 2); // newly loaded
@@ -97,8 +101,8 @@ public class SnapshotTest extends SAITester
         verifyIndexComponentsIncludedInSSTable();
 
         // Rebuild the index to verify that the index files are overridden
-        rebuildIndexes(v1IndexName);
-        verifyIndexFiles(2, 0);
+        rebuildIndexes(numericIndexContext.getIndexName());
+        verifyIndexFiles(numericIndexContext, null, 2, 0);
         assertNotEquals(snapshotLastModified, indexFilesLastModified());
         assertNumRows(2, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(2, 2); // compaction should not validate
@@ -111,7 +115,7 @@ public class SnapshotTest extends SAITester
     public void shouldSnapshotAfterIndexBuild() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        verifyIndexFiles(0, 0);
+        verifyNoIndexFiles();
 
         // Insert some initial data
         execute("INSERT INTO %s (id1, v1) VALUES ('0', 0);");
@@ -125,9 +129,9 @@ public class SnapshotTest extends SAITester
         verifyIndexComponentsNotIncludedInSSTable();
 
         // create index
-        String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
         waitForIndexQueryable();
-        verifyIndexFiles(2, 0);
+        verifyIndexFiles(numericIndexContext, null, 2, 0);
         assertValidationCount(0, 0);
 
         // index components are included after initial build
@@ -146,13 +150,13 @@ public class SnapshotTest extends SAITester
 
         // Truncate the table
         truncate(false);
-        waitForAssert(() -> verifyIndexFiles(0, 0));
+        waitForAssert(() -> verifyNoIndexFiles());
         assertNumRows(0, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(0, 0);
 
         // Restore the snapshot
         restoreSnapshot(snapshot);
-        verifyIndexFiles(2, 0);
+        verifyIndexFiles(numericIndexContext, null, 2, 0);
         assertEquals(snapshotLastModified, indexFilesLastModified());
         assertNumRows(2, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(2, 2); // newly loaded

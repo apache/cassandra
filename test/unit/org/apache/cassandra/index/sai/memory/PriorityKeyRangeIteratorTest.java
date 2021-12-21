@@ -20,7 +20,8 @@ package org.apache.cassandra.index.sai.memory;
 import java.util.Arrays;
 import java.util.PriorityQueue;
 
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 
 public class PriorityKeyRangeIteratorTest extends AbstractKeyRangeIteratorTest
@@ -28,10 +29,12 @@ public class PriorityKeyRangeIteratorTest extends AbstractKeyRangeIteratorTest
     @Override
     protected RangeIterator makeIterator(long minimumTokenValue, long maximumTokenValue, long... tokens)
     {
-        PriorityQueue<DecoratedKey> queue = new PriorityQueue<>(tokens.length, DecoratedKey.comparator);
+        PriorityQueue<PrimaryKey> queue = new PriorityQueue<>(tokens.length);
 
         Arrays.stream(tokens).forEach(t -> queue.add(keyForToken(t)));
 
-        return new KeyRangeIterator(minimumTokenValue, maximumTokenValue, queue);
+        return new KeyRangeIterator(primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(minimumTokenValue)),
+                                    primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(maximumTokenValue)),
+                                    queue);
     }
 }

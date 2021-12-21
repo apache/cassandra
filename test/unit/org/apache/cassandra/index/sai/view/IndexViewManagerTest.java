@@ -36,13 +36,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -72,7 +70,7 @@ public class IndexViewManagerTest extends SAITester
         String indexName = createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        ColumnContext columnContext = columnIndex(getCurrentColumnFamilyStore(), indexName);
+        IndexContext columnContext = columnIndex(getCurrentColumnFamilyStore(), indexName);
         View initialView = columnContext.getView();
 
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
@@ -92,7 +90,7 @@ public class IndexViewManagerTest extends SAITester
         waitForIndexQueryable();
 
         ColumnFamilyStore store = getCurrentColumnFamilyStore();
-        ColumnContext columnContext = columnIndex(store, indexName);
+        IndexContext columnContext = columnIndex(store, indexName);
         store.disableAutoCompaction();
 
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
@@ -124,7 +122,7 @@ public class IndexViewManagerTest extends SAITester
         waitForIndexQueryable();
 
         ColumnFamilyStore store = getCurrentColumnFamilyStore();
-        ColumnContext columnContext = columnIndex(store, indexName);
+        IndexContext columnContext = columnIndex(store, indexName);
         Path tmpDir = Files.createTempDirectory("IndexViewManagerTest");
         store.disableAutoCompaction();
 
@@ -185,8 +183,8 @@ public class IndexViewManagerTest extends SAITester
             List<SSTableContext> flushed = sstables.stream().skip(3).limit(1).map(SSTableContext::create).collect(Collectors.toList());
 
             // concurrently update from both flush and compaction
-            Future<?> compaction = executor.submit(() -> tracker.update(initial, compacted, true, false));
-            Future<?> flush = executor.submit(() -> tracker.update(none, flushed, true, false));
+            Future<?> compaction = executor.submit(() -> tracker.update(initial, compacted, true));
+            Future<?> flush = executor.submit(() -> tracker.update(none, flushed, true));
 
             FBUtilities.waitOnFutures(Arrays.asList(compaction, flush));
 
@@ -211,24 +209,25 @@ public class IndexViewManagerTest extends SAITester
             compacted.forEach(group -> assertTrue(group.isCleanedUp()));
             flushed.forEach(group -> assertTrue(group.isCleanedUp()));
         }
+        sstables.forEach(sstable -> sstable.selfRef().release());
         executor.shutdown();
         executor.awaitTermination(1, TimeUnit.MINUTES);
     }
 
-    private ColumnContext columnIndex(ColumnFamilyStore store, String indexName)
+    private IndexContext columnIndex(ColumnFamilyStore store, String indexName)
     {
         assert store.indexManager != null;
         StorageAttachedIndex sai = (StorageAttachedIndex) store.indexManager.getIndexByName(indexName);
-        return sai.getContext();
+        return sai.getIndexContext();
     }
 
     public static class MockSSTableIndex extends SSTableIndex
     {
         int releaseCount = 0;
 
-        MockSSTableIndex(SSTableContext group, ColumnContext context) throws IOException
+        MockSSTableIndex(SSTableContext group, IndexContext context) throws IOException
         {
-            super(group, context, IndexComponents.create(context.getIndexName(), group.descriptor(), CryptoUtils.getCompressionParams(group.sstable())));
+            super(group, context);
         }
 
         @Override

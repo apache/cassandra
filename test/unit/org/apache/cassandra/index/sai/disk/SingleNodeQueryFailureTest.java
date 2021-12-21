@@ -24,9 +24,10 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.disk.v1.PostingsReader;
+import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.KeyFetcher;
 import org.apache.cassandra.index.sai.disk.v1.TermsReader;
+import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.utils.Throwables;
@@ -34,7 +35,9 @@ import org.apache.cassandra.utils.Throwables;
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assume.assumeTrue;
 
 public class SingleNodeQueryFailureTest extends SAITester
 {
@@ -73,13 +76,15 @@ public class SingleNodeQueryFailureTest extends SAITester
     @Test
     public void testFailedKeyFetcherOnMultiIndexesQuery() throws Throwable
     {
-        testFailedMultiIndexesQuery("key_fetcher", SSTableContext.DecoratedKeyFetcher.class, "apply");
+        assumeTrue(Version.LATEST == Version.AA);
+        testFailedMultiIndexesQuery("key_fetcher", KeyFetcher.class, "apply");
     }
 
     @Test
     public void testFailedKeyReaderOnMultiIndexesQuery() throws Throwable
     {
-        testFailedMultiIndexesQuery("key_reader", SSTableContext.DecoratedKeyFetcher.class, "createReader");
+        assumeTrue(Version.LATEST == Version.AA);
+        testFailedMultiIndexesQuery("key_reader", KeyFetcher.class, "createReader");
     }
 
     private void testFailedMultiIndexesQuery(String name, Class<?> targetClass, String targetMethod) throws Throwable

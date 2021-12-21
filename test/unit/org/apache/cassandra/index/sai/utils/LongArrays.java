@@ -19,6 +19,8 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.util.Arrays;
 
+import org.apache.cassandra.index.sai.disk.v1.LongArray;
+
 public final class LongArrays
 {
     public static LongArrayDecorator identity()

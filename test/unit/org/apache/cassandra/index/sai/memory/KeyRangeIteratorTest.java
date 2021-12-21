@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 
 public class KeyRangeIteratorTest extends AbstractKeyRangeIteratorTest
@@ -29,7 +29,7 @@ public class KeyRangeIteratorTest extends AbstractKeyRangeIteratorTest
     @Override
     protected RangeIterator makeIterator(long minimumTokenValue, long maximumTokenValue, long... tokens)
     {
-        SortedSet<DecoratedKey> set = new TreeSet<>(DecoratedKey.comparator);
+        SortedSet<PrimaryKey> set = new TreeSet<>();
 
         Arrays.stream(tokens).forEach(t -> set.add(keyForToken(t)));
 

@@ -19,68 +19,66 @@ package org.apache.cassandra.index.sai.metrics;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.TableMetadata;
+
 public class QueryEventListeners
 {
-    public static final QueryEventListener NO_OP = new BaseQueryEventListener();
+    public static final ColumnQueryMetrics NO_OP_BKD_LISTENER = new NoOpBkdIndexEventListener();
 
-    public static final QueryEventListener.BKDIndexEventListener NO_OP_BKD_LISTENER = NO_OP.bkdIndexEventListener();
-
-    public static final QueryEventListener.TrieIndexEventListener NO_OP_TRIE_LISTENER = NO_OP.trieIndexEventListener();
+    public static final ColumnQueryMetrics NO_OP_TRIE_LISTENER = new NoOpTrieIndexEventListener();
 
     public static final QueryEventListener.PostingListEventListener NO_OP_POSTINGS_LISTENER = new NoOpPostingListEventListener();
 
-    private static class BaseQueryEventListener implements QueryEventListener
+    private static class NoOpTrieIndexEventListener extends ColumnQueryMetrics implements QueryEventListener.TrieIndexEventListener
     {
-        @Override
-        public BKDIndexEventListener bkdIndexEventListener()
+        NoOpTrieIndexEventListener()
         {
-            return NoOpBKDIndexEventListener.INSTANCE;
+            super(null, TableMetadata.builder("ks", "tb").addPartitionKeyColumn("pk", UTF8Type.instance).build());
         }
 
         @Override
-        public TrieIndexEventListener trieIndexEventListener()
+        public void onSegmentHit()
+        {}
+
+        @Override
+        public void onTraversalComplete(long traversalTotalTime, TimeUnit unit)
+        {}
+
+        @Override
+        public QueryEventListener.PostingListEventListener postingListEventListener()
         {
-            return NoOpTrieIndexEventListener.INSTANCE;
+            return NO_OP_POSTINGS_LISTENER;
+        }
+    }
+
+    private static class NoOpBkdIndexEventListener extends ColumnQueryMetrics implements QueryEventListener.BKDIndexEventListener
+    {
+        NoOpBkdIndexEventListener()
+        {
+            super(null, TableMetadata.builder("ks", "tb").addPartitionKeyColumn("pk", UTF8Type.instance).build());
         }
 
-        private enum NoOpTrieIndexEventListener implements TrieIndexEventListener
+        @Override
+        public void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit)
+        {}
+
+        @Override
+        public void onIntersectionEarlyExit()
+        {}
+
+        @Override
+        public void postingListsHit(int count)
+        {}
+
+        @Override
+        public void onSegmentHit()
+        {}
+
+        @Override
+        public QueryEventListener.PostingListEventListener postingListEventListener()
         {
-            INSTANCE;
-
-            @Override
-            public void onSegmentHit() { }
-
-            @Override
-            public void onTraversalComplete(long traversalTotalTime, TimeUnit unit) { }
-
-            @Override
-            public PostingListEventListener postingListEventListener()
-            {
-                return NO_OP_POSTINGS_LISTENER;
-            }
-        }
-
-        private enum NoOpBKDIndexEventListener implements BKDIndexEventListener
-        {
-            INSTANCE;
-
-            @Override
-            public void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit) { }
-
-            @Override
-            public void onIntersectionEarlyExit() { }
-
-            @Override
-            public void postingListsHit(int count) { }
-
-            @Override
-            public void onSegmentHit() { }
-
-            @Override
-            public PostingListEventListener postingListEventListener()
-            {
-                return NO_OP_POSTINGS_LISTENER;
-            }
+            return NO_OP_POSTINGS_LISTENER;
         }
     }
 

@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -42,6 +36,7 @@ import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -52,7 +47,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Operator;
@@ -87,16 +81,10 @@ import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.LuceneAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
-import org.apache.cassandra.index.sai.disk.ColumnIndexWriter;
-import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
-import org.apache.cassandra.index.sai.disk.MemtableIndexWriter;
-import org.apache.cassandra.index.sai.disk.SSTableIndexWriter;
-import org.apache.cassandra.index.sai.disk.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
-import org.apache.cassandra.index.sai.memory.RowMapping;
-import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
-import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -104,52 +92,16 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
-
 public class StorageAttachedIndex implements Index
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
-
-    /**
-     * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
-     *
-     * Note that to avoid flushing extremely small index segments, a segment is only flushed when
-     * both the global size of all building segments has breached the limit and the size of the
-     * segment in question reaches (segment_write_buffer_space_mb / # currently building column indexes).
-     *
-     * ex. If there is only one column index building, it can buffer up to segment_write_buffer_space_mb.
-     *
-     * ex. If there is one column index building per table across 8 compactors, each index will be
-     *     eligible to flush once it reaches (segment_write_buffer_space_mb / 8) MBs.
-     */
-    public static final long SEGMENT_BUILD_MEMORY_LIMIT = Long.getLong("cassandra.test.sai.segment_build_memory_limit",
-                                                          1024L * 1024L * (long) DatabaseDescriptor.getSAISegmentWriteBufferSpace());
-
-    public static final NamedMemoryLimiter SEGMENT_BUILD_MEMORY_LIMITER =
-            new NamedMemoryLimiter(SEGMENT_BUILD_MEMORY_LIMIT, "SSTable-attached Index Segment Builder");
-
-    static
-    {
-        CassandraMetricsRegistry.MetricName bufferSpaceUsed = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "SegmentBufferSpaceUsedBytes", null);
-        CassandraMetricsRegistry.Metrics.register(bufferSpaceUsed, (Gauge<Long>) SEGMENT_BUILD_MEMORY_LIMITER::currentBytesUsed);
-
-        CassandraMetricsRegistry.MetricName bufferSpaceLimit = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "SegmentBufferSpaceLimitBytes", null);
-        CassandraMetricsRegistry.Metrics.register(bufferSpaceLimit, (Gauge<Long>) () -> SEGMENT_BUILD_MEMORY_LIMIT);
-
-        // Note: The active builder count starts at 1 to avoid dividing by zero.
-        CassandraMetricsRegistry.MetricName buildsInProgress = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "ColumnIndexBuildsInProgress", null);
-        CassandraMetricsRegistry.Metrics.register(buildsInProgress, (Gauge<Long>) () -> SegmentBuilder.ACTIVE_BUILDER_COUNT.get() - 1);
-    }
 
     private static class StorageAttachedIndexBuildingSupport implements IndexBuildingSupport
     {
@@ -166,7 +118,7 @@ public class StorageAttachedIndex implements Index
                    .forEach((i) ->
                             {
                                 StorageAttachedIndex sai = (StorageAttachedIndex) i;
-                                ColumnContext context = ((StorageAttachedIndex) i).getContext();
+                                IndexContext indexContext = ((StorageAttachedIndex) i).getIndexContext();
 
                                 // If this is not a full manual index rebuild we can skip SSTables that already have an
                                 // attached index. Otherwise, we override any pre-existent index.
@@ -174,7 +126,7 @@ public class StorageAttachedIndex implements Index
                                 if (!isFullRebuild)
                                 {
                                     ss = sstablesToRebuild.stream()
-                                                          .filter(s -> !IndexComponents.isColumnIndexComplete(s.descriptor, context.getIndexName()))
+                                                          .filter(s -> !IndexDescriptor.create(s).isPerIndexBuildComplete(indexContext))
                                                           .collect(Collectors.toList());
                                 }
 
@@ -217,7 +169,7 @@ public class StorageAttachedIndex implements Index
 
     private final ColumnFamilyStore baseCfs;
     private final IndexMetadata config;
-    private final ColumnContext context;
+    private final IndexContext indexContext;
 
     // Tracks whether or not we've started the index build on initialization.
     private volatile boolean initBuildStarted = false;
@@ -229,7 +181,7 @@ public class StorageAttachedIndex implements Index
     {
         this.baseCfs = baseCfs;
         this.config = config;
-        this.context = new ColumnContext(baseCfs.metadata(), config);
+        this.indexContext = new IndexContext(baseCfs.metadata(), config);
     }
 
     /**
@@ -337,13 +289,13 @@ public class StorageAttachedIndex implements Index
     {
         if (baseCfs.indexManager.isIndexQueryable(this))
         {
-            logger.debug(context.logMessage("Skipping validation and building in initialization task, as pre-join has already made the storage attached index queryable..."));
+            logger.debug(indexContext.logMessage("Skipping validation and building in initialization task, as pre-join has already made the storage attached index queryable..."));
             initBuildStarted = true;
             return CompletableFuture.completedFuture(null);
         }
 
         // stop in-progress compaction tasks to prevent compacted sstable not being index.
-        logger.debug(context.logMessage("Stopping active compactions to make sure all sstables are indexed after initial build."));
+        logger.debug(indexContext.logMessage("Stopping active compactions to make sure all sstables are indexed after initial build."));
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(baseCfs.metadata()),
                                                           OperationType.REWRITES_SSTABLES,
                                                           Predicates.alwaysTrue(),
@@ -360,7 +312,7 @@ public class StorageAttachedIndex implements Index
         initBuildStarted = true;
 
         StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
-        List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validate, true);
+        List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validate);
 
         if (nonIndexed.isEmpty())
         {
@@ -379,7 +331,7 @@ public class StorageAttachedIndex implements Index
             futures.add(CompactionManager.instance.submitIndexBuild(new StorageAttachedIndexBuilder(indexGroup, current, false, true)));
         }
 
-        logger.info(context.logMessage("Submitting {} parallel initial index builds over {} total sstables..."), futures.size(), nonIndexed.size());
+        logger.info(indexContext.logMessage("Submitting {} parallel initial index builds over {} total sstables..."), futures.size(), nonIndexed.size());
         return Futures.allAsList(futures);
     }
 
@@ -441,10 +393,10 @@ public class StorageAttachedIndex implements Index
 
             // in case of dropping table, SSTable indexes should already been removed by SSTableListChangedNotification.
             Set<Component> toRemove = getComponents();
-            for (SSTableIndex sstableIndex : context.getView().getIndexes())
+            for (SSTableIndex sstableIndex : indexContext.getView().getIndexes())
                 sstableIndex.getSSTable().unregisterComponents(toRemove, baseCfs.getTracker());
 
-            context.invalidate(true);
+            indexContext.invalidate(true);
             return null;
         };
     }
@@ -457,7 +409,7 @@ public class StorageAttachedIndex implements Index
             // mark index as invalid, in-progress SSTableIndexWriters will abort
             valid = false;
 
-            context.invalidate(false);
+            indexContext.invalidate(false);
             return null;
         };
     }
@@ -475,18 +427,28 @@ public class StorageAttachedIndex implements Index
         return this::startPreJoinTask;
     }
 
+    public boolean isInitBuildStarted()
+    {
+        return initBuildStarted;
+    }
+
+    public BooleanSupplier isIndexValid()
+    {
+        return () -> valid;
+    }
+
     private Future<?> startPreJoinTask()
     {
         try
         {
             if (baseCfs.indexManager.isIndexQueryable(this))
             {
-                logger.debug(context.logMessage("Skipping validation in pre-join task, as the initialization task has already made the index queryable..."));
+                logger.debug(indexContext.logMessage("Skipping validation in pre-join task, as the initialization task has already made the index queryable..."));
                 return null;
             }
 
             StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
-            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, group, true, true);
+            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, group, true);
 
             if (nonIndexed.isEmpty())
             {
@@ -496,7 +458,7 @@ public class StorageAttachedIndex implements Index
         }
         catch (Throwable t)
         {
-            logger.error(context.logMessage("Failed in pre-join task!"), t);
+            logger.error(indexContext.logMessage("Failed in pre-join task!"), t);
         }
 
         return null;
@@ -527,13 +489,13 @@ public class StorageAttachedIndex implements Index
     @Override
     public boolean dependsOn(ColumnMetadata column)
     {
-        return context.getDefinition().compareTo(column) == 0;
+        return indexContext.getDefinition().compareTo(column) == 0;
     }
 
     @Override
     public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
-        return dependsOn(column) && context.supports(operator);
+        return dependsOn(column) && indexContext.supports(operator);
     }
 
     @Override
@@ -572,17 +534,17 @@ public class StorageAttachedIndex implements Index
      *
      * @return a list SSTables without attached indexes
      */
-    private synchronized List<SSTableReader> findNonIndexedSSTables(ColumnFamilyStore baseCfs, StorageAttachedIndexGroup group, boolean validate, boolean rename)
+    private synchronized List<SSTableReader> findNonIndexedSSTables(ColumnFamilyStore baseCfs, StorageAttachedIndexGroup group, boolean validate)
     {
         Set<SSTableReader> sstables = baseCfs.getLiveSSTables();
 
         // Initialize the SSTable indexes w/ valid existing components...
         assert group != null : "Missing index group on " + baseCfs.name;
-        group.onSSTableChanged(Collections.emptyList(), sstables, Collections.singleton(this), validate, rename);
+        group.onSSTableChanged(Collections.emptyList(), sstables, Collections.singleton(this), validate);
 
         // ...then identify and rebuild the SSTable indexes that are missing.
         List<SSTableReader> nonIndexed = new ArrayList<>();
-        View view = context.getView();
+        View view = indexContext.getView();
 
         for (SSTableReader sstable : sstables)
         {
@@ -591,7 +553,7 @@ public class StorageAttachedIndex implements Index
             //   2. The SSTable is not marked compacted
             //   3. The column index does not have a completion marker
             if (!view.containsSSTable(sstable) && !sstable.isMarkedCompacted() &&
-                    !IndexComponents.isColumnIndexComplete(sstable.descriptor, context.getIndexName()))
+                !IndexDescriptor.create(sstable).isPerIndexBuildComplete(indexContext))
             {
                 nonIndexed.add(sstable);
             }
@@ -616,7 +578,7 @@ public class StorageAttachedIndex implements Index
         @Override
         public void insertRow(Row row)
         {
-            adjustMemtableSize(context.index(key, row, mt), CassandraWriteContext.fromContext(writeContext).getGroup());
+            adjustMemtableSize(indexContext.index(key, row, mt), CassandraWriteContext.fromContext(writeContext).getGroup());
         }
 
         @Override
@@ -668,27 +630,15 @@ public class StorageAttachedIndex implements Index
         throw new UnsupportedOperationException("Storage-attached index flush observers should never be created directly.");
     }
 
-    public ColumnIndexWriter newIndexWriter(Descriptor descriptor,
-                                            LifecycleNewTracker tracker,
-                                            RowMapping rowMapping,
-                                            CompressionParams compressionParams)
-    {
-        // If we're not flushing or we haven't yet started the initialization build, flush from SSTable contents.
-        if (tracker.opType() != OperationType.FLUSH || !initBuildStarted)
-        {
-            NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
-            logger.info(context.logMessage("Starting a compaction index build. Global segment memory usage: {}"), prettyPrintMemory(limiter.currentBytesUsed()));
-
-            return new SSTableIndexWriter(descriptor, context, limiter, () -> valid, compressionParams);
-        }
-
-        return new MemtableIndexWriter(context.getPendingMemtableIndex(tracker), descriptor, context, rowMapping, compressionParams);
-    }
-
     @Override
     public Set<Component> getComponents()
     {
-        return new HashSet<>(IndexComponents.perColumnComponents(context.getIndexName(), context.isLiteral()));
+        return Version.LATEST.onDiskFormat()
+                             .perIndexComponents(indexContext)
+                             .stream()
+                             .map(c -> new Component(Component.Type.CUSTOM,
+                                                     Version.LATEST.fileNameFormatter().format(c, indexContext)))
+                             .collect(Collectors.toSet());
     }
 
     @Override
@@ -715,9 +665,9 @@ public class StorageAttachedIndex implements Index
         return INDEX_BUILDER_SUPPORT;
     }
 
-    public ColumnContext getContext()
+    public IndexContext getIndexContext()
     {
-        return context;
+        return indexContext;
     }
 
     @Override
@@ -734,11 +684,6 @@ public class StorageAttachedIndex implements Index
     public void makeIndexNonQueryable()
     {
         baseCfs.indexManager.makeIndexNonQueryable(this, Status.BUILD_FAILED);
-        logger.warn(context.logMessage("Storage-attached index is no longer queryable. Please restart this node to repair it."));
-    }
-
-    void deleteIndexFiles(SSTableReader sstable)
-    {
-        IndexComponents.create(context.getIndexName(), sstable).deleteColumnIndex();
+        logger.warn(indexContext.logMessage("Storage-attached index is no longer queryable. Please restart this node to repair it."));
     }
 }
