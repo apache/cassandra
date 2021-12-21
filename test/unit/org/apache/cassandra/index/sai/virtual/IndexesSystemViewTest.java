@@ -25,7 +25,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
@@ -152,7 +152,7 @@ public class IndexesSystemViewTest extends SAITester
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
             StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
             StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
-            ColumnContext context = sai.getContext();
+            IndexContext context = sai.getIndexContext();
 
             return row(indexName,
                        currentTable(),

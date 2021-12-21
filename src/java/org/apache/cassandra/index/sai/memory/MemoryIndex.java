@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -31,7 +25,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -41,14 +35,14 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public abstract class MemoryIndex
 {
-    protected final ColumnContext columnContext;
+    protected final IndexContext indexContext;
 
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
 
-    protected MemoryIndex(ColumnContext columnContext)
+    protected MemoryIndex(IndexContext indexContext)
     {
-        this.columnContext = columnContext;
+        this.indexContext = indexContext;
     }
 
     public abstract long add(DecoratedKey key, Clustering clustering, ByteBuffer value);
@@ -59,8 +53,8 @@ public abstract class MemoryIndex
     {
         assert term != null;
 
-        minTerm = TypeUtil.min(term, minTerm, columnContext.getValidator());
-        maxTerm = TypeUtil.max(term, maxTerm, columnContext.getValidator());
+        minTerm = TypeUtil.min(term, minTerm, indexContext.getValidator());
+        maxTerm = TypeUtil.max(term, maxTerm, indexContext.getValidator());
     }
 
     public ByteBuffer getMinTerm()

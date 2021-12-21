@@ -46,7 +46,9 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -57,16 +59,19 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     private final ReadCommand command;
     private final QueryController controller;
     private final QueryContext queryContext;
+    private final PrimaryKey.Factory keyFactory;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
                                         ReadCommand command,
                                         RowFilter.FilterElement filterOperation,
+                                        IndexFeatureSet indexFeatureSet,
                                         long executionQuotaMs)
     {
         this.command = command;
         this.queryContext = new QueryContext(executionQuotaMs);
-        this.controller = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
+        this.controller = new QueryController(cfs, command, filterOperation, indexFeatureSet, queryContext, tableQueryMetrics);
+        this.keyFactory = PrimaryKey.factory(cfs.metadata().comparator, indexFeatureSet);
     }
 
     @Override
@@ -99,7 +104,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
+        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext, keyFactory);
     }
 
     /**
@@ -128,8 +133,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
     private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
-        private final PartitionPosition startToken;
-        private final PartitionPosition lastToken;
+        private final PrimaryKey startPrimaryKey;
+        private final PrimaryKey lastPrimaryKey;
         private final Iterator<DataRange> keyRanges;
         private AbstractBounds<PartitionPosition> current;
 
@@ -138,12 +143,17 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final QueryController controller;
         private final ReadExecutionController executionController;
         private final QueryContext queryContext;
+        private final PrimaryKey.Factory keyFactory;
 
-        private Iterator<DecoratedKey> currentKeys = null;
-        private DecoratedKey lastKey;
+        private PrimaryKey currentKey = null;
+        private PrimaryKey lastKey;
 
-        private ResultRetriever(RangeIterator operation, FilterTree filterTree, QueryController controller,
-                                ReadExecutionController executionController, QueryContext queryContext)
+        private ResultRetriever(RangeIterator operation,
+                                FilterTree filterTree,
+                                QueryController controller,
+                                ReadExecutionController executionController,
+                                QueryContext queryContext,
+                                PrimaryKey.Factory keyFactory)
         {
             this.keyRanges = controller.dataRanges().iterator();
             this.current = keyRanges.next().keyRange();
@@ -153,9 +163,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             this.controller = controller;
             this.executionController = executionController;
             this.queryContext = queryContext;
+            this.keyFactory = keyFactory;
 
-            this.startToken = controller.mergeRange().left;
-            this.lastToken = controller.mergeRange().right;
+            this.startPrimaryKey = keyFactory.createTokenOnly(controller.mergeRange().left.getToken());
+            this.lastPrimaryKey = keyFactory.createTokenOnly(controller.mergeRange().right.getToken());
         }
 
         @Override
@@ -164,10 +175,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             if (operation == null)
                 return endOfData();
 
-            operation.skipTo(startToken.getToken().getLongValue());
+            operation.skipTo(startPrimaryKey);
             if (!operation.hasNext())
                 return endOfData();
-            currentKeys = operation.next().keys();
+            currentKey = operation.next().loadDeferred();
 
             // IMPORTANT: The correctness of the entire query pipeline relies on the fact that we consume a token
             // and materialize its keys before moving on to the next token in the flow. This sequence must not be broken
@@ -175,51 +186,48 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             // allocation, reuse their token mergers as they process individual positions on the ring.)
             while (true)
             {
-                while (currentKeys.hasNext())
+                if (!lastPrimaryKey.token().isMinimum() && lastPrimaryKey.compareTo(currentKey) < 0)
+                    return endOfData();
+
+                while (current != null)
                 {
-                    DecoratedKey key = currentKeys.next();
-
-                    if (!lastToken.isMinimum() && lastToken.compareTo(key) < 0)
-                        return endOfData();
-
-                    while (current != null)
+                    // exists in the current range
+                    if (current.contains(currentKey.partitionKey()))
                     {
-                        if (current.contains(key))
+                        // The current read operation wants this key
+                        if (controller.selects(currentKey))
                         {
-                            UnfilteredRowIterator partition = apply(key);
+                            UnfilteredRowIterator partition = apply(currentKey);
                             if (partition != null)
                                 return partition;
-                            break;
                         }
-                        // bigger than current range
-                        else if (!current.right.isMinimum() && current.right.compareTo(key) <= 0)
-                        {
-                            if (keyRanges.hasNext())
-                                current = keyRanges.next().keyRange();
-                            else
-                                return endOfData();
-                        }
-                        // smaller than current range
+                        break;
+                    }
+                    // bigger than current range
+                    else if (!current.right.isMinimum() && current.right.compareTo(currentKey.partitionKey()) <= 0)
+                    {
+                        if (keyRanges.hasNext())
+                            current = keyRanges.next().keyRange();
                         else
-                        {
-                            // we already knew that key is not included in "current" abstract bounds,
-                            // so "left" may have the same partition position as "key" when "left" is exclusive.
-                            assert current.left.compareTo(key) >= 0;
-                            operation.skipTo(current.left.getToken().getLongValue());
-                            if (!operation.hasNext())
-                                return endOfData();
-                            currentKeys = operation.next().keys();
-                            break;
-                        }
+                            return endOfData();
+                    }
+                    // smaller than current range
+                    else
+                    {
+                        // we already knew that key is not included in "current" abstract bounds,
+                        // so "left" may have the same partition position as "key" when "left" is exclusive.
+                        assert current.left.compareTo(currentKey.partitionKey()) >= 0;
+                        operation.skipTo(keyFactory.createTokenOnly(current.left.getToken()));
+                        break;
                     }
                 }
                 if (!operation.hasNext())
                     return endOfData();
-                currentKeys = operation.next().keys();
+                currentKey = operation.next().loadDeferred();
             }
         }
 
-        public UnfilteredRowIterator apply(DecoratedKey key)
+        public UnfilteredRowIterator apply(PrimaryKey key)
         {
             // Key reads are lazy, delayed all the way to this point. Skip if we've already seen this one:
             if (key.equals(lastKey))
@@ -227,7 +235,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
             lastKey = key;
 
-            // SPRC should only return UnfilteredRowIterator, but it returns UnfilteredPartitionIterator due to Flow.
             try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
             {
                 queryContext.partitionsRead++;
@@ -236,7 +243,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             }
         }
 
-        private static UnfilteredRowIterator applyIndexFilter(DecoratedKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
+        private static UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
         {
             Row staticRow = partition.staticRow();
             List<Unfiltered> clusters = new ArrayList<>();
@@ -246,15 +253,19 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 Unfiltered row = partition.next();
 
                 queryContext.rowsFiltered++;
-                if (tree.isSatisfiedBy(key, row, staticRow))
+                if (tree.isSatisfiedBy(key.partitionKey(), row, staticRow))
+                {
                     clusters.add(row);
+                }
             }
 
             if (clusters.isEmpty())
             {
                 queryContext.rowsFiltered++;
-                if (tree.isSatisfiedBy(key, staticRow, staticRow))
+                if (tree.isSatisfiedBy(key.partitionKey(), staticRow, staticRow))
+                {
                     clusters.add(staticRow);
+                }
             }
 
             /*
@@ -265,7 +276,9 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
              *       and remove the static row marker from the {@code clusters} for the latter case.
              */
             if (clusters.isEmpty())
+            {
                 return null;
+            }
 
             return new PartitionIterator(partition, staticRow, Iterators.filter(clusters.iterator(), u -> !((Row)u).isStatic()));
         }

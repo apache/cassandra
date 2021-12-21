@@ -1,10 +1,4 @@
 /*
- * All changes to the original code are Copyright DataStax, Inc.
- *
- * Please see the included license file for details.
- */
-
-/*
  * Copyright (C) 2007 The Guava Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");

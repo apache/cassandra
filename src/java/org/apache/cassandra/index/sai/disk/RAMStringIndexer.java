@@ -40,11 +40,10 @@ public class RAMStringIndexer
     private final RAMPostingSlices slices;
     private final Counter bytesUsed;
     
-    int rowCount = 0;
-
+    private int rowCount = 0;
     private int[] lastSegmentRowID = new int[RAMPostingSlices.DEFAULT_TERM_DICT_SIZE];
 
-    RAMStringIndexer(AbstractType<?> termComparator)
+    public RAMStringIndexer(AbstractType<?> termComparator)
     {
         this.termComparator = termComparator;
         bytesUsed = Counter.newCounter();
@@ -56,16 +55,21 @@ public class RAMStringIndexer
         slices = new RAMPostingSlices(bytesUsed);
     }
 
-    long estimatedBytesUsed()
+    public long estimatedBytesUsed()
     {
         return bytesUsed.get();
+    }
+
+    public boolean isEmpty()
+    {
+        return rowCount == 0;
     }
 
     /**
      * EXPENSIVE OPERATION due to sorting the terms, only call once.
      */
     // TODO: assert or throw and exception if getTermsWithPostings is called > 1
-    TermsIterator getTermsWithPostings()
+    public TermsIterator getTermsWithPostings()
     {
         final int[] sortedTermIDs = termsHash.sort();
 

@@ -21,14 +21,14 @@ import java.io.IOException;
 
 import org.apache.lucene.store.RandomAccessInput;
 
-class DirectReaders
+public class DirectReaders
 {
-    interface Reader
+    public interface Reader
     {
         long get(RandomAccessInput in, long offset, long index);
     }
 
-    static Reader getReaderForBitsPerValue(byte bitsPerValue)
+    public static Reader getReaderForBitsPerValue(byte bitsPerValue)
     {
         switch (bitsPerValue)
         {

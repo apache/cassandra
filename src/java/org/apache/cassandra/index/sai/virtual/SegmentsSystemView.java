@@ -31,11 +31,11 @@ import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.sai.ColumnContext;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
-import org.apache.cassandra.index.sai.disk.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
@@ -46,22 +46,22 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public class SegmentsSystemView extends AbstractVirtualTable
 {
-    static final String NAME = "sstable_index_segments";
+    public static final String NAME = "sstable_index_segments";
 
-    static final String KEYSPACE_NAME = "keyspace_name";
-    static final String INDEX_NAME = "index_name";
-    static final String SSTABLE_NAME = "sstable_name";
-    static final String TABLE_NAME = "table_name";
-    static final String COLUMN_NAME = "column_name";
-    static final String CELL_COUNT = "cell_count";
-    static final String SEGMENT_ROW_ID_OFFSET = "segment_row_id_offset";
-    static final String MIN_SSTABLE_ROW_ID = "min_sstable_row_id";
-    static final String MAX_SSTABLE_ROW_ID = "max_sstable_row_id";
-    static final String START_TOKEN = "start_token";
-    static final String END_TOKEN = "end_token";
-    static final String MIN_TERM = "min_term";
-    static final String MAX_TERM = "max_term";
-    static final String COMPONENT_METADATA = "component_metadata";
+    public static final String KEYSPACE_NAME = "keyspace_name";
+    public static final String INDEX_NAME = "index_name";
+    public static final String SSTABLE_NAME = "sstable_name";
+    public static final String TABLE_NAME = "table_name";
+    public static final String COLUMN_NAME = "column_name";
+    public static final String CELL_COUNT = "cell_count";
+    public static final String SEGMENT_ROW_ID_OFFSET = "segment_row_id_offset";
+    public static final String MIN_SSTABLE_ROW_ID = "min_sstable_row_id";
+    public static final String MAX_SSTABLE_ROW_ID = "max_sstable_row_id";
+    public static final String START_TOKEN = "start_token";
+    public static final String END_TOKEN = "end_token";
+    public static final String MIN_TERM = "min_term";
+    public static final String MAX_TERM = "max_term";
+    public static final String COMPONENT_METADATA = "component_metadata";
 
     public SegmentsSystemView(String keyspace)
     {
@@ -94,35 +94,17 @@ public class SegmentsSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        forEachIndex(columnContext -> {
-            for (SSTableIndex sstableIndex : columnContext.getView())
+        forEachIndex(indexContext -> {
+            for (SSTableIndex sstableIndex : indexContext.getView())
             {
-                SSTableReader sstable = sstableIndex.getSSTable();
-                List<SegmentMetadata> segments = sstableIndex.segments();
-                Descriptor descriptor = sstable.descriptor;
-                Token.TokenFactory tokenFactory = sstable.metadata().partitioner.getTokenFactory();
-
-                for (SegmentMetadata metadata : segments)
-                {
-                    dataset.row(sstable.metadata().keyspace, columnContext.getIndexName(), sstable.getFilename(), metadata.segmentRowIdOffset)
-                           .column(TABLE_NAME, descriptor.cfname)
-                           .column(COLUMN_NAME, columnContext.getColumnName())
-                           .column(CELL_COUNT, metadata.numRows)
-                           .column(MIN_SSTABLE_ROW_ID, metadata.minSSTableRowId)
-                           .column(MAX_SSTABLE_ROW_ID, metadata.maxSSTableRowId)
-                           .column(START_TOKEN, tokenFactory.toString(metadata.minKey.getToken()))
-                           .column(END_TOKEN, tokenFactory.toString(metadata.maxKey.getToken()))
-                           .column(MIN_TERM, columnContext.getValidator().getSerializer().deserialize(metadata.minTerm).toString())
-                           .column(MAX_TERM, columnContext.getValidator().getSerializer().deserialize(metadata.maxTerm).toString())
-                           .column(COMPONENT_METADATA, metadata.componentMetadatas.asMap());
-                }
+                sstableIndex.populateSegmentView(dataset);
             }
         });
 
         return dataset;
     }
 
-    private void forEachIndex(Consumer<ColumnContext> process)
+    private void forEachIndex(Consumer<IndexContext> process)
     {
         for (String ks : Schema.instance.getUserKeyspaces().names())
         {
@@ -138,7 +120,7 @@ public class SegmentsSystemView extends AbstractVirtualTable
                 {
                     for (Index index : group.getIndexes())
                     {
-                        process.accept(((StorageAttachedIndex)index).getContext());
+                        process.accept(((StorageAttachedIndex)index).getIndexContext());
                     }
                 }
             }
