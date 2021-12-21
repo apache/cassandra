@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3;
 import java.io.IOException;
 import java.util.*;
 
-import com.fasterxml.jackson.core.util.BufferRecyclers;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -43,7 +43,7 @@ public class Json
     public static String quoteAsJsonString(String s)
     {
         // In future should update to directly use `JsonStringEncoder.getInstance()` but for now:
-        return new String(BufferRecyclers.getJsonStringEncoder().quoteAsString(s));
+        return new String(JsonStringEncoder.getInstance().quoteAsString(s));
     }
 
     public static Object decodeJson(String json)
