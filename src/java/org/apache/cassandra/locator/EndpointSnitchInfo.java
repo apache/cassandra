@@ -19,14 +19,22 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 {
-    public static void create()
+    public static void registerMBean()
     {
         MBeanWrapper.instance.registerMBean(new EndpointSnitchInfo(), "org.apache.cassandra.db:type=EndpointSnitchInfo");
+    }
+
+    @VisibleForTesting
+    public static void unregisterMBean()
+    {
+        MBeanWrapper.instance.unregisterMBean("org.apache.cassandra.db:type=EndpointSnitchInfo");
     }
 
     public String getDatacenter(String host) throws UnknownHostException
