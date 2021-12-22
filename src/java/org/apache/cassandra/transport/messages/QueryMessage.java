@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -113,6 +114,13 @@ public class QueryMessage extends Message.Request
 
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();
             statement = queryHandler.parse(query, state, options);
+            if (statement instanceof AlterSchemaStatement){
+                logger.info(String.format("DDL Query: %s, Keyspace: %s, by User: %s, From: %s",
+                                          query,
+                                          ((AlterSchemaStatement) statement).keyspace(),
+                                          state.getClientState().getUser().getName(),
+                                          state.getClientAddress()));
+            }
             Message.Response response = queryHandler.process(statement, state, options, getCustomPayload(), queryStartNanoTime);
             QueryEvents.instance.notifyQuerySuccess(statement, query, options, state, queryStartTime, response);
 

@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -140,6 +141,14 @@ public class ExecuteMessage extends Message.Request
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
+
+            if (statement instanceof AlterSchemaStatement){
+                logger.info(String.format("DDL Query: %s, Keyspace: %s, by User: %s, From: %s",
+                                          prepared.rawCQLStatement,
+                                          ((AlterSchemaStatement) statement).keyspace(),
+                                          state.getClientState().getUser().getName(),
+                                          state.getClientAddress()));
+            }
 
             long requestStartTime = currentTimeMillis();
 
