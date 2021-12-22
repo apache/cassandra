@@ -168,6 +168,43 @@ public class DatabaseDescriptor
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                        : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
 
+    static void updateInitialized(boolean clientInitialized, boolean toolInitialized, boolean daemonInitialized)
+    {
+        DatabaseDescriptor.clientInitialized = clientInitialized;
+        DatabaseDescriptor.toolInitialized = toolInitialized;
+        DatabaseDescriptor.daemonInitialized = daemonInitialized;
+    }
+
+    /**
+     * This method can be called from tests if we need to re-initialize the DD
+     * again with a new config, partitioner or snitch. Note that this method will
+     * not delete directories or null the config, it simply resets the variables
+     * that prevent changing config or directories.
+     * <p/>
+     * It cannot set the config to null because this would cause NPEs in the
+     * schedulers that are still running.
+     * <p/>
+     * It cannot delete directories because on remote storage this would result
+     * in errors if the test containers for remote storage are being shutdown
+     * concurrently. The caller should delete any directories if required.
+     * TODO If you run into problems with undeleted directories or with the 
+     * caller deleting them, please add additional details here.
+     * <p/>
+     * This method is called by integration tests that run in the same JVM.
+     */
+    @VisibleForTesting
+    public static void resetUnsafe()
+    {
+        updateInitialized(false, false, false);
+
+        setPartitionerUnsafe(null);
+        IEndpointSnitch oldSnitch = getEndpointSnitch();
+        if (oldSnitch instanceof DynamicEndpointSnitch)
+            ((DynamicEndpointSnitch)oldSnitch).close();
+        setEndpointSnitch(null);
+        EndpointSnitchInfo.unregisterMBean();
+    }
+
     public static void daemonInitialization() throws ConfigurationException
     {
         daemonInitialization(DatabaseDescriptor::loadConfig);
@@ -370,7 +407,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    @VisibleForTesting
+    public static void setConfig(Config config)
     {
         conf = config;
     }
@@ -1199,7 +1237,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Missing endpoint_snitch directive", false);
         }
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
-        EndpointSnitchInfo.create();
+        EndpointSnitchInfo.registerMBean();
 
         localDC = snitch.getLocalDatacenter();
         localComparator = (replica1, replica2) -> {
