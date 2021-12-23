@@ -49,7 +49,7 @@ public class IndexAttributes extends PropertyDefinitions
         if (!isCustom && customClass != null)
             throw new InvalidRequestException("Cannot specify index class for a non-CUSTOM index");
 
-        if (!isCustom && !setProperties.isEmpty())
+        if (!isCustom && !isEmpty())
             throw new InvalidRequestException("Cannot specify options for a non-CUSTOM index");
 
         if (getRawOptions().containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))

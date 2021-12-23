@@ -124,6 +124,11 @@ public class PropertyDefinitions
         return (Map<String, String>) val;
     }
 
+    public Boolean isEmpty()
+    {
+        return setProperties.isEmpty() && updateProperties.isEmpty();
+    }
+
     public Boolean hasProperty(String name)
     {
         return setProperties.containsKey(name) ||  updateProperties.containsKey(name);
