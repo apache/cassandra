@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.mortbay.io.nio.SelectorManager;
 
 public class PropertyDefinitions
 {
@@ -31,32 +32,56 @@ public class PropertyDefinitions
     
     protected static final Logger logger = LoggerFactory.getLogger(PropertyDefinitions.class);
 
-    protected final Map<String, Object> properties = new HashMap<String, Object>();
+    protected final Map<String, Object> setProperties = new HashMap<String, Object>();
+
+    protected final Map<String, Object> updateProperties = new HashMap<String, Object>();
 
     public void addProperty(String name, String value) throws SyntaxException
     {
-        if (properties.put(name, value) != null)
+        if (hasProperty(name))
             throw new SyntaxException(String.format("Multiple definition for property '%s'", name));
+
+        setProperties.put(name, value);
     }
 
     public void addProperty(String name, Map<String, String> value) throws SyntaxException
     {
-        if (properties.put(name, value) != null)
+        if (hasProperty(name))
             throw new SyntaxException(String.format("Multiple definition for property '%s'", name));
+
+        setProperties.put(name, value);
+    }
+
+    public void updateProperty(String name, Map<String, String> value) throws SyntaxException
+    {
+        if (hasProperty(name))
+            throw new SyntaxException(String.format("Multiple definition for property '%s'", name));
+
+        updateProperties.put(name, value);
     }
 
     public void validate(Set<String> keywords, Set<String> obsolete) throws SyntaxException
     {
-        for (String name : properties.keySet())
+        for (String name : setProperties.keySet())
         {
-            if (keywords.contains(name))
-                continue;
-
-            if (obsolete.contains(name))
-                logger.warn("Ignoring obsolete property {}", name);
-            else
-                throw new SyntaxException(String.format("Unknown property '%s'", name));
+            validateProperty(keywords, name, obsolete);
         }
+
+        for (String name : updateProperties.keySet())
+        {
+            validateProperty(keywords, name, obsolete);
+        }
+    }
+
+    private void validateProperty(Set<String> keywords, String name, Set<String> obsolete)
+    {
+        if (keywords.contains(name))
+            return;
+
+        if (obsolete.contains(name))
+            logger.warn("Ignoring obsolete property {}", name);
+        else
+            throw new SyntaxException(String.format("Unknown property '%s'", name));
     }
 
     /**
@@ -64,17 +89,17 @@ public class PropertyDefinitions
      */
     public Set<String> updatedProperties()
     {
-        return properties.keySet();
-    }
+        return setProperties.keySet();
+    } // TODO merge update + props
 
     public void removeProperty(String name)
     {
-        properties.remove(name);
-    }
+        setProperties.remove(name);
+    } // TODO update
 
     protected String getSimple(String name) throws SyntaxException
     {
-        Object val = properties.get(name);
+        Object val = setProperties.get(name);
         if (val == null)
             return null;
         if (!(val instanceof String))
@@ -84,17 +109,24 @@ public class PropertyDefinitions
 
     protected Map<String, String> getMap(String name) throws SyntaxException
     {
-        Object val = properties.get(name);
-        if (val == null)
+        if (!hasProperty(name))
             return null;
+
+        Object val;
+        if (setProperties.containsKey(name))
+            val = setProperties.get(name);
+        else
+            val = updateProperties.get(name);
+
         if (!(val instanceof Map))
             throw new SyntaxException(String.format("Invalid value for property '%s'. It should be a map.", name));
-        return (Map<String, String>)val;
+
+        return (Map<String, String>) val;
     }
 
     public Boolean hasProperty(String name)
     {
-        return properties.containsKey(name);
+        return setProperties.containsKey(name) ||  updateProperties.containsKey(name);
     }
 
     public String getString(String key, String defaultValue) throws SyntaxException

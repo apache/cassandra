@@ -258,6 +258,23 @@ public class AlterTest extends CQLTester
                                   "max_threshold", "32")));
     }
 
+    /**
+     * CASSANDRA-17184
+     */
+    @Test
+    public void testAlterKeyspaceWithAddition() throws Throwable
+    {
+        String ks = createKeyspace("CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+
+        assertRows(execute("SELECT keyspace_name, replication FROM system_schema.keyspaces WHERE keyspace_name = ?", ks),
+                   row(ks,  map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
+
+        schemaChange(format("ALTER KEYSPACE %s WITH replication += { 'replication_factor' : 2 }", ks));
+
+        assertRows(execute("SELECT keyspace_name, replication FROM system_schema.keyspaces WHERE keyspace_name = ?", ks),
+                   row(ks,  map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "2")));
+    }
+
     @Test
     public void testCreateAlterNetworkTopologyWithDefaults() throws Throwable
     {
