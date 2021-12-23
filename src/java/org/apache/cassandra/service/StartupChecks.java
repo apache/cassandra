@@ -67,17 +67,17 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 /**
  * Verifies that the system and environment is in a fit state to be started.
  * Used in CassandraDaemon#setup() to check various settings and invariants.
- * <p>
+ *
  * Each individual test is modelled as an implementation of StartupCheck, these are run
  * at the start of CassandraDaemon#setup() before any local state is mutated. The default
  * checks are a mix of informational tests (inspectJvmOptions), initialization
  * (initSigarLibrary, checkCacheServiceInitialization) and invariant checking
  * (checkValidLaunchDate, checkSystemKeyspaceState, checkSSTablesFormat).
- * <p>
+ *
  * In addition, if checkSystemKeyspaceState determines that the release version has
  * changed since last startup (i.e. the node has been upgraded) it snapshots the system
  * keyspace to make it easier to back out if necessary.
- * <p>
+ *
  * If any check reports a failure, then the setup method exits with an error (after
  * logging any output from the tests). If all tests report success, setup can continue.
  * We should be careful in future to ensure anything which mutates local state (such as
@@ -117,7 +117,6 @@ public class StartupChecks
 
     /**
      * Add system test to be run before schema is loaded during startup
-     *
      * @param test the system test to include
      */
     public StartupChecks withTest(StartupCheck test)
@@ -128,9 +127,8 @@ public class StartupChecks
 
     /**
      * Run the configured tests and return a report detailing the results.
-     *
      * @throws org.apache.cassandra.exceptions.StartupException if any test determines that the
-     *                                                          system is not in an valid state to startup
+     * system is not in an valid state to startup
      */
     public void verify() throws StartupException
     {
@@ -173,7 +171,6 @@ public class StartupChecks
          * We use this to ensure the system clock is at least somewhat correct at startup.
          */
         private static final long EARLIEST_LAUNCH_DATE = 1215820800000L;
-
         public void execute() throws StartupException
         {
             long now = currentTimeMillis();
@@ -433,7 +430,7 @@ public class StartupChecks
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.tryCreateDirectories())
                     throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                               "Has no permission to create directory " + dataDir);
+                                               "Has no permission to create directory "+ dataDir);
             }
 
             // if directories exist verify their permissions
@@ -503,6 +500,7 @@ public class StartupChecks
                                                          "all required intermediate versions, running " +
                                                          "upgradesstables",
                                                          Joiner.on(",").join(invalid)));
+
         }
     };
 
@@ -606,14 +604,11 @@ public class StartupChecks
     static Optional<String> checkLegacyAuthTablesMessage()
     {
         List<String> existing = new ArrayList<>(SchemaConstants.LEGACY_AUTH_TABLES).stream().filter((legacyAuthTable) ->
-                                                                                                    {
-                                                                                                        UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
-                                                                                                                                                                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                                                                                                                                                                   "tables",
-                                                                                                                                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                                                                                                                                                   legacyAuthTable));
-                                                                                                        return result != null && !result.isEmpty();
-                                                                                                    }).collect(Collectors.toList());
+        {
+            UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
+                                                                                       SchemaConstants.SCHEMA_KEYSPACE_NAME, "tables", SchemaConstants.AUTH_KEYSPACE_NAME, legacyAuthTable));
+            return result != null && !result.isEmpty();
+        }).collect(Collectors.toList());
 
         if (!existing.isEmpty())
             return Optional.of(String.format("Legacy auth tables %s in keyspace %s still exist and have not been properly migrated.",
