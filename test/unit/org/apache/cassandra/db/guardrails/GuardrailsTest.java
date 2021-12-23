@@ -35,11 +35,13 @@ import static org.junit.Assert.assertTrue;
 
 public class GuardrailsTest extends GuardrailTester
 {
+    public static final int DISABLED = -1;
+
     @Test
     public void testDisabledThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new Threshold(state -> new ThresholdConfig(), errorMessageProvider));
+        testDisabledThreshold(new Threshold(state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
     private void testDisabledThreshold(Threshold guard) throws Throwable
@@ -56,7 +58,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThreshold() throws Throwable
     {
-        Threshold guard = new Threshold(state -> new ThresholdConfig(10, 100),
+        Threshold guard = new Threshold(state -> 10,
+                                        state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
@@ -73,7 +76,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testWarnOnlyThreshold() throws Throwable
     {
-        Threshold guard = new Threshold(state -> new ThresholdConfig(10, ThresholdConfig.DISABLED),
+        Threshold guard = new Threshold(state -> 10,
+                                        state -> DISABLED,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
@@ -86,7 +90,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testAbortOnlyThreshold() throws Throwable
     {
-        Threshold guard = new Threshold(state -> new ThresholdConfig(ThresholdConfig.DISABLED, 10),
+        Threshold guard = new Threshold(state -> DISABLED,
+                                        state -> 10,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
@@ -99,7 +104,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThresholdUsers() throws Throwable
     {
-        Threshold guard = new Threshold(state -> new ThresholdConfig(10, 100),
+        Threshold guard = new Threshold(state -> 10,
+                                        state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
@@ -152,7 +158,8 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisallowedValues() throws Throwable
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
-        Values<Integer> disallowed = new Values<>(state -> new ValuesConfig(Collections.emptySet(), insertionOrderedSet(4, 6, 20)),
+        Values<Integer> disallowed = new Values<>(state -> Collections.emptySet(),
+                                                  state -> insertionOrderedSet(4, 6, 20),
                                                   "integer");
 
         Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
@@ -174,7 +181,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testDisallowedValuesUsers() throws Throwable
     {
-        Values<Integer> disallowed = new Values<>(state -> new ValuesConfig(Collections.emptySet(), Collections.singleton(2)),
+        Values<Integer> disallowed = new Values<>(state -> Collections.emptySet(),
+                                                  state -> Collections.singleton(2),
                                                   "integer");
 
         Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
@@ -207,7 +215,8 @@ public class GuardrailsTest extends GuardrailTester
     public void testIgnoredValues() throws Throwable
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
-        Values<Integer> ignored = new Values<>(state -> new ValuesConfig(insertionOrderedSet(4, 6, 20), Collections.emptySet()),
+        Values<Integer> ignored = new Values<>(state -> insertionOrderedSet(4, 6, 20),
+                                               state -> Collections.emptySet(),
                                                "integer");
 
         Set<Integer> triggeredOn = set();
@@ -244,57 +253,5 @@ public class GuardrailsTest extends GuardrailTester
     private static <T> Set<T> insertionOrderedSet(T... values)
     {
         return new LinkedHashSet<>(Arrays.asList(values));
-    }
-
-    private static class ThresholdConfig implements Threshold.Config
-    {
-        public static final int DISABLED = -1;
-
-        private final int warn;
-        private final int abort;
-
-        public ThresholdConfig()
-        {
-            this.warn = DISABLED;
-            this.abort = DISABLED;
-        }
-
-        public ThresholdConfig(int warn, int abort)
-        {
-            this.warn = warn;
-            this.abort = abort;
-        }
-
-        public long getWarnThreshold()
-        {
-            return warn;
-        }
-
-        public long getAbortThreshold()
-        {
-            return abort;
-        }
-    }
-
-    private static class ValuesConfig implements Values.Config<Integer>
-    {
-        private final Set<Integer> ignored;
-        private final Set<Integer> disallowed;
-
-        public ValuesConfig(Set<Integer> ignored, Set<Integer> disallowed)
-        {
-            this.ignored = ignored;
-            this.disallowed = disallowed;
-        }
-
-        public Set<Integer> getIgnored()
-        {
-            return ignored;
-        }
-
-        public Set<Integer> getDisallowed()
-        {
-            return disallowed;
-        }
     }
 }

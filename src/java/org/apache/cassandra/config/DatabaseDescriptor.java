@@ -1513,7 +1513,6 @@ public class DatabaseDescriptor
         return conf.column_index_size_in_kb;
     }
 
-    @VisibleForTesting
     public static void setColumnIndexSize(int val)
     {
         checkValidForByteConversion(val, "column_index_size_in_kb", ByteUnit.KIBI_BYTES);
@@ -2903,6 +2902,17 @@ public class DatabaseDescriptor
         conf.counter_cache_save_period = counterCacheSavePeriod;
     }
 
+    public static int getCacheLoadTimeout()
+    {
+        return conf.cache_load_timeout_seconds;
+    }
+
+    @VisibleForTesting
+    public static void setCacheLoadTimeout(int seconds)
+    {
+        conf.cache_load_timeout_seconds = seconds;
+    }
+
     public static int getCounterCacheKeysToSave()
     {
         return conf.counter_cache_keys_to_save;
@@ -3529,26 +3539,31 @@ public class DatabaseDescriptor
         conf.auto_optimise_preview_repair_streams = enabled;
     }
 
+    @Deprecated
     public static int tableCountWarnThreshold()
     {
         return conf.table_count_warn_threshold;
     }
 
+    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public static void setTableCountWarnThreshold(int value)
     {
         conf.table_count_warn_threshold = value;
     }
 
+    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public static int keyspaceCountWarnThreshold()
     {
         return conf.keyspace_count_warn_threshold;
     }
 
+    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public static void setKeyspaceCountWarnThreshold(int value)
     {
         conf.keyspace_count_warn_threshold = value;
     }
 
+    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public static ConsistencyLevel getAuthWriteConsistencyLevel()
     {
         return ConsistencyLevel.valueOf(conf.auth_write_consistency_level);

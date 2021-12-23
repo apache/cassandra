@@ -315,7 +315,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // Create the desired updates
-                PartitionUpdate updates = request.makeUpdates(current);
+                PartitionUpdate updates = request.makeUpdates(current, state);
 
                 long size = updates.dataSize();
                 casWriteMetrics.mutationSize.update(size);
@@ -643,10 +643,14 @@ public class StorageProxy implements StorageProxyMBean
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), replicaPlan.requiredParticipants(), replicaPlan.consistencyLevel(), queryStartNanoTime);
         Message<Commit> message = Message.out(PAXOS_PREPARE_REQ, toPrepare);
+
+        boolean hasLocalRequest = false;
+
         for (Replica replica: replicaPlan.contacts())
         {
             if (replica.isSelf())
             {
+                hasLocalRequest = true;
                 PAXOS_PREPARE_REQ.stage.execute(() -> {
                     try
                     {
@@ -663,6 +667,12 @@ public class StorageProxy implements StorageProxyMBean
                 MessagingService.instance().sendWithCallback(message, replica.endpoint(), callback);
             }
         }
+
+        if (hasLocalRequest)
+            writeMetrics.localRequests.mark();
+        else
+            writeMetrics.remoteRequests.mark();
+
         callback.await();
         return callback;
     }
@@ -795,6 +805,17 @@ public class StorageProxy implements StorageProxyMBean
         });
     }
 
+    private static boolean hasLocalMutation(IMutation mutation)
+    {
+        return canDoLocalRequest(StorageService.instance.getNaturalEndpointsWithPort(mutation.getKeyspaceName(),
+                                                                                     mutation.key().getKey()));
+    }
+
+    private static boolean canDoLocalRequest(List<String> endpoints)
+    {
+        return endpoints.contains(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort());
+    }
+
     /**
      * Use this method to have these Mutations applied
      * across all replicas. This method will take care
@@ -820,6 +841,11 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
+                if (hasLocalMutation(mutation))
+                    writeMetrics.localRequests.mark();
+                else
+                    writeMetrics.remoteRequests.mark();
+
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, queryStartNanoTime));
                 else
@@ -973,6 +999,11 @@ public class StorageProxy implements StorageProxyMBean
                 // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
                 for (Mutation mutation : mutations)
                 {
+                    if (hasLocalMutation(mutation))
+                        writeMetrics.localRequests.mark();
+                    else
+                        writeMetrics.remoteRequests.mark();
+
                     String keyspaceName = mutation.getKeyspaceName();
                     Token tk = mutation.key().getToken();
                     AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
@@ -1139,6 +1170,11 @@ public class StorageProxy implements StorageProxyMBean
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
             for (Mutation mutation : mutations)
             {
+                if (hasLocalMutation(mutation))
+                    writeMetrics.localRequests.mark();
+                else
+                    writeMetrics.remoteRequests.mark();
+
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
                                                                                consistency_level,
                                                                                batchConsistencyLevel,
@@ -1976,6 +2012,12 @@ public class StorageProxy implements StorageProxyMBean
         for (int i=0; i<cmdCount; i++)
         {
             reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime);
+
+            if (canDoLocalRequest(reads[i].getContactedReplicas())) {
+                readMetrics.localRequests.mark();
+            } else {
+                readMetrics.remoteRequests.mark();
+            }
         }
 
         // sends a data request to the closest replica, and a digest request to the others. If we have a speculating

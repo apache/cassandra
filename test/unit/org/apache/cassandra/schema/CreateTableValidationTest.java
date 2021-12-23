@@ -58,6 +58,7 @@ public class CreateTableValidationTest extends CQLTester
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH bloom_filter_fp_chance = 0.1");
     }
 
+    @Deprecated // these warning thresholds will be replaced by equivalent guardrails
     @Test
     public void testCreateKeyspaceTableWarning() throws IOException
     {

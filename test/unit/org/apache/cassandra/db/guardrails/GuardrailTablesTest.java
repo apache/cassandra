@@ -26,14 +26,14 @@ import org.apache.cassandra.db.Keyspace;
 import static java.lang.String.format;
 
 /**
- * Tests the guardrail for the max number of user tables, {@link Guardrails#tablesLimit}.
+ * Tests the guardrail for the max number of user tables, {@link Guardrails#tables}.
  */
-public class GuardrailTablesLimitTest extends ThresholdTester
+public class GuardrailTablesTest extends ThresholdTester
 {
     private static final int TABLES_LIMIT_WARN_THRESHOLD = 1;
     private static final int TABLES_LIMIT_ABORT_THRESHOLD = 2;
 
-    public GuardrailTablesLimitTest()
+    public GuardrailTablesTest()
     {
         super(TABLES_LIMIT_WARN_THRESHOLD,
               TABLES_LIMIT_ABORT_THRESHOLD,

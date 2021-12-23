@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
@@ -448,6 +449,9 @@ public abstract class Lists
             // we should not get here for frozen lists
             assert column.type.isMultiCell() : "Attempted to set an individual element on a frozen list";
 
+            Guardrails.readBeforeWriteListOperationsEnabled
+            .ensureEnabled("Setting of list items by index requiring read before write", params.clientState);
+
             ByteBuffer index = idx.bindAndGet(params.options);
             ByteBuffer value = t.bindAndGet(params.options);
 
@@ -565,6 +569,9 @@ public abstract class Lists
         {
             assert column.type.isMultiCell() : "Attempted to delete from a frozen list";
 
+            Guardrails.readBeforeWriteListOperationsEnabled
+            .ensureEnabled("Removal of list items requiring read before write", params.clientState);
+
             // We want to call bind before possibly returning to reject queries where the value provided is not a list.
             Term.Terminal value = t.bind(params.options);
 
@@ -602,6 +609,10 @@ public abstract class Lists
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete an item by index from a frozen list";
+
+            Guardrails.readBeforeWriteListOperationsEnabled
+            .ensureEnabled("Removal of list items by index requiring read before write", params.clientState);
+
             Term.Terminal index = t.bind(params.options);
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");

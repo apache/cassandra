@@ -41,6 +41,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -124,7 +125,7 @@ public class BatchStatementBench
     @Benchmark
     public void bench()
     {
-        bs.getMutations(bqo, false, nowInSec, nowInSec, queryStartTime);
+        bs.getMutations(ClientState.forInternalCalls(), bqo, false, nowInSec, nowInSec, queryStartTime);
     }
 
 

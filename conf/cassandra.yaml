@@ -440,6 +440,11 @@ counter_cache_save_period: 7200
 # If not set, the default directory is $CASSANDRA_HOME/data/saved_caches.
 # saved_caches_directory: /var/lib/cassandra/saved_caches
 
+# Number of seconds the server will wait for each cache (row, key, etc ...) to load while starting
+# the Cassandra process. Setting this to a negative value is equivalent to disabling all cache loading on startup
+# while still having the cache during runtime.
+# cache_load_timeout_seconds: 30
+
 # commitlog_sync may be either "periodic", "group", or "batch." 
 # 
 # When in batch mode, Cassandra won't ack writes until the commit log
@@ -1513,6 +1518,7 @@ report_unconfirmed_repaired_data_mismatches: false
 # Having many tables and/or keyspaces negatively affects performance of many operations in the
 # cluster. When the number of tables/keyspaces in the cluster exceeds the following thresholds
 # a client warning will be sent back to the user when creating a table or keyspace.
+# As of cassandra 4.1, these properties are deprecated in favor of guardrails.keyspaces and guardrails.tables
 # table_count_warn_threshold: 150
 # keyspace_count_warn_threshold: 40
 
@@ -1576,6 +1582,11 @@ enable_drop_compact_storage: false
 # guardrails:
 # Whether guardrails are enabled or not. Guardrails are disabled by default.
 # enabled: false
+# Guardrail to warn or abort when creating more user keyspaces than threshold.
+# The two thresholds default to -1 to disable.
+#     keyspaces:
+#         warn_threshold: -1
+#         abort_threshold: -1
 # Guardrail to warn or abort when creating more user tables than threshold.
 # The two thresholds default to -1 to disable.
 #     tables:
@@ -1602,3 +1613,11 @@ enable_drop_compact_storage: false
 #         disallowed: []
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 #     user_timestamps_enabled: true
+# Guardrail to warn or abort when using a page size greater than threshold.
+# The two thresholds default to -1 to disable.
+#     page_size:
+#       warn_threshold: -1
+#       abort_threshold: -1
+# Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
+# removing list elements by either index or value. Defaults to true.
+#     read_before_write_list_operations_enabled: true

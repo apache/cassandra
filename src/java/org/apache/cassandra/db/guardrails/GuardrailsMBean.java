@@ -49,6 +49,24 @@ public interface GuardrailsMBean
     void setEnabled(boolean enabled);
 
     /**
+     * @return The threshold to warn when creating more user keyspaces than threshold.
+     * -1 means disabled.
+     */
+    int getKeyspacesWarnThreshold();
+
+    /**
+     * @return The threshold to prevent creating more user keyspaces than threshold.
+     * -1 means disabled.
+     */
+    int getKeyspacesAbortThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating more user keyspaces than threshold. -1 means disabled.
+     * @param abort The threshold to prevent creating more user keyspaces than threshold. -1 means disabled.
+     */
+    void setKeyspacesThreshold(int warn, int abort);
+
+    /**
      * @return The threshold to warn when creating more tables than threshold.
      * -1 means disabled.
      */
@@ -170,4 +188,36 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     void setUserTimestampsEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when requested page size greater than threshold.
+     * -1 means disabled.
+     */
+    int getPageSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent requesting page with more elements than threshold.
+     * -1 means disabled.
+     */
+    int getPageSizeAbortThreshold();
+
+    /**
+     * @param warn The threshold to warn when the requested page size is greater than threshold. -1 means disabled.
+     * @param abort The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
+     */
+    void setPageSizeThreshold(int warn, int abort);
+
+    /**
+     * Returns whether list operations that require read before write are allowed.
+     *
+     * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
+     * Sets whether list operations that require read before write are allowed.
+     *
+     * @param enabled {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    void setReadBeforeWriteListOperationsEnabled(boolean enabled);
 }

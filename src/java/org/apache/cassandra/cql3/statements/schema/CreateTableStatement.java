@@ -129,21 +129,21 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // optimization for the case where they are disabled, so we don't have to do the same check on every guardrail
         if (Guardrails.enabled(state))
         {
-            // Guardrails on table properties
+            // Guardrail on table properties
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
             // Guardrail on columns per table
             Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, state);
 
-            // Guardrails on number of tables
-            if (Guardrails.tablesLimit.enabled(state))
+            // Guardrail on number of tables
+            if (Guardrails.tables.enabled(state))
             {
                 int totalUserTables = Schema.instance.getUserKeyspaces()
                                                      .stream()
                                                      .map(Keyspace::open)
                                                      .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
                                                      .sum();
-                Guardrails.tablesLimit.guard(totalUserTables + 1, tableName, state);
+                Guardrails.tables.guard(totalUserTables + 1, tableName, state);
             }
         }
     }
@@ -402,6 +402,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
     @Override
     public Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        // this threshold is deprecated, it will be replaced by the guardrail used in #validate(ClientState)
         int tableCount = Schema.instance.getNumberOfTables();
         if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
         {

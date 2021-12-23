@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -215,7 +216,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         if (table.isView())
         {
-            TableMetadataRef baseTable = View.findBaseTable(keyspace(), columnFamily());
+            TableMetadataRef baseTable = View.findBaseTable(keyspace(), table());
             if (baseTable != null)
                 state.ensureTablePermission(baseTable, Permission.SELECT);
         }
@@ -256,7 +257,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         QueryPager pager = getPager(query, options);
 
-        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()),
+        return execute(state,
+                       Pager.forDistributedQuery(pager, cl, state.getClientState()),
                        options,
                        selectors,
                        pageSize,
@@ -379,7 +381,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    private ResultMessage.Rows execute(Pager pager,
+    private ResultMessage.Rows execute(QueryState state,
+                                       Pager pager,
                                        QueryOptions options,
                                        Selectors selectors,
                                        int pageSize,
@@ -387,6 +390,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        int userLimit,
                                        long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
+        Guardrails.pageSize.guard(pageSize, table(), state.getClientState());
+
         if (aggregationSpec != null)
         {
             if (!restrictions.hasPartitionKeyRestrictions())
@@ -461,7 +466,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             QueryPager pager = getPager(query, options);
 
-            return execute(Pager.forInternalQuery(pager, executionController),
+            return execute(state,
+                           Pager.forInternalQuery(pager, executionController),
                            options,
                            selectors,
                            pageSize,
@@ -494,7 +500,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return table.keyspace;
     }
 
-    public String columnFamily()
+    public String table()
     {
         return table.name;
     }

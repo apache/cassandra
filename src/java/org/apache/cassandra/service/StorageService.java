@@ -5860,6 +5860,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
     }
 
+    public int getColumnIndexSizeInKB()
+    {
+        return DatabaseDescriptor.getColumnIndexSizeInKB();
+    }
+
+    public void setColumnIndexSize(int columnIndexSizeInKB)
+    {
+        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKB();
+        DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
+        logger.info("Updated column_index_size_in_kb to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKB);
+    }
+
     public int getColumnIndexCacheSize()
     {
         return DatabaseDescriptor.getColumnIndexCacheSizeInKB();
@@ -6081,7 +6093,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
         Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
-        FullQueryLogger.instance.enable(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
+        FullQueryLogger.instance.enableWithoutClean(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
     @Override
@@ -6154,11 +6166,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
+    @Deprecated
     public int getTableCountWarnThreshold()
     {
         return DatabaseDescriptor.tableCountWarnThreshold();
     }
 
+    @Deprecated
     public void setTableCountWarnThreshold(int value)
     {
         if (value < 0)
@@ -6167,11 +6181,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setTableCountWarnThreshold(value);
     }
 
+    @Deprecated
     public int getKeyspaceCountWarnThreshold()
     {
         return DatabaseDescriptor.keyspaceCountWarnThreshold();
     }
 
+    @Deprecated
     public void setKeyspaceCountWarnThreshold(int value)
     {
         if (value < 0)
