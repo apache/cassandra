@@ -106,8 +106,25 @@ public class StartupChecksTest
     @Test
     public void checkReadAheadKbSettingCheck() throws Exception
     {
+        // This test just validates if the verify function
+        // doesn't throw any exceptions
         startupChecks = startupChecks.withTest(StartupChecks.checkReadAheadKbSetting);
         startupChecks.verify();
+    }
+
+    @Test
+    public void getReadAheadKBPath()
+    {
+        startupChecks = startupChecks.withTest(StartupChecks.checkReadAheadKbSetting);
+
+        String sdaDirectory = startupChecks.getReadAheadKBPath("/dev/sda12");
+        Assert.assertEquals(sdaDirectory, "/sys/block/sda/queue/read_ahead_kb");
+
+        String scsiDirectory = startupChecks.getReadAheadKBPath("/dev/scsi1");
+        Assert.assertEquals(scsiDirectory, "/sys/block/scsi/queue/read_ahead_kb");
+
+        String dirWithoutNumbers = startupChecks.getReadAheadKBPath("/dev/sca");
+        Assert.assertEquals(dirWithoutNumbers, "/sys/block/sca/queue/read_ahead_kb");
     }
 
     @Test

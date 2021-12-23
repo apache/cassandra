@@ -31,7 +31,10 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.io.util.File;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,17 +67,17 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 /**
  * Verifies that the system and environment is in a fit state to be started.
  * Used in CassandraDaemon#setup() to check various settings and invariants.
- *
+ * <p>
  * Each individual test is modelled as an implementation of StartupCheck, these are run
  * at the start of CassandraDaemon#setup() before any local state is mutated. The default
  * checks are a mix of informational tests (inspectJvmOptions), initialization
  * (initSigarLibrary, checkCacheServiceInitialization) and invariant checking
  * (checkValidLaunchDate, checkSystemKeyspaceState, checkSSTablesFormat).
- *
+ * <p>
  * In addition, if checkSystemKeyspaceState determines that the release version has
  * changed since last startup (i.e. the node has been upgraded) it snapshots the system
  * keyspace to make it easier to back out if necessary.
- *
+ * <p>
  * If any check reports a failure, then the setup method exits with an error (after
  * logging any output from the tests). If all tests report success, setup can continue.
  * We should be careful in future to ensure anything which mutates local state (such as
@@ -114,6 +117,7 @@ public class StartupChecks
 
     /**
      * Add system test to be run before schema is loaded during startup
+     *
      * @param test the system test to include
      */
     public StartupChecks withTest(StartupCheck test)
@@ -124,8 +128,9 @@ public class StartupChecks
 
     /**
      * Run the configured tests and return a report detailing the results.
+     *
      * @throws org.apache.cassandra.exceptions.StartupException if any test determines that the
-     * system is not in an valid state to startup
+     *                                                          system is not in an valid state to startup
      */
     public void verify() throws StartupException
     {
@@ -168,6 +173,7 @@ public class StartupChecks
          * We use this to ensure the system clock is at least somewhat correct at startup.
          */
         private static final long EARLIEST_LAUNCH_DATE = 1215820800000L;
+
         public void execute() throws StartupException
         {
             long now = currentTimeMillis();
@@ -244,8 +250,8 @@ public class StartupChecks
             {
                 if (!jvmOptionsContainsOneOf("-XX:OnOutOfMemoryError="))
                     logger.warn("The JVM is not configured to stop on OutOfMemoryError which can cause data corruption."
-                            + " Either upgrade your JRE to a version greater or equal to 8u92 and use -XX:+ExitOnOutOfMemoryError/-XX:+CrashOnOutOfMemoryError"
-                            + " or use -XX:OnOutOfMemoryError=\"<cmd args>;<cmd args>\" on your current JRE.");
+                                + " Either upgrade your JRE to a version greater or equal to 8u92 and use -XX:+ExitOnOutOfMemoryError/-XX:+CrashOnOutOfMemoryError"
+                                + " or use -XX:OnOutOfMemoryError=\"<cmd args>;<cmd args>\" on your current JRE.");
             }
         }
 
@@ -289,8 +295,13 @@ public class StartupChecks
     public static final StartupCheck checkReadAheadKbSetting = new StartupCheck()
     {
         // This value is in KB.
-        private static final long EXPECTED_READ_AHEAD_KB_SETTING = 8;
-        private static final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/sda/queue/read_ahead_kb";
+        private static final long MAX_RECOMMENDED_READ_AHEAD_KB_SETTING = 128;
+
+        private String[] getDataDirectories()
+        {
+            return DatabaseDescriptor.getRawConfig().data_file_directories;
+        }
+
 
         @Override
         public void execute() throws StartupException
@@ -298,33 +309,60 @@ public class StartupChecks
             if (!FBUtilities.isLinux)
                 return;
 
-            final Path path = Paths.get(READ_AHEAD_KB_SETTING_PATH);
-            try (final BufferedReader bufferedReader = Files.newBufferedReader(path))
-            {
-                final String data = bufferedReader.readLine();
-                if (data != null)
-                {
-                    try
-                    {
-                        Integer readAheadKbSetting = Integer.parseInt(data);
 
-                        if (readAheadKbSetting > EXPECTED_READ_AHEAD_KB_SETTING)
-                        {
-                            logger.warn("High Read Ahead Kb setting: It is Recommended to set this value to 8KB " +
-                                        "or lower as a higher value can cause high IO usage and cache " +
-                                        "churn on read-intensive workloads.",
-                                        readAheadKbSetting, EXPECTED_READ_AHEAD_KB_SETTING);
-                        }
-                    }
-                    catch (final NumberFormatException e)
+            String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
+            Set<String> blockDevices = new HashSet<>();
+            for (String data_directory : dataDirectories)
+            {
+                try
+                {
+                    Path p = Path.of(data_directory);
+                    FileStore fs = Files.getFileStore(p);
+
+                    String blockDirectory = fs.name();
+                    if(StringUtils.isNotEmpty(blockDirectory))
                     {
-                        logger.warn("Unable to parse {}.", path, e);
+                        blockDevices.add(blockDirectory);
                     }
                 }
+                catch (IOException e)
+                {
+                    logger.warn("IO exception while reading file {}.", data_directory, e);
+                }
             }
-            catch (final IOException e)
+            for (String blockDeviceDirectory : blockDevices)
             {
-                logger.warn("IO exception while reading file {}.", path, e);
+                try
+                {
+                    String readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
+
+                    final BufferedReader bufferedReader = Files.newBufferedReader(Path.of(readAheadKBPath));
+                    final String data = bufferedReader.readLine();
+                    if (data != null)
+                    {
+                        try
+                        {
+                            Integer readAheadKbSetting = Integer.parseInt(data);
+
+                            if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
+                            {
+                                logger.warn("Detected high 'read_ahead_kb' setting for device " +
+                                            "of data directory. It is Recommended to set this value to 8KB " +
+                                            "or lower as a higher value can cause high IO usage and cache " +
+                                            "churn on read-intensive workloads.",
+                                            readAheadKbSetting, MAX_RECOMMENDED_READ_AHEAD_KB_SETTING);
+                            }
+                        }
+                        catch (final NumberFormatException e)
+                        {
+                            logger.warn("Unable to parse {}.", readAheadKBPath, e);
+                        }
+                    }
+                }
+                catch (final IOException e)
+                {
+                    logger.warn("IO exception while reading file {}.", blockDeviceDirectory, e);
+                }
             }
         }
     };
@@ -395,7 +433,7 @@ public class StartupChecks
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.tryCreateDirectories())
                     throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                               "Has no permission to create directory "+ dataDir);
+                                               "Has no permission to create directory " + dataDir);
             }
 
             // if directories exist verify their permissions
@@ -465,7 +503,6 @@ public class StartupChecks
                                                          "all required intermediate versions, running " +
                                                          "upgradesstables",
                                                          Joiner.on(",").join(invalid)));
-
         }
     };
 
@@ -543,22 +580,47 @@ public class StartupChecks
     };
 
     @VisibleForTesting
+    public static String getReadAheadKBPath(String blockDirectoryPath)
+    {
+        String readAheadKBPath = null;
+
+        final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/%s/queue/read_ahead_kb";
+        try
+        {
+            String deviceName = blockDirectoryPath.split("/")[2].replaceAll("[0-9]*$", "");
+
+            if (StringUtils.isNotEmpty(deviceName))
+            {
+                readAheadKBPath = String.format(READ_AHEAD_KB_SETTING_PATH, deviceName);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.error("Error retrieving device path for {}.", blockDirectoryPath);
+        }
+
+        return readAheadKBPath;
+    }
+
+    @VisibleForTesting
     static Optional<String> checkLegacyAuthTablesMessage()
     {
         List<String> existing = new ArrayList<>(SchemaConstants.LEGACY_AUTH_TABLES).stream().filter((legacyAuthTable) ->
-            {
-                UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
-                                                                                           SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                                                                           "tables",
-                                                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                                                           legacyAuthTable));
-                return result != null && !result.isEmpty();
-            }).collect(Collectors.toList());
+                                                                                                    {
+                                                                                                        UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
+                                                                                                                                                                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                                                                                                                                                                   "tables",
+                                                                                                                                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                                                                                                   legacyAuthTable));
+                                                                                                        return result != null && !result.isEmpty();
+                                                                                                    }).collect(Collectors.toList());
 
         if (!existing.isEmpty())
             return Optional.of(String.format("Legacy auth tables %s in keyspace %s still exist and have not been properly migrated.",
-                        Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
+                                             Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
         else
             return Optional.empty();
-    };
+    }
+
+    ;
 }
