@@ -294,43 +294,39 @@ public class StartupChecks
         // This value is in KB.
         private static final long MAX_RECOMMENDED_READ_AHEAD_KB_SETTING = 128;
 
-        private String[] getDataDirectories()
-        {
-            return DatabaseDescriptor.getRawConfig().data_file_directories;
-        }
-
-
         @Override
         public void execute() throws StartupException
         {
             if (!FBUtilities.isLinux)
                 return;
 
-
             String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
-            Set<String> blockDevices = new HashSet<>();
-            for (String data_directory : dataDirectories)
+            Map<String, String> blockDevices = new HashMap<String, String>();
+            for (String dataDirectory : dataDirectories)
             {
                 try
                 {
-                    Path p = Path.of(data_directory);
+                    Path p = Path.of(dataDirectory);
                     FileStore fs = Files.getFileStore(p);
 
                     String blockDirectory = fs.name();
                     if(StringUtils.isNotEmpty(blockDirectory))
                     {
-                        blockDevices.add(blockDirectory);
+                        blockDevices.put(blockDirectory, dataDirectory);
                     }
                 }
                 catch (IOException e)
                 {
-                    logger.warn("IO exception while reading file {}.", data_directory, e);
+                    logger.warn("IO exception while reading file {}.", dataDirectory, e);
                 }
             }
-            for (String blockDeviceDirectory : blockDevices)
+            for (Map.Entry<String, String> entry: blockDevices.entrySet())
             {
+                String blockDeviceDirectory = entry.getKey();
+                String dataDirectory = entry.getValue();
                 try
                 {
+
                     String readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
 
                     final BufferedReader bufferedReader = Files.newBufferedReader(Path.of(readAheadKBPath));
@@ -343,11 +339,11 @@ public class StartupChecks
 
                             if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
                             {
-                                logger.warn("Detected high 'read_ahead_kb' setting for device " +
-                                            "of data directory. It is Recommended to set this value to 8KB " +
+                                logger.warn("Detected high 'read_ahead_kb' setting for device {} " +
+                                            "of data directory.{} It is Recommended to set this value to 8KB " +
                                             "or lower as a higher value can cause high IO usage and cache " +
                                             "churn on read-intensive workloads.",
-                                            readAheadKbSetting, MAX_RECOMMENDED_READ_AHEAD_KB_SETTING);
+                                            blockDeviceDirectory, dataDirectory);
                             }
                         }
                         catch (final NumberFormatException e)
