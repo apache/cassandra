@@ -30,12 +30,12 @@ import java.util.function.Predicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
 
-import org.apache.cassandra.io.util.File;
+import com.codahale.metrics.Counter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -46,7 +46,9 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -349,21 +351,25 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         // must not retain a reference to the SSTableReader, else leak detection cannot kick in
         private final Descriptor desc;
         private final long sizeOnDisk;
-        private final Tracker tracker;
         private final boolean wasNew;
         private final Object lock;
         private final Ref<LogTransaction> parentRef;
-        private final UUID txnId;
+        private final Counter totalDiskSpaceUsed;
 
         public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent)
         {
             this.desc = referent.descriptor;
             this.sizeOnDisk = referent.bytesOnDisk();
-            this.tracker = parent.tracker;
             this.wasNew = wasNew;
             this.lock = parent.lock;
             this.parentRef = parent.selfRef.tryRef();
-            this.txnId = parent.id();
+
+            // While the parent cfs may be dropped in the interim of us taking a reference to this and using it, at worst
+            // we'll be updating a metric for a now dropped ColumnFamilyStore. We do not hold a reference to the tracker or
+            // cfs as that would create a strong ref loop and violate our ability to do leak detection.
+            totalDiskSpaceUsed = parent.tracker != null && parent.tracker.cfstore != null ?
+                                 parent.tracker.cfstore.metric.totalDiskSpaceUsed :
+                                 null;
 
             if (this.parentRef == null)
                 throw new IllegalStateException("Transaction already completed");
@@ -371,7 +377,9 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         public void run()
         {
-            if (tracker != null && !tracker.isDummy())
+            // While this may be a dummy tracker w/out information in the metrics table, we attempt to delete regardless
+            // and allow the delete to silently fail if this is an invalid ks + cf combination at time of tidy run.
+            if (DatabaseDescriptor.isDaemonInitialized())
                 SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
 
             synchronized (lock)
@@ -399,8 +407,11 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                     return;
                 }
 
-                if (tracker != null && tracker.cfstore != null && !wasNew)
-                    tracker.cfstore.metric.totalDiskSpaceUsed.dec(sizeOnDisk);
+                // It's possible we're the last one's holding a ref to this metric if it's already been released in the
+                // parent TableMetrics; we run this regardless rather than holding a ref to that CFS or Tracker and thus
+                // creating a strong ref loop
+                if (DatabaseDescriptor.isDaemonInitialized() && totalDiskSpaceUsed != null && !wasNew)
+                    totalDiskSpaceUsed.dec(sizeOnDisk);
 
                 // release the referent to the parent so that the all transaction files can be released
                 parentRef.release();

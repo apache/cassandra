@@ -1202,6 +1202,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.isInitialized();
     }
 
+    public void setColumnIndexSize(int columnIndexSizeInKB)
+    {
+        ssProxy.setColumnIndexSize(columnIndexSizeInKB);
+    }
+
+    public int getColumnIndexSizeInKB()
+    {
+        return ssProxy.getColumnIndexSizeInKB();
+    }
+
     public void setCompactionThroughput(int value)
     {
         ssProxy.setCompactionThroughputMbPerSec(value);

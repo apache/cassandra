@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Set;
+
 /**
  * Configuration settings for guardrails.
  *
@@ -49,29 +51,34 @@ public interface GuardrailsConfig
     boolean getEnabled();
 
     /**
-     * @return The threshold to warn or abort when creating more tables than threshold.
+     * @return The threshold to warn or abort when creating more user keyspaces than threshold.
      */
-    Threshold.Config getTables();
+    IntThreshold getKeyspaces();
+
+    /**
+     * @return The threshold to warn or abort when creating more user tables than threshold.
+     */
+    IntThreshold getTables();
 
     /**
      * @return The threshold to warn or abort when creating more columns per table than threshold.
      */
-    Threshold.Config getColumnsPerTable();
+    IntThreshold getColumnsPerTable();
 
     /**
      * @return The threshold to warn or abort when creating more secondary indexes per table than threshold.
      */
-    Threshold.Config getSecondaryIndexesPerTable();
+    IntThreshold getSecondaryIndexesPerTable();
 
     /**
      * @return The threshold to warn or abort when creating more materialized views per table than threshold.
      */
-    Threshold.Config getMaterializedViewsPerTable();
+    IntThreshold getMaterializedViewsPerTable();
 
     /**
      * @return The table properties that are ignored/disallowed when creating or altering a table.
      */
-    Values.Config<String> getTableProperties();
+    TableProperties getTableProperties();
 
     /**
      * Returns whether user-provided timestamps are allowed.
@@ -79,4 +86,49 @@ public interface GuardrailsConfig
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     boolean getUserTimestampsEnabled();
+
+    /**
+     * @return The threshold to warn or abort when page size exceeds given size.
+     */
+    IntThreshold getPageSize();
+
+    /**
+     * Returns whether list operations that require read before write are allowed.
+     *
+     * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
+     */
+    boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
+     * Configuration of {@code int}-based thresholds to check if the guarded value should trigger a warning or abort the
+     * operation.
+     */
+    public interface IntThreshold
+    {
+        /**
+         * @return The threshold to warn when the guarded value exceeds it. A negative value means disabled.
+         */
+        public int getWarnThreshold();
+
+        /**
+         * @return The threshold to abort the operation when the guarded value exceeds it. A negative value means disabled.
+         */
+        public int getAbortThreshold();
+    }
+
+    /**
+     * Configuration class containing the sets of table properties to ignore and/or reject.
+     */
+    public interface TableProperties
+    {
+        /**
+         * @return The values to be ignored.
+         */
+        Set<String> getIgnored();
+
+        /**
+         * @return The values to be rejected.
+         */
+        Set<String> getDisallowed();
+    }
 }

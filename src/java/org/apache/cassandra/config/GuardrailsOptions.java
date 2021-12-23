@@ -20,14 +20,16 @@ package org.apache.cassandra.config;
 
 import java.util.Collections;
 import java.util.Set;
-import javax.annotation.Nullable;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
-import org.apache.cassandra.db.guardrails.Values;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toSet;
@@ -51,21 +53,30 @@ import static java.util.stream.Collectors.toSet;
  */
 public class GuardrailsOptions implements GuardrailsConfig
 {
+    private static final String NAME_PREFIX = "guardrails.";
+    private static final Logger logger = LoggerFactory.getLogger(GuardrailsOptions.class);
+
     public volatile boolean enabled = false;
+    public final IntThreshold keyspaces = new IntThreshold();
     public final IntThreshold tables = new IntThreshold();
     public final IntThreshold columns_per_table = new IntThreshold();
     public final IntThreshold secondary_indexes_per_table = new IntThreshold();
     public final IntThreshold materialized_views_per_table = new IntThreshold();
     public final TableProperties table_properties = new TableProperties();
+    public final IntThreshold page_size = new IntThreshold();
+
     public volatile boolean user_timestamps_enabled = true;
+    public volatile boolean read_before_write_list_operations_enabled = true;
 
     public void validate()
     {
-        tables.validate("guardrails.tables");
-        columns_per_table.validate("guardrails.columns_per_table");
-        secondary_indexes_per_table.validate("guardrails.secondary_indexes_per_table");
-        materialized_views_per_table.validate("guardrails.materialized_views_per_table");
-        table_properties.validate("guardrails.table_properties");
+        keyspaces.init("keyspaces");
+        tables.init("tables");
+        columns_per_table.init("columns_per_table");
+        secondary_indexes_per_table.init("secondary_indexes_per_table");
+        materialized_views_per_table.init("materialized_views_per_table");
+        table_properties.init("table_properties");
+        page_size.init("guardrails.page_size");
     }
 
     @Override
@@ -81,7 +92,13 @@ public class GuardrailsOptions implements GuardrailsConfig
      */
     public void setEnabled(boolean enabled)
     {
-        this.enabled = enabled;
+        updatePropertyWithLogging(NAME_PREFIX + "enabled", enabled, () -> this.enabled, x -> this.enabled = x);
+    }
+
+    @Override
+    public IntThreshold getKeyspaces()
+    {
+        return keyspaces;
     }
 
     @Override
@@ -120,50 +137,78 @@ public class GuardrailsOptions implements GuardrailsConfig
         return user_timestamps_enabled;
     }
 
-    public void setUserTimestampsEnabled(boolean enabled)
+    @Override
+    public IntThreshold getPageSize()
     {
-        user_timestamps_enabled = enabled;
+        return page_size;
     }
 
-    public static abstract class Threshold implements org.apache.cassandra.db.guardrails.Threshold.Config
+    public void setUserTimestampsEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging(NAME_PREFIX + "user_timestamps_enabled",
+                                  enabled,
+                                  () -> user_timestamps_enabled,
+                                  x -> user_timestamps_enabled = x);
+    }
+
+    @Override
+    public boolean getReadBeforeWriteListOperationsEnabled()
+    {
+        return read_before_write_list_operations_enabled;
+    }
+
+    public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging(NAME_PREFIX + "read_before_write_list_operations_enabled",
+                                  enabled,
+                                  () -> read_before_write_list_operations_enabled,
+                                  x -> read_before_write_list_operations_enabled = x);
+    }
+
+    private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
+    {
+        T oldValue = getter.get();
+        if (!newValue.equals(oldValue))
+        {
+            setter.accept(newValue);
+            logger.info("Updated {} from {} to {}", propertyName, oldValue, newValue);
+        }
+    }
+
+    protected static abstract class Config
+    {
+        protected String name;
+
+        public String getName()
+        {
+            return name;
+        }
+
+        protected void init(String name)
+        {
+            this.name = NAME_PREFIX + name;
+            validate();
+        }
+
+        protected abstract void validate();
+    }
+
+    public static abstract class Threshold extends Config
     {
         public static final long DISABLED = -1;
 
-        public volatile long warn_threshold = DISABLED;
-        public volatile long abort_threshold = DISABLED;
-
-        @Override
-        public long getWarnThreshold()
-        {
-            return warn_threshold;
-        }
-
-        @Override
-        public long getAbortThreshold()
-        {
-            return abort_threshold;
-        }
-
-        public void setThresholds(long warn, long abort)
-        {
-            validateStrictlyPositive(warn, "warn threshold");
-            validateStrictlyPositive(abort, "abort threshold");
-            validateWarnLowerThanAbort(warn, abort, null);
-            warn_threshold = warn;
-            abort_threshold = abort;
-        }
-
-        public void validate(String name)
-        {
-            validateStrictlyPositive(warn_threshold, name + ".warn_threshold");
-            validateStrictlyPositive(abort_threshold, name + ".abort_threshold");
-            validateWarnLowerThanAbort(warn_threshold, abort_threshold, name);
-        }
-
         public abstract long maxValue();
+
         public abstract boolean allowZero();
 
-        private void validateStrictlyPositive(long value, String name)
+        protected void validate(long warn, long abort)
+        {
+            validateLimits(warn, name + ".warn_threshold");
+            validateLimits(abort, name + ".abort_threshold");
+            validateWarnLowerThanAbort(warn, abort);
+        }
+
+        protected void validateLimits(long value, String name)
         {
             if (value > maxValue())
                 throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
@@ -181,22 +226,47 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                           value, name, DISABLED));
         }
 
-        private void validateWarnLowerThanAbort(long warnValue, long abortValue, @Nullable String name)
+        private void validateWarnLowerThanAbort(long warn, long abort)
         {
-            if (warnValue == DISABLED || abortValue == DISABLED)
+            if (warn == DISABLED || abort == DISABLED)
                 return;
 
-            if (abortValue < warnValue)
-                throw new IllegalArgumentException(format("The warn threshold %d%s should be lower than the abort " +
-                                                          "threshold %d",
-                                                          warnValue,
-                                                          name == null ? "" : " for " + name,
-                                                          abortValue));
+            if (abort < warn)
+                throw new IllegalArgumentException(format("The warn threshold %d for %s should be lower than the " +
+                                                          "abort threshold %d", warn, name, abort));
         }
     }
 
-    public static class IntThreshold extends Threshold
+    public static class IntThreshold extends Threshold implements GuardrailsConfig.IntThreshold
     {
+        public volatile int warn_threshold = (int) DISABLED;
+        public volatile int abort_threshold = (int) DISABLED;
+
+        @Override
+        public int getWarnThreshold()
+        {
+            return warn_threshold;
+        }
+
+        @Override
+        public int getAbortThreshold()
+        {
+            return abort_threshold;
+        }
+
+        public void setThresholds(int warn, int abort)
+        {
+            validate(warn, abort);
+            updatePropertyWithLogging(name + ".warn_threshold", warn, () -> warn_threshold, x -> warn_threshold = x);
+            updatePropertyWithLogging(name + ".abort_threshold", abort, () -> abort_threshold, x -> abort_threshold = x);
+        }
+
+        @Override
+        protected void validate()
+        {
+            validate(warn_threshold, abort_threshold);
+        }
+
         @Override
         public long maxValue()
         {
@@ -210,7 +280,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         }
     }
 
-    public static class TableProperties implements Values.Config<String>
+    public static class TableProperties extends Config implements GuardrailsConfig.TableProperties
     {
         public volatile Set<String> ignored = Collections.emptySet();
         public volatile Set<String> disallowed = Collections.emptySet();
@@ -227,14 +297,31 @@ public class GuardrailsOptions implements GuardrailsConfig
             return disallowed;
         }
 
-        public void setIgnoredValues(Set<String> values)
+        public void setIgnored(Set<String> properties)
         {
-            this.ignored = validateTableProperties(values, "ignored properties");
+            updatePropertyWithLogging(name + ".ignored", validateIgnored(properties), () -> ignored, x -> ignored = x);
         }
 
-        public void setDisallowedValues(Set<String> values)
+        public void setDisallowed(Set<String> properties)
         {
-            this.disallowed = validateTableProperties(values, "disallowed properties");
+            updatePropertyWithLogging(name + ".disallowed", validateDisallowed(properties), () -> disallowed, x -> disallowed = x);
+        }
+
+        @Override
+        protected void validate()
+        {
+            validateIgnored(ignored);
+            validateDisallowed(disallowed);
+        }
+
+        private Set<String> validateIgnored(Set<String> properties)
+        {
+            return validateTableProperties(properties, name + ".ignored");
+        }
+
+        private Set<String> validateDisallowed(Set<String> properties)
+        {
+            return validateTableProperties(properties, name + ".disallowed");
         }
 
         private Set<String> validateTableProperties(Set<String> properties, String name)
@@ -248,15 +335,9 @@ public class GuardrailsOptions implements GuardrailsConfig
 
             if (!diff.isEmpty())
                 throw new IllegalArgumentException(format("Invalid value for %s: '%s' do not parse as valid table properties",
-                                                          name, diff.toString()));
+                                                          name, diff));
 
             return lowerCaseProperties;
-        }
-
-        public void validate(String name)
-        {
-            validateTableProperties(ignored, name + ".ignored");
-            validateTableProperties(disallowed, name + ".disallowed");
         }
     }
 }

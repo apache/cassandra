@@ -767,6 +767,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the number of rows cached at the coordinator before filtering/index queries fail outright. */
     public void setCachedReplicaRowsFailThreshold(int threshold);
 
+    /** Returns the granularity of the collation index of rows within a partition **/
+    public int getColumnIndexSizeInKB();
+    /** Sets the granularity of the collation index of rows within a partition **/
+    public void setColumnIndexSize(int columnIndexSizeInKB);
+
     /** Returns the threshold for skipping the column index when caching partition info **/
     public int getColumnIndexCacheSize();
     /** Sets the threshold for skipping the column index when caching partition info **/
@@ -890,9 +895,14 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean autoOptimisePreviewRepairStreams();
     public void setAutoOptimisePreviewRepairStreams(boolean enabled);
 
+    // warning thresholds will be replaced by equivalent guardrails
+    @Deprecated
     int getTableCountWarnThreshold();
+    @Deprecated
     void setTableCountWarnThreshold(int value);
+    @Deprecated
     int getKeyspaceCountWarnThreshold();
+    @Deprecated
     void setKeyspaceCountWarnThreshold(int value);
 
     public void setCompactionTombstoneWarningThreshold(int count);
