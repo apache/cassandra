@@ -125,6 +125,7 @@
     <property name="allocation-instrumenter.version" value="3.1.0"/>
     <property name="bytebuddy.version" value="1.10.10"/>
     <property name="jflex.version" value="1.8.2"/>
+    <property name="junit.version" value="5.6.0"/>
 
     <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
     <property name="chronicle-queue.version" value="5.20.123" />
@@ -530,10 +531,6 @@
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
-          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test">
-            <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
-          </dependency>
-          <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26" scope="test"/>
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
             <exclusion groupId="com.google.guava" artifactId="guava"/>
@@ -572,8 +569,6 @@
 
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21" scope="test"/>
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21" scope="test"/>
-
-          <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" scope="test"/>
 
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
@@ -659,11 +654,15 @@
           <dependency groupId="org.psjava" artifactId="psjava" version="0.1.19"/>
           <dependency groupId="javax.inject" artifactId="javax.inject" version="1"/>
           <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations" version="1.3"/>
-          <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
-             this that the new assertj's `assertj-parent-pom` depends on. -->
-          <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom" scope="test"/>
-          <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
+
+          <dependency groupId="org.apache.ant" artifactId="ant-junitlauncher" version="1.10.11" scope="test"/>
+          <dependency groupId="org.junit.jupiter" artifactId="junit-jupiter" version="${junit.version}" scope="test"/>
+          <dependency groupId="org.junit.vintage" artifactId="junit-vintage-engine" version="${junit.version}" scope="test">
+            <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
+          </dependency>
+          <!-- when updating assertj, make sure to also update the corresponding junit dependencies -->
           <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="provided"/>
+          <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3"  scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest"/>
           </dependency>
@@ -725,7 +724,6 @@
                 artifactId="cassandra-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
-        <dependency groupId="junit" artifactId="junit" scope="test"/>
         <dependency groupId="commons-io" artifactId="commons-io" scope="test"/>
         <dependency groupId="org.mockito" artifactId="mockito-core" scope="test"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}"/>
@@ -741,10 +739,9 @@
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" scope="test"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" scope="test"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
-        <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" scope="test"/>
-        <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
-             this that the new assertj's `assertj-parent-pom` depends on. -->
-        <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
+        <dependency groupId="org.apache.ant" artifactId="ant-junitlauncher" scope="test"/>
+        <dependency groupId="org.junit.jupiter" artifactId="junit-jupiter" scope="test"/>
+        <dependency groupId="org.junit.vintage" artifactId="junit-vintage-engine" scope="test"/>
         <dependency groupId="org.awaitility" artifactId="awaitility"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest"/>
         <!-- coverage debs -->
@@ -1461,7 +1458,10 @@
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
-      <taskdef name="junit-timeout" classname="org.apache.cassandra.JStackJUnitTask">
+      <condition property="showoutput" value="true">
+        <istrue value="${showoutput}"/>
+      </condition>
+      <taskdef name="junit-timeout" classname="org.apache.cassandra.JStackJUnitLauncherTask">
         <classpath>
           <pathelement location="${test.classes}"/>
         </classpath>
@@ -1469,43 +1469,18 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
-      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
-        <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
-        <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
-        <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Djava.awt.headless=true"/>
-        <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
-        <jvmarg line="-javaagent:${build.lib}/jamm-${jamm.version}.jar ${additionalagent}" />
-        <jvmarg value="-ea"/>
-        <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
-        <jvmarg value="-Dcassandra.debugrefcount=true"/>
-        <jvmarg value="-Xss256k"/>
-        <!-- When we do classloader manipulation SoftReferences can cause memory leaks
-             that can OOM our test runs. The next two settings informs our GC
-             algorithm to limit the metaspace size and clean up SoftReferences
-             more aggressively rather than waiting. See CASSANDRA-14922 for more details.
-        -->
-        <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
-        <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
-        <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
-        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
-        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
-        <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
-        <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
-        <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
-        <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
-        <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg line="${java11-jvmargs}"/>
-        <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
-        <jvmarg value="-DQT_SHRINKS=0"/>
-        <jvmarg line="${test-jvmargs}" />
-        <optjvmargs/>
-        <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
-        <!--
-        <jvmarg line="-agentlib:jdwp=transport=dt_socket,address=localhost:1416,server=y,suspend=y" />
-        -->
+
+      <pathconvert id="testfiles" pathsep="," property="testfiles">
+        <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
+        <filelist dir="@{inputdir}" files="@{filelist}"/>
+        <mapper>
+            <globmapper from="@{inputdir}/*.java" to="*.class"/>
+        </mapper>
+      </pathconvert>
+      <!-- TODO: remove me -->
+      <echo message="Tests to run: ${testfiles}"/>
+      <!-- TODO: forkmode="@{forkmode}" -->
+      <junitlauncher-timeout failureproperty="testfailed">
         <classpath>
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
@@ -1515,16 +1490,65 @@
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${test.conf}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-              <exclude name="**/ant-*.jar"/>
-          </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{testtag}">
-            <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
-            <filelist dir="@{inputdir}" files="@{filelist}"/>
-        </batchtest>
-      </junit-timeout>
+        <listener classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
+        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" if="${showoutput}" sendSysOut="true" sendSysErr="true"/>
+        <testclasses outputdir="${build.test.dir}/output/@{testtag}">
+            <fileset dir="${test.classes}" includes="${testfiles}"/>
+            <fileset dir="${stress.test.classes}" includes="${testfiles}"/>
+            <fileset dir="${fqltool.test.classes}" includes="${testfiles}"/>
+            <fork timeout="@{timeout}">
+                <!-- ant-junitlauncher does not support `maxmemory` parameter, effectively it equals to passing Xmx directly -->
+                <jvmarg value="-Xmx1024m"/>
+                <jvmarg value="-Dstorage-config=${test.conf}"/>
+                <jvmarg value="-Djava.awt.headless=true"/>
+                <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
+                <jvmarg line="-javaagent:${build.lib}/jamm-${jamm.version}.jar ${additionalagent}" />
+                <jvmarg value="-ea"/>
+                <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
+                <jvmarg value="-Dcassandra.debugrefcount=true"/>
+                <jvmarg value="-Xss256k"/>
+                <!-- When we do classloader manipulation SoftReferences can cause memory leaks
+                     that can OOM our test runs. The next two settings informs our GC
+                     algorithm to limit the metaspace size and clean up SoftReferences
+                     more aggressively rather than waiting. See CASSANDRA-14922 for more details.
+                -->
+                <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
+                <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
+                <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
+                <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+                <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+                <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
+                <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
+                <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
+                <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
+                <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
+                <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+                <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
+                <jvmarg line="${java11-jvmargs}"/>
+                <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
+                <jvmarg value="-DQT_SHRINKS=0"/>
+                <jvmarg line="${test-jvmargs}" />
+                <optjvmargs/>
+                <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
+                <!--
+                <jvmarg line="-agentlib:jdwp=transport=dt_socket,address=localhost:1416,server=y,suspend=y" />
+                -->
+            </fork>
+        </testclasses>
+      </junitlauncher-timeout>
+      <!-- TODO: since "extension" feature is available in ant 1.10.13 only we rename txt files to xml manually -->
+      <!-- See: https://github.com/apache/ant/pull/168 -->
+      <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false" quiet="true">
+        <fileset dir="${build.test.dir}/output/@{testtag}"/>
+        <mapper type="glob" from="*.txt" to="*.xml"/>
+      </move>
+
+      <!-- TODO: ant community rejected to support "useFile" feature that's why we need to remove txt files created for "brief" formatter manually -->
+      <!-- See: https://github.com/apache/ant/pull/171 -->
+      <delete quiet="true">
+        <fileset dir="${build.test.dir}/output/@{testtag}" includes="**/*.txt"/>
+      </delete>
 
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/cdc_raw"/>
@@ -1746,81 +1770,6 @@
                  timeout="${test.memory.timeout}">
           <jvmarg value="-javaagent:${build.dir}/test/lib/jars/java-allocation-instrumenter-${allocation-instrumenter.version}.jar"/>
       </testmacro>
-  </target>
-
-  <target name="cql-test" depends="build-test" description="Execute CQL tests">
-    <sequential>
-      <echo message="running CQL tests"/>
-      <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
-      <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
-        <formatter type="brief" usefile="false"/>
-        <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
-        <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
-        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
-        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.skip_sync=true" />
-        <classpath>
-          <path refid="cassandra.classpath.test" />
-          <pathelement location="${test.classes}"/>
-          <pathelement location="${test.conf}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-          </fileset>
-        </classpath>
-        <batchtest todir="${build.test.dir}/output">
-            <fileset dir="${test.unit.src}" includes="**/cql3/*Test.java">
-                <contains text="CQLTester" casesensitive="yes"/>
-            </fileset>
-        </batchtest>
-      </junit>
-      <fail message="Some CQL test(s) failed.">
-        <condition>
-            <and>
-            <isset property="testfailed"/>
-            <not>
-              <isset property="ant.test.failure.ignore"/>
-            </not>
-          </and>
-        </condition>
-      </fail>
-    </sequential>
-  </target>
-
-  <!-- Use this with an simple class name for test class, and an optional csv list of methods like this:
-    ant cql-test-some -Dtest.name=ListsTest
-    ant cql-test-some -Dtest.name=ListsTest -Dtest.methods=testPrecisionTime_getNext_simple
-  -->
-  <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
-    <sequential>
-      <echo message="running ${test.methods} tests from ${test.name}"/>
-      <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
-      <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
-        <formatter type="brief" usefile="false"/>
-        <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
-        <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
-        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
-        <jvmarg value="-Dcassandra.skip_sync=true" />
-        <classpath>
-          <path refid="cassandra.classpath.test" />
-          <pathelement location="${test.classes}"/>
-          <pathelement location="${test.conf}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-          </fileset>
-        </classpath>
-        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
-        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
-      </junit>
-    </sequential>
   </target>
 
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
