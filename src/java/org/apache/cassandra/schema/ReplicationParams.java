@@ -36,7 +36,7 @@ public final class ReplicationParams
     public final Class<? extends AbstractReplicationStrategy> klass;
     public final ImmutableMap<String, String> options;
 
-    public ReplicationParams(Class<? extends AbstractReplicationStrategy> klass, Map<String, String> options) // TODO Is public class ok here?
+    private ReplicationParams(Class<? extends AbstractReplicationStrategy> klass, Map<String, String> options) // TODO Is public class ok here?
     {
         this.klass = klass;
         this.options = ImmutableMap.copyOf(options);
