@@ -33,11 +33,10 @@ Usage
 sstableloader <options> <dir_path>
 
 ===================================================   ================================================================================
--d, --nodes <initial hosts>                           Required. Try to connect to these hosts (comma-separated) 
+-d, --nodes <initial hosts>                           Required. Try to connect to these hosts (comma-separated, default port 9042)
                                                       initially for ring information
 -u, --username <username>                             username for Cassandra authentication
 -pw, --password <password>                            password for Cassandra authentication
--p, --port <native transport port>                    port used for native connection (default 9042)
 -sp, --storage-port <storage port>                    port used for internode communication (default 7000)
 -ssp, --ssl-storage-port <ssl storage port>           port used for TLS internode communication (default 7001)
 --no-progress                                         don't display progress
