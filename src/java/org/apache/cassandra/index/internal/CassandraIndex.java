@@ -92,7 +92,7 @@ public abstract class CassandraIndex implements Index
      */
     protected boolean supportsOperator(ColumnMetadata indexedColumn, Operator operator)
     {
-        return operator == Operator.EQ;
+        return operator == Operator.EQ || operator == Operator.LIKE || operator == Operator.LIKE_PREFIX ;
     }
 
     /**

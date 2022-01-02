@@ -175,14 +175,13 @@ public final class StatementRestrictions
             else if (relation.isLIKE())
             {
                 // CASSANDRA-17198 Remove restrictions in LIKE statement.
-//                Restriction restriction = relation.toRestriction(table, boundNames);
-//
+                Restriction restriction = relation.toRestriction(table, boundNames);
+
 //                if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry))
 //                    throw new InvalidRequestException(String.format("LIKE restriction is only supported on properly " +
 //                                                                    "indexed columns. %s is not valid.",
 //                                                                    relation.toString()));
-//
-//                addRestriction(restriction);
+                addRestriction(restriction);
             }
             else
             {
