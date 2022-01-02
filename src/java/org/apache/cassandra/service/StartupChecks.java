@@ -326,7 +326,7 @@ public class StartupChecks
         }
 
         @Override
-        public void execute() throws StartupException
+        public void execute()
         {
             if (!FBUtilities.isLinux)
                 return;
@@ -344,7 +344,7 @@ public class StartupChecks
 
                     if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
                     {
-                        logger.debug("'read_ahead_kb' setting empty for directory {}", blockDeviceDirectory);
+                        logger.debug("No 'read_ahead_kb' setting found for device {} of data directory {}.", blockDeviceDirectory, dataDirectory);
                         continue;
                     }
 
@@ -355,11 +355,10 @@ public class StartupChecks
 
                     if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
                     {
-                        logger.warn("Detected high 'read_ahead_kb' setting for device {} " +
-                                    "of data directory {} It is Recommended to set this value to 8KB " +
-                                    "or lower as a higher value can cause high IO usage and cache " +
-                                    "churn on read-intensive workloads.",
-                                    blockDeviceDirectory, dataDirectory);
+                        logger.warn("Detected high '{}' setting of {} for device '{}' of data directory '{}'. It is " +
+                                    "recommended to set this value to 8(KB) on SSDs or 64(KB) on HDDs to prevent " +
+                                    "excessive IO usage and page cache churn on read-intensive workloads.",
+                                    readAheadKBPath, readAheadKbSetting, blockDeviceDirectory, dataDirectory);
                     }
                 }
                 catch (final IOException e)
