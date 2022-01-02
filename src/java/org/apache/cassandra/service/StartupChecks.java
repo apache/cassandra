@@ -308,7 +308,7 @@ public class StartupChecks
             {
                 try
                 {
-                    Path p = Path.of(dataDirectory);
+                    Path p = Paths.get(dataDirectory);
                     FileStore fs = Files.getFileStore(p);
 
                     String blockDirectory = fs.name();
@@ -341,7 +341,7 @@ public class StartupChecks
                 try
                 {
 
-                    Path readAheadKBPath = Path.of(StartupChecks.getReadAheadKBPath(blockDeviceDirectory));
+                    Path readAheadKBPath = Paths.get(StartupChecks.getReadAheadKBPath(blockDeviceDirectory));
 
                     if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
                     {
