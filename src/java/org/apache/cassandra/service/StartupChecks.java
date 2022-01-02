@@ -31,6 +31,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.primitives.Ints;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.io.util.File;
@@ -340,29 +341,26 @@ public class StartupChecks
                 try
                 {
 
-                    String readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
+                    Path readAheadKBPath = Path.of(StartupChecks.getReadAheadKBPath(blockDeviceDirectory));
 
-                    final BufferedReader bufferedReader = Files.newBufferedReader(Path.of(readAheadKBPath));
-                    final String data = bufferedReader.readLine();
-                    if (data != null)
+                    if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
                     {
-                        try
-                        {
-                            Integer readAheadKbSetting = Integer.parseInt(data);
+                        logger.warn("'read_ahead_kb' setting empty for directory {}", blockDeviceDirectory);
+                        continue;
+                    }
 
-                            if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
-                            {
-                                logger.warn("Detected high 'read_ahead_kb' setting for device {} " +
-                                            "of data directory {} It is Recommended to set this value to 8KB " +
-                                            "or lower as a higher value can cause high IO usage and cache " +
-                                            "churn on read-intensive workloads.",
-                                            blockDeviceDirectory, dataDirectory);
-                            }
-                        }
-                        catch (final NumberFormatException e)
-                        {
-                            logger.warn("Unable to parse {}.", readAheadKBPath, e);
-                        }
+                    final BufferedReader bufferedReader = Files.newBufferedReader(readAheadKBPath);
+                    final String data = bufferedReader.readLine();
+
+                    int readAheadKbSetting = Integer.parseInt(data);
+
+                    if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
+                    {
+                        logger.warn("Detected high 'read_ahead_kb' setting for device {} " +
+                                    "of data directory {} It is Recommended to set this value to 8KB " +
+                                    "or lower as a higher value can cause high IO usage and cache " +
+                                    "churn on read-intensive workloads.",
+                                    blockDeviceDirectory, dataDirectory);
                     }
                 }
                 catch (final IOException e)
