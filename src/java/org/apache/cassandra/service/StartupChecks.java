@@ -31,7 +31,6 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.primitives.Ints;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.io.util.File;
@@ -308,7 +307,7 @@ public class StartupChecks
             {
                 try
                 {
-                    Path p = Path.of(dataDirectory);
+                    Path p = Paths.get(dataDirectory);
                     FileStore fs = Files.getFileStore(p);
 
                     String blockDirectory = fs.name();
@@ -326,7 +325,7 @@ public class StartupChecks
         }
 
         @Override
-        public void execute() throws StartupException
+        public void execute()
         {
             if (!FBUtilities.isLinux)
                 return;
@@ -340,27 +339,26 @@ public class StartupChecks
                 String dataDirectory = entry.getValue();
                 try
                 {
-
-                    Path readAheadKBPath = Path.of(StartupChecks.getReadAheadKBPath(blockDeviceDirectory));
+                    Path readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
 
                     if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
                     {
-                        logger.warn("'read_ahead_kb' setting empty for directory {}", blockDeviceDirectory);
+                        logger.debug("No 'read_ahead_kb' setting found for device {} of data directory {}.", blockDeviceDirectory, dataDirectory);
                         continue;
                     }
 
-                    final BufferedReader bufferedReader = Files.newBufferedReader(readAheadKBPath);
-                    final String data = bufferedReader.readLine();
+                    final List<String> data = Files.readAllLines(readAheadKBPath);
+                    if (data.isEmpty())
+                        continue;
 
-                    int readAheadKbSetting = Integer.parseInt(data);
+                    int readAheadKbSetting = Integer.parseInt(data.get(0));
 
                     if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
                     {
-                        logger.warn("Detected high 'read_ahead_kb' setting for device {} " +
-                                    "of data directory {} It is Recommended to set this value to 8KB " +
-                                    "or lower as a higher value can cause high IO usage and cache " +
-                                    "churn on read-intensive workloads.",
-                                    blockDeviceDirectory, dataDirectory);
+                        logger.warn("Detected high '{}' setting of {} for device '{}' of data directory '{}'. It is " +
+                                    "recommended to set this value to 8(KB) on SSDs or 64(KB) on HDDs to prevent " +
+                                    "excessive IO usage and page cache churn on read-intensive workloads.",
+                                    readAheadKBPath, readAheadKbSetting, blockDeviceDirectory, dataDirectory);
                     }
                 }
                 catch (final IOException e)
@@ -585,18 +583,21 @@ public class StartupChecks
     };
 
     @VisibleForTesting
-    public static String getReadAheadKBPath(String blockDirectoryPath)
+    public static Path getReadAheadKBPath(String blockDirectoryPath)
     {
-        String readAheadKBPath = null;
+        Path readAheadKBPath = null;
 
         final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/%s/queue/read_ahead_kb";
         try
         {
-            String deviceName = blockDirectoryPath.split("/")[2].replaceAll("[0-9]*$", "");
-
-            if (StringUtils.isNotEmpty(deviceName))
+            String[] blockDirComponents = blockDirectoryPath.split("/");
+            if (blockDirComponents.length >= 2 && blockDirComponents[1].equals("dev"))
             {
-                readAheadKBPath = String.format(READ_AHEAD_KB_SETTING_PATH, deviceName);
+                String deviceName = blockDirComponents[2].replaceAll("[0-9]*$", "");
+                if (StringUtils.isNotEmpty(deviceName))
+                {
+                    readAheadKBPath = Paths.get(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
+                }
             }
         }
         catch (Exception e)
