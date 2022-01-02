@@ -611,7 +611,7 @@ public class StartupChecks
 
         if (!existing.isEmpty())
             return Optional.of(String.format("Legacy auth tables %s in keyspace %s still exist and have not been properly migrated.",
-                                             Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
+                       Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
         else
             return Optional.empty();
     };
