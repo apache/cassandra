@@ -294,14 +294,15 @@ public class StartupChecks
         // This value is in KB.
         private static final long MAX_RECOMMENDED_READ_AHEAD_KB_SETTING = 128;
 
-        @Override
-        public void execute() throws StartupException
-        {
-            if (!FBUtilities.isLinux)
-                return;
-
-            String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
+        /**
+         * Function to get the block device system path(Example: /dev/sda) from the
+         * data directories defined in cassandra config.(cassandra.yaml)
+         * @param dataDirectories list of data directories from cassandra.yaml
+         * @return Map of block device path and data directory
+         */
+        private Map<String, String> getBlockDevices(String[] dataDirectories) {
             Map<String, String> blockDevices = new HashMap<String, String>();
+
             for (String dataDirectory : dataDirectories)
             {
                 try
@@ -320,6 +321,18 @@ public class StartupChecks
                     logger.warn("IO exception while reading file {}.", dataDirectory, e);
                 }
             }
+            return blockDevices;
+        }
+
+        @Override
+        public void execute() throws StartupException
+        {
+            if (!FBUtilities.isLinux)
+                return;
+
+            String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
+            Map<String, String> blockDevices = getBlockDevices(dataDirectories);
+
             for (Map.Entry<String, String> entry: blockDevices.entrySet())
             {
                 String blockDeviceDirectory = entry.getKey();
@@ -611,7 +624,7 @@ public class StartupChecks
 
         if (!existing.isEmpty())
             return Optional.of(String.format("Legacy auth tables %s in keyspace %s still exist and have not been properly migrated.",
-                       Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
+                        Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
         else
             return Optional.empty();
     };
