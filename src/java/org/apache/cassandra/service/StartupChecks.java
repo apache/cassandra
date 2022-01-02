@@ -247,8 +247,8 @@ public class StartupChecks
             {
                 if (!jvmOptionsContainsOneOf("-XX:OnOutOfMemoryError="))
                     logger.warn("The JVM is not configured to stop on OutOfMemoryError which can cause data corruption."
-                                + " Either upgrade your JRE to a version greater or equal to 8u92 and use -XX:+ExitOnOutOfMemoryError/-XX:+CrashOnOutOfMemoryError"
-                                + " or use -XX:OnOutOfMemoryError=\"<cmd args>;<cmd args>\" on your current JRE.");
+                            + " Either upgrade your JRE to a version greater or equal to 8u92 and use -XX:+ExitOnOutOfMemoryError/-XX:+CrashOnOutOfMemoryError"
+                            + " or use -XX:OnOutOfMemoryError=\"<cmd args>;<cmd args>\" on your current JRE.");
             }
         }
 
@@ -340,7 +340,7 @@ public class StartupChecks
                             if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
                             {
                                 logger.warn("Detected high 'read_ahead_kb' setting for device {} " +
-                                            "of data directory.{} It is Recommended to set this value to 8KB " +
+                                            "of data directory {} It is Recommended to set this value to 8KB " +
                                             "or lower as a higher value can cause high IO usage and cache " +
                                             "churn on read-intensive workloads.",
                                             blockDeviceDirectory, dataDirectory);
@@ -600,18 +600,19 @@ public class StartupChecks
     static Optional<String> checkLegacyAuthTablesMessage()
     {
         List<String> existing = new ArrayList<>(SchemaConstants.LEGACY_AUTH_TABLES).stream().filter((legacyAuthTable) ->
-        {
-            UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
-                                                                                       SchemaConstants.SCHEMA_KEYSPACE_NAME, "tables", SchemaConstants.AUTH_KEYSPACE_NAME, legacyAuthTable));
-            return result != null && !result.isEmpty();
-        }).collect(Collectors.toList());
+                                                                                                    {
+                                                                                                        UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
+                                                                                                                                                                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                                                                                                                                                                   "tables",
+                                                                                                                                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                                                                                                   legacyAuthTable));
+                                                                                                        return result != null && !result.isEmpty();
+                                                                                                    }).collect(Collectors.toList());
 
         if (!existing.isEmpty())
             return Optional.of(String.format("Legacy auth tables %s in keyspace %s still exist and have not been properly migrated.",
                                              Joiner.on(", ").join(existing), SchemaConstants.AUTH_KEYSPACE_NAME));
         else
             return Optional.empty();
-    }
-
-    ;
+    };
 }
