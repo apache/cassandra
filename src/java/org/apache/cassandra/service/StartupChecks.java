@@ -340,12 +340,11 @@ public class StartupChecks
                 String dataDirectory = entry.getValue();
                 try
                 {
-
-                    Path readAheadKBPath = Paths.get(StartupChecks.getReadAheadKBPath(blockDeviceDirectory));
+                    Path readAheadKBPath = StartupChecks.getReadAheadKBPath(blockDeviceDirectory);
 
                     if (readAheadKBPath == null || Files.notExists(readAheadKBPath))
                     {
-                        logger.warn("'read_ahead_kb' setting empty for directory {}", blockDeviceDirectory);
+                        logger.debug("'read_ahead_kb' setting empty for directory {}", blockDeviceDirectory);
                         continue;
                     }
 
@@ -585,18 +584,21 @@ public class StartupChecks
     };
 
     @VisibleForTesting
-    public static String getReadAheadKBPath(String blockDirectoryPath)
+    public static Path getReadAheadKBPath(String blockDirectoryPath)
     {
-        String readAheadKBPath = null;
+        Path readAheadKBPath = null;
 
         final String READ_AHEAD_KB_SETTING_PATH = "/sys/block/%s/queue/read_ahead_kb";
         try
         {
-            String deviceName = blockDirectoryPath.split("/")[2].replaceAll("[0-9]*$", "");
-
-            if (StringUtils.isNotEmpty(deviceName))
+            String[] blockDirComponents = blockDirectoryPath.split("/");
+            if (blockDirComponents.length >= 2 && blockDirComponents[1].equals("dev"))
             {
-                readAheadKBPath = String.format(READ_AHEAD_KB_SETTING_PATH, deviceName);
+                String deviceName = blockDirComponents[2].replaceAll("[0-9]*$", "");
+                if (StringUtils.isNotEmpty(deviceName))
+                {
+                    readAheadKBPath = Paths.get(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
+                }
             }
         }
         catch (Exception e)

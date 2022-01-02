@@ -115,14 +115,17 @@ public class StartupChecksTest
     @Test
     public void testGetReadAheadKBPath()
     {
-        String sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12");
-        Assert.assertEquals(sdaDirectory, "/sys/block/sda/queue/read_ahead_kb");
+        Path sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12");
+        Assert.assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
 
-        String scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1");
-        Assert.assertEquals(scsiDirectory, "/sys/block/scsi/queue/read_ahead_kb");
+        Path scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1");
+        Assert.assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
 
-        String dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
-        Assert.assertEquals(dirWithoutNumbers, "/sys/block/sca/queue/read_ahead_kb");
+        Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
+        Assert.assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
+
+        Path invalidDir = StartupChecks.getReadAheadKBPath("/tmp/xpto");
+        Assert.assertNull(invalidDir);
     }
 
     @Test
