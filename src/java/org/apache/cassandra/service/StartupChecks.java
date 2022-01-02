@@ -31,7 +31,6 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.primitives.Ints;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.io.util.File;
@@ -348,10 +347,11 @@ public class StartupChecks
                         continue;
                     }
 
-                    final BufferedReader bufferedReader = Files.newBufferedReader(readAheadKBPath);
-                    final String data = bufferedReader.readLine();
+                    final List<String> data = Files.readAllLines(readAheadKBPath);
+                    if (data.isEmpty())
+                        continue;
 
-                    int readAheadKbSetting = Integer.parseInt(data);
+                    int readAheadKbSetting = Integer.parseInt(data.get(0));
 
                     if (readAheadKbSetting > MAX_RECOMMENDED_READ_AHEAD_KB_SETTING)
                     {
