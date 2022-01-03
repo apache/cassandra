@@ -294,9 +294,9 @@ public final class DataRateSpec
 
             public long toMegabitsPerSecond(long d)
             {
-                if ((double)d > MAX / (8.38861))
-                    return Long.MAX_VALUE;
-                return Math.round(d * 8.38861);
+                if ((double)d > MAX / (MEGABITS_PER_MEBIBYTE))
+                    return MAX;
+                return Math.round(d * MEGABITS_PER_MEBIBYTE);
             }
 
             public long convert(long source, DataRateUnit sourceUnit)
@@ -306,6 +306,7 @@ public final class DataRateSpec
         };
 
         static final long MAX = Long.MAX_VALUE;
+        static final double MEGABITS_PER_MEBIBYTE = 8.38861;
 
         /**
          * Scale d by m, checking for overflow. This has a short name to make above code more readable.
@@ -313,7 +314,7 @@ public final class DataRateSpec
         static long x(long d, long m, long over)
         {
             if (d > over)
-                return Long.MAX_VALUE;
+                return MAX;
             return d * m;
         }
 

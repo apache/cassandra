@@ -43,7 +43,7 @@ public final class DataStorageSpec
 
     public DataStorageSpec(String value)
     {
-        if(value == null || value.equals("null"))
+        if (value == null || value.equals("null"))
         {
             quantity = 0;
             unit = DataStorageUnit.MEBIBYTES; // the unit doesn't really matter as 0 is 0 in all units

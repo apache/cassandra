@@ -127,7 +127,7 @@ public class DataStorageSpecTest
     @Test
     public void eqAndHash()
     {
-        qt().forAll(gen(), gen()).check((a, b) -> a.equals(b) ? a.hashCode() == b.hashCode() : true);
+        qt().forAll(gen(), gen()).check((a, b) -> !a.equals(b) || a.hashCode() == b.hashCode());
     }
 
     private static Gen<DataStorageSpec> gen()

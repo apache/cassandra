@@ -60,7 +60,8 @@ public final class DurationSpec
             quantity = Long.parseLong(matcher.group(1));
             unit = fromSymbol(matcher.group(2));
         }
-        else {
+        else
+        {
             throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
                                                " ns where case matters and " + "only non-negative values");
         }
