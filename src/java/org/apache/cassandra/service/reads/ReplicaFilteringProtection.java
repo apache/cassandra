@@ -64,6 +64,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.locator.UnavailablesDiagnostics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
@@ -543,7 +544,9 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             catch (UnavailableException e)
             {
                 int blockFor = consistency.blockFor(replicaPlan.replicationStrategy());
-                throw UnavailableException.create(consistency, blockFor, blockFor - 1);
+                UnavailableException exception = UnavailableException.create(consistency, blockFor, blockFor - 1);
+                UnavailablesDiagnostics.forReadException(exception, replicaPlan, key.getToken());
+                throw exception;
             }
         }
     }

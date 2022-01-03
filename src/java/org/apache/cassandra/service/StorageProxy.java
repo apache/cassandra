@@ -46,6 +46,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.locator.UnavailablesDiagnostics;
 import org.apache.cassandra.service.paxos.*;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
@@ -1688,7 +1689,11 @@ public class StorageProxy implements StorageProxyMBean
 
         // TODO have a way to compute the consistency level
         if (replicas.isEmpty())
-            throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
+        {
+            UnavailableException unavailableException = UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
+            UnavailablesDiagnostics.forCounterUpdate(unavailableException);
+            throw unavailableException;
+        }
 
         List<Replica> localReplicas = new ArrayList<>(replicas.size());
 
@@ -1700,7 +1705,11 @@ public class StorageProxy implements StorageProxyMBean
         {
             // If the consistency required is local then we should not involve other DCs
             if (cl.isDatacenterLocal())
-                throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
+            {
+                UnavailableException unavailableException = UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
+                UnavailablesDiagnostics.forCounterUpdate(unavailableException);
+                throw unavailableException;
+            }
 
             // No endpoint in local DC, pick the closest endpoint according to the snitch
             replicas = snitch.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
@@ -2344,7 +2353,9 @@ public class StorageProxy implements StorageProxyMBean
             // invoked by an admin, for simplicity we require that all nodes are up
             // to perform the operation.
             int liveMembers = Gossiper.instance.getLiveMembers().size();
-            throw UnavailableException.create(ConsistencyLevel.ALL, liveMembers + Gossiper.instance.getUnreachableMembers().size(), liveMembers);
+            UnavailableException unavailableException = UnavailableException.create(ConsistencyLevel.ALL, liveMembers + Gossiper.instance.getUnreachableMembers().size(), liveMembers);
+            UnavailablesDiagnostics.forTruncate(unavailableException);
+            throw unavailableException;
         }
 
         Set<InetAddressAndPort> allEndpoints = StorageService.instance.getLiveRingMembers(true);

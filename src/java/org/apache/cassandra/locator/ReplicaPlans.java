@@ -350,8 +350,17 @@ public class ReplicaPlans
                : "ReplicaLayout liveAndDown and live should be derived from the same replication strategy.";
         AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
         EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
-        assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
-        return new ReplicaPlan.ForTokenWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
+        ReplicaPlan.ForTokenWrite plan = new ReplicaPlan.ForTokenWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
+        try
+        {
+            assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
+        }
+        catch (UnavailableException e)
+        {
+            UnavailablesDiagnostics.forWriteException(e, plan);
+            throw e;
+        }
+        return plan;
     }
 
     public interface Selector
@@ -506,20 +515,30 @@ public class ReplicaPlans
         int participants = liveAndDown.all().size();
         int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
 
+
         EndpointsForToken contacts = live.all();
+        ReplicaPlan.ForPaxosWrite plan = new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts, requiredParticipants);
         if (contacts.size() < requiredParticipants)
-            throw UnavailableException.create(consistencyForPaxos, requiredParticipants, contacts.size());
+        {
+            UnavailableException e = UnavailableException.create(consistencyForPaxos, requiredParticipants, contacts.size());
+            UnavailablesDiagnostics.forPaxosWriteException(e, plan);
+            throw e;
+        }
 
         // We cannot allow CAS operations with 2 or more pending endpoints, see #8346.
         // Note that we fake an impossible number of required nodes in the unavailable exception
         // to nail home the point that it's an impossible operation no matter how many nodes are live.
         if (liveAndDown.pending().size() > 1)
-            throw new UnavailableException(String.format("Cannot perform LWT operation as there is more than one (%d) pending range movement", liveAndDown.all().size()),
-                    consistencyForPaxos,
-                    participants + 1,
-                    contacts.size());
+        {
+            UnavailableException e = new UnavailableException(String.format("Cannot perform LWT operation as there is more than one (%d) pending range movement", liveAndDown.all().size()),
+                                                                                 consistencyForPaxos,
+                                                                                 participants + 1,
+                                                                                 contacts.size());
+            UnavailablesDiagnostics.forPaxosWriteException(e, plan);
+            throw e;
+        }
 
-        return new ReplicaPlan.ForPaxosWrite(keyspace, consistencyForPaxos, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts, requiredParticipants);
+        return plan;
     }
 
 
@@ -593,8 +612,17 @@ public class ReplicaPlans
         EndpointsForToken candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forTokenReadLiveSorted(replicationStrategy, token).natural());
         EndpointsForToken contacts = contactForRead(replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
-        assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
-        return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts);
+        ReplicaPlan.ForTokenRead plan = new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts);
+        try
+        {
+            assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
+        }
+        catch (UnavailableException e)
+        {
+            UnavailablesDiagnostics.forReadException(e, plan, token);
+            throw e;
+        }
+        return plan;
     }
 
     /**
@@ -609,9 +637,17 @@ public class ReplicaPlans
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         EndpointsForRange candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(replicationStrategy, range).natural());
         EndpointsForRange contacts = contactForRead(replicationStrategy, consistencyLevel, false, candidates);
-
-        assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
-        return new ReplicaPlan.ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, candidates, contacts, vnodeCount);
+        ReplicaPlan.ForRangeRead plan = new ReplicaPlan.ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, candidates, contacts, vnodeCount);
+        try
+        {
+            assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
+        }
+        catch (UnavailableException e)
+        {
+            UnavailablesDiagnostics.forRangeReadException(e, plan);
+            throw e;
+        }
+        return plan;
     }
 
     /**
