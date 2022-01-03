@@ -355,6 +355,8 @@ public class Config
 
     public boolean enable_sasi_indexes = true;
 
+    public volatile boolean enable_drop_compact_storage = false;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!

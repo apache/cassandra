@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.io.FSReadError;
@@ -35,6 +36,16 @@ public final class Throwables
     public interface DiscreteAction<E extends Exception>
     {
         void perform() throws E;
+    }
+
+    public static boolean anyCauseMatches(Throwable t, Predicate<Throwable> cause)
+    {
+        do
+        {
+            if (cause.test(t))
+                return true;
+        } while ((t = t.getCause()) != null);
+        return false;
     }
 
     public static <T extends Throwable> T merge(T existingFail, T newFail)

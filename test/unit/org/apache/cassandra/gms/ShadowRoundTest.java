@@ -19,17 +19,26 @@
 
 package org.apache.cassandra.gms;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
@@ -38,6 +47,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.junit.Assert.assertEquals;
@@ -107,10 +117,94 @@ public class ShadowRoundTest
         }
 
         // we expect one SYN for each seed during shadow round + additional SYNs after gossiper has been enabled
-        assertTrue(spySyn.messagesIntercepted > noOfSeeds);
+        assertTrue(spySyn.messagesIntercepted() > noOfSeeds);
 
         // we don't expect to emit any GOSSIP_DIGEST_ACK2 or MIGRATION_REQUEST messages
-        assertEquals(0, spyAck2.messagesIntercepted);
-        assertEquals(0, spyMigrationReq.messagesIntercepted);
+        assertEquals(0, spyAck2.messagesIntercepted());
+        assertEquals(0, spyMigrationReq.messagesIntercepted());
     }
+
+    @Test
+    public void testBadAckInShadow()
+    {
+        final AtomicBoolean ackSend = new AtomicBoolean(false);
+        MockMessagingSpy spySyn = MockMessagingService.when(verb(MessagingService.Verb.GOSSIP_DIGEST_SYN))
+                .respondN((msgOut, to) ->
+                {
+                    // ACK with bad data in shadow round
+                    if (!ackSend.compareAndSet(false, true))
+                    {
+                        while (!Gossiper.instance.isEnabled()) ;
+                    }
+                    InetAddress junkaddr;
+                    try
+                    {
+                        junkaddr = InetAddress.getByName("1.1.1.1");
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+
+                    HeartBeatState hb = new HeartBeatState(123, 456);
+                    EndpointState state = new EndpointState(hb);
+                    List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+                    gDigests.add(new GossipDigest(FBUtilities.getBroadcastAddress(), hb.getGeneration(), hb.getHeartBeatVersion()));
+                    gDigests.add(new GossipDigest(junkaddr, hb.getGeneration(), hb.getHeartBeatVersion()));
+                    Map<InetAddress, EndpointState> smap = new HashMap<InetAddress, EndpointState>()
+                    {
+                        {
+                            put(FBUtilities.getBroadcastAddress(), state);
+                            put(junkaddr, state);
+                        }
+                    };
+                    GossipDigestAck payload = new GossipDigestAck(gDigests, smap);
+
+                    logger.debug("Simulating bad digest ACK reply");
+                    return MessageIn.create(to, payload, Collections.emptyMap(), MessagingService.Verb.GOSSIP_DIGEST_ACK, MessagingService.current_version);
+                }, 1);
+
+        System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
+        try
+        {
+            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+        }
+        catch (Exception e)
+        {
+            assertEquals("Unable to gossip with any peers", e.getMessage());
+        }
+        System.clearProperty(Config.PROPERTY_PREFIX + "auto_bootstrap");
+    }
+
+    @Test
+    public void testPreviouslyAssassinatedInShadow()
+    {
+        final AtomicBoolean ackSend = new AtomicBoolean(false);
+        MockMessagingSpy spySyn = MockMessagingService.when(verb(MessagingService.Verb.GOSSIP_DIGEST_SYN))
+                .respondN((msgOut, to) ->
+                {
+                    // ACK with self assassinated in shadow round
+                    if (!ackSend.compareAndSet(false, true))
+                    {
+                        while (!Gossiper.instance.isEnabled()) ;
+                    }
+                    HeartBeatState hb = new HeartBeatState(123, 456);
+                    EndpointState state = new EndpointState(hb);
+                    state.addApplicationState(ApplicationState.STATUS,
+                            new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner()).left(
+                                    Collections.singletonList(DatabaseDescriptor.getPartitioner().getRandomToken()), 1L));
+                    GossipDigestAck payload = new GossipDigestAck(
+                        Collections.singletonList(new GossipDigest(FBUtilities.getBroadcastAddress(), hb.getGeneration(), hb.getHeartBeatVersion())),
+                        Collections.singletonMap(FBUtilities.getBroadcastAddress(), state));
+
+                    logger.debug("Simulating bad digest ACK reply");
+                    return MessageIn.create(to, payload, Collections.emptyMap(), MessagingService.Verb.GOSSIP_DIGEST_ACK, MessagingService.current_version);
+                }, 1);
+
+
+        System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
+        StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+        System.clearProperty(Config.PROPERTY_PREFIX + "auto_bootstrap");
+    }
+
 }

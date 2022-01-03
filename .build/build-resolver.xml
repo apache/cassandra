@@ -1,0 +1,246 @@
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir="." name="apache-cassandra--resolver-tasks"
+         xmlns:resolver="antlib:org.apache.maven.resolver.ant"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
+
+    <!-- details of what version of Resolver ANT Tasks to fetch -->
+    <property name="resolver-ant-tasks.version" value="1.3.0" />
+    <property name="resolver-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}.jar"/>
+    <property name="resolver-ant-tasks.url" value="https://repo1.maven.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
+
+    <!-- version of lib/ downloads -->
+    <property name="lib.download.sha" value="6c29ee84a2f62ccd05c328bbaa0c364eb1a7a821"/>
+
+    <condition property="resolver-ant-tasks.jar.exists">
+        <available file="${resolver-ant-tasks.local}" />
+    </condition>
+
+    <!-- version of lib/ downloads -->
+    <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
+
+    <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
+
+    <!--
+       Fetch Resolver Ant Tasks and Cassandra's dependencies.
+    -->
+
+    <target name="_resolver_download" unless="resolver-ant-tasks.jar.exists" description="Fetch Resolver ANT Tasks from Maven Central Repository">
+        <echo>Downloading Resolver ANT Tasks...</echo>
+        <mkdir dir="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
+
+        <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
+             dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
+    </target>
+
+    <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
+
+        <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
+        <resolver:remoterepos id="all">
+            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
+            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+        </resolver:remoterepos>
+
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies>
+                <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
+                <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>
+            </dependencies>
+            <path refid="wikitext.classpath" classpath="runtime"/>
+        </resolver:resolve>
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies>
+                <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
+            </dependencies>
+            <path refid="rat.classpath" classpath="runtime"/>
+        </resolver:resolve>
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies>
+                <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" />
+            </dependencies>
+            <path refid="jacocoant.classpath" classpath="runtime"/>
+        </resolver:resolve>
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies>
+                <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2"/>
+                <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2"/>
+                <dependency groupId="org.antlr" artifactId="ST4" version="4.0.8"/>
+            </dependencies>
+            <path refid="cql3-grammar.classpath" classpath="runtime"/>
+        </resolver:resolve>
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies>
+                <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
+            </dependencies>
+            <path refid="jflex.classpath" classpath="runtime"/>
+        </resolver:resolve>
+
+        <macrodef name="install">
+            <attribute name="pomFile"/>
+            <attribute name="file"/>
+            <attribute name="classifier" default=""/>
+            <attribute name="packaging" default="jar"/>
+            <sequential>
+                <exec dir="." executable="sh">
+                    <arg line="-c 'mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
+                </exec>
+            </sequential>
+        </macrodef>
+
+        <macrodef name="deploy">
+            <attribute name="pomFile"/>
+            <attribute name="file"/>
+            <attribute name="classifier" default=""/>
+            <attribute name="packaging" default="jar"/>
+            <sequential>
+                <exec dir="." executable="sh">
+                    <arg line="-c 'mvn org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
+                </exec>
+            </sequential>
+        </macrodef>
+
+        <macrodef name="sign-dist">
+            <attribute name="file"/>
+            <sequential>
+                <echo message="gpg signing @{file}" />
+                <exec dir="." executable="sh">
+                    <!-- dummy out the deploy parameters, only the signing is required here -->
+                    <arg line="-c 'mvn -q org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -Dfile=@{file} -DgroupId=org.apache.cassandra -DartifactId=cassandra-parent -Dversion=${version} -Durl=file:///tmp/ -DrepositoryId=tmp'" />
+                </exec>
+            </sequential>
+        </macrodef>
+
+        <property name="resolver-ant-tasks.initialized" value="true"/>
+    </target>
+
+    <target name="resolver-retrieve-build" depends="resolver-init,write-poms">
+        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
+        <resolver:pom file="${build.dir}/${ant.project.name}-thrift-${version}.pom" id="thrift-pom"/>
+        <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps"/>
+				
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies pomRef="thrift-pom"/>
+            <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
+        </resolver:resolve>
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies pomRef="all-pom"/>
+            <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
+        </resolver:resolve>
+        <resolver:resolve>
+            <remoterepos refid="all"/>
+            <dependencies pomRef="pom-deps"/>
+            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
+        </resolver:resolve>
+
+
+        <!-- jacoco agent jar comes wrapped in a jar -->
+        <unzip src="${user.home}/.m2/repository/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
+            <patternset>
+                <include name="*.jar"/>
+            </patternset>
+            <mapper type="flatten"/>
+        </unzip>
+    </target>
+
+    <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
+        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
+
+        <resolver:resolve failOnMissingAttachments="true">
+            <remoterepos refid="all"/>
+            <dependencies pomRef="all-pom"/>
+            <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
+        </resolver:resolve>
+        <resolver:resolve failOnMissingAttachments="true">
+            <remoterepos refid="all"/>
+            <dependencies pomRef="thrift-pom"/>
+            <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
+        </resolver:resolve>
+        <mkdir dir="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin"/>
+        <mkdir dir="${build.lib}/sigar-bin"/>
+
+        <!-- files.pythonhosted.org -->
+        <get src="https://files.pythonhosted.org/packages/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="https://files.pythonhosted.org/packages/2e/a4/6dcb84af409b7bc0c258a0d6bd7e14231724d9a46b750c048f09d74d870c/six-1.7.3-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.7.3-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+
+        <!-- python-driver -->
+        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.11.0-bb96859b.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+
+        <!-- apache/cassandra/lib -->
+        <get dest="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-linux.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ia64-linux.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc-linux.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-s390x-linux.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-linux.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-solaris.so"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-amd64-winnt.dll"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-x86-winnt.dll"/>
+            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-x86-winnt.lib"/>
+        </get>
+        
+        <copy todir="${build.lib}" quiet="true">
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.7.3-py2.py3-none-any.zip"/>
+        </copy>
+        <copy todir="${build.lib}/sigar-bin/" quiet="true">
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-linux.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-solaris.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-hpux-11.sl"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-linux.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-pa-hpux-11.sl"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-aix-5.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-linux.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-aix-5.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-linux.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-s390x-linux.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-sparc-solaris.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-sparc64-solaris.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-universal-macosx.dylib"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-universal64-macosx.dylib"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-5.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-6.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-linux.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/sigar-amd64-winnt.dll"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.dll"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.lib"/>
+        </copy>
+    </target>
+</project>

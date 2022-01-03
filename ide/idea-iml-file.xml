@@ -33,6 +33,7 @@
             <sourceFolder url="file://$MODULE_DIR$/test/long" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/microbench" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/burn" isTestSource="true" />
+            <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />
             <sourceFolder url="file://$MODULE_DIR$/test/distributed" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
             <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />
@@ -47,16 +48,6 @@
         <orderEntry type="module-library">
             <library>
                 <CLASSES>
-                    <root url="file://$MODULE_DIR$/lib" />
-                </CLASSES>
-                <JAVADOC />
-                <SOURCES />
-                <jarDirectory url="file://$MODULE_DIR$/lib" recursive="false" />
-            </library>
-        </orderEntry>
-        <orderEntry type="module-library">
-            <library>
-                <CLASSES>
                     <root url="file://$MODULE_DIR$/build/lib/jars" />
                 </CLASSES>
                 <JAVADOC />
@@ -65,6 +56,19 @@
                 </SOURCES>
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/jars" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/sources" recursive="false" type="SOURCES" />
+            </library>
+        </orderEntry>
+        <orderEntry type="module-library" scope="TEST">
+            <library>
+                <CLASSES>
+                    <root url="file://$MODULE_DIR$/build/test/lib/jars" />
+                </CLASSES>
+                <JAVADOC />
+                <SOURCES>
+                    <root url="file://$MODULE_DIR$/build/test/lib/sources" />
+                </SOURCES>
+                <jarDirectory url="file://$MODULE_DIR$/build/test/lib/jars" recursive="false" />
+                <jarDirectory url="file://$MODULE_DIR$/build/test/lib/sources" recursive="false" type="SOURCES" />
             </library>
         </orderEntry>
     </component>

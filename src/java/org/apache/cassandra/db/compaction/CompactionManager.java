@@ -531,6 +531,12 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
                     }
+
+                    @Override
+                    protected int getLevel()
+                    {
+                        return txn.onlyOne().getSSTableLevel();
+                    }
                 };
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.GARBAGE_COLLECT);

@@ -8,6 +8,9 @@ logs/
 data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
+doc/build/
+pylib/src/
+lib/
 
 # C* debs
 build-stamp
@@ -26,7 +29,7 @@ debian/files
 # IntelliJ
 .idea/
 *.eml
-*.iml
+**/*.iml
 *.ipr
 *.iws
 
@@ -52,6 +55,7 @@ out/
 target/
 
 # General
+**/__pycache__
 *.pyc
 *~
 *.bak
@@ -60,19 +64,15 @@ target/
 .DS_Store
 Thumbs.db
 
-# JSR223
-lib/jsr223/clojure/*.jar
-lib/jsr223/groovy/*.jar
-lib/jsr223/jaskell/*.jar
-lib/jsr223/jruby/*.jar
-lib/jsr223/jruby/jni
-lib/jsr223/jruby/ruby
-lib/jsr223/jython/*.jar
-lib/jsr223/jython/cachedir
-lib/jsr223/scala/*.jar
-
 /.ant-targets-build.xml
 .ant_targets
 
 # Generated files from the documentation
 doc/source/configuration/cassandra_config_file.rst
+
+# Python virtual environment
+venv/
+
+# build-scripts will put cassandra-builds and cassandra-dtest into the directory
+cassandra-builds/
+cassandra-dtest/

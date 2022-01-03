@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.gms;
 
-import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -436,11 +435,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
             return;
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+        VersionedValue shutdown = StorageService.instance.valueFactory.shutdown(true);
+        epState.addApplicationState(ApplicationState.STATUS, shutdown);
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
         FailureDetector.instance.forceConviction(endpoint);
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onChange(endpoint, ApplicationState.STATUS, shutdown);
+        logger.debug("Marked {} as shutdown", endpoint);
     }
 
     /**
@@ -951,6 +954,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public UUID getHostId(InetAddress endpoint, Map<InetAddress, EndpointState> epStates)
     {
         return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
+    }
+
+    /**
+     * The value for the provided application state for the provided endpoint as currently known by this Gossip instance.
+     *
+     * @param endpoint the endpoint from which to get the endpoint state.
+     * @param state the endpoint state to get.
+     * @return the value of the application state {@code state} for {@code endpoint}, or {@code null} if either
+     * {@code endpoint} is not known by Gossip or has no value for {@code state}.
+     */
+    public String getApplicationState(InetAddress endpoint, ApplicationState state)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null)
+            return null;
+
+        VersionedValue value = epState.getApplicationState(state);
+        return value == null ? null : value.value;
     }
 
     EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
@@ -1683,12 +1704,27 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return anyNodeOn30;
     }
 
+    public boolean sufficientForStartupSafetyCheck(Map<InetAddress, EndpointState> epStateMap)
+    {
+        // it is possible for a previously queued ack to be sent to us when we come back up in shadow
+        EndpointState localState = epStateMap.get(FBUtilities.getBroadcastAddress());
+        // return false if response doesn't contain state necessary for safety check
+        return localState == null || isDeadState(localState) || localState.containsApplicationState(ApplicationState.HOST_ID);
+    }
+
     protected void maybeFinishShadowRound(InetAddress respondent, boolean isInShadowRound, Map<InetAddress, EndpointState> epStateMap)
     {
         if (inShadowRound)
         {
             if (!isInShadowRound)
             {
+                if (!sufficientForStartupSafetyCheck(epStateMap))
+                {
+                    logger.debug("Not exiting shadow round because received ACK with insufficient states {} -> {}",
+                                 FBUtilities.getBroadcastAddress(), epStateMap.get(FBUtilities.getBroadcastAddress()));
+                    return;
+                }
+
                 if (!seeds.contains(respondent))
                     logger.warn("Received an ack from {}, who isn't a seed. Ensure your seed list includes a live node. Exiting shadow round",
                                 respondent);
@@ -1832,5 +1868,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         stop();
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
+    }
+
+    @VisibleForTesting
+    public void setAnyNodeOn30(boolean anyNodeOn30)
+    {
+        this.anyNodeOn30 = anyNodeOn30;
     }
 }

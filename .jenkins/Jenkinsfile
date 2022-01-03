@@ -276,6 +276,42 @@ pipeline {
               }
             }
           }
+          stage('dtest-large-novnode') {
+            steps {
+              script {
+                dtest_large_novnode = build job: "${env.JOB_NAME}-dtest-large-novnode", propagate: false
+                if (dtest_large_novnode.result != 'SUCCESS') unstable('dtest-large-novnode failures')
+                if (dtest_large_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('dtest-large-novnode', dtest_large_novnode.getNumber())
+                    }
+                }
+              }
+            }
+          }
+          stage('dtest-upgrade') {
+            steps {
+              script {
+                dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade", propagate: false
+                if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
+                if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
+                      }
+                  }
+              }
+            }
+          }
         }
     }
     stage('Summary') {
@@ -304,17 +340,17 @@ ${CHANGES}
 Failed Tests:
 ${FAILED_TESTS,maxTests=500,showMessage=false,showStack=false}
 -------------------------------------------------------------------------------
-${FILE,path="cassandra-test-report.txt"}
+For complete test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/
 '''
           }
           sh "echo \"cassandra-builds at: `git -C cassandra-builds log -1 --pretty=format:'%h %an %ad %s'`\" > builds.head"
           sh "find . -type f -name \\*.head -exec cat {} \\;"
-          sh "xz cassandra-test-report.txt TESTS-TestSuites.xml"
+          sh "xz TESTS-TestSuites.xml"
+          sh "echo \"For test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/\""
       }
       post {
           always {
-              archiveArtifacts artifacts: 'cassandra-test-report.txt.xz', fingerprint: true
-              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'cassandra-test-report.txt.xz, TESTS-TestSuites.xml.xz')])])
+              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'TESTS-TestSuites.xml.xz')])])
           }
       }
     }

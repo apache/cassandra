@@ -56,6 +56,11 @@ Long running tests
 
 Test that consume a significant amount of time during execution can be found in the ``test/long`` directory and executed as a regular JUnit test or standalone program. Except for the execution time, there’s nothing really special about them. However, ant will execute tests under ``test/long`` only when using the ``ant long-test`` target.
 
+Flaky tests
+-----------
+
+If a test failure is difficult to reproduce you can always use a shell loop, circle repeat strategy and similar solutions. At the JUnit level ``RepeatableRunner`` will let you run a JUnit class N times for convenience. On tests that are fast this is a much faster way to iterate than doing it at the shell level. Beware of tests that modify singleton state or similar as they won't work.
+
 DTests
 ======
 
@@ -83,7 +88,83 @@ cstar_perf
 Another tool available on github is `cstar_perf <https://github.com/datastax/cstar_perf>`_ that can be used for intensive performance testing in large clusters or locally. Please refer to the project page on how to set it up and how to use it.
 
 CircleCI
---------
-Cassandra ships with a default `CircleCI <https://circleci.com>`_ configuration, to enable running tests on your branches, you need to go the CircleCI website, click "Login" and log in with your github account. Then you need to give CircleCI permission to watch your repositories. Once you have done that, you can optionally configure CircleCI to run tests in parallel - click "Projects", then your github account and then click the settings for the project. If you leave the parallelism at 1 for Cassandra, only ``ant eclipse-warnings`` and ``ant test`` will be run. If you up the parallelism to 4, it also runs ``ant long-test``, ``ant test-compression`` and ``ant stress-test``
+========
+
+Cassandra ships with a default `CircleCI <https://circleci.com>`_ configuration, to enable running tests on your branches, you need to go the CircleCI website, click "Login" and log in with your github account. Then you need to give CircleCI permission to watch your repositories. Once you have done that, you can optionally configure CircleCI to run tests in parallel - click "Projects", then your github account and then click the settings for the project. If you leave the parallelism at 1 for Cassandra, only ``ant eclipse-warnings`` and ``ant test`` will be run. If you up the parallelism to 4, it also runs ``ant long-test``, ``ant test-compression`` and ``ant stress-test``.
+
+The configuration for CircleCI is in the ``.circleci/config.yml`` file. This configuration file is meant to use low resources, you can find equivalent configuration files using more resources in the same ``.circleci`` directory. Please read the ``readme.md`` file in that directory for further information. Note that the higher resources are not available in the free tier of CircleCI.
+
+The optional ``repeated_utest``/``repeated_dtest`` CircleCI jobs run a specific JUnit/Python test repeatedly. In an analogous way, upgrade tests can be run repeatedly with the jobs ``repeated_upgrade_dtest``/``repeated_jvm_upgrade_dtest``. This is useful to verify that a certain test is stable. It's usually a good idea to run these jobs when adding or modifying a test. To specify what test should be run and the number of repetitions you should edit the related evironment variables in the CircleCI configuration file:
+
++----------------------------------------------+---------------------------------------------------------------+
+| Variable                                     | Description                                                   |
++==============================================+===============================================================+
+|``REPEATED_UTEST_TARGET``                     | The Ant test target to run, for example:                      |
+|                                              |                                                               |
+|                                              | * ``testsome``                                                |
+|                                              | * ``test-jvm-dtest-some``                                     |
+|                                              | * ``test-cdc``                                                |
+|                                              | * ``test-compression``                                        |
+|                                              | * ``test-system-keyspace-directory``                          |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UTEST_CLASS``                      | The name of the Java test class to be run multiple times, for |
+|                                              | example:                                                      |
+|                                              |                                                               |
+|                                              | * ``org.apache.cassandra.cql3.ViewTest``                      |
+|                                              | * ``org.apache.cassandra.distributed.test.PagingTest``        |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UTEST_METHODS``                    | The optional specific methods within ``REPEATED_UTEST_CLASS`` |
+|                                              | to be run, for example:                                       |
+|                                              |                                                               |
+|                                              | * ``testCompoundPartitionKey``                                |
+|                                              | * ``testCompoundPartitionKey,testStaticTable``                |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UTEST_COUNT``                      | The number of times that the repeated Java test should be run |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UTEST_STOP_ON_FAILURE``            | Whether the utest iteration should stop on the first failure  |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_DTEST_NAME``                       | The Python dtest to be run multiple times, for example:       |
+|                                              |                                                               |
+|                                              | * ``cqlsh_tests/test_cqlsh.py``                               |
+|                                              | * ``cqlsh_tests/test_cqlsh.py::TestCqlshSmoke``               |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_DTEST_VNODES``                     | Whether the repeated Python dtest should use vnodes           |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_DTEST_COUNT``                      | The number of times that the repeated Python dtest should be  |
+|                                              | run                                                           |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_DTEST_STOP_ON_FAILURE``            | Whether the dtest iteration should stop on the first failure  |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UPGRADE_DTEST_NAME``               | A Python upgrade dtest to be run multiple times, for example: |
+|                                              |                                                               |
+|                                              | * ``upgrade_tests/cql_tests.py``                              |
+|                                              | * ``upgrade_tests/repair_test.py``                            |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UPGRADE_DTEST_COUNT``              | The number of times that the repeated Python upgrade dtest    |
+|                                              | should be run                                                 |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_UPGRADE_DTEST_STOP_ON_             | Whether the Python upgrade dtest iteration should stop on the |
+|FAILURE``                                     | first failure                                                 |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_JVM_UPGRADE_DTEST_CLASS``          | The name of JVM upgrade dtest class to be run multiple times, |
+|                                              | for example:                                                  |
+|                                              |                                                               |
+|                                              | * | ``org.apache.cassandra.distributed.upgrade.``             |
+|                                              |   | ``MixedModeAvailabilityV30Test``                          |
+|                                              | * | ``org.apache.cassandra.distributed.upgrade.``             |
+|                                              |   | ``MixedModeConsistencyV3XTest``                           |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_JVM_UPGRADE_DTEST_METHODS``        | The optional specific methods within                          |
+|                                              | ``REPEATED_JVM_UPGRADE_DTEST_CLASS`` to be run, for example:  |
+|                                              |                                                               |
+|                                              | * ``testAvailabilityV30ToV4``                                 |
+|                                              | * ``testAvailabilityV30ToV3X,testAvailabilityV30ToV4``        |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_JVM_UPGRADE_DTEST_COUNT``          | The number of times that the repeated JVM upgrade dtest       |
+|                                              | should be run                                                 |
++----------------------------------------------+---------------------------------------------------------------+
+|``REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE``| Whether the JVM upgrade dtest iteration should stop on the    |
+|                                              | first failure                                                 |
++----------------------------------------------+---------------------------------------------------------------+
 
 

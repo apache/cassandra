@@ -20,7 +20,9 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
@@ -31,6 +33,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.format.VersionAndType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -273,6 +277,13 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue severity(double value)
         {
             return new VersionedValue(String.valueOf(value));
+        }
+
+        public VersionedValue sstableVersions(Set<VersionAndType> versions)
+        {
+            return new VersionedValue(versions.stream()
+                                              .map(VersionAndType::toString)
+                                              .collect(Collectors.joining(",")));
         }
     }
 

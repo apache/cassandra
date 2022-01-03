@@ -56,7 +56,6 @@ public class MigrationCoordinatorTest
     private static final UUID LOCAL_VERSION = UUID.randomUUID();
     private static final UUID V1 = UUID.randomUUID();
     private static final UUID V2 = UUID.randomUUID();
-    private static final UUID V3 = UUID.randomUUID();
 
     static
     {
@@ -192,6 +191,27 @@ public class MigrationCoordinatorTest
         Assert.assertTrue(signal.isSignalled());
     }
 
+	/**
+	 * If an endpoint is removed and no other endpoints are reporting its
+	 * schema version, the version should be removed and we should signal
+	 * anyone waiting on that version
+	 */
+	@Test
+	public void versionsAreSignaledWhenEndpointsRemoved()
+	{
+		InstrumentedCoordinator coordinator = new InstrumentedCoordinator();
+
+		coordinator.reportEndpointVersion(EP1, V1);
+		WaitQueue.Signal signal = coordinator.getVersionInfoUnsafe(V1).register();
+		Assert.assertFalse(signal.isSignalled());
+
+		coordinator.removeAndIgnoreEndpoint(EP1);
+		Assert.assertNull(coordinator.getVersionInfoUnsafe(V1));
+
+		Assert.assertTrue(signal.isSignalled());
+	}
+
+
     private static void assertNoContact(InstrumentedCoordinator coordinator, InetAddress endpoint, UUID version, boolean startupShouldBeUnblocked)
     {
         Assert.assertTrue(coordinator.requests.isEmpty());
@@ -256,7 +276,7 @@ public class MigrationCoordinatorTest
     }
 
     @Test
-    public void testWeKeepSendingRequests()
+    public void testWeKeepSendingRequests() throws Exception
     {
         InstrumentedCoordinator coordinator = new InstrumentedCoordinator();
 
@@ -283,7 +303,7 @@ public class MigrationCoordinatorTest
                 Assert.fail(String.format("Not expecting prev %s to be equal to next %s", prev.endpoint, next.endpoint));
 
             // should send a new request
-            next.fail();
+            next.fail().get();
             prev = next;
             Assert.assertFalse(coordinator.awaitSchemaRequests(1));
 

@@ -378,20 +378,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Map<String,String> getCompressionParameters()
     {
-        return metadata.params.compression.asMap();
+        return metadata.compressionParams().asMap();
     }
 
     public void setCompressionParameters(Map<String,String> opts)
     {
         try
         {
-            metadata.compression(CompressionParams.fromMap(opts));
-            metadata.params.compression.validate();
+            CompressionParams newParams = CompressionParams.fromMap(opts);
+            newParams.validate();
+            metadata.setLocalCompressionParams(newParams);
         }
         catch (ConfigurationException e)
         {
             throw new IllegalArgumentException(e.getMessage());
         }
+    }
+
+    public void setCompressionParametersJson(String options)
+    {
+        setCompressionParameters(FBUtilities.fromJsonMap(options));
+    }
+
+    public String getCompressionParametersJson()
+    {
+        return FBUtilities.json(getCompressionParameters());
     }
 
     @VisibleForTesting
@@ -425,6 +436,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (DatabaseDescriptor.isDaemonInitialized())
             initialMemtable = new Memtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()), this);
         data = new Tracker(initialMemtable, loadSSTables);
+
+        // Note that this needs to happen before we load the first sstables, or the global sstable tracker will not
+        // be notified on the initial loading.
+        data.subscribe(StorageService.instance.sstablesTracker);
 
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
@@ -2220,6 +2235,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.info("Truncating {}.{}", keyspace.getName(), name);
 
+        viewManager.stopBuild();
+
         final long truncatedAt;
         final CommitLogPosition replayAfter;
 
@@ -2267,6 +2284,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         };
 
         runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true);
+
+        viewManager.build();
+
         logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
     }
 

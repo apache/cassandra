@@ -239,6 +239,9 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                                                         .collect(Collectors.joining(", "))));
         }
 
+        if (whereClause.containsTokenRelations())
+            throw new InvalidRequestException("Cannot use token relation when defining a materialized view");
+
         String whereClauseText = View.relationsToWhereClause(whereClause.relations);
 
         Set<ColumnIdentifier> basePrimaryKeyCols = new HashSet<>();

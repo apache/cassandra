@@ -35,6 +35,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
@@ -97,8 +98,16 @@ public class SSTableOfflineRelevel
                     keyspace,
                     columnfamily));
 
+        // remove any leftovers in the transaction log
         Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnfamily);
+        if (!LifecycleTransaction.removeUnfinishedLeftovers(cfs))
+        {
+            throw new RuntimeException(String.format("Cannot remove temporary or obsoleted files for %s.%s " +
+                                                     "due to a problem with transaction log files.",
+                                                     keyspace, columnfamily));
+        }
+
         Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
         SetMultimap<File, SSTableReader> sstableMultimap = HashMultimap.create();
         for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())

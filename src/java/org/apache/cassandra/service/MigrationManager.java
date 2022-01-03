@@ -415,16 +415,6 @@ public class MigrationManager
         announce(SchemaKeyspace.makeDropAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
-    static void announceGlobally(Mutation change)
-    {
-        announceGlobally(Collections.singletonList(change));
-    }
-
-    static void announceGlobally(Collection<Mutation> change)
-    {
-        FBUtilities.waitOnFuture(announce(change));
-    }
-
     /**
      * actively announce a new version to active hosts via rpc
      * @param schema The schema mutation to be applied
@@ -450,13 +440,7 @@ public class MigrationManager
     // Returns a future on the local application of the schema
     private static Future<?> announce(final Collection<Mutation> schema)
     {
-        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
-        {
-            protected void runMayThrow() throws ConfigurationException
-            {
-                SchemaKeyspace.mergeSchemaAndAnnounceVersion(schema);
-            }
-        });
+        Future<?> f = announceWithoutPush(schema);
 
         for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
         {
@@ -468,6 +452,17 @@ public class MigrationManager
         }
 
         return f;
+    }
+
+    public static Future<?> announceWithoutPush(Collection<Mutation> schema)
+    {
+        return StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
+        {
+            protected void runMayThrow() throws ConfigurationException
+            {
+                SchemaKeyspace.mergeSchemaAndAnnounceVersion(schema);
+            }
+        });
     }
 
     /**

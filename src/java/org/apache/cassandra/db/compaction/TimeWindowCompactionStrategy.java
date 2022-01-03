@@ -19,9 +19,11 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
@@ -59,13 +61,16 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         super(cfs, options);
         this.estimatedRemainingTasks = 0;
         this.options = new TimeWindowCompactionStrategyOptions(options);
-        if (!options.containsKey(AbstractCompactionStrategy.TOMBSTONE_COMPACTION_INTERVAL_OPTION) && !options.containsKey(AbstractCompactionStrategy.TOMBSTONE_THRESHOLD_OPTION))
+        String[] tsOpts = { UNCHECKED_TOMBSTONE_COMPACTION_OPTION, TOMBSTONE_COMPACTION_INTERVAL_OPTION, TOMBSTONE_THRESHOLD_OPTION };
+        if (Arrays.stream(tsOpts).map(o -> options.get(o)).filter(Objects::nonNull).anyMatch(v -> !v.equals("false")))
         {
-            disableTombstoneCompactions = true;
-            logger.debug("Disabling tombstone compactions for TWCS");
+            logger.debug("Enabling tombstone compactions for TWCS");
         }
         else
-            logger.debug("Enabling tombstone compactions for TWCS");
+        {
+            logger.debug("Disabling tombstone compactions for TWCS");
+            disableTombstoneCompactions = true;
+        }
     }
 
     @Override

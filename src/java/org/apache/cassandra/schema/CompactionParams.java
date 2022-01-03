@@ -18,9 +18,11 @@
 package org.apache.cassandra.schema;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
@@ -60,6 +62,13 @@ public final class CompactionParams
         NONE,
         ROW,
         CELL;
+
+        private static final TombstoneOption[] copyOfValues = values();
+
+        public static Optional<TombstoneOption> forName(String name)
+        {
+            return Arrays.stream(copyOfValues).filter(x -> x.name().equals(name)).findFirst();
+        }
     }
 
     public static final int DEFAULT_MIN_THRESHOLD = 4;
@@ -94,8 +103,16 @@ public final class CompactionParams
         boolean isEnabled = options.containsKey(Option.ENABLED.toString())
                           ? Boolean.parseBoolean(options.get(Option.ENABLED.toString()))
                           : DEFAULT_ENABLED;
-        TombstoneOption tombstoneOption = TombstoneOption.valueOf(options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
-                                                                                       DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES.toString()).toUpperCase());
+        String overlappingTombstoneParm = options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
+                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES.toString()).toUpperCase();
+        Optional<TombstoneOption> tombstoneOptional = TombstoneOption.forName(overlappingTombstoneParm);
+        if (!tombstoneOptional.isPresent())
+        {
+            throw new ConfigurationException(format("Invalid value %s for 'provide_overlapping_tombstones' compaction sub-option - must be one of the following [%s].",
+                                                    overlappingTombstoneParm,
+                                                    StringUtils.join(TombstoneOption.values(), ", ")));
+        }
+        TombstoneOption tombstoneOption = tombstoneOptional.get();
 
         Map<String, String> allOptions = new HashMap<>(options);
         if (supportsThresholdParams(klass))

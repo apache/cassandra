@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -49,11 +51,22 @@ class LeveledGenerations
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledGenerations.class);
     private final boolean strictLCSChecksTest = Boolean.getBoolean(Config.PROPERTY_PREFIX + "test.strict_lcs_checks");
-    // allocate enough generations for a PB of data, with a 1-MB sstable size.  (Note that if maxSSTableSize is
-    // updated, we will still have sstables of the older, potentially smaller size.  So don't make this
-    // dependent on maxSSTableSize.)
-    static final int MAX_LEVEL_COUNT = (int) Math.log10(1000 * 1000 * 1000);
+    // It includes L0, i.e. we support [L0 - L8] levels
+    static final int MAX_LEVEL_COUNT = 9;
 
+    /**
+     * This map is used to track the original NORMAL instances of sstables
+     *
+     * When aborting a compaction we can get notified that a MOVED_STARTS sstable is replaced with a NORMAL instance
+     * of the same sstable but since we use sorted sets (on the first token) in L1+ we won't find it and won't remove it.
+     * Then, when we add the NORMAL instance we have to replace the *instance* of the sstable to be able to later mark
+     * it compacting again.
+     *
+     * In this map we rely on the fact that hashCode and equals do not care about first token, so when we
+     * do allSSTables.get(instance_with_moved_starts) we will get the NORMAL sstable back, which we can then remove
+     * from the TreeSet.
+     */
+    private final Map<SSTableReader, SSTableReader> allSSTables = new HashMap<>();
     private final Set<SSTableReader> l0 = new HashSet<>();
     private static long lastOverlapCheck = System.nanoTime();
     // note that since l0 is broken out, levels[0] represents L1:
@@ -92,7 +105,7 @@ class LeveledGenerations
      * If adding an sstable would cause an overlap in the level (if level > 1) we send it to L0. This can happen
      * for example when moving sstables from unrepaired to repaired.
      *
-     * If the sstable is already in the manifest we skip it.
+     * If the sstable is already in the manifest we replace the instance.
      *
      * If the sstable exists in the manifest but has the wrong level, it is removed from the wrong level and added to the correct one
      *
@@ -112,15 +125,16 @@ class LeveledGenerations
                     logger.error("SSTable {} on the wrong level in the manifest - {} instead of {} as recorded in the sstable metadata, removing from level {}", sstable, existingLevel, sstable.getSSTableLevel(), existingLevel);
                     if (strictLCSChecksTest)
                         throw new AssertionError("SSTable not in matching level in manifest: "+sstable + ": "+existingLevel+" != " + sstable.getSSTableLevel());
-                    get(existingLevel).remove(sstable);
                 }
                 else
                 {
-                    logger.info("Manifest already contains {} in level {} - skipping", sstable, existingLevel);
-                    continue;
+                    logger.info("Manifest already contains {} in level {} - replacing instance", sstable, existingLevel);
                 }
+                get(existingLevel).remove(sstable);
+                allSSTables.remove(sstable);
             }
 
+            allSSTables.put(sstable, sstable);
             if (sstable.getSSTableLevel() == 0)
             {
                 l0.add(sstable);
@@ -197,7 +211,12 @@ class LeveledGenerations
         {
             int level = sstable.getSSTableLevel();
             minLevel = Math.min(minLevel, level);
-            get(level).remove(sstable);
+            SSTableReader versionInManifest = allSSTables.get(sstable);
+            if (versionInManifest != null)
+            {
+                get(level).remove(versionInManifest);
+                allSSTables.remove(versionInManifest);
+            }
         }
         return minLevel;
     }

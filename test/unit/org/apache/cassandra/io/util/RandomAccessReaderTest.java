@@ -498,4 +498,81 @@ public class RandomAccessReaderTest
             }
         }
     }
+
+    @Test
+    public void testSkipBytesLessThanBufferSize() throws IOException
+    {
+        testSkipBytes(new Parameters(8192, 1024), 1);
+    }
+
+    @Test
+    public void testSkipBytesGreaterThanBufferSize() throws IOException
+    {
+        int bufferSize = 16;
+        Parameters params = new Parameters(8192, bufferSize);
+        int numberOfExpectationsInBufferSize = bufferSize / params.expected.length;
+        testSkipBytes(params, numberOfExpectationsInBufferSize + 1);
+    }
+
+    public void testSkipBytesNonPositive() throws IOException
+    {
+        Parameters params = new Parameters(8192, 4096);
+        final File f = writeFile(params);
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+                                                     .bufferType(params.bufferType).bufferSize(params.bufferSize))
+        {
+            builder.mmapped(params.mmappedRegions);
+            try (FileHandle fh = builder.complete();
+                 RandomAccessReader reader = fh.createReader())
+            {
+                assertEquals(0, reader.skipBytes(0));
+                assertEquals(0, reader.skipBytes(-1));
+            }
+        }
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testSkipBytesClosed() throws IOException
+    {
+        Parameters params = new Parameters(8192, 4096);
+        final File f = writeFile(params);
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+                                                     .bufferType(params.bufferType).bufferSize(params.bufferSize))
+        {
+            try (FileHandle fh = builder.complete();
+                 RandomAccessReader reader = fh.createReader())
+            {
+                reader.close();
+                reader.skipBytes(31415);
+            }
+        }
+    }
+
+    private static void testSkipBytes(Parameters params, int expectationMultiples) throws IOException
+    {
+        final File f = writeFile(params);
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
+                                                     .bufferType(params.bufferType).bufferSize(params.bufferSize))
+        {
+            builder.mmapped(params.mmappedRegions);
+            try (FileHandle fh = builder.complete();
+                 RandomAccessReader reader = fh.createReader())
+            {
+                int toSkip = expectationMultiples * params.expected.length;
+                byte[] b = new byte[params.expected.length];
+                long numRead = 0;
+
+                while (numRead < params.fileLength)
+                {
+                    reader.readFully(b);
+                    assertTrue(Arrays.equals(params.expected, b));
+                    numRead += b.length;
+                    int skipped = reader.skipBytes(toSkip);
+                    long expectedSkipped = Math.max(Math.min(toSkip, params.fileLength - numRead), 0);
+                    assertEquals(expectedSkipped, skipped);
+                    numRead += skipped;
+                }
+            }
+        }
+    }
 }
