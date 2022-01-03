@@ -111,7 +111,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         if (storageConfigURL == null)
             storageConfigURL = getStorageConfigURL();
 
-        isConfigFileValid();
+        validateConfigFile();
         return loadConfig(storageConfigURL);
     }
 
@@ -162,7 +162,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return content;
     }
 
-    private static void isConfigFileValid()
+    private static void validateConfigFile()
     {
         String content = YamlConfigurationLoader.readStorageConfig(storageConfigURL);
 
@@ -296,7 +296,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     @Override
                     public void set(Object o, Object o1) throws Exception
                     {
-                        Object migratedValue = replacement.converter.apply(o1);
+                        Object migratedValue = replacement.converter.convert(o1);
                         newProperty.set(o, migratedValue);
                     }
 
@@ -318,7 +318,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                         return null;
                     }
                 };
-
+                
                 if (replacement.deprecated)
                     deprecationWarnings.add(replacement.oldName);
             }

@@ -116,9 +116,14 @@ final class SettingsTable extends AbstractVirtualTable
                 value = Arrays.toString((Object[]) value);
             result.row(f.getName()).column(VALUE, value.toString());
 
-            if(ANNOTATED_FIELDS.containsKey(f.getName()))
-                result.row(f.getAnnotation(Replaces.class).oldName())
-                      .column(VALUE, f.getAnnotation(Replaces.class).converter().reverseApply(value).toString());
+            if (ANNOTATED_FIELDS.containsKey(f.getName()))
+            {
+                Replaces annotation = f.getAnnotation(Replaces.class);
+                result.row(annotation.oldName())
+                      .column(VALUE, annotation.converter()
+                                               .deconvert(value)
+                                               .toString());
+            }
         }
     }
 

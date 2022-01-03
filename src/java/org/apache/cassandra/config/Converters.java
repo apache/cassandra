@@ -71,8 +71,8 @@ public enum Converters
      * inter_dc_stream_throughput_outbound which were provided in megatibs per second prior CASSANDRA-15234.
      */
     MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Long.class,
-                                          o -> DataRateSpec.megabitsPerSecondInMebibytesPerSecond((Long)o),
-                                          o -> ((DataRateSpec)o).toMegabitsPerSecond());
+                                               o -> DataRateSpec.megabitsPerSecondInMebibytesPerSecond((Long)o),
+                                               o -> ((DataRateSpec)o).toMegabitsPerSecond());
 
     private final Class<?> inputType;
     private final Function<Object, Object> convert;
@@ -88,6 +88,7 @@ public enum Converters
     /**
      * A method to identify what type is needed to be returned by the converter used for a configuration parameter
      * in {@link Replaces} annotation in {@link Config}
+     *
      * @return class type
      */
     public Class<?> getInputType()
@@ -97,11 +98,12 @@ public enum Converters
 
     /**
      * Apply the converter specified as part of the {@link Replaces} annotation in {@link Config}
+     *
      * @param value we will use from cassandra.yaml to create a new {@link Config} parameter of type {@link DurationSpec},
      * {@link DataRateSpec} or {@link DataStorageSpec}
      * @return new object of type {@link DurationSpec}, {@link DataRateSpec} or {@link DataStorageSpec}
      */
-    public Object apply(Object value)
+    public Object convert(Object value)
     {
         if (value == null) return null;
         return convert.apply(value);
@@ -111,10 +113,11 @@ public enum Converters
      * Apply the converter specified as part of the {@link Replaces} annotation in {@link Config} to get config parameters'
      * values in the old format pre-CASSANDRA-15234 and in the right units, used in the Virtual Tables to ensure backward
      * compatibility
+     *
      * @param value we will use to calculate the output value
      * @return the numeric value
      */
-    public Object reverseApply(Object value)
+    public Object deconvert(Object value)
     {
         if (value == null) return 0;
         return reverseConvert.apply(value);
