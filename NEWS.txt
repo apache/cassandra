@@ -56,6 +56,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Expose all client options via system_views.clients and nodetool clientstats.
     - Support for String concatenation has been added through the + operator.
     - New configuration max_hints_size_per_host to limit the size of local hints files per host in mebibytes. Setting to
       non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure

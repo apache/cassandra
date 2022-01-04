@@ -110,6 +110,7 @@ public class StartupMessage extends Message.Request
         connection.setThrowOnOverload("1".equals(options.get(THROW_ON_OVERLOAD)));
 
         ClientState clientState = state.getClientState();
+        clientState.setClientOptions(options);
         String driverName = options.get(DRIVER_NAME);
         if (null != driverName)
         {
