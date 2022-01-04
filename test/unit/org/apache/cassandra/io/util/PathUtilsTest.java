@@ -18,16 +18,26 @@
 
 package org.apache.cassandra.io.util;
 
+import java.io.IOException;
+import java.nio.file.FileSystem;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.List;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.io.FSWriteError;
+import org.mockito.Mockito;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 public class PathUtilsTest
 {
@@ -64,6 +74,49 @@ public class PathUtilsTest
         PathUtils.deleteContent(testDir.toPath());
         assertTrue(testDir.exists());
         assertTrue(PathUtils.listPaths(testDir.toPath()).isEmpty());
+    }
+
+    @Test
+    public void testDeleteQuietlyIgnoresIOExceptions() throws IOException
+    {
+        Path deletedPath = Mockito.mock(Path.class);
+        FileSystem fs = Mockito.mock(FileSystem.class);
+        FileSystemProvider fsp = Mockito.mock(FileSystemProvider.class);
+        BasicFileAttributes attributes = Mockito.mock(BasicFileAttributes.class);
+
+        Mockito.when(deletedPath.getFileSystem()).thenReturn(fs);
+        Mockito.when(fs.provider()).thenReturn(fsp);
+        Mockito.when(fsp.readAttributes(eq(deletedPath), eq(BasicFileAttributes.class), any())).thenReturn(attributes);
+        Mockito.when(attributes.isDirectory()).thenReturn(false);
+        Mockito.doThrow(new IOException("mock exception")).when(fsp).delete(deletedPath);
+
+        assertThrows(FSWriteError.class, () -> PathUtils.deleteRecursive(deletedPath));
+        PathUtils.deleteQuietly(deletedPath);
+    }
+
+    @Test
+    public void testDeleteQuietlyIsRecursive()
+    {
+        File testDir = classTestDir.resolve("testDeleteQuietlyIsRecursive");
+        assertTrue(PathUtils.createDirectoryIfNotExists(testDir.toPath()));
+
+        File file1 = testDir.resolve("file1");
+        assertTrue(PathUtils.createFileIfNotExists(file1.toPath()));
+
+        File subdir = testDir.resolve("subdir");
+        assertTrue(PathUtils.createDirectoryIfNotExists(subdir.toPath()));
+
+        File subdir_file2 = subdir.resolve("file2");
+        assertTrue(PathUtils.createFileIfNotExists(subdir_file2.toPath()));
+
+        List<Path> testDirContents = PathUtils.listPaths(testDir.toPath());
+        assertEquals(2, testDirContents.size());
+        assertTrue(testDirContents.contains(file1.toPath()));
+        assertTrue(testDirContents.contains(subdir.toPath()));
+
+        PathUtils.deleteQuietly(testDir.toPath());
+        assertTrue(PathUtils.listPaths(testDir.toPath()).isEmpty());
+        assertFalse(testDir.exists());
     }
 
     @Test
