@@ -18,9 +18,11 @@
 package org.apache.cassandra.transport;
 
 import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.handler.ssl.SslHandler;
@@ -32,6 +34,7 @@ public final class ConnectedClient
     public static final String ADDRESS = "address";
     public static final String USER = "user";
     public static final String VERSION = "version";
+    public static final String CLIENT_OPTIONS = "clientOptions";
     public static final String DRIVER_NAME = "driverName";
     public static final String DRIVER_VERSION = "driverVersion";
     public static final String REQUESTS = "requests";
@@ -83,6 +86,11 @@ public final class ConnectedClient
         return state().getDriverVersion();
     }
 
+    public Optional<Map<String,String>> clientOptions()
+    {
+        return state().getClientOptions();
+    }
+
     public long requestCount()
     {
         return connection.requests.getCount();
@@ -132,6 +140,9 @@ public final class ConnectedClient
                            .put(ADDRESS, remoteAddress().toString())
                            .put(USER, username().orElse(UNDEFINED))
                            .put(VERSION, String.valueOf(protocolVersion()))
+                           .put(CLIENT_OPTIONS, Joiner.on(", ")
+                                                      .withKeyValueSeparator("=")
+                                                      .join(clientOptions().orElse(Collections.emptyMap())))
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
