@@ -1,4 +1,5 @@
 4.0.2
+ * Deduplicate warnings for deprecated parameters (changed names) (CASSANDRA-17160)
  * Update ant-junit to version 1.10.12 (CASSANDRA-17218)
  * Add droppable tombstone metrics to nodetool tablestats (CASSANDRA-16308)
  * Fix disk failure triggered when enabling FQL on an unclean directory (CASSANDRA-17136)
