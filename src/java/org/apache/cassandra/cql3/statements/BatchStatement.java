@@ -31,6 +31,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -409,6 +410,9 @@ public class BatchStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty consistency level");
         if (options.getSerialConsistency() == null)
             throw new InvalidRequestException("Invalid empty serial consistency level");
+
+        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                queryState.getClientState());
 
         if (hasConditions)
             return executeWithConditions(options, queryState, queryStartNanoTime);

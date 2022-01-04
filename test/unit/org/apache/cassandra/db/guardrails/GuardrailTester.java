@@ -22,11 +22,15 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -37,13 +41,16 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.Clock;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
@@ -103,6 +110,12 @@ public abstract class GuardrailTester extends CQLTester
     protected <T> void assertValidProperty(BiConsumer<Guardrails, T> setter, T value)
     {
         setter.accept(guardrails(), value);
+    }
+
+    protected <T> void assertValidProperty(BiConsumer<Guardrails, T> setter, Function<Guardrails, T> getter, T value)
+    {
+        setter.accept(guardrails(), value);
+        assertEquals(value, getter.apply(guardrails()));
     }
 
     protected <T> void assertInvalidProperty(BiConsumer<Guardrails, T> setter,
@@ -222,6 +235,23 @@ public abstract class GuardrailTester extends CQLTester
         assertFails(() -> execute(userClientState, query), messages);
     }
 
+    protected void assertThrows(CheckedFunction function, Class<? extends Throwable> exception, String message)
+    {
+        try
+        {
+            function.apply();
+            fail("Expected to fail, but it did not");
+        }
+        catch (Throwable e)
+        {
+            if (!exception.isAssignableFrom(e.getClass()))
+                Assert.fail(format("Expected to fail with %s but got %s", exception.getName(), e.getClass().getName()));
+
+            assertTrue(format("Error message '%s' does not contain expected message '%s'", e.getMessage(), message),
+                       e.getMessage().contains(message));
+        }
+    }
+
     private void assertWarnings(String... messages)
     {
         List<String> warnings = getWarnings();
@@ -283,14 +313,43 @@ public abstract class GuardrailTester extends CQLTester
 
     protected ResultMessage execute(ClientState state, String query, List<ByteBuffer> values)
     {
+        QueryOptions options = QueryOptions.forInternalCalls(values);
+
+        return execute(state, query, options);
+    }
+
+    protected ResultMessage execute(ClientState state, String query, ConsistencyLevel cl)
+    {
+        return execute(state, query, cl, null);
+    }
+
+    protected ResultMessage execute(ClientState state, String query, ConsistencyLevel cl, ConsistencyLevel serialCl)
+    {
+        QueryOptions options = QueryOptions.create(cl,
+                                                   Collections.emptyList(),
+                                                   false,
+                                                   10,
+                                                   null,
+                                                   serialCl,
+                                                   ProtocolVersion.CURRENT,
+                                                   KEYSPACE);
+
+        return execute(state, query, options);
+    }
+
+    protected ResultMessage execute(ClientState state, String query, QueryOptions options)
+    {
         QueryState queryState = new QueryState(state);
 
         String formattedQuery = formatQuery(query);
         CQLStatement statement = QueryProcessor.parseStatement(formattedQuery, queryState.getClientState());
         statement.validate(state);
 
-        QueryOptions options = QueryOptions.forInternalCalls(values);
+        return statement.execute(queryState, options, Clock.Global.nanoTime());
+    }
 
-        return statement.executeLocally(queryState, options);
+    protected static String sortCSV(String csv)
+    {
+        return String.join(",", (new TreeSet<>(ImmutableSet.copyOf((csv.split(","))))));
     }
 }

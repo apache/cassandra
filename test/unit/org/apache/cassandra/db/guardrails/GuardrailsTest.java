@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -155,67 +157,30 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
-    public void testDisallowedValues() throws Throwable
+    public void testValuesWarned() throws Throwable
     {
-        // Using a sorted set below to ensure the order in the error message checked below are not random
-        Values<Integer> disallowed = new Values<>(state -> Collections.emptySet(),
-                                                  state -> insertionOrderedSet(4, 6, 20),
-                                                  "integer");
+        // Using a sorted set below to ensure the order in the warning message checked below is not random
+        Values<Integer> warned = new Values<>(state -> insertionOrderedSet(4, 6, 20),
+                                              state -> Collections.emptySet(),
+                                              state -> Collections.emptySet(),
+                                              "integer");
 
         Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
-        assertValid(() -> disallowed.guard(set(3), action, userClientState));
-        assertFails(() -> disallowed.guard(set(4), action, userClientState),
-                    "Provided values [4] are not allowed for integer (disallowed values are: [4, 6, 20])");
-        assertValid(() -> disallowed.guard(set(10), action, userClientState));
-        assertFails(() -> disallowed.guard(set(20), action, userClientState),
-                    "Provided values [20] are not allowed for integer (disallowed values are: [4, 6, 20])");
-        assertValid(() -> disallowed.guard(set(200), action, userClientState));
-        assertValid(() -> disallowed.guard(set(1, 2, 3), action, userClientState));
-
-        assertFails(() -> disallowed.guard(set(4, 6), action, null),
-                    "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
-        assertFails(() -> disallowed.guard(set(4, 5, 6, 7), action, null),
-                    "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertValid(() -> warned.guard(set(3), action, userClientState));
+        assertWarns(() -> warned.guard(set(4), action, userClientState),
+                    "Provided values [4] are not recommended for integer (warned values are: [4, 6, 20])");
+        assertWarns(() -> warned.guard(set(4, 6), action, null),
+                    "Provided values [4, 6] are not recommended for integer (warned values are: [4, 6, 20])");
+        assertWarns(() -> warned.guard(set(4, 5, 6, 7), action, null),
+                    "Provided values [4, 6] are not recommended for integer (warned values are: [4, 6, 20])");
     }
 
     @Test
-    public void testDisallowedValuesUsers() throws Throwable
-    {
-        Values<Integer> disallowed = new Values<>(state -> Collections.emptySet(),
-                                                  state -> Collections.singleton(2),
-                                                  "integer");
-
-        Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
-        assertValid(() -> disallowed.guard(set(1), action, null));
-        assertValid(() -> disallowed.guard(set(1), action, userClientState));
-        assertValid(() -> disallowed.guard(set(1), action, systemClientState));
-        assertValid(() -> disallowed.guard(set(1), action, superClientState));
-
-        String message = "Provided values [2] are not allowed for integer (disallowed values are: [2])";
-        assertFails(() -> disallowed.guard(set(2), action, null), message);
-        assertFails(() -> disallowed.guard(set(2), action, userClientState), message);
-        assertValid(() -> disallowed.guard(set(2), action, systemClientState));
-        assertValid(() -> disallowed.guard(set(2), action, superClientState));
-
-        Set<Integer> allowedValues = set(1);
-        assertValid(() -> disallowed.guard(allowedValues, action, null));
-        assertValid(() -> disallowed.guard(allowedValues, action, userClientState));
-        assertValid(() -> disallowed.guard(allowedValues, action, systemClientState));
-        assertValid(() -> disallowed.guard(allowedValues, action, superClientState));
-
-        Set<Integer> disallowedValues = set(2);
-        message = "Provided values [2] are not allowed for integer (disallowed values are: [2])";
-        assertFails(() -> disallowed.guard(disallowedValues, action, null), message);
-        assertFails(() -> disallowed.guard(disallowedValues, action, userClientState), message);
-        assertValid(() -> disallowed.guard(disallowedValues, action, systemClientState));
-        assertValid(() -> disallowed.guard(disallowedValues, action, superClientState));
-    }
-
-    @Test
-    public void testIgnoredValues() throws Throwable
+    public void testValuesIgnored() throws Throwable
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
-        Values<Integer> ignored = new Values<>(state -> insertionOrderedSet(4, 6, 20),
+        Values<Integer> ignored = new Values<>(state -> Collections.emptySet(),
+                                               state -> insertionOrderedSet(4, 6, 20),
                                                state -> Collections.emptySet(),
                                                "integer");
 
@@ -237,6 +202,71 @@ public class GuardrailsTest extends GuardrailTester
                     "Ignoring provided values [4, 6] as they are not supported for integer (ignored values are: [4, 6, 20])");
         assertEquals(set(4, 6), triggeredOn);
         triggeredOn.clear();
+
+        assertThrows(() -> ignored.guard(set(4), userClientState),
+                     AssertionError.class,
+                     "There isn't an ignore action for integer, but value 4 is setup to be ignored");
+    }
+
+    @Test
+    public void testValuesDisallowed() throws Throwable
+    {
+        // Using a sorted set below to ensure the order in the error message checked below are not random
+        Values<Integer> disallowed = new Values<>(state -> Collections.emptySet(),
+                                                  state -> Collections.emptySet(),
+                                                  state -> insertionOrderedSet(4, 6, 20),
+                                                  "integer");
+
+        Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
+        assertValid(() -> disallowed.guard(set(3), action, userClientState));
+        assertFails(() -> disallowed.guard(set(4), action, userClientState),
+                    "Provided values [4] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertValid(() -> disallowed.guard(set(10), action, userClientState));
+        assertFails(() -> disallowed.guard(set(20), action, userClientState),
+                    "Provided values [20] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertValid(() -> disallowed.guard(set(200), action, userClientState));
+        assertValid(() -> disallowed.guard(set(1, 2, 3), action, userClientState));
+
+        assertFails(() -> disallowed.guard(set(4, 6), action, null),
+                    "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertFails(() -> disallowed.guard(set(4, 5, 6, 7), action, null),
+                    "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
+    }
+
+    @Test
+    public void testValuesUsers() throws Throwable
+    {
+        Values<Integer> disallowed = new Values<>(state -> Collections.singleton(2),
+                                                  state -> Collections.singleton(3),
+                                                  state -> Collections.singleton(4),
+                                                  "integer");
+
+        Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
+
+        assertValid(() -> disallowed.guard(set(1), action, null));
+        assertValid(() -> disallowed.guard(set(1), action, userClientState));
+        assertValid(() -> disallowed.guard(set(1), action, systemClientState));
+        assertValid(() -> disallowed.guard(set(1), action, superClientState));
+
+        String message = "Provided values [2] are not recommended for integer (warned values are: [2])";
+        assertWarns(() -> disallowed.guard(set(2), action, null), message);
+        assertWarns(() -> disallowed.guard(set(2), action, userClientState), message);
+        assertValid(() -> disallowed.guard(set(2), action, systemClientState));
+        assertValid(() -> disallowed.guard(set(2), action, superClientState));
+
+        message = "Ignoring provided values [3] as they are not supported for integer (ignored values are: [3])";
+        List<Integer> triggeredOn = new ArrayList<>();
+        assertWarns(() -> disallowed.guard(set(3), triggeredOn::add, null), message);
+        assertWarns(() -> disallowed.guard(set(3), triggeredOn::add, userClientState), message);
+        assertValid(() -> disallowed.guard(set(3), triggeredOn::add, systemClientState));
+        assertValid(() -> disallowed.guard(set(3), triggeredOn::add, superClientState));
+        Assert.assertEquals(list(3, 3), triggeredOn);
+
+        message = "Provided values [4] are not allowed for integer (disallowed values are: [4])";
+        assertFails(() -> disallowed.guard(set(4), action, null), message);
+        assertFails(() -> disallowed.guard(set(4), action, userClientState), message);
+        assertValid(() -> disallowed.guard(set(4), action, systemClientState));
+        assertValid(() -> disallowed.guard(set(4), action, superClientState));
     }
 
     private static Set<Integer> set(Integer value)
