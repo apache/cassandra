@@ -313,6 +313,20 @@ public final class PathUtils
     }
 
     /**
+     * Deletes all files and subdirectories under "path",
+     * ignoring IOExceptions along the way.
+     * @param path file to be deleted
+     */
+    public static void deleteQuietly(Path path)
+    {
+        if (isDirectory(path))
+            forEach(path, PathUtils::deleteQuietly);
+
+        // The directory is now empty so now it can be smoked
+        tryDelete(path);
+    }
+
+    /**
      * Deletes all files and subdirectories under "path".
      * @param path file to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
