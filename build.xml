@@ -420,13 +420,14 @@
         </wikitext-to-html>
     </target>
 
-    <target name="gen-doc" description="Generate documentation" depends="jar" unless="ant.gen-doc.skip">
+    <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}">
-            <arg value="html"/>
+            <arg value="gen-asciidoc"/>
         </exec>
-        <exec executable="cmd" osfamily="dos" dir="${doc.dir}">
-            <arg value="/c"/>
-            <arg value="make.bat"/>
+    </target>
+
+    <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}">
             <arg value="html"/>
         </exec>
     </target>

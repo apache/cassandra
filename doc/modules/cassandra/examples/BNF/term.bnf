@@ -1,0 +1,6 @@
+term::= constant | literal | function_call | arithmetic_operation | type_hint | bind_marker
+literal::= collection_literal | udt_literal | tuple_literal
+function_call::= identifier '(' [ term (',' term)* ] ')'
+arithmetic_operation::= '-' term | term ('+' | '-' | '*' | '/' | '%') term
+type_hint::= '(' cql_type ')' term
+bind_marker::= '?' | ':' identifier

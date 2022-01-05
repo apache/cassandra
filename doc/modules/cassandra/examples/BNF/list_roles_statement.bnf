@@ -1,0 +1,1 @@
+list_roles_statement ::= LIST ROLES [ OF role_name] [ NORECURSIVE ]
