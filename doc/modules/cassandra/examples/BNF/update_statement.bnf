@@ -1,0 +1,13 @@
+update_statement ::=    UPDATE table_name
+                        [ USING update_parameter ( AND update_parameter )* ]
+                        SET assignment( ',' assignment )*
+                        WHERE where_clause
+                        [ IF ( EXISTS | condition ( AND condition)*) ]
+update_parameter ::= ( TIMESTAMP | TTL ) ( integer | bind_marker )
+assignment: simple_selection'=' term
+                `| column_name'=' column_name ( '+' | '-' ) term
+                | column_name'=' list_literal'+' column_name
+simple_selection ::= column_name
+                        | column_name '[' term']'
+                        | column_name'.' field_name
+condition ::= `simple_selection operator term

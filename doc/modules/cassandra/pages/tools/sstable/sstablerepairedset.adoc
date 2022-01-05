@@ -1,0 +1,83 @@
+= sstablerepairedset
+
+Repairs can take a very long time in some environments, for large sizes
+of data. Use this tool to set the repairedAt status on a given set of
+sstables, so that repairs can be run on only un-repaired sstables if
+desired.
+
+Note that running a repair (e.g., via nodetool repair) doesn't set the
+status of this metadata. Only setting the status of this metadata via
+this tool does.
+
+ref: https://issues.apache.org/jira/browse/CASSANDRA-5351
+
+Cassandra must be stopped before this tool is executed, or unexpected
+results will occur. Note: the script does not verify that Cassandra is
+stopped.
+
+== Usage
+
+sstablerepairedset --really-set <options> [-f <sstable-list> |
+<sstables>]
+
+[cols=",",]
+|===
+|--really-set |required if you want to really set the status
+|--is-repaired |set the repairedAt status to the last modified time
+|--is-unrepaired |set the repairedAt status to 0
+|-f |use a file containing a list of sstables as the input
+|===
+
+== Set a lot of sstables to unrepaired status
+
+There are many ways to do this programmatically. This way would likely
+include variables for the keyspace and table.
+
+Example:
+
+....
+find /var/lib/cassandra/data/keyspace1/standard1-d936bd20a17c11e8bc92a55ed562cd82/* -name "*Data.db" -print0 | xargs -0 -I % sstablerepairedset --really-set --is-unrepaired %
+....
+
+== Set one to many sstables to repaired status
+
+Set the repairedAt status after a repair to mark the sstables as
+repaired. Again, using variables for the keyspace and table names is a
+good choice.
+
+Example:
+
+....
+nodetool repair keyspace1 standard1
+find /var/lib/cassandra/data/keyspace1/standard1-d936bd20a17c11e8bc92a55ed562cd82/* -name "*Data.db" -print0 | xargs -0 -I % sstablerepairedset --really-set --is-repaired %
+....
+
+== Print metadata showing repaired status
+
+sstablemetadata can be used to view the status set or unset using this
+command.
+
+Example:
+
+____
+sstablerepairedset --really-set --is-repaired
+/var/lib/cassandra/data/keyspace1/standard1-d936bd20a17c11e8bc92a55ed562cd82/mc-1-big-Data.db
+sstablemetadata
+/var/lib/cassandra/data/keyspace1/standard1-d936bd20a17c11e8bc92a55ed562cd82/mc-1-big-Data.db
+| grep "Repaired at" Repaired at: 1534443974000
+
+sstablerepairedset --really-set --is-unrepaired
+/var/lib/cassandra/data/keyspace1/standard1-d936bd20a17c11e8bc92a55ed562cd82/mc-1-big-Data.db
+sstablemetadata
+/var/lib/cassandra/data/keyspace1/standard1-d936bd20a17c11e8bc92a55ed562cd82/mc-1-big-Data.db
+| grep "Repaired at" Repaired at: 0
+____
+
+== Using command in a script
+
+If you know you ran repair 2 weeks ago, you can do something like the
+following:
+
+....
+sstablerepairset --is-repaired -f <(find /var/lib/cassandra/data/.../ -iname "*Data.db*" -mtime +14)
+....

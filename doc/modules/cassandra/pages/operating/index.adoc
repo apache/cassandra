@@ -1,0 +1,15 @@
+== Operating Cassandra
+
+* xref:operating/hardware.adoc[Hardware]
+* xref:operating/security.adoc[Security]
+* xref:operating/topo_changes.adoc[Topology changes]
+* xref:operating/hints.adoc[Hints]
+* xref:operating/repair.adoc[Repair]
+* xref:operating/read_repair.adoc[Read repair]
+* xref:operating/backups.adoc[Backups]
+* xref:operating/compression.adoc[Compression]
+* xref:operating/compaction/index.adoc[Compaction]
+* xref:operating/metrics.adoc[Monitoring]
+* xref:operating/bulk_loading.adoc[Bulk loading]
+* xref:operating/cdc.adoc[CDC]
+* xref:operating/bloom_filters.adoc[Bloom filters]

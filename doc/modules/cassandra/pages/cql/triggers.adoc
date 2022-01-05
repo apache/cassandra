@@ -1,0 +1,50 @@
+= Triggers
+
+Triggers are identified with a name defined by:
+
+[source,bnf]
+----
+include::example$BNF/trigger_name.bnf[]
+----
+
+[[create-trigger-statement]]
+== CREATE TRIGGER
+
+Creating a new trigger uses the `CREATE TRIGGER` statement:
+
+[source,bnf]
+----
+include::example$BNF/create_trigger_statement.bnf[]
+----
+
+For instance:
+
+[source,cql]
+----
+include::example$CQL/create_trigger.cql[]
+----
+
+The actual logic that makes up the trigger can be written in any Java
+(JVM) language and exists outside the database. You place the trigger
+code in a `lib/triggers` subdirectory of the Cassandra installation
+directory, it loads during cluster startup, and exists on every node
+that participates in a cluster. The trigger defined on a table fires
+before a requested DML statement occurs, which ensures the atomicity of
+the transaction.
+
+[[drop-trigger-statement]]
+== DROP TRIGGER
+
+Dropping a trigger uses the `DROP TRIGGER` statement:
+
+[source,bnf]
+----
+include::example$BNF/drop_trigger_statement.bnf[]
+----
+
+For instance:
+
+[source,cql]
+----
+include::example$CQL/drop_trigger.cql[]
+----

@@ -1,0 +1,23 @@
+[arabic, start=1]
+. Verify the version of Java installed. For example:
+
+[{tabs}]
+====
+Command::
++
+--
+[source,shell]
+----
+include::example$BASH/java_verify.sh[]
+----
+--
+
+Result::
++
+--
+[source,plaintext]
+----
+include::example$RESULTS/java_verify.result[]
+----
+--
+====

@@ -1,0 +1,5 @@
+batch_statement ::=     BEGIN [ UNLOGGED | COUNTER ] BATCH
+                        [ USING update_parameter( AND update_parameter)* ]
+                        modification_statement ( ';' modification_statement )*
+                        APPLY BATCH
+modification_statement ::= insert_statement | update_statement | delete_statement
