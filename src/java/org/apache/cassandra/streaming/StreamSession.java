@@ -873,24 +873,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         else // follower
         {
-            channel.sendControlMessage(new CompleteMessage());
-            state(State.COMPLETE); // mark complete early
-            // If we send the COMPLETE message then close the channels, the initiator may see the channel close
-            // events before the COMPLETE message (we have multiple channels open, so can't rely on TCP ordering),
-            // causing the initiator to fail; to work around this issue, attempt to delay closing, this does not fix
-            // the root cause, but makes this error less likely.
-            // see CASSANDRA-17116
-            int timeoutMs = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
-            if (timeoutMs > 0)
-            {
-                logger.info("[Stream #{}] Closing session async ({} {}) with state = COMPLETE", planId(), timeoutMs, TimeUnit.MILLISECONDS);
-                ScheduledExecutors.scheduledFastTasks.schedule(() -> closeSession(State.COMPLETE), timeoutMs, TimeUnit.MILLISECONDS);
-            }
-            else
-            {
-                logger.info("[Stream #{}] Closing session immedialty with state = COMPLETE", planId());
-                closeSession(State.COMPLETE);
-            }
+            Future<?> messageFuture = channel.sendControlMessage(new CompleteMessage());
+            messageFuture.addListener(f -> closeSession(State.COMPLETE));
         }
 
         return true;
