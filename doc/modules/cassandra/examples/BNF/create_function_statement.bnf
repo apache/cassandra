@@ -1,0 +1,6 @@
+create_function_statement::= CREATE [ OR REPLACE ] FUNCTION [ IF NOT EXISTS] 
+	function_name '(' arguments_declaration ')' 
+	[ CALLED | RETURNS NULL ] ON NULL INPUT 
+	RETURNS cql_type 
+	LANGUAGE identifier 
+	AS string arguments_declaration: identifier cql_type ( ',' identifier cql_type )*

@@ -1,0 +1,1 @@
+drop_keyspace_statement::= DROP KEYSPACE [ IF EXISTS ] keyspace_name

@@ -1,0 +1,2 @@
+drop_function_statement::= DROP FUNCTION [ IF EXISTS ] function_name [ '(' arguments_signature ')' ] 
+arguments_signature::= cql_type ( ',' cql_type )*
