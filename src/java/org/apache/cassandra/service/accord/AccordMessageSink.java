@@ -40,9 +40,9 @@ import org.apache.cassandra.net.Verb;
 
 import static org.apache.cassandra.service.accord.EndpointMapping.getEndpoint;
 
-public class CassandraMessageSink implements MessageSink
+public class AccordMessageSink implements MessageSink
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraMessageSink.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordMessageSink.class);
 
     private static class VerbMapping
     {

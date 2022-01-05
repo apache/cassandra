@@ -28,13 +28,13 @@ import accord.topology.Topology;
 /**
  * Currently a stubbed out config service meant to be triggered from a dtest
  */
-public class CassandraConfigurationService implements ConfigurationService
+public class AccordConfigurationService implements ConfigurationService
 {
     private final Node.Id localId;
     private final List<Listener> listeners = new ArrayList<>();
     private final List<Topology> epochs = new ArrayList<>();
 
-    public CassandraConfigurationService(Node.Id localId)
+    public AccordConfigurationService(Node.Id localId)
     {
         this.localId = localId;
         epochs.add(Topology.EMPTY);

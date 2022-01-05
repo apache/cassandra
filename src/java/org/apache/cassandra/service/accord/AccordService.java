@@ -35,16 +35,16 @@ public class AccordService
     public static final AccordService instance = new AccordService();
 
     public final Node node;
-    private final CassandraMessageSink messageSink;
-    public final CassandraConfigurationService configService;
+    private final AccordMessageSink messageSink;
+    public final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
     private final AccordVerbHandler verbHandler;
 
     private AccordService()
     {
         Node.Id localId = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
-        this.messageSink = new CassandraMessageSink();
-        this.configService = new CassandraConfigurationService(localId);
+        this.messageSink = new AccordMessageSink();
+        this.configService = new AccordConfigurationService(localId);
         this.scheduler = new AccordScheduler();
         this.node = new Node(localId,
                              messageSink,
