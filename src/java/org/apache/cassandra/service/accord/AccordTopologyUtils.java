@@ -73,8 +73,10 @@ public class AccordTopologyUtils
             if (range.isWrapAround())
             {
                 Preconditions.checkArgument(finalRange == null);
-                // FIXME: this will exclude the min token with the current range logic, fix that
+                // FIXME: this will exclude the min token with the current range logic,
+                //  with a set of unwrapped token ranges, the minimum token is actually owned by the highest rang (x, minToken]
                 ranges.add(new Range<>(partitioner.getMinimumToken(), range.right));
+                // FIXME: max token isn't supported by all partitioners
                 finalRange = new Range<>(range.left, partitioner.getMaximumToken());
             }
             else
@@ -128,7 +130,6 @@ public class AccordTopologyUtils
             shards.addAll(createShards(tableMetadata, tokenMetadata));
         }
 
-        // FIXME: this is creating a huge request scope (1532 bytes), figure out why it's so big
         return new Topology(epoch, shards.toArray(Shard[]::new));
     }
 }

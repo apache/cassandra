@@ -34,6 +34,13 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
 
+/*
+ * TODO: the ByteOrderedPartitioner, and OrderPreservingPartitioner, do not support the split and getMaximumToken methods
+ *  which accord relies on for internal range sharding, and topology range unwrapping, respectively. This may be fine
+ *  for a v1, but will make testing slightly inconvenient, since they use BOP by default.
+ *  We could address split in accord core by sharding on the token hash, instead of dividing ranges. And we could address
+ *  getMaximumToken with min/max sentinel tokens.
+ */
 public class TokenRange extends KeyRange.EndInclusive<AccordKey>
 {
     public TokenRange(TableId tableId, Range<Token> range)
@@ -43,7 +50,7 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
 
     public TokenRange(TableId tableId, Token start, Token end)
     {
-        this(new TokenKey(tableId, start.maxKeyBound()),
+        this(new TokenKey(tableId, !start.isMinimum() ? start.maxKeyBound() : start.minKeyBound()),
              new TokenKey(tableId, end.maxKeyBound()));
         Preconditions.checkArgument(start().tableId().equals(end().tableId()));
     }
@@ -77,6 +84,7 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
         while (count > 1)
         {
             double ratio = 1.0f / (count - 1);
+            // FIXME: IPartitioner.split isn't supported by all partitioners (specifically ByteOrderedPartitioner)
             Token midpoint = DatabaseDescriptor.getPartitioner().split(left, right, ratio);
             if (midpoint.equals(left) || midpoint.equals(right))
                 return new KeyRanges(new KeyRange[]{this});
