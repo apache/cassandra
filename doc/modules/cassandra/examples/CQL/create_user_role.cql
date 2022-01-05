@@ -1,0 +1,14 @@
+CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
+
+CREATE USER IF NOT EXISTS alice WITH PASSWORD 'password_a' SUPERUSER;
+CREATE ROLE IF NOT EXISTS alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
+
+CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = false;
+
+CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
+
+CREATE USER alice WITH PASSWORD 'password_a';
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;

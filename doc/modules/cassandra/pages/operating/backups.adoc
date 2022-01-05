@@ -1,0 +1,517 @@
+= Backups
+
+Apache Cassandra stores data in immutable SSTable files. Backups in
+Apache Cassandra database are backup copies of the database data that is
+stored as SSTable files. Backups are used for several purposes including
+the following:
+
+* To store a data copy for durability
+* To be able to restore a table if table data is lost due to
+node/partition/network failure
+* To be able to transfer the SSTable files to a different machine; for
+portability
+
+== Types of Backups
+
+Apache Cassandra supports two kinds of backup strategies.
+
+* Snapshots
+* Incremental Backups
+
+A _snapshot_ is a copy of a table’s SSTable files at a given time,
+created via hard links. 
+The DDL to create the table is stored as well.
+Snapshots may be created by a user or created automatically. 
+The setting `snapshot_before_compaction` in the `cassandra.yaml` file determines if
+snapshots are created before each compaction. 
+By default, `snapshot_before_compaction` is set to false. 
+Snapshots may be created automatically before keyspace truncation or dropping of a table by
+setting `auto_snapshot` to true (default) in `cassandra.yaml`. 
+Truncates could be delayed due to the auto snapshots and another setting in
+`cassandra.yaml` determines how long the coordinator should wait for
+truncates to complete. 
+By default Cassandra waits 60 seconds for auto snapshots to complete.
+
+An _incremental backup_ is a copy of a table’s SSTable files created by
+a hard link when memtables are flushed to disk as SSTables. 
+Typically incremental backups are paired with snapshots to reduce the backup time
+as well as reduce disk space. 
+Incremental backups are not enabled by default and must be enabled explicitly in `cassandra.yaml` (with
+`incremental_backups` setting) or with `nodetool`. 
+Once enabled, Cassandra creates a hard link to each SSTable flushed or streamed
+locally in a `backups/` subdirectory of the keyspace data. 
+Incremental backups of system tables are also created.
+
+== Data Directory Structure
+
+The directory structure of Cassandra data consists of different
+directories for keyspaces, and tables with the data files within the
+table directories. 
+Directories backups and snapshots to store backups
+and snapshots respectively for a particular table are also stored within
+the table directory. 
+The directory structure for Cassandra is illustrated in Figure 1.
+
+image::Figure_1_backups.jpg[Data directory structure for backups]
+
+Figure 1. Directory Structure for Cassandra Data
+
+=== Setting Up Example Tables for Backups and Snapshots
+
+In this section we shall create some example data that could be used to
+demonstrate incremental backups and snapshots. 
+We have used a three node Cassandra cluster. 
+First, the keyspaces are created. 
+Then tables are created within a keyspace and table data is added. 
+We have used two keyspaces `cqlkeyspace` and `catalogkeyspace` with two tables within
+each. 
+
+Create the keyspace `cqlkeyspace`:
+
+[source,cql]
+----
+include::example$CQL/create_ks_backup.cql[]
+----
+
+Create two tables `t` and `t2` in the `cqlkeyspace` keyspace.
+
+[source,cql]
+----
+include::example$CQL/create_table_backup.cql[]
+----
+
+Add data to the tables: 
+
+[source,cql]
+----
+include::example$CQL/insert_data_backup.cql[]
+----
+
+Query the table to list the data:
+
+[source,cql]
+----
+include::example$CQL/select_data_backup.cql[]
+----
+
+results in
+
+[source,cql]
+----
+include::example$RESULTS/select_data_backup.result[]
+----
+
+Create a second keyspace `catalogkeyspace`:
+
+[source,cql]
+----
+include::example$CQL/create_ks2_backup.cql[]
+----
+
+Create two tables `journal`  and `magazine` in `catalogkeyspace`:
+
+[source,cql]
+----
+include::example$CQL/create_table2_backup.cql[]
+----
+
+Add data to the tables:
+
+[source,cql]
+----
+include::example$CQL/insert_data2_backup.cql[]
+----
+
+Query the tables to list the data:
+
+[source,cql]
+----
+include::example$CQL/select_data2_backup.cql[]
+----
+
+results in 
+
+[source,cql]
+----
+include::example$RESULTS/select_data2_backup.result[]
+----
+
+== Snapshots
+
+In this section, we demonstrate creating snapshots. 
+The command used to create a snapshot is `nodetool snapshot` with the usage:
+
+[source,bash]
+----
+include::example$BASH/nodetool_snapshot.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/nodetool_snapshot_help.result[]
+----
+
+=== Configuring for Snapshots
+
+To demonstrate creating snapshots with Nodetool on the commandline we
+have set `auto_snapshots` setting to `false` in the `cassandra.yaml` file:
+
+[source,yaml]
+----
+include::example$YAML/auto_snapshot.yaml[]
+----
+
+Also set `snapshot_before_compaction` to `false` to disable creating
+snapshots automatically before compaction:
+
+[source,yaml]
+----
+include::example$YAML/snapshot_before_compaction.yaml[]
+----
+
+=== Creating Snapshots
+
+Before creating any snapshots, search for snapshots and none will be listed:
+
+[source,bash]
+----
+include::example$BASH/find_snapshots.sh[]
+----
+
+We shall be using the example keyspaces and tables to create snapshots.
+
+==== Taking Snapshots of all Tables in a Keyspace
+
+Using the syntax above, create a snapshot called `catalog-ks` for all the tables
+in the `catalogkeyspace` keyspace:
+
+[source,bash]
+----
+include::example$BASH/snapshot_backup2.sh[]
+----
+
+results in
+
+[source,none]
+----
+include::example$RESULTS/snapshot_backup2.result[]
+----
+
+Using the `find` command above, the snapshots and `snapshots` directories 
+are now found with listed files similar to:
+
+[source, plaintext]
+----
+include::example$RESULTS/snapshot_backup2_find.result[]
+----
+
+Snapshots of all tables in multiple keyspaces may be created similarly:
+
+[source,bash]
+----
+include::example$BASH/snapshot_both_backups.sh[]
+----
+
+==== Taking Snapshots of Single Table in a Keyspace
+
+To take a snapshot of a single table the `nodetool snapshot` command
+syntax becomes as follows:
+
+[source,bash]
+----
+include::example$BASH/snapshot_one_table.sh[]
+----
+
+Using the syntax above, create a snapshot for table `magazine` in keyspace `catalogkeyspace`:
+
+[source,bash]
+----
+include::example$BASH/snapshot_one_table2.sh[]
+----
+
+results in
+ 
+[source, plaintext]
+----
+include::example$RESULTS/snapshot_one_table2.result[]
+----
+
+==== Taking Snapshot of Multiple Tables from same Keyspace
+
+To take snapshots of multiple tables in a keyspace the list of
+_Keyspace.table_ must be specified with option `--kt-list`. 
+For example, create snapshots for tables `t` and `t2` in the `cqlkeyspace` keyspace:
+
+[source,bash]
+----
+include::example$BASH/snapshot_mult_tables.sh[]
+----
+
+results in
+
+[source,plaintext]
+----
+include::example$RESULTS/snapshot_mult_tables.result[]
+----
+
+Multiple snapshots of the same set of tables may be created and tagged with a different name. 
+As an example, create another snapshot for the same set of tables `t` and `t2` in the `cqlkeyspace` 
+keyspace and tag the snapshots differently:
+
+[source,bash]
+----
+include::example$BASH/snapshot_mult_tables_again.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/snapshot_mult_tables_again.result[]
+----
+
+==== Taking Snapshot of Multiple Tables from Different Keyspaces
+
+To take snapshots of multiple tables that are in different keyspaces the
+command syntax is the same as when multiple tables are in the same
+keyspace. 
+Each <keyspace>.<table> must be specified separately in the
+`--kt-list` option. 
+
+For example, create a snapshot for table `t` in
+the `cqlkeyspace` and table `journal` in the catalogkeyspace and tag the
+snapshot `multi-ks`.
+
+[source,bash]
+----
+include::example$BASH/snapshot_mult_ks.sh[]
+----
+
+results in
+[source, plaintext]
+----
+include::example$RESULTS/snapshot_mult_ks.result[]
+----
+
+=== Listing Snapshots
+
+To list snapshots use the `nodetool listsnapshots` command. All the
+snapshots that we created in the preceding examples get listed:
+
+[source,bash]
+----
+include::example$BASH/nodetool_list_snapshots.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/nodetool_list_snapshots.result[]
+----
+
+=== Finding Snapshots Directories
+
+The `snapshots` directories may be listed with `find –name snapshots`
+command:
+
+[source,bash]
+----
+include::example$BASH/find_snapshots.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/snapshot_all.result[]
+----
+
+To list the snapshots for a particular table first change to the snapshots directory for that table. 
+For example, list the snapshots for the `catalogkeyspace/journal` table:
+
+[source,bash]
+----
+include::example$BASH/find_two_snapshots.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/find_two_snapshots.result[]
+----
+
+A `snapshots` directory lists the SSTable files in the snapshot.
+A `schema.cql` file is also created in each snapshot that defines schema
+that can recreate the table with CQL when restoring from a snapshot:
+
+[source,bash]
+----
+include::example$BASH/snapshot_files.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/snapshot_files.result[]
+----
+
+=== Clearing Snapshots
+
+Snapshots may be cleared or deleted with the `nodetool clearsnapshot`
+command. Either a specific snapshot name must be specified or the `–all`
+option must be specified. 
+
+For example, delete a snapshot called `magazine` from keyspace `cqlkeyspace`:
+
+[source,bash]
+----
+include::example$BASH/nodetool_clearsnapshot.sh[]
+----
+
+or delete all snapshots from `cqlkeyspace` with the –all option:
+
+[source,bash]
+----
+include::example$BASH/nodetool_clearsnapshot_all.sh[]
+----
+
+== Incremental Backups
+
+In the following sections, we shall discuss configuring and creating
+incremental backups.
+
+=== Configuring for Incremental Backups
+
+To create incremental backups set `incremental_backups` to `true` in
+`cassandra.yaml`.
+
+[source,yaml]
+----
+include::example$YAML/incremental_bups.yaml[]
+----
+
+This is the only setting needed to create incremental backups. 
+By default `incremental_backups` setting is set to `false` because a new
+set of SSTable files is created for each data flush and if several CQL
+statements are to be run the `backups` directory could fill up quickly
+and use up storage that is needed to store table data. 
+Incremental backups may also be enabled on the command line with the nodetool
+command `nodetool enablebackup`. 
+Incremental backups may be disabled with `nodetool disablebackup` command. 
+Status of incremental backups, whether they are enabled may be checked with `nodetool statusbackup`.
+
+=== Creating Incremental Backups
+
+After each table is created flush the table data with `nodetool flush`
+command. Incremental backups get created.
+
+[source,bash]
+----
+include::example$BASH/nodetool_flush.sh[]
+----
+
+=== Finding Incremental Backups
+
+Incremental backups are created within the Cassandra’s `data` directory
+within a table directory. Backups may be found with following command.
+
+[source,bash]
+----
+include::example$BASH/find_backups.sh[]
+----
+results in
+[source,none]
+----
+include::example$RESULTS/find_backups.result[]
+----
+
+=== Creating an Incremental Backup
+
+This section discusses how incremental backups are created in more
+detail using the keyspace and table previously created.
+
+Flush the keyspace and table:
+
+[source,bash]
+----
+include::example$BASH/nodetool_flush_table.sh[]
+----
+
+A search for backups and a `backups` directory will list a backup directory,
+even if we have added no table data yet.
+
+[source,bash]
+----
+include::example$BASH/find_backups.sh[]
+----
+
+results in
+
+[source,plaintext]
+----
+include::example$RESULTS/find_backups_table.result[]
+----
+
+Checking the `backups` directory will show that there are also no backup files:
+
+[source,bash]
+----
+include::example$BASH/check_backups.sh[]
+----
+
+results in
+
+[source, plaintext]
+----
+include::example$RESULTS/no_bups.result[]
+----
+
+If a row of data is added to the data, running the `nodetool flush` command will
+flush the table data and an incremental backup will be created:
+
+[source,bash]
+----
+include::example$BASH/flush_and_check.sh[]
+----
+
+results in 
+
+[source, plaintext]
+----
+include::example$RESULTS/flush_and_check.result[]
+----
+
+[NOTE]
+.note
+====
+The `backups` directory for any table, such as `cqlkeyspace/t` is created in the
+`data` directory for that table.
+====
+
+Adding another row of data and flushing will result in another set of incremental backup files.
+The SSTable files are timestamped, which distinguishes the first incremental backup from the
+second:
+
+[source,none]
+----
+include::example$RESULTS/flush_and_check2.result[]
+----
+
+== Restoring from Incremental Backups and Snapshots
+
+The two main tools/commands for restoring a table after it has been
+dropped are:
+
+* sstableloader
+* nodetool import
+
+A snapshot contains essentially the same set of SSTable files as an
+incremental backup does with a few additional files. A snapshot includes
+a `schema.cql` file for the schema DDL to create a table in CQL. A table
+backup does not include DDL which must be obtained from a snapshot when
+restoring from an incremental backup.

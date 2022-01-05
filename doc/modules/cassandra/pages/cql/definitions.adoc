@@ -1,0 +1,187 @@
+= Definitions
+
+== Conventions
+
+To aid in specifying the CQL syntax, we will use the following
+conventions in this document:
+
+* Language rules will be given in an informal
+http://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form#Variants[BNF
+variant] notation. In particular, we'll use square brakets (`[ item ]`)
+for optional items, `*` and `+` for repeated items (where `+` imply at
+least one).
+* The grammar will also use the following convention for convenience:
+non-terminal term will be lowercase (and link to their definition) while
+terminal keywords will be provided "all caps". Note however that
+keywords are `identifiers` and are thus case insensitive in practice. We
+will also define some early construction using regexp, which we'll
+indicate with `re(<some regular expression>)`.
+* The grammar is provided for documentation purposes and leave some
+minor details out. For instance, the comma on the last column definition
+in a `CREATE TABLE` statement is optional but supported if present even
+though the grammar in this document suggests otherwise. Also, not
+everything accepted by the grammar is necessarily valid CQL.
+* References to keywords or pieces of CQL code in running text will be
+shown in a `fixed-width font`.
+
+[[identifiers]]
+== Identifiers and keywords
+
+The CQL language uses _identifiers_ (or _names_) to identify tables,
+columns and other objects. An identifier is a token matching the regular
+expression `[a-zA-Z][a-zA-Z0-9_]*`.
+
+A number of such identifiers, like `SELECT` or `WITH`, are _keywords_.
+They have a fixed meaning for the language and most are reserved. The
+list of those keywords can be found in xref:cql/appendices.adoc#appendix-A[Appendix A].
+
+Identifiers and (unquoted) keywords are case insensitive. Thus `SELECT`
+is the same than `select` or `sElEcT`, and `myId` is the same than
+`myid` or `MYID`. A convention often used (in particular by the samples
+of this documentation) is to use uppercase for keywords and lowercase
+for other identifiers.
+
+There is a second kind of identifier called a _quoted identifier_
+defined by enclosing an arbitrary sequence of characters (non-empty) in
+double-quotes(`"`). Quoted identifiers are never keywords. Thus
+`"select"` is not a reserved keyword and can be used to refer to a
+column (note that using this is particularly ill-advised), while `select`
+would raise a parsing error. Also, unlike unquoted identifiers
+and keywords, quoted identifiers are case sensitive (`"My Quoted Id"` is
+_different_ from `"my quoted id"`). A fully lowercase quoted identifier
+that matches `[a-zA-Z][a-zA-Z0-9_]*` is however _equivalent_ to the
+unquoted identifier obtained by removing the double-quote (so `"myid"`
+is equivalent to `myid` and to `myId` but different from `"myId"`).
+Inside a quoted identifier, the double-quote character can be repeated
+to escape it, so `"foo "" bar"` is a valid identifier.
+
+[NOTE]
+.Note
+====
+The _quoted identifier_ can declare columns with arbitrary names, and
+these can sometime clash with specific names used by the server. For
+instance, when using conditional update, the server will respond with a
+result set containing a special result named `"[applied]"`. If you’ve
+declared a column with such a name, this could potentially confuse some
+tools and should be avoided. In general, unquoted identifiers should be
+preferred but if you use quoted identifiers, it is strongly advised that you
+avoid any name enclosed by squared brackets (like `"[applied]"`) and any
+name that looks like a function call (like `"f(x)"`).
+====
+
+More formally, we have:
+
+[source, bnf]
+----
+include::example$BNF/identifier.bnf[]
+----
+
+[[constants]]
+== Constants
+
+CQL defines the following _constants_:
+
+[source, bnf]
+----
+include::example$BNF/constant.bnf[]
+----
+
+In other words:
+
+* A string constant is an arbitrary sequence of characters enclosed by
+single-quote(`'`). A single-quote can be included by repeating it, e.g.
+`'It''s raining today'`. Those are not to be confused with quoted
+`identifiers` that use double-quotes. Alternatively, a string can be
+defined by enclosing the arbitrary sequence of characters by two dollar
+characters, in which case single-quote can be used without escaping
+(`$$It's raining today$$`). That latter form is often used when defining
+xref:cql/functions.adoc#udfs[user-defined functions] to avoid having to escape single-quote
+characters in function body (as they are more likely to occur than
+`$$`).
+* Integer, float and boolean constant are defined as expected. Note
+however than float allows the special `NaN` and `Infinity` constants.
+* CQL supports
+https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID]
+constants.
+* Blobs content are provided in hexadecimal and prefixed by `0x`.
+* The special `NULL` constant denotes the absence of value.
+
+For how these constants are typed, see the xref:cql/types.adoc[Data types] section.
+
+== Terms
+
+CQL has the notion of a _term_, which denotes the kind of values that
+CQL support. Terms are defined by:
+
+[source, bnf]
+----
+include::example$BNF/term.bnf[]
+----
+
+A term is thus one of:
+
+* A xref:cql/defintions.adoc#constants[constant]
+* A literal for either a xref:cql/types.adoc#collections[collection],
+a xref:cql/types.adoc#udts[user-defined type] or a xref:cql/types.adoc#tuples[tuple]
+* A xref:cql/functions.adoc#cql-functions[function] call, either a xref:cql/functions.adoc#scalar-native-functions[native function]
+or a xref:cql/functions.adoc#user-defined-scalar-functions[user-defined function]
+* An xref:cql/operators.adoc#arithmetic_operators[arithmetic operation] between terms
+* A type hint
+* A bind marker, which denotes a variable to be bound at execution time.
+See the section on `prepared-statements` for details. A bind marker can
+be either anonymous (`?`) or named (`:some_name`). The latter form
+provides a more convenient way to refer to the variable for binding it
+and should generally be preferred.
+
+== Comments
+
+A comment in CQL is a line beginning by either double dashes (`--`) or
+double slash (`//`).
+
+Multi-line comments are also supported through enclosure within `/*` and
+`*/` (but nesting is not supported).
+
+[source,cql]
+----
+-- This is a comment
+// This is a comment too
+/* This is
+   a multi-line comment */
+----
+
+== Statements
+
+CQL consists of statements that can be divided in the following
+categories:
+
+* `data-definition` statements, to define and change how the data is
+stored (keyspaces and tables).
+* `data-manipulation` statements, for selecting, inserting and deleting
+data.
+* `secondary-indexes` statements.
+* `materialized-views` statements.
+* `cql-roles` statements.
+* `cql-permissions` statements.
+* `User-Defined Functions (UDFs)` statements.
+* `udts` statements.
+* `cql-triggers` statements.
+
+All the statements are listed below and are described in the rest of
+this documentation (see links above):
+
+[source, bnf]
+----
+include::example$BNF/cql_statement.bnf[]
+----
+
+== Prepared Statements
+
+CQL supports _prepared statements_. Prepared statements are an
+optimization that allows to parse a query only once but execute it
+multiple times with different concrete values.
+
+Any statement that uses at least one bind marker (see `bind_marker`)
+will need to be _prepared_. After which the statement can be _executed_
+by provided concrete values for each of its marker. The exact details of
+how a statement is prepared and then executed depends on the CQL driver
+used and you should refer to your driver documentation.

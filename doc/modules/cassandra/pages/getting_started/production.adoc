@@ -1,0 +1,163 @@
+= Production recommendations
+
+The `cassandra.yaml` and `jvm.options` files have a number of notes and
+recommendations for production usage.
+This page expands on some of the information in the files.
+
+== Tokens
+
+Using more than one token-range per node is referred to as virtual nodes, or vnodes.
+`vnodes` facilitate flexible expansion with more streaming peers when a new node bootstraps
+into a cluster.
+Limiting the negative impact of streaming (I/O and CPU overhead) enables incremental cluster expansion.
+However, more tokens leads to sharing data with more peers, and results in decreased availability.
+These two factors must be balanced based on a cluster's characteristic reads and writes.
+To learn more,
+https://github.com/jolynch/python_performance_toolkit/raw/master/notebooks/cassandra_availability/whitepaper/cassandra-availability-virtual.pdf[Cassandra Availability in Virtual Nodes, Joseph Lynch and Josh Snyder] is recommended reading.
+
+Change the number of tokens using the setting in the `cassandra.yaml` file:
+
+`num_tokens: 16`
+
+Here are the most common token counts with a brief explanation of when
+and why you would use each one.
+
+[width="100%",cols="13%,87%",options="header",]
+|===
+|Token Count |Description
+|1 |Maximum availablility, maximum cluster size, fewest peers, but
+inflexible expansion. Must always double size of cluster to expand and
+remain balanced.
+
+|4 |A healthy mix of elasticity and availability. Recommended for
+clusters which will eventually reach over 30 nodes. Requires adding
+approximately 20% more nodes to remain balanced. Shrinking a cluster may
+result in cluster imbalance.
+
+|8 | Using 8 vnodes distributes the workload between systems with a ~10% variance
+and has minimal impact on performance.
+
+|16 |Best for heavily elastic clusters which expand and shrink
+regularly, but may have issues availability with larger clusters. Not
+recommended for clusters over 50 nodes.
+|===
+
+In addition to setting the token count, it's extremely important that
+`allocate_tokens_for_local_replication_factor` in `cassandra.yaml` is set to an
+appropriate number of replicates, to ensure even token allocation.
+
+== Read ahead
+
+Read ahead is an operating system feature that attempts to keep as much
+data as possible loaded in the page cache.
+Spinning disks can have long seek times causing high latency, so additional
+throughout on reads using page cache can improve performance.
+By leveraging read ahead, the OS can pull additional data into memory without
+the cost of additional seeks.
+This method works well when the available RAM is greater than the size of the
+hot dataset, but can be problematic when the reverse is true (dataset > RAM).
+The larger the hot dataset, the less read ahead is useful.
+
+Read ahead is definitely not useful in the following cases:
+
+* Small partitions, such as tables with a single partition key
+* Solid state drives (SSDs)
+
+
+Read ahead can actually increase disk usage, and in some cases result in as much
+as a 5x latency and throughput performance penalty.
+Read-heavy, key/value tables with small (under 1KB) rows are especially prone
+to this problem.
+
+The recommended read ahead settings are:
+
+[width="59%",cols="40%,60%",options="header",]
+|===
+|Hardware |Initial Recommendation
+|Spinning Disks |64KB
+|SSD |4KB
+|===
+
+Read ahead can be adjusted on Linux systems using the `blockdev` tool.
+
+For example, set the read ahead of the disk `/dev/sda1\` to 4KB:
+
+[source, shell]
+----
+$ blockdev --setra 8 /dev/sda1
+----
+[NOTE]
+====
+The `blockdev` setting sets the number of 512 byte sectors to read ahead.
+The argument of 8 above is equivalent to 4KB, or 8 * 512 bytes.
+====
+
+All systems are different, so use these recommendations as a starting point and
+tune, based on your SLA and throughput requirements.
+To understand how read ahead impacts disk resource usage, we recommend carefully
+reading through the xref:troubleshooting/use_tools.adoc[Diving Deep, using external tools]
+section.
+
+== Compression
+
+Compressed data is stored by compressing fixed size byte buffers and writing the
+data to disk.
+The buffer size is determined by the `chunk_length_in_kb` element in the compression
+map of a table's schema settings for `WITH COMPRESSION`.
+The default setting is 16KB starting with Cassandra {40_version}.
+
+Since the entire compressed buffer must be read off-disk, using a compression
+chunk length that is too large can lead to significant overhead when reading small records.
+Combined with the default read ahead setting, the result can be massive
+read amplification for certain workloads. Therefore, picking an appropriate
+value for this setting is important.
+
+LZ4Compressor is the default and recommended compression algorithm.
+If you need additional information on compression, read
+https://thelastpickle.com/blog/2018/08/08/compression_performance.html[The Last Pickle blogpost on compression performance].
+
+== Compaction
+
+There are different xref:compaction/index.adoc[compaction] strategies available
+for different workloads.
+We recommend reading about the different strategies to understand which is the
+best for your environment.
+Different tables may, and frequently do use different compaction strategies in
+the same cluster.
+
+== Encryption
+
+It is significantly better to set up peer-to-peer encryption and client server
+encryption when setting up your production cluster.
+Setting it up after the cluster is serving production traffic is challenging
+to do correctly.
+If you ever plan to use network encryption of any type, we recommend setting it
+up when initially configuring your cluster.
+Changing these configurations later is not impossible, but mistakes can
+result in downtime or data loss.
+
+== Ensure keyspaces are created with NetworkTopologyStrategy
+
+Production clusters should never use `SimpleStrategy`.
+Production keyspaces should use the `NetworkTopologyStrategy` (NTS).
+For example:
+
+[source, cql]
+----
+CREATE KEYSPACE mykeyspace WITH replication =     {
+   'class': 'NetworkTopologyStrategy',
+   'datacenter1': 3
+};
+----
+
+Cassandra clusters initialized with `NetworkTopologyStrategy` can take advantage
+of the ability to configure multiple racks and data centers.
+
+== Configure racks and snitch
+
+**Correctly configuring or changing racks after a cluster has been provisioned is an unsupported process**.
+Migrating from a single rack to multiple racks is also unsupported and can
+result in data loss.
+Using `GossipingPropertyFileSnitch` is the most flexible solution for on
+premise or mixed cloud environments.
+`Ec2Snitch` is reliable for AWS EC2 only environments.

@@ -1,0 +1,6 @@
+min(99percentile,50ms)
+max(99p,50MS)
+MAX(99P,50ms)
+MIN(99.9PERCENTILE,50ms)
+max(90percentile,100MS)
+MAX(100.0PERCENTILE,60ms)

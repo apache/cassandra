@@ -69,8 +69,9 @@ Thumbs.db
 .ant_targets
 
 # Generated files from the documentation
-doc/source/configuration/cassandra_config_file.rst
-doc/source/tools/nodetool
+doc/modules/cassandra/pages/configuration/cass_yaml_file.adoc
+doc/modules/cassandra/pages/tools/nodetool/
+doc/modules/cassandra/examples/TEXT/NODETOOL/
 
 # Python virtual environment
 venv/

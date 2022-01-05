@@ -1,0 +1,9 @@
+create_role_statement ::= CREATE ROLE [ IF NOT EXISTS ] role_name
+                          [ WITH role_options# ]
+role_options ::= role_option ( AND role_option)*
+role_option ::= PASSWORD '=' string
+                | LOGIN '=' boolean
+                | SUPERUSER '=' boolean
+                | OPTIONS '=' map_literal
+                | ACCESS TO DATACENTERS set_literal
+                | ACCESS TO ALL DATACENTERS
