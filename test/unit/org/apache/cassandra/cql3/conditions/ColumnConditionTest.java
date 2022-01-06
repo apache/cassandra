@@ -135,10 +135,34 @@ public class ColumnConditionTest
         return bound.appliesTo(newRow(definition, rowValue));
     }
 
+    private static boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return bound.appliesTo(newRow(definition, rowValue));
+    }
+
+    private static boolean conditionContainsApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return bound.appliesTo(newRow(definition, rowValue));
+    }
+
     private static boolean conditionApplies(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Sets.Value(conditionValue)));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return bound.appliesTo(newRow(definition, rowValue));
+    }
+
+    private static boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -327,6 +351,14 @@ public class ColumnConditionTest
         assertTrue(conditionApplies(list(ONE), GTE, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
         assertFalse(conditionApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, list(ONE)));
         assertTrue(conditionApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        //CONTAINS
+        assertTrue(conditionContainsApplies(list(ZERO, ONE, TWO), CONTAINS, ONE));
+        assertFalse(conditionContainsApplies(list(ZERO, ONE), CONTAINS, TWO));
+
+        assertFalse(conditionContainsApplies(list(ZERO, ONE, TWO), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionContainsApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ONE));
+        assertTrue(conditionContainsApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
     }
 
     private static SortedSet<ByteBuffer> set(ByteBuffer... values)
@@ -422,6 +454,14 @@ public class ColumnConditionTest
         assertTrue(conditionApplies(set(ONE), GTE, set(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
         assertFalse(conditionApplies(set(ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, set(ONE)));
         assertTrue(conditionApplies(set(ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, set(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        // CONTAINS
+        assertTrue(conditionContainsApplies(set(ZERO, ONE, TWO), CONTAINS, ONE));
+        assertFalse(conditionContainsApplies(set(ZERO, ONE), CONTAINS, TWO));
+
+        assertFalse(conditionContainsApplies(set(ZERO, ONE, TWO), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionContainsApplies(set(ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ONE));
+        assertTrue(conditionContainsApplies(set(ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
     }
 
     // values should be a list of key, value, key, value, ...
@@ -550,5 +590,26 @@ public class ColumnConditionTest
         assertFalse(conditionApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, map(ONE, ONE)));
         assertTrue(conditionApplies(map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE), GTE, map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE)));
         assertTrue(conditionApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        //CONTAINS
+        assertTrue(conditionContainsApplies(map(ZERO, ONE), CONTAINS, ONE));
+        assertFalse(conditionContainsApplies(map(ZERO, ONE), CONTAINS, ZERO));
+
+        assertFalse(conditionContainsApplies(map(ONE, ONE), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertTrue(conditionContainsApplies(map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE), CONTAINS, ONE));
+        assertFalse(conditionContainsApplies(map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ONE));
+        assertTrue(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        //CONTAINS KEY
+        assertTrue(conditionContainsApplies(map(ZERO, ONE), CONTAINS_KEY, ZERO));
+        assertFalse(conditionContainsApplies(map(ZERO, ONE), CONTAINS_KEY, ONE));
+
+        assertFalse(conditionContainsApplies(map(ONE, ONE), CONTAINS_KEY, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionContainsApplies(map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE), CONTAINS_KEY, ONE));
+        assertTrue(conditionContainsApplies(map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE), CONTAINS_KEY, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertTrue(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS_KEY, ONE));
+        assertFalse(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS_KEY, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
     }
 }

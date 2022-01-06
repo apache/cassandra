@@ -381,7 +381,16 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['EXISTS', '<quotedName>', '<identifier>'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF EXISTS ",
-                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.'])
+                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.', 'CONTAINS'])
+
+        self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey ",
+                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
+
+        self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey CONTAINS ",
+                            choices=['false', 'true', '<pgStringLiteral>',
+                                     '-', '<float>', 'TOKEN', '<identifier>',
+                                     '<uuid>', '{', '[', 'NULL', '<quotedStringLiteral>',
+                                     '<blobLiteral>', '<wholenumber>', 'KEY'])
 
     def test_complete_in_delete(self):
         self.trycompletions('DELETE F', choices=['FROM', '<identifier>', '<quotedName>'])
@@ -463,7 +472,13 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['EXISTS', '<identifier>', '<quotedName>'])
         self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
                              'TOKEN(a) >= TOKEN(0) IF b '),
-                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>'])
+                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
+        self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
+                             'TOKEN(a) >= TOKEN(0) IF b CONTAINS '),
+                            choices=['false', 'true', '<pgStringLiteral>',
+                                     '-', '<float>', 'TOKEN', '<identifier>',
+                                     '<uuid>', '{', '[', 'NULL','<quotedStringLiteral>',
+                                     '<blobLiteral>','<wholenumber>', 'KEY'])
         self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
                              'TOKEN(a) >= TOKEN(0) IF b < 0 '),
                             choices=['AND', ';'])

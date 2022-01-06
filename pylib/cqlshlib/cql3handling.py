@@ -956,7 +956,7 @@ syntax_rules += r'''
                ;
 <conditions> ::=  <condition> ( "AND" <condition> )*
                ;
-<condition_op_and_rhs> ::= (("=" | "<" | ">" | "<=" | ">=" | "!=") <term>)
+<condition_op_and_rhs> ::= (("=" | "<" | ">" | "<=" | ">=" | "!=" | "CONTAINS" ( "KEY" )? ) <term>)
                            | ("IN" "(" <term> ( "," <term> )* ")" )
                          ;
 <condition> ::= conditioncol=<cident>
