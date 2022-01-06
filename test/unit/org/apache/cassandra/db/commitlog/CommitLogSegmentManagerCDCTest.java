@@ -107,22 +107,20 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     public void testNonblockingShouldMaintainSteadyDiskUsage() throws Throwable
     {
         final int commitlogSize = DatabaseDescriptor.getCommitLogSegmentSize() / 1024 / 1024;
-        final int cdcSizeLimit = commitlogSize + 1;
-        // Clear out all CDC files
-        for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList()) {
-            FileUtils.deleteWithConfirm(f);
-        }
-        testWithNonblockingMode(() -> testWithCDCSpaceInMb(cdcSizeLimit, () -> {
+        final int targetFilesCount = 3;
+        final long cdcSizeLimit = commitlogSize * targetFilesCount;
+        final int mutationSize = DatabaseDescriptor.getCommitLogSegmentSize() / 3;
+        testWithNonblockingMode(() -> testWithCDCSpaceInMb((int) cdcSizeLimit, () -> {
             CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
-            Assert.assertEquals(0, cdcMgr.updateCDCTotalSize());
 
-            createTableAndBulkWrite();
+            createTableAndBulkWrite(mutationSize);
 
-            // Only the current commit log will be kept.
-            // The older ones are deleted immediately on creating a new segment due to exceeding size limit.
             long actualSize = cdcMgr.updateCDCTotalSize();
-            Assert.assertTrue(actualSize <= cdcSizeLimit * 1024 * 1024);
-            Assert.assertTrue(actualSize >= DatabaseDescriptor.getCommitLogSegmentSize());
+            long cdcSizeLimitBytes = cdcSizeLimit * 1024 * 1024;
+            Assert.assertTrue(String.format("Actual size (%s) should not exceed the size limit (%s)", actualSize, cdcSizeLimitBytes),
+                              actualSize <= cdcSizeLimitBytes * targetFilesCount);
+            Assert.assertTrue(String.format("Actual size (%s) should be at least the mutation size (%s)", actualSize, mutationSize),
+                              actualSize >= mutationSize);
         }));
     }
 
@@ -395,10 +393,6 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         {
             test.run();
         }
-        catch (Throwable e)
-        {
-            e.printStackTrace();
-        }
         finally
         {
             CommitLog.instance.setCDCBlockWrites(original);
@@ -421,12 +415,22 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private String createTableAndBulkWrite() throws Throwable
     {
+        return createTableAndBulkWrite(DatabaseDescriptor.getCommitLogSegmentSize() / 3);
+    }
+
+    private String createTableAndBulkWrite(int mutationSize) throws Throwable
+    {
         String tableName = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
-        bulkWrite(tableName);
+        bulkWrite(tableName, mutationSize);
         return tableName;
     }
 
     private void bulkWrite(String tableName) throws Throwable
+    {
+        bulkWrite(tableName, DatabaseDescriptor.getCommitLogSegmentSize() / 3);
+    }
+
+    private void bulkWrite(String tableName, int mutationSize) throws Throwable
     {
         TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(tableName).metadata();
         boolean blockWrites = DatabaseDescriptor.getCDCBlockWrites();
@@ -436,7 +440,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             for (int i = 0; i < 1000; i++)
             {
                 new RowUpdateBuilder(ccfm, 0, i)
-                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+                .add("data", randomizeBuffer(mutationSize))
                 .build().applyFuture().get();
             }
             if (blockWrites)
