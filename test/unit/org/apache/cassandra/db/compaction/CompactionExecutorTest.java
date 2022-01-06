@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -32,8 +32,12 @@ import static org.junit.Assert.assertNotNull;
 public class CompactionExecutorTest
 {
     static Throwable testTaskThrowable = null;
+    static SimpleCondition afterExecuteCompleted = null;
     private static class TestTaskExecutor extends CompactionManager.CompactionExecutor
     {
+        // afterExecute runs immediately after the task completes, but it may
+        // race with the main thread checking the result, so make the main thread wait
+        // with a simple condition
         @Override
         public void afterExecute(Runnable r, Throwable t)
         {
@@ -42,6 +46,7 @@ public class CompactionExecutorTest
                 t = DebuggableThreadPoolExecutor.extractThrowable(r);
             }
             testTaskThrowable = t;
+            afterExecuteCompleted.signalAll();
         }
         @Override
         protected void beforeExecute(Thread t, Runnable r)
@@ -54,6 +59,8 @@ public class CompactionExecutorTest
     public void setup()
     {
         executor = new TestTaskExecutor();
+        testTaskThrowable = null;
+        afterExecuteCompleted = new SimpleCondition();
     }
 
     @After
@@ -63,16 +70,19 @@ public class CompactionExecutorTest
         executor.awaitTermination(1, TimeUnit.MINUTES);
     }
 
+    void awaitExecution() throws Exception
+    {
+        assert afterExecuteCompleted.await(10, TimeUnit.SECONDS) : "afterExecute failed to complete";
+    }
+
     @Test
     public void testFailedRunnable() throws Exception
     {
-        testTaskThrowable = null;
-        Future<?> tt = executor.submitIfRunning(
+        executor.submitIfRunning(
             () -> { assert false : "testFailedRunnable"; }
             , "compactionExecutorTest");
 
-        while (!tt.isDone())
-            Thread.sleep(10);
+        awaitExecution();
         assertNotNull(testTaskThrowable);
         assertEquals(testTaskThrowable.getMessage(), "testFailedRunnable");
     }
@@ -80,13 +90,11 @@ public class CompactionExecutorTest
     @Test
     public void testFailedCallable() throws Exception
     {
-        testTaskThrowable = null;
-        Future<?> tt = executor.submitIfRunning(
+        executor.submitIfRunning(
             () -> { assert false : "testFailedCallable"; return 1; }
             , "compactionExecutorTest");
 
-        while (!tt.isDone())
-            Thread.sleep(10);
+        awaitExecution();
         assertNotNull(testTaskThrowable);
         assertEquals(testTaskThrowable.getMessage(), "testFailedCallable");
     }
@@ -94,13 +102,11 @@ public class CompactionExecutorTest
     @Test
     public void testExceptionRunnable() throws Exception
     {
-        testTaskThrowable = null;
-        Future<?> tt = executor.submitIfRunning(
+        executor.submitIfRunning(
         () -> { throw new RuntimeException("testExceptionRunnable"); }
         , "compactionExecutorTest");
 
-        while (!tt.isDone())
-            Thread.sleep(10);
+        awaitExecution();
         assertNotNull(testTaskThrowable);
         assertEquals(testTaskThrowable.getMessage(), "testExceptionRunnable");
     }
