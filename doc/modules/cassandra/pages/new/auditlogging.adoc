@@ -12,7 +12,7 @@ Some of the features of audit logging are:
 * Latency of database operations is not affected, so there is no performance impact.
 * Heap memory usage is bounded by a weighted queue, with configurable maximum weight sitting in front of logging thread.
 * Disk utilization is bounded by a configurable size, deleting old log segments once the limit is reached.
-* Can be enabled, disabled, or reset (to delete on-disk data) using the JMX tool, ``nodetool``.
+* Can be enabled or disabled at startup time using `cassandra.yaml` or at runtime using the JMX tool, ``nodetool``.
 * Can configure the settings in either the `cassandra.yaml` file or by using ``nodetool``.
 
 Audit logging includes all CQL requests, both successful and failed. 
@@ -88,10 +88,23 @@ Common audit log entry types are one of the following:
 | ERROR | REQUEST_FAILURE
 |===
 
+== Availability and durability
+
+NOTE: Unlike data, audit log entries are not replicated
+
+For a given query, the corresponding audit entry is only stored on the coordinator node.
+For example, an ``INSERT`` in a keyspace with replication factor of 3 will produce an audit entry on one node, the coordinator who handled the request, and not on the two other nodes.
+For this reason, and depending on compliance requirements you must meet, you have to make sure that audig logs are stored on a non-ephemeral storage.
+
+You can achieve custom needs with <<archive_command>> option.
+
 == Configuring audit logging in cassandra.yaml
 
 The `cassandra.yaml` file can be used to configure and enable audit logging.
 Configuration and enablement may be the same or different on each node, depending on the `cassandra.yaml` file settings.
+
+Audit logging can also be configured using ``nodetool`` when enabling the feature, and will override any values set in the `cassandra.yaml` file, as discussed in <<enabling_audit_with_nodetool, Enabling Audit Logging with nodetool>>.
+
 Audit logs are generated on each enabled node, so logs on each node will have that node's queries.
 All options for audit logging can be set in the `cassandra.yaml` file under the ``audit_logging_options:``.
 
@@ -123,16 +136,25 @@ audit_logging_options:
 
 === enabled
 
-Audit logging is enabled by setting the `enabled` option to `true` in
-the `audit_logging_options` setting. 
+Control wether audit logging is enabled or disabled (default).
+
+To enable audit logging set ``enabled: true``.
+
 If this option is enabled, audit logging will start when Cassandra is started.
-For example, ``enabled: true``.
+It can be disabled afterwards at runtime with <<enabling_audit_with_nodetool, nodetool>>.
+
+TIP: You can monitor if audit logging is enabled with ``AuditLogEnabled`` attribute of the JMX MBean ``org.apache.cassandra.db:type=StorageService``.
 
 === logger
 
 The type of audit logger is set with the `logger` option. 
-Supported values are: `BinAuditLogger` (default), `FileAuditLogger` and `NoOpAuditLogger`.
-`BinAuditLogger` logs events to a file in binary format. 
+Supported values are:
+
+- `BinAuditLogger` (default)
+- `FileAuditLogger`
+- `NoOpAuditLogger`.
+
+`BinAuditLogger` logs events to a file in binary format.
 `FileAuditLogger` uses the standard logging mechanism, `slf4j` to log events to the `audit/audit.log` file. It is a synchronous, file-based audit logger. The roll_cycle will be set in the `logback.xml` file.
 `NoOpAuditLogger` is a no-op implementation of the audit logger that shoudl be specified when audit logging is disabled.
 
@@ -144,6 +166,8 @@ logger:
   - class_name: FileAuditLogger
 ----
 
+TIP:  `BinAuditLogger` make use of open source https://github.com/OpenHFT/Chronicle-Queue[Chronicle Queue] under the hood. If you consider using audit logging for regulatory compliance purpose, it might be wise to be somewhat familiar with this library. See <<archive_command>> and <<roll_cycle>> for an example of the implications.
+
 === audit_logs_dir
 
 To write audit logs, an existing directory must be set in ``audit_logs_dir``.
@@ -151,7 +175,7 @@ To write audit logs, an existing directory must be set in ``audit_logs_dir``.
 The directory must have appropriate permissions set to allow reading, writing, and executing.
 Logging will recursively delete the directory contents as needed.
 Do not place links in this directory to other sections of the filesystem.
-For example, ``audit_logs_dir: /cassandra/audit/logs/hourly``.
+For example, ``audit_logs_dir: /non_ephemeral_storage/audit/logs/hourly``.
 
 The audit log directory can also be configured using the system property `cassandra.logdir.audit`, which by default is set to `cassandra.logdir + /audit/`.
 
@@ -173,7 +197,7 @@ excluded_keyspaces: system, system_schema, system_virtual_schema
 The categories of database operations to include are specified with the `included_categories` option as a comma-separated list. 
 The categories of database operations to exclude are specified with `excluded_categories` option as a comma-separated list. 
 The supported categories for audit log are: `AUTH`, `DCL`, `DDL`, `DML`, `ERROR`, `OTHER`, `PREPARE`, and `QUERY`.
-By default all supported categories are included, and no category is excluded. 
+By default, all supported categories are included, and no category is excluded.
 
 [source, yaml]
 ----
@@ -186,7 +210,7 @@ excluded_categories: DDL, DML, QUERY, PREPARE
 Users to audit log are set with the `included_users` and `excluded_users` options. 
 The `included_users` option specifies a comma-separated list of users to include explicitly.
 The `excluded_users` option specifies a comma-separated list of users to exclude explicitly.
-By default all users are included, and no users are excluded. 
+By default, all users are included, and no users are excluded.
 
 [source, yaml]
 ----
@@ -194,20 +218,55 @@ included_users:
 excluded_users: john, mary
 ----
 
+[[roll_cycle]]
 === roll_cycle
 
 The ``roll_cycle`` defines the frequency with which the audit log segments are rolled.
-Supported values are ``HOURLY`` (default), ``MINUTELY``, and ``DAILY``.
+Supported values are:
+
+- ``MINUTELY``
+- ``FIVE_MINUTELY``
+- ``TEN_MINUTELY``
+- ``TWENTY_MINUTELY``
+- ``HALF_HOURLY``
+- ``HOURLY`` (default)
+- ``TWO_HOURLY``
+- ``FOUR_HOURLY``
+- ``SIX_HOURLY``
+- ``DAILY``
+
 For example: ``roll_cycle: DAILY``
+
+WARNING: Read the following paragraph when changing ``roll_cycle`` on a production node.
+
+With the `BinLogger` implementation, any attempt to modify the roll cycle on a node where audit logging was previously enabled will fail silentely due to https://github.com/OpenHFT/Chronicle-Queue[Chronicle Queue] roll cycle inference mechanism (even if you delete the ``metadata.cq4t`` file).
+
+Here is an example of such an override visible in Cassandra logs:
+----
+INFO  [main] <DATE TIME> BinLog.java:420 - Attempting to configure bin log: Path: /path/to/audit Roll cycle: TWO_HOURLY [...]
+WARN  [main] <DATE TIME> SingleChronicleQueueBuilder.java:477 - Overriding roll cycle from TWO_HOURLY to FIVE_MINUTE
+----
+
+In order to change ``roll_cycle`` on a node, you have to:
+
+1. Stop Cassandra
+2. Move or offload all audit logs somewhere else (in a safe and durable location)
+3. Restart Cassandra.
+4. Check Cassandra logs
+5. Make sure that audit log filenames under ``audit_logs_dir`` correspond to the new roll cycle.
 
 === block
 
 The ``block`` option specifies whether audit logging should block writing or drop log records if the audit logging falls behind. Supported boolean values are ``true`` (default) or ``false``.
-For example: ``block: false`` to drop records
+
+For example: ``block: false`` to drop records (e.g. if audit is used for troobleshooting)
+
+For regulatory compliance purpose, it's a good practice to explicitely set ``block: true`` to prevent any regression in case of future default value change.
 
 === max_queue_weight
 
 The ``max_queue_weight`` option sets the maximum weight of in-memory queue for records waiting to be written to the file before blocking or dropping.  The option must be set to a positive value. The default value is 268435456, or 256 MiB.
+
 For example, to change the default: ``max_queue_weight: 134217728 # 128 MiB``
 
 === max_log_size
@@ -215,23 +274,37 @@ For example, to change the default: ``max_queue_weight: 134217728 # 128 MiB``
 The ``max_log_size`` option sets the maximum size of the rolled files to retain on disk before deleting the oldest file.  The option must be set to a positive value. The default is 17179869184, or 16 GiB.
 For example, to change the default: ``max_log_size: 34359738368 # 32 GiB``
 
+WARNING: ``max_log_size`` is ignored if ``archive_command`` option is set.
+
+[[archive_command]]
 === archive_command
 
+NOTE: If ``archive_command`` option is empty or unset (default), Cassandra uses a built-in DeletingArchiver that deletes the oldest files if ``max_log_size`` is reached.
+
 The ``archive_command`` option sets the user-defined archive script to execute on rolled log files.
-For example: ``archive_command: /usr/local/bin/archiveit.sh %path # %path is the file being rolled``
+For example: ``archive_command: "/usr/local/bin/archiveit.sh %path"``
+
+``%path`` is replaced with the absolute file path of the file being rolled.
+
+When using a user-defined script, Cassandra do **not** use the DeletingArchiver, so it's the responsability of the script to make any required cleanup.
+
+Cassandra will call the user-defined script as soon as the log file is rolled. It means that Chronicle Queue's QueueFileShrinkManager will not be able to shrink the sparse log file because it's done asynchronously. In other words, all log files will have at least the size of the default block size (80 MiB), even if there are only a few KB of real data. Consequently, some warnings will appear in Cassandra system.log:
+
+----
+WARN  [main/queue~file~shrink~daemon] <DATE TIME> QueueFileShrinkManager.java:63 - Failed to shrink file as it exists no longer, file=/path/to/xxx.cq4
+----
+
+TIP: Because Cassandra does not make use of Pretoucher, you can configure Chronicle Queue to shrink files synchronously -- i.e. as soon as the file is rolled -- with ``chronicle.queue.synchronousFileShrinking`` JVM properties. For instance, you can add the following line at the end of ``cassandra-env.sh``: ``JVM_OPTS="$JVM_OPTS -Dchronicle.queue.synchronousFileShrinking=true"``
 
 === max_archive_retries
 
 The ``max_archive_retries`` option sets the max number of retries of failed archive commands. The default is 10.
+
 For example: ``max_archive_retries: 10``
 
+Interval between each retry is hard coded to 5 minutes.
 
-An audit log file could get rolled for other reasons as well such as a
-log file reaches the configured size threshold.
-
-Audit logging can also be configured using ``nodetool` when enabling the feature, and will override any values set in the `cassandra.yaml` file, as discussed in the next section.
-
-
+[[enabling_audit_with_nodetool]]
 == Enabling Audit Logging with ``nodetool``
  
 Audit logging is enabled on a per-node basis using the ``nodetool enableauditlog`` command. The logging directory must be defined with ``audit_logs_dir`` in the `cassandra.yaml` file or uses the default value ``cassandra.logdir.audit``.

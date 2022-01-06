@@ -1469,7 +1469,7 @@ compaction_tombstone_warning_threshold: 100000
 # max_concurrent_automatic_sstable_upgrades: 1
 
 # Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
-# on audit_logging for full details about the various configuration options.
+# on audit_logging for full details about the various configuration options and production tips.
 audit_logging_options:
   enabled: false
   logger:
@@ -1485,10 +1485,12 @@ audit_logging_options:
   # block: true
   # max_queue_weight: 268435456 # 256 MiB
   # max_log_size: 17179869184 # 16 GiB
-  ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+  #
+  ## If archive_command is empty or unset, Cassandra uses a built-in DeletingArchiver that deletes the oldest files if ``max_log_size`` is reached.
+  ## If archive_command is set, Cassandra do **not** use the DeletingArchiver, so it's the responsability of the script to make any required cleanup.
+  ## Example: "/path/to/script.sh %path" where %path is replaced with the file being rolled.
   # archive_command:
   # max_archive_retries: 10
-
 
 # default options for full query logging - these can be overridden from command line when executing
 # nodetool enablefullquerylog
