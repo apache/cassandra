@@ -500,7 +500,7 @@
           </dependency>
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
-          <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
+          <dependency groupId="commons-codec" artifactId="commons-codec" version="1.15"/>
           <dependency groupId="commons-io" artifactId="commons-io" version="2.6" scope="test"/>
           <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
           <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
