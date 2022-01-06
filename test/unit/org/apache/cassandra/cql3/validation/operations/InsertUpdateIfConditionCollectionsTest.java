@@ -154,8 +154,8 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             checkInvalidUDT("v >= null", v, InvalidRequestException.class);
             checkInvalidUDT("v IN null", v, SyntaxException.class);
             checkInvalidUDT("v IN 367", v, SyntaxException.class);
-            checkInvalidUDT("v CONTAINS KEY 123", v, SyntaxException.class);
-            checkInvalidUDT("v CONTAINS 'bar'", v, SyntaxException.class);
+            checkInvalidUDT("v CONTAINS KEY 123", v, InvalidRequestException.class);
+            checkInvalidUDT("v CONTAINS 'bar'", v, InvalidRequestException.class);
 
             /////////////////// null suffix on stored udt ////////////////////
             v = userType("a", 0, "b", null);
@@ -472,10 +472,12 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_applies_list("l < ['z']");
             check_applies_list("l <= ['z']");
             check_applies_list("l IN (null, ['foo', 'bar', 'foobar'], ['a'])");
+            check_applies_list("l CONTAINS 'bar'");
 
             // multiple conditions
             check_applies_list("l > ['aaa', 'bbb'] AND l > ['aaa']");
             check_applies_list("l != null AND l IN (['foo', 'bar', 'foobar'])");
+            check_applies_list("l CONTAINS 'foo' AND l CONTAINS 'foobar'");
 
             // should not apply
             check_does_not_apply_list("l = ['baz']");
@@ -486,10 +488,12 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_does_not_apply_list("l <= ['a']");
             check_does_not_apply_list("l IN (['a'], null)");
             check_does_not_apply_list("l IN ()");
+            check_does_not_apply_list("l CONTAINS 'baz'");
 
             // multiple conditions
             check_does_not_apply_list("l IN () AND l IN (['foo', 'bar', 'foobar'])");
             check_does_not_apply_list("l > ['zzz'] AND l < ['zzz']");
+            check_does_not_apply_list("l CONTAINS 'bar' AND l CONTAINS 'baz'");
 
             check_invalid_list("l = [null]", InvalidRequestException.class);
             check_invalid_list("l < null", InvalidRequestException.class);
@@ -498,14 +502,12 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_invalid_list("l >= null", InvalidRequestException.class);
             check_invalid_list("l IN null", SyntaxException.class);
             check_invalid_list("l IN 367", SyntaxException.class);
-            check_invalid_list("l CONTAINS KEY 123", SyntaxException.class);
-
-            // not supported yet
-            check_invalid_list("m CONTAINS 'bar'", SyntaxException.class);
+            check_invalid_list("l CONTAINS KEY 123", InvalidRequestException.class);
+            check_invalid_list("l CONTAINS null", InvalidRequestException.class);
         }
     }
 
-    void check_applies_list(String condition) throws Throwable
+    void   check_applies_list(String condition) throws Throwable
     {
         assertRows(execute("UPDATE %s SET l = ['foo', 'bar', 'foobar'] WHERE k=0 IF " + condition), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
@@ -631,10 +633,12 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_applies_set("s < {'z'}");
             check_applies_set("s <= {'z'}");
             check_applies_set("s IN (null, {'bar', 'foo'}, {'a'})");
+            check_applies_set("s CONTAINS 'foo'");
 
             // multiple conditions
             check_applies_set("s > {'a'} AND s < {'z'}");
             check_applies_set("s IN (null, {'bar', 'foo'}, {'a'}) AND s IN ({'a'}, {'bar', 'foo'}, null)");
+            check_applies_set("s CONTAINS 'foo' AND s CONTAINS 'bar'");
 
             // should not apply
             check_does_not_apply_set("s = {'baz'}");
@@ -646,6 +650,7 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_does_not_apply_set("s IN ({'a'}, null)");
             check_does_not_apply_set("s IN ()");
             check_does_not_apply_set("s != null AND s IN ()");
+            check_does_not_apply_set("s CONTAINS 'baz'");
 
             check_invalid_set("s = {null}", InvalidRequestException.class);
             check_invalid_set("s < null", InvalidRequestException.class);
@@ -654,13 +659,11 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_invalid_set("s >= null", InvalidRequestException.class);
             check_invalid_set("s IN null", SyntaxException.class);
             check_invalid_set("s IN 367", SyntaxException.class);
-            check_invalid_set("s CONTAINS KEY 123", SyntaxException.class);
+            check_invalid_set("s CONTAINS null", InvalidRequestException.class);
+            check_invalid_set("s CONTAINS KEY 123", InvalidRequestException.class);
 
             // element access is not allow for sets
             check_invalid_set("s['foo'] = 'foobar'", InvalidRequestException.class);
-
-            // not supported yet
-            check_invalid_set("m CONTAINS 'bar'", SyntaxException.class);
         }
     }
 
@@ -704,10 +707,13 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_applies_map("m <= {'z': 'z'}");
             check_applies_map("m != {'a': 'a'}");
             check_applies_map("m IN (null, {'a': 'a'}, {'foo': 'bar'})");
+            check_applies_map("m CONTAINS 'bar'");
+            check_applies_map("m CONTAINS KEY 'foo'");
 
             // multiple conditions
             check_applies_map("m > {'a': 'a'} AND m < {'z': 'z'}");
             check_applies_map("m != null AND m IN (null, {'a': 'a'}, {'foo': 'bar'})");
+            check_applies_map("m CONTAINS 'bar' AND m CONTAINS KEY 'foo'");
 
             // should not apply
             check_does_not_apply_map("m = {'a': 'a'}");
@@ -719,18 +725,16 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             check_does_not_apply_map("m IN ({'a': 'a'}, null)");
             check_does_not_apply_map("m IN ()");
             check_does_not_apply_map("m = null AND m != null");
+            check_does_not_apply_map("m CONTAINS 'foo'");
+            check_does_not_apply_map("m CONTAINS KEY 'bar'");
 
             check_invalid_map("m = {null: null}", InvalidRequestException.class);
             check_invalid_map("m = {'a': null}", InvalidRequestException.class);
             check_invalid_map("m = {null: 'a'}", InvalidRequestException.class);
+            check_invalid_map("m CONTAINS null", InvalidRequestException.class);
+            check_invalid_map("m CONTAINS KEY null", InvalidRequestException.class);
             check_invalid_map("m < null", InvalidRequestException.class);
             check_invalid_map("m IN null", SyntaxException.class);
-
-            // not supported yet
-            check_invalid_map("m CONTAINS 'bar'", SyntaxException.class);
-            check_invalid_map("m CONTAINS KEY 'foo'", SyntaxException.class);
-            check_invalid_map("m CONTAINS null", SyntaxException.class);
-            check_invalid_map("m CONTAINS KEY null", SyntaxException.class);
         }
     }
 
@@ -918,4 +922,111 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                                  "UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN ?", unset());
         }
     }
+
+    @Test
+    public void testNonFrozenEmptyCollection() throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, l %s)", "list<text>"));
+        execute("INSERT INTO %s (k, l) VALUES (0, null)");
+
+        // Does apply
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l = ?", (ByteBuffer) null),
+                   row(true));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l = ?", list()),
+                   row(true));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l != ?", list("bar")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l < ?", list("a")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l <= ?", list("a")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l IN (?, ?)", null, list("bar")),
+                   row(true));
+
+        // Does not apply
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l = ?", list("bar")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l > ?", list("a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l >= ?", list("a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", "bar"),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", unset()),
+                   row(false, null));
+
+        assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
+                             "UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", (ByteBuffer) null);
+
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, s %s)", "set<text>"));
+        execute("INSERT INTO %s (k, s) VALUES (0, null)");
+
+        // Does apply
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s = ?", (ByteBuffer) null),
+                   row(true));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s = ?", set()),
+                   row(true));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s != ?", set("bar")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s < ?", set("a")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s <= ?", set("a")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s IN (?, ?)", null, set("bar")),
+                   row(true));
+
+        // Does not apply
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s = ?", set("bar")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s > ?", set("a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s >= ?", set("a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", "bar"),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", unset()),
+                   row(false, null));
+
+        assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
+                             "UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", (ByteBuffer) null);
+
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "map<text, text>"));
+        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+
+        // Does apply
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m = ?", (ByteBuffer) null),
+                   row(true));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m = ?", map()),
+                   row(true));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m != ?", map("foo","bar")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m < ?", map("a","a")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m <= ?", map("a","a")),
+                   row(true));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m IN (?, ?)", null, map("foo","bar")),
+                   row(true));
+
+        // Does not apply
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m = ?", map("foo","bar")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m > ?", map("a", "a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m >= ?", map("a", "a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m CONTAINS ?", "bar"),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS ?", unset()),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS KEY ?", "foo"),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS KEY ?", unset()),
+                   row(false, null));
+
+        assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
+                             "UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS ?", (ByteBuffer) null);
+        assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS KEY\"",
+                             "UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS KEY ?", (ByteBuffer) null);
+    }
+
 }

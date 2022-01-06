@@ -495,6 +495,9 @@ public abstract class ColumnCondition
             if (value == null)
                 return !iter.hasNext();
 
+            if(operator.isContains() || operator.isContainsKey())
+                return containsAppliesTo(type, iter, value.get(ProtocolVersion.CURRENT), operator);
+
             switch (type.kind)
             {
                 case LIST:
@@ -571,6 +574,38 @@ public abstract class ColumnCondition
             // they're equal
             return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
         }
+    }
+
+    private static boolean containsAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, ByteBuffer value, Operator operator){
+        AbstractType<?> compareType;
+        switch (type.kind)
+        {
+            case LIST:
+                compareType = ((ListType<?>)type).getElementsType();
+                break;
+            case SET:
+                compareType = ((SetType<?>)type).getElementsType();
+                break;
+            case MAP:
+                compareType = operator.isContainsKey() ? ((MapType<?, ?>)type).getKeysType() : ((MapType<?, ?>)type).getValuesType();
+                break;
+            default:
+                throw new AssertionError();
+        }
+        boolean appliesToSetOrMapKeys = (type.kind == CollectionType.Kind.SET || type.kind == CollectionType.Kind.MAP && operator.isContainsKey());
+        return containsAppliesTo(compareType, iter, value, appliesToSetOrMapKeys);
+    }
+
+    private static boolean containsAppliesTo(AbstractType<?> type, Iterator<Cell<?>> iter, ByteBuffer value, Boolean appliesToSetOrMapKeys)
+    {
+        while(iter.hasNext())
+        {
+            // for lists and map values we use the cell value; for sets and map keys we use the cell name
+            ByteBuffer cellValue = appliesToSetOrMapKeys ? iter.next().path().get(0) : iter.next().buffer();
+            if(type.compare(cellValue, value) == 0)
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -819,11 +854,17 @@ public abstract class ColumnCondition
 
         private Terms prepareTerms(String keyspace, ColumnSpecification receiver)
         {
+            checkFalse(operator.isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
+            checkFalse(operator.isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
+
             if (operator.isIN())
             {
                 return inValues == null ? Terms.ofListMarker(inMarker.prepare(keyspace, receiver), receiver.type)
                                         : Terms.of(prepareTerms(keyspace, receiver, inValues));
             }
+
+            if (operator.isContains() || operator.isContainsKey())
+                receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.isContainsKey());
 
             return Terms.of(value.prepare(keyspace, receiver));
         }
