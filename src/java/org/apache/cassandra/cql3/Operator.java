@@ -340,4 +340,22 @@ public enum Operator
     {
         return this == IN;
     }
+
+    /**
+     * Checks if this operator is CONTAINS operator.
+     * @return {@code true} if this operator is a CONTAINS operator, {@code false} otherwise.
+     */
+    public boolean isContains()
+    {
+        return this == CONTAINS;
+    }
+
+    /**
+     * Checks if this operator is CONTAINS KEY operator.
+     * @return {@code true} if this operator is a CONTAINS operator, {@code false} otherwise.
+     */
+    public boolean isContainsKey()
+    {
+        return this == CONTAINS_KEY;
+    }
 }
