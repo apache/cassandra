@@ -662,7 +662,7 @@ memtable_allocation_type: heap_buffers
 # and flush size and frequency. More is not better you just need enough flush writers
 # to never stall waiting for flushing to free memory.
 #
-#memtable_flush_writers: 2
+# memtable_flush_writers: 2
 
 # Total space to use for change-data-capture logs on disk.
 #
@@ -771,7 +771,7 @@ native_transport_port: 9042
 # native_transport_max_threads: 128
 #
 # The maximum size of allowed frame. Frame (requests) larger than this will
-# be rejected as invalid. The default is 16MB. If you're changing this parameter,
+# be rejected as invalid. The default is 16MiB. If you're changing this parameter,
 # you may want to adjust max_value_size accordingly. This should be positive and less than 2048.
 # native_transport_max_frame_size: 16MiB
 
@@ -905,7 +905,7 @@ column_index_cache_size: 2KiB
 #
 # If your data directories are backed by SSD, you should increase this
 # to the number of cores.
-#concurrent_compactors: 1
+# concurrent_compactors: 1
 
 # Number of simultaneous repair validations to allow. If not set or set to
 # a value less than 1, it defaults to the value of concurrent_compactors.
@@ -938,7 +938,7 @@ sstable_preemptive_open_interval: 50MiB
 # SSTables between nodes, including every component.
 # This speeds up the network transfer significantly subject to
 # throttling specified by entire_sstable_stream_throughput_outbound,
-# and entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec
+# and entire_sstable_inter_dc_stream_throughput_outbound
 # for inter-DC transfers.
 # Enabling this will reduce the GC pressure on sending and receiving node.
 # When unset, the default is enabled. While this feature tries to keep the
@@ -949,27 +949,27 @@ sstable_preemptive_open_interval: 50MiB
 # Throttles entire SSTable outbound streaming file transfers on
 # this node to the given total throughput in Mbps.
 # Setting this value to 0 it disables throttling.
-# When unset, the default is 200 Mbps or 25 MiB/s.
+# When unset, the default is 200 Mbps or approximately 25 MiB/s.
 # entire_sstable_stream_throughput_outbound: 25MiB/s
 
 # Throttles entire SSTable file streaming between datacenters.
 # Setting this value to 0 disables throttling for entire SSTable inter-DC file streaming.
-# When unset, the default is 200 Mbps or 25 MiB/s.
-# entire_sstable_inter_dc_stream_throughput_outbound 25MiB/S
+# When unset, the default is 200 Mbps or approximately 25 MiB/s.
+# entire_sstable_inter_dc_stream_throughput_outbound 25MiB/s
 
 # Throttles all outbound streaming file transfers on this node to the
 # given total throughput in Mbps. This is necessary because Cassandra does
 # mostly sequential IO when streaming data during bootstrap or repair, which
 # can lead to saturating the network connection and degrading rpc performance.
-# When unset, the default is 200 Mbps or 25 MiB/S.
-# stream_throughput_outbound: 25MiB/S
+# When unset, the default is 200 Mbps or approximately 25 MiB/s.
+# stream_throughput_outbound: 25MiB/s
 
 # Throttles all streaming file transfer between the datacenters,
 # this setting allows users to throttle inter dc stream throughput in addition
 # to throttling all network stream traffic as configured with
 # stream_throughput_outbound
-# When unset, the default is 200 Mbps or 25 MiB/S
-# inter_dc_stream_throughput_outbound: 25MiB/S
+# When unset, the default is 200 Mbps or approximately 25 MiB/s
+# inter_dc_stream_throughput_outbound: 25MiB/s
 
 # Server side timeouts for requests. The server will return a timeout exception
 # to the client if it can't complete an operation within the corresponding

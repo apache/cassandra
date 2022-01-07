@@ -41,7 +41,7 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
  *
- * All stream operation should be created through this class to track streaming status and progress.
+ * All stream operations should be created through this class to track streaming status and progress.
  */
 public class StreamManager implements StreamManagerMBean
 {
@@ -85,7 +85,7 @@ public class StreamManager implements StreamManagerMBean
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
-        public static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
+        public static final double BYTES_PER_MEBIBIT = (1024 * 1024) / 8; //from bits
         private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
@@ -198,7 +198,7 @@ public class StreamManager implements StreamManagerMBean
         {
             // if throughput is set to 0 or negative value, throttling is disabled
             return throughput > 0
-                   ? throughput * BYTES_PER_MEGABIT
+                   ? throughput * BYTES_PER_MEBIBIT
                    : Double.MAX_VALUE;
         }
     }

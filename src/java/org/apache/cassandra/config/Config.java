@@ -189,10 +189,12 @@ public class Config
     @Replaces(oldName = "internode_max_message_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated=true)
     public DataStorageSpec internode_max_message_size;
 
-    @Replaces(oldName = "internode_send_buff_size_in_bytes", converter = Converters.IDENTITY, deprecated = true)
-    public int internode_socket_send_buffer_size_in_bytes = 0;
-    @Replaces(oldName = "internode_recv_buff_size_in_bytes", converter = Converters.IDENTITY, deprecated = true)
-    public int internode_socket_receive_buffer_size_in_bytes = 0;
+    @Replaces(oldName = "internode_socket_send_buffer_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    @Replaces(oldName = "internode_send_buff_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_socket_send_buffer_size = new DataStorageSpec("0B");
+    @Replaces(oldName = "internode_socket_receive_buffer_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    @Replaces(oldName = "internode_recv_buff_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_socket_receive_buffer_size = new DataStorageSpec("0B");
 
     // TODO: derive defaults from system memory settings?
     @Replaces(oldName = "internode_application_send_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
@@ -279,12 +281,12 @@ public class Config
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
     
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
-    public volatile DataRateSpec stream_throughput_outbound = new DataRateSpec("25MiB/s");
+    public volatile DataRateSpec stream_throughput_outbound = new DataRateSpec("24MiB/s");
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
-    public volatile DataRateSpec inter_dc_stream_throughput_outbound = new DataRateSpec("25MiB/s");
+    public volatile DataRateSpec inter_dc_stream_throughput_outbound = new DataRateSpec("24MiB/s");
 
-    public volatile int entire_sstable_stream_throughput_outbound_megabits_per_sec = 200;
-    public volatile int entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
+    public DataRateSpec entire_sstable_stream_throughput_outbound = new DataRateSpec("25MiB/s");
+    public DataRateSpec entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec("25MiB/s");
 
     public String[] data_file_directories = new String[0];
 

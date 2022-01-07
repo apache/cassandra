@@ -100,8 +100,8 @@ public class YamlConfigurationLoaderTest
         assertEquals(seedProvider, config.seed_provider); // Check a parameterized class
         assertEquals(false, config.client_encryption_options.optional); // Check a nested object
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
-        assertEquals(5, config.internode_socket_send_buffer_size_in_bytes); // Check names backward compatibility (CASSANDRA-17141)
-        assertEquals(5, config.internode_socket_receive_buffer_size_in_bytes); // Check names backward compatibility (CASSANDRA-17141)
+        assertEquals(new DataStorageSpec("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141)
+        assertEquals(new DataStorageSpec("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141)
     }
 
     @Test

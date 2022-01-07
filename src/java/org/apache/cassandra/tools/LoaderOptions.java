@@ -404,8 +404,8 @@ public class LoaderOptions
                     // unthrottle stream by default
                     config.stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
                     config.inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
-                    config.entire_sstable_stream_throughput_outbound_megabits_per_sec = 0;
-                    config.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
+                    config.entire_sstable_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
+                    config.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
                 }
 
 

@@ -23,11 +23,11 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "setstreamthroughput", description = "Set the MiB/s throughput cap for streaming and entire SSTable streaming in the system, or 0 to disable throttling")
+@Command(name = "setstreamthroughput", description = "Set the megabits per second throughput cap for streaming and entire SSTable streaming in the system, or 0 to disable throttling")
 public class SetStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Arguments(title = "stream_throughput", usage = "<value_in_mb>", description = "Value in MiB, 0 to disable throttling", required = true)
+    @Arguments(title = "stream_throughput", usage = "<value_in_mb>", description = "Value in megabits, 0 to disable throttling", required = true)
     private int streamThroughput;
 
     @SuppressWarnings("UnusedDeclaration")

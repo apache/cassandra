@@ -1889,42 +1889,47 @@ public class DatabaseDescriptor
 
     public static int getStreamThroughputOutboundMegabitsPerSec()
     {
-        return conf.stream_throughput_outbound.toMebibytesPerSecondAsInt();
+        return conf.stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
     public static void setStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(value);
+        conf.stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
     }
 
     public static int getEntireSSTableStreamThroughputOutboundMegabitsPerSec()
     {
-        return conf.entire_sstable_stream_throughput_outbound_megabits_per_sec;
+        return conf.entire_sstable_stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
     public static void setEntireSSTableStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.entire_sstable_stream_throughput_outbound_megabits_per_sec = value;
+        conf.entire_sstable_stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
+    }
+
+    public static int getInterDCStreamThroughputOutboundMebibytesPerSec()
     {
         return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
     }
 
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(value);
+        conf.inter_dc_stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
     }
 
     public static int getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec()
     {
-        return conf.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec;
+        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
     public static void setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = value;
+        conf.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
     }
 
     /**
@@ -2078,10 +2083,10 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Update commitlog_segment_size_in_mb in the tests.
+     * Update commitlog_segment_size in the tests.
      * {@link CommitLogSegmentManagerCDC} uses the CommitLogSegmentSize to estimate the file size on allocation.
      * It is important to keep the value unchanged for the estimation to be correct.
-     * @param sizeMegabytes
+     * @param sizeMebibytes
      */
     @VisibleForTesting /* Only for testing */
     public static void setCommitLogSegmentSize(int sizeMebibytes)
@@ -2191,12 +2196,12 @@ public class DatabaseDescriptor
 
     public static int getInternodeSocketSendBufferSizeInBytes()
     {
-        return conf.internode_socket_send_buffer_size_in_bytes;
+        return conf.internode_socket_send_buffer_size.toBytesAsInt();
     }
 
     public static int getInternodeSocketReceiveBufferSizeInBytes()
     {
-        return conf.internode_socket_receive_buffer_size_in_bytes;
+        return conf.internode_socket_receive_buffer_size.toBytesAsInt();
     }
 
     public static int getInternodeApplicationSendQueueCapacityInBytes()

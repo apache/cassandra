@@ -109,6 +109,7 @@ public class LongStreamingTest
         System.err.println(String.format("Writer finished after %d seconds....", TimeUnit.NANOSECONDS.toSeconds(nanoTime() - start)));
 
         File[] dataFiles = dataDir.tryList((dir, name) -> name.endsWith("-Data.db"));
+        //data size is in bytes
         long dataSize = 0l;
         for (File file : dataFiles)
         {
