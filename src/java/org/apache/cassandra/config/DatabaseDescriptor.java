@@ -494,7 +494,7 @@ public class DatabaseDescriptor
         if (conf.repair_session_space.toMebibytes() < 1)
             throw new ConfigurationException("repair_session_space must be > 0, but was " + conf.repair_session_space);
         else if (conf.repair_session_space.toMebibytes() > (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space of " + conf.repair_session_space + " megabytes is likely to cause heap pressure");
+            logger.warn("A repair_session_space of " + conf.repair_session_space + " mebibytes is likely to cause heap pressure");
 
         checkForLowestAcceptedTimeouts(conf);
 
@@ -2084,9 +2084,9 @@ public class DatabaseDescriptor
      * @param sizeMegabytes
      */
     @VisibleForTesting /* Only for testing */
-    public static void setCommitLogSegmentSize(int sizeMegabytes)
+    public static void setCommitLogSegmentSize(int sizeMebibytes)
     {
-        conf.commitlog_segment_size = DataStorageSpec.inMebibytes(sizeMegabytes);
+        conf.commitlog_segment_size = DataStorageSpec.inMebibytes(sizeMebibytes);
     }
 
     public static String getSavedCachesLocation()

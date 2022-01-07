@@ -19,6 +19,7 @@ package org.apache.cassandra.config;
 
 import org.junit.Test;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
@@ -72,18 +73,18 @@ public class DataRateSpecTest
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("MiB"), DataStorageSpec.DataStorageUnit.MEBIBYTES);
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("GiB"), DataStorageSpec.DataStorageUnit.GIBIBYTES);
         assertThatThrownBy(() -> DataStorageSpec.DataStorageUnit.fromSymbol("n"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ConfigurationException.class)
         .hasMessageContaining("Unsupported data storage unit: n");
     }
 
     @Test
     public void testInvalidInputs()
     {
-        assertThatThrownBy(() -> new DataRateSpec("10")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataRateSpec("10")).isInstanceOf(ConfigurationException.class)
                                                         .hasMessageContaining("Invalid bit rate: 10");
-        assertThatThrownBy(() -> new DataRateSpec("-10b/s")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataRateSpec("-10b/s")).isInstanceOf(ConfigurationException.class)
                                                             .hasMessageContaining("Invalid bit rate: -10b/s");
-        assertThatThrownBy(() -> new DataRateSpec("10xb/s")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataRateSpec("10xb/s")).isInstanceOf(ConfigurationException.class)
                                                             .hasMessageContaining("Invalid bit rate: 10xb/s");
         assertThatThrownBy(() -> new DataRateSpec("9223372036854775809B/s")
                                  .toBytesPerSecond()).isInstanceOf(NumberFormatException.class)

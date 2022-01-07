@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 /**
  * Represents an amount of data storage. Wrapper class for Cassandra configuration parameters, providing to the
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
@@ -55,7 +57,7 @@ public final class DataStorageSpec
 
         if (!matcher.find())
         {
-            throw new IllegalArgumentException("Invalid data storage: " + value + " Accepted units: B, KiB, MiB, GiB" +
+            throw new ConfigurationException("Invalid data storage: " + value + " Accepted units: B, KiB, MiB, GiB" +
                                                " where case matters and only non-negative values are accepted");
         }
 
@@ -66,7 +68,7 @@ public final class DataStorageSpec
     DataStorageSpec(long quantity, DataStorageUnit unit)
     {
         if (quantity < 0)
-            throw new IllegalArgumentException("DataStorage value must be positive");
+            throw new ConfigurationException("DataStorage value must be positive");
 
         this.quantity = quantity;
         this.unit = unit;
@@ -347,7 +349,7 @@ public final class DataStorageSpec
                 if (value.symbol.equalsIgnoreCase(symbol))
                     return value;
             }
-            throw new IllegalArgumentException(String.format("Unsupported data storage unit: %s. Supported units are: %s",
+            throw new ConfigurationException(String.format("Unsupported data storage unit: %s. Supported units are: %s",
                                                              symbol, Arrays.stream(values())
                                                                            .map(u -> u.symbol)
                                                                            .collect(Collectors.joining(", "))));

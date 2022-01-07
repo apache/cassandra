@@ -21,6 +21,7 @@ import java.util.Locale;
 
 import org.junit.Test;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
@@ -76,20 +77,20 @@ public class DataStorageSpecTest
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("MiB"), DataStorageSpec.DataStorageUnit.MEBIBYTES);
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("GiB"), DataStorageSpec.DataStorageUnit.GIBIBYTES);
         assertThatThrownBy(() -> DataStorageSpec.DataStorageUnit.fromSymbol("n"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ConfigurationException.class)
         .hasMessageContaining("Unsupported data storage unit: n");
     }
 
     @Test
     public void testInvalidInputs()
     {
-        assertThatThrownBy(() -> new DataStorageSpec("10")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataStorageSpec("10")).isInstanceOf(ConfigurationException.class)
                                                            .hasMessageContaining("Invalid data storage: 10");
-        assertThatThrownBy(() -> new DataStorageSpec("-10bps")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataStorageSpec("-10bps")).isInstanceOf(ConfigurationException.class)
                                                                .hasMessageContaining("Invalid data storage: -10bps");
-        assertThatThrownBy(() -> new DataStorageSpec("-10b")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataStorageSpec("-10b")).isInstanceOf(ConfigurationException.class)
                                                              .hasMessageContaining("Invalid data storage: -10b");
-        assertThatThrownBy(() -> new DataStorageSpec("10HG")).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> new DataStorageSpec("10HG")).isInstanceOf(ConfigurationException.class)
                                                              .hasMessageContaining("Invalid data storage: 10HG");
         assertThatThrownBy(() -> new DataStorageSpec("9223372036854775809B")
                                  .toBytes()).isInstanceOf(NumberFormatException.class)

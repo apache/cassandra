@@ -283,9 +283,9 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(-1);
-            fail("Should have received a IllegalArgumentException column_index_cache_size = -1");
+            fail("Should have received a ConfigurationException column_index_cache_size = -1");
         }
-        catch (IllegalArgumentException ignored) { }
+        catch (ConfigurationException ignored) { }
         Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
 
         try
@@ -299,9 +299,9 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexSize(-1);
-            fail("Should have received a IllegalArgumentException column_index_size = -1");
+            fail("Should have received a ConfigurationException column_index_size = -1");
         }
-        catch (IllegalArgumentException ignored) { }
+        catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
 
         try
@@ -315,9 +315,9 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(-1);
-            fail("Should have received a IllegalArgumentException batch_size_warn_threshold = -1");
+            fail("Should have received a ConfigurationException batch_size_warn_threshold = -1");
         }
-        catch (IllegalArgumentException ignored) { }
+        catch (ConfigurationException ignored) { }
         Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
 
         try

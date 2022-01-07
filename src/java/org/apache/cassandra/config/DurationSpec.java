@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 /**
  * Represents a positive time duration. Wrapper class for Cassandra duration configuration parameters, providing to the
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
@@ -62,15 +64,15 @@ public final class DurationSpec
         }
         else
         {
-            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
-                                               " ns where case matters and " + "only non-negative values");
+            throw new ConfigurationException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
+                                             " ns where case matters and " + "only non-negative values");
         }
     }
 
     DurationSpec(long quantity, TimeUnit unit)
     {
         if (quantity < 0)
-            throw new IllegalArgumentException("DurationSpec must be positive");
+            throw new ConfigurationException("DurationSpec must be positive");
 
         this.quantity = quantity;
         this.unit = unit;
@@ -136,7 +138,7 @@ public final class DurationSpec
             case "µs": return TimeUnit.MICROSECONDS;
             case "ns": return TimeUnit.NANOSECONDS;
         }
-        throw new IllegalArgumentException(String.format("Unsupported time unit: %s. Supported units are: %s",
+        throw new ConfigurationException(String.format("Unsupported time unit: %s. Supported units are: %s",
                                                          symbol, Arrays.stream(TimeUnit.values())
                                                                        .map(DurationSpec::getSymbol)
                                                                        .collect(Collectors.joining(", "))));

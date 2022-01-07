@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 /**
  * Represents a data rate type used for cassandra configuration. It supports the opportunity for the users to be able to
  * add units to the confiuration parameter value. (CASSANDRA-15234)
@@ -46,8 +48,8 @@ public final class DataRateSpec
         Matcher matcher = BIT_RATE_UNITS_PATTERN.matcher(value);
 
         if (!matcher.find())
-            throw new IllegalArgumentException("Invalid bit rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
-                                               "case matters and " + "only non-negative values are valid");
+            throw new ConfigurationException("Invalid bit rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
+                                             "case matters and " + "only non-negative values are valid");
 
         quantity = Long.parseLong(matcher.group(1));
         unit = DataRateUnit.fromSymbol(matcher.group(2));

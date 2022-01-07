@@ -61,7 +61,7 @@ hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, new hints for it will not be
 # created until it has been seen alive and gone down again.
-max_hint_window: 10800000ms # 3 hours
+max_hint_window: 3h
 
 # Maximum throttle in KBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
@@ -361,7 +361,7 @@ prepared_statements_cache_size:
 # Default value is empty to make it "auto" (min(5% of Heap (in MB), 100MB)). Set to 0 to disable key cache.
 key_cache_size:
 
-# DurationSpec in seconds after which Cassandra should
+# Duration in seconds after which Cassandra should
 # save the key cache. Caches are saved to saved_caches_directory as
 # specified in this configuration file.
 #
@@ -396,7 +396,7 @@ key_cache_save_period: 14400
 # Default value is 0, to disable row caching.
 row_cache_size: 0MiB
 
-# DurationSpec in seconds after which Cassandra should save the row cache.
+# Duration in seconds after which Cassandra should save the row cache.
 # Caches are saved to saved_caches_directory as specified in this configuration file.
 #
 # Saved caches greatly improve cold-start speeds, and is relatively cheap in
@@ -425,7 +425,7 @@ row_cache_save_period: 0
 # NOTE: if you perform counter deletes and rely on low gcgs, you should disable the counter cache.
 counter_cache_size:
 
-# DurationSpec in seconds after which Cassandra should
+# Duration in seconds after which Cassandra should
 # save the counter cache (keys only). Caches are saved to saved_caches_directory as
 # specified in this configuration file.
 #
@@ -1082,11 +1082,11 @@ slow_query_log_timeout: 500ms
 # Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
 # operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
 
-# partition_denylist_enabled_: false
+# partition_denylist_enabled: false
 
 # denylist_writes_enabled: true
 # denylist_reads_enabled: true
-# denylist_range_reads__enabled: true
+# denylist_range_reads_enabled: true
 
 # The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
 # Note: this serves only as a fail-safe, as the usage pattern is expected to be "mutate state, refresh cache" on any

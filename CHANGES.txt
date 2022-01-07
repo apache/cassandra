@@ -1,6 +1,5 @@
-5.0
- * Standaridize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
 4.1
+ * Standardize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
  * Prewarm role and credential caches to avoid timeouts at startup (CASSANDRA-16958)
  * Make capacity/validity/updateinterval/activeupdate for Auth Caches configurable via nodetool (CASSANDRA-17063)
  * Added startup check for read_ahead_kb setting (CASSANDRA-16436)
@@ -16,7 +15,6 @@
  * Harden resource management on SSTable components to prevent future leaks (CASSANDRA-17174)
  * Make nodes more resilient to local unrelated files during startup (CASSANDRA-17082)
  * repair prepare message would produce a wrong error message if network timeout happened rather than reply wait timeout (CASSANDRA-16992)
- * Log queries that fail on timeout or unavailable errors up to once per minute by default (CASSANDRA-17159)
  * Refactor normal/preview/IR repair to standardize repair cleanup and error handling of failed RepairJobs (CASSANDRA-17069)
  * Log missing peers in StartupClusterConnectivityChecker (CASSANDRA-17130)
  * Introduce separate rate limiting settings for entire SSTable streaming (CASSANDRA-17065)

@@ -238,13 +238,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         consistent.local.cancelSession(sessionID, force);
     }
 
-    @Override
+    @Deprecated
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
     {
         DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMegabytes);
     }
 
-    @Override
+    @Deprecated
     public int getRepairSessionSpaceInMegabytes()
     {
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
@@ -268,6 +268,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
 
         return stats;
+    }
+
+    @Override
+    public void setRepairSessionSpaceInMebibytes(int sizeInMebibytes)
+    {
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMebibytes);
+    }
+
+    @Override
+    public int getRepairSessionSpaceInMebibytes()
+    {
+        return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
     @Override
