@@ -21,7 +21,7 @@
  * Implement Virtual Tables for Auth Caches (CASSANDRA-16914)
  * Actively update auth cache in the background (CASSANDRA-16957)
  * Add unix time conversion functions (CASSANDRA-17029)
- * JVMStabilityInspector.forceHeapSpaceOomMaybe should handle all non-heap OOMs rather than only supporting direct only (CASSANDRA-17128)
+ * JVMStabilityInspector.forceHe apSpaceOomMaybe should handle all non-heap OOMs rather than only supporting direct only (CASSANDRA-17128)
  * Forbid other Future implementations with checkstyle (CASSANDRA-17055)
  * commit log was switched from non-daemon to daemon threads, which causes the JVM to exit in some case as no non-daemon threads are active (CASSANDRA-17085)
  * Add a Denylist to block reads and writes on specific partition keys (CASSANDRA-12106)

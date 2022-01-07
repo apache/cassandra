@@ -5863,12 +5863,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getColumnIndexSizeInKB()
     {
-        return DatabaseDescriptor.getColumnIndexSizeInKB();
+        return DatabaseDescriptor.getColumnIndexSizeInKiB();
     }
 
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
-        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKB();
+        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKiB();
         DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
         logger.info("Updated column_index_size_in_kb to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKB);
     }
