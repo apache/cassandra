@@ -153,7 +153,7 @@ public class AutoRepairUtils
 
         Keyspace autoRepairKS = Schema.instance.getKeyspaceInstance(KEYSPACE_NAME);
         internalQueryCL = autoRepairKS.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class ?
-                ConsistencyLevel.LOCAL_ONE : ConsistencyLevel.ONE;
+                ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.ONE;
     }
 
     static class CurrentRepairStatus
