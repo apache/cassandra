@@ -56,7 +56,6 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         AccordData result = new AccordData();
         int nowInSeconds = AccordTimestamps.timestampToSeconds(executeAt);
         forEachIntersecting(ranges, read -> {
-            // TODO: put into read stage
             read = read.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
                  UnfilteredPartitionIterator partition = read.executeLocally(controller))

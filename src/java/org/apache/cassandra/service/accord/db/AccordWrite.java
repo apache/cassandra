@@ -49,7 +49,6 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     @Override
     public void apply(KeyRanges ranges, Timestamp executeAt, Store store)
     {
-        // TODO: put into write stage
         long timestamp = AccordTimestamps.timestampToMicros(executeAt);
         forEachIntersecting(ranges, update -> {
             Mutation mutation = new Mutation(new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build());
