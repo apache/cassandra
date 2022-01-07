@@ -190,7 +190,7 @@ public class IndexMode
 
         if (maxMemBytes > 100L * 1073741824)
         {
-            logger.error("{} configured as {} is above 100GB, reverting to default 1GB", INDEX_MAX_FLUSH_MEMORY_OPTION, maxMemBytes);
+            logger.error("{} configured as {} is above 100GiB, reverting to default 1GB", INDEX_MAX_FLUSH_MEMORY_OPTION, maxMemBytes);
             maxMemBytes = DEFAULT_MAX_MEM_BYTES;
         }
         return new IndexMode(mode, isLiteral, isAnalyzed, analyzerClass, maxMemBytes);

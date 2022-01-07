@@ -353,7 +353,7 @@ public class StressCQLSSTableWriter implements Closeable
         private IPartitioner partitioner;
 
         private boolean sorted = false;
-        private long bufferSizeInMB = 128;
+        private long bufferSizeInMiB = 128;
 
         protected Builder()
         {
@@ -502,15 +502,15 @@ public class StressCQLSSTableWriter implements Closeable
          * a new SSTable. This correspond roughly to the data size that will have the created
          * sstable.
          * <p>
-         * The default is 128MB, which should be reasonable for a 1GB heap. If you experience
+         * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
          * OOM while using the writer, you should lower this value.
          *
-         * @param size the size to use in MB.
+         * @param size the size to use in MiB.
          * @return this builder.
          */
-        public Builder withBufferSizeInMB(int size)
+        public Builder withBufferSizeInMiB(int size)
         {
-            this.bufferSizeInMB = size;
+            this.bufferSizeInMiB = size;
             return this;
         }
 
@@ -527,7 +527,7 @@ public class StressCQLSSTableWriter implements Closeable
          * the rows in order, which is rarely the case. If you can provide the
          * rows in order however, using this sorted might be more efficient.
          * <p>
-         * Note that if used, some option like withBufferSizeInMB will be ignored.
+         * Note that if used, some option like withBufferSizeInMiB will be ignored.
          *
          * @return this builder.
          */
@@ -558,7 +558,7 @@ public class StressCQLSSTableWriter implements Closeable
                 UpdateStatement preparedInsert = prepareInsert();
                 AbstractSSTableSimpleWriter writer = sorted
                                                      ? new SSTableSimpleWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.updatedColumns())
-                                                     : new SSTableSimpleUnsortedWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.updatedColumns(), bufferSizeInMB);
+                                                     : new SSTableSimpleUnsortedWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.updatedColumns(), bufferSizeInMiB);
 
                 if (formatType != null)
                     writer.setSSTableFormatType(formatType);

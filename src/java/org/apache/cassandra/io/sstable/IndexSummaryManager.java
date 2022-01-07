@@ -84,7 +84,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
 
         long indexSummarySizeInMB = DatabaseDescriptor.getIndexSummaryCapacityInMiB();
         int interval = DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
-        logger.info("Initializing index summary manager with a memory pool size of {} MB and a resize interval of {} minutes",
+        logger.info("Initializing index summary manager with a memory pool size of {} MiB and a resize interval of {} minutes",
                     indexSummarySizeInMB, interval);
 
         setMemoryPoolCapacityInMB(DatabaseDescriptor.getIndexSummaryCapacityInMiB());

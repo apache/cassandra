@@ -169,7 +169,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
                                      .using(insertStatement)
                                      .withPartitioner(ConfigHelper.getOutputPartitioner(conf))
                                      .inDirectory(outputDir)
-                                     .withBufferSizeInMB(Integer.parseInt(conf.get(BUFFER_SIZE_IN_MB, "64")))
+                                     .withBufferSizeInMiB(Integer.parseInt(conf.get(BUFFER_SIZE_IN_MB, "64")))
                                      .withPartitioner(partitioner)
                                      .build();
         }

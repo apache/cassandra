@@ -353,7 +353,7 @@ public class BufferPoolTest
     @Test
     public void testChunkExhausted()
     {
-        final int size = BufferPool.NORMAL_CHUNK_SIZE / 64; // 1kbit
+        final int size = BufferPool.NORMAL_CHUNK_SIZE / 64; // 1kibit
         int[] sizes = new int[128];
         Arrays.fill(sizes, size);
 
@@ -852,8 +852,8 @@ public class BufferPoolTest
     @Test
     public void testRecyclePartialFreeChunk()
     {
-        // normal chunk size is 128kb
-        int halfNormalChunk = BufferPool.NORMAL_CHUNK_SIZE / 2; // 64kb, half of normal chunk
+        // normal chunk size is 128KiB
+        int halfNormalChunk = BufferPool.NORMAL_CHUNK_SIZE / 2; // 64KiB, half of normal chunk
         List<ByteBuffer> toRelease = new ArrayList<>();
 
         // allocate three buffers on different chunks

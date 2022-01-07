@@ -333,7 +333,7 @@ public abstract class CommitLogTest
         ColumnFamilyStore cfs1 = ks.getColumnFamilyStore(STANDARD1);
         ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
 
-        // Roughly 32 MB mutation
+        // Roughly 32 MiB mutation
         Mutation m = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
                      .clustering("bytes")
                      .add("val", ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4))
@@ -369,7 +369,7 @@ public abstract class CommitLogTest
         ColumnFamilyStore cfs1 = ks.getColumnFamilyStore(STANDARD1);
         ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
 
-        // Roughly 32 MB mutation
+        // Roughly 32 MiB mutation
          Mutation rm = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
                   .clustering("bytes")
                   .add("val", ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1))

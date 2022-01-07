@@ -45,7 +45,7 @@ public class ConfigHelper
     private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_KEYRANGE_CONFIG = "cassandra.input.keyRange";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
-    private static final String INPUT_SPLIT_SIZE_IN_MB_CONFIG = "cassandra.input.split.size_mb";
+    private static final String INPUT_SPLIT_SIZE_IN_MIB_CONFIG = "cassandra.input.split.size_mb";
     private static final String INPUT_WIDEROWS_CONFIG = "cassandra.input.widerows";
     private static final int DEFAULT_SPLIT_SIZE = 64 * 1024;
     private static final String RANGE_BATCH_SIZE_CONFIG = "cassandra.range.batch.size";
@@ -185,11 +185,11 @@ public class ConfigHelper
      * the overhead of each map will take up the bulk of the job time.
      *
      * @param conf          Job configuration you are about to run
-     * @param splitSizeMb   Input split size in MB
+     * @param splitSizeMb   Input split size in MiB
      */
     public static void setInputSplitSizeInMb(Configuration conf, int splitSizeMb)
     {
-        conf.setInt(INPUT_SPLIT_SIZE_IN_MB_CONFIG, splitSizeMb);
+        conf.setInt(INPUT_SPLIT_SIZE_IN_MIB_CONFIG, splitSizeMb);
     }
 
     /**
@@ -199,7 +199,7 @@ public class ConfigHelper
      */
     public static int getInputSplitSizeInMb(Configuration conf)
     {
-        return conf.getInt(INPUT_SPLIT_SIZE_IN_MB_CONFIG, -1);
+        return conf.getInt(INPUT_SPLIT_SIZE_IN_MIB_CONFIG, -1);
     }
 
     /**

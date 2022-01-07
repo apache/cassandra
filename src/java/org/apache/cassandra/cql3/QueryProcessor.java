@@ -113,12 +113,12 @@ public class QueryProcessor implements QueryHandler
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
             long count = lastMinuteEvictionsCount.getAndSet(0);
             if (count > 0)
-                logger.warn("{} prepared statements discarded in the last minute because cache limit reached ({} MB)",
+                logger.warn("{} prepared statements discarded in the last minute because cache limit reached ({} MiB)",
                             count,
                             DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
         }, 1, 1, TimeUnit.MINUTES);
 
-        logger.info("Initialized prepared statement caches with {} MB",
+        logger.info("Initialized prepared statement caches with {} MiB",
                     DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
     }
 

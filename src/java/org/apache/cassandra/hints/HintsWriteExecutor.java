@@ -62,7 +62,7 @@ final class HintsWriteExecutor
     }
 
     /*
-     * Should be very fast (worst case scenario - write a few 10s of megabytes to disk).
+     * Should be very fast (worst case scenario - write a few 10s of mebibytes to disk).
      */
     void shutdownBlocking()
     {

@@ -32,8 +32,8 @@ import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 
 /**
  * This NativeAllocator uses global slab allocation strategy
- * with slab size that scales exponentially from 8kb to 1Mb to
- * serve allocation of up to 128kb.
+ * with slab size that scales exponentially from 8KiB to 1Mb to
+ * serve allocation of up to 128KiB.
  * <p>
  * </p>
  * The slab allocation reduces heap fragmentation from small

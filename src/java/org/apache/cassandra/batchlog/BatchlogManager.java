@@ -229,7 +229,7 @@ public class BatchlogManager implements BatchlogManagerMBean
      * Sets the rate for the current rate limiter. When {@code throttleInKB} is 0, this sets the rate to
      * {@link Double#MAX_VALUE} bytes per second.
      *
-     * @param throttleInKB throughput to set in KB per second
+     * @param throttleInKB throughput to set in KiB per second
      */
     public void setRate(final int throttleInKB)
     {
@@ -240,7 +240,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             double throughput = endpointThrottleInKB == 0 ? Double.MAX_VALUE : endpointThrottleInKB * 1024.0;
             if (rateLimiter.getRate() != throughput)
             {
-                logger.debug("Updating batchlog replay throttle to {} KB/s, {} KB/s per endpoint", throttleInKB, endpointThrottleInKB);
+                logger.debug("Updating batchlog replay throttle to {} KiB/s, {} KiB/s per endpoint", throttleInKB, endpointThrottleInKB);
                 rateLimiter.setRate(throughput);
             }
         }

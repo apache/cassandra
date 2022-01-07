@@ -385,7 +385,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt range tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
-        final int maxSizePreKB = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        final int maxSizePreKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
         DatabaseDescriptor.setColumnIndexSize(1024);
         prepareWide();
         RangeTombstone rt = new RangeTombstone(Slice.ALL, new DeletionTime(System.currentTimeMillis(), -1));
@@ -394,7 +394,7 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().forceBlockingFlush();
         readAndValidate(true);
         readAndValidate(false);
-        DatabaseDescriptor.setColumnIndexSize(maxSizePreKB);
+        DatabaseDescriptor.setColumnIndexSize(maxSizePreKiB);
     }
 
 

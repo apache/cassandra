@@ -39,8 +39,8 @@ import org.apache.cassandra.utils.memory.BufferPools;
 public class ChunkCache
         implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
 {
-    public static final int RESERVED_POOL_SPACE_IN_MB = 32;
-    public static final long cacheSize = 1024L * 1024L * Math.max(0, DatabaseDescriptor.getFileCacheSizeInMiB() - RESERVED_POOL_SPACE_IN_MB);
+    public static final int RESERVED_POOL_SPACE_IN_MIB = 32;
+    public static final long cacheSize = 1024L * 1024L * Math.max(0, DatabaseDescriptor.getFileCacheSizeInMiB() - RESERVED_POOL_SPACE_IN_MIB);
     public static final boolean roundUp = DatabaseDescriptor.getFileCacheRoundUp();
 
     private static boolean enabled = DatabaseDescriptor.getFileCacheEnabled() && cacheSize > 0;

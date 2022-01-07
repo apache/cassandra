@@ -68,7 +68,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
  * You can also configure the number of rows per InputSplit with
  *   1: ConfigHelper.setInputSplitSize. The default split size is 64k rows.
  *   or
- *   2: ConfigHelper.setInputSplitSizeInMb. InputSplit size in MB with new, more precise method
+ *   2: ConfigHelper.setInputSplitSizeInMb. InputSplit size in MiB with new, more precise method
  *   If no value is provided for InputSplitSizeInMb, we default to using InputSplitSize.
  *
  *   CQLConfigHelper.setInputCQLPageRowSize. The default page row size is 1000. You
@@ -330,8 +330,8 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
     private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Host host, Configuration conf, Session session)
     {
         int splitSize = ConfigHelper.getInputSplitSize(conf);
-        int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);
-        return describeSplits(keyspace, cfName, range, host, splitSize, splitSizeMb, session);
+        int splitSizeMiB = ConfigHelper.getInputSplitSizeInMb(conf);
+        return describeSplits(keyspace, cfName, range, host, splitSize, splitSizeMiB, session);
     }
 
     private static Map<TokenRange, List<Host>> getRangeMap(String keyspace, Metadata metadata, String targetDC)

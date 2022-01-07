@@ -830,7 +830,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             store.metric.coordinatorReadSize.update(result.getSize());
         if (result.shouldWarn(options.getCoordinatorReadSizeWarnThresholdKB()))
         {
-            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getCoordinatorReadSizeWarnThresholdKB());
+            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d KiB", table, options.getCoordinatorReadSizeWarnThresholdKB());
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
             logger.warn("{} with query {}", msg, asCQL(options));
             if (store != null)
@@ -844,7 +844,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             return;
         if (result.shouldReject(options.getCoordinatorReadSizeAbortThresholdKB()))
         {
-            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, options.getCoordinatorReadSizeAbortThresholdKB());
+            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d KiB", table, options.getCoordinatorReadSizeAbortThresholdKB());
             String clientMsg = msg + " with " + loggableTokens(options);
             ClientWarn.instance.warn(clientMsg);
             logger.warn("{} with query {}", msg, asCQL(options));

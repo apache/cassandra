@@ -159,11 +159,11 @@ public class CompactionManager implements CompactionManagerMBean
     /**
      * Sets the rate for the rate limiter. When compaction_throughput is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
-     * @param throughPutMiBPerSec throughput to set in MiB per second
+     * @param throughputMiBPerSec throughput to set in MiB per second
      */
-    public void setRate(final double throughPutMiBPerSec)
+    public void setRate(final double throughputMiBPerSec)
     {
-        double throughput = throughPutMiBPerSec * 1024.0 * 1024.0;
+        double throughput = throughputMiBPerSec * 1024.0 * 1024.0;
         // if throughput is set to 0, throttling is disabled
         if (throughput == 0 || StorageService.instance.isBootstrapMode())
             throughput = Double.MAX_VALUE;

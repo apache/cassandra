@@ -74,7 +74,7 @@ public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
     /**
      * Writes all data in file channel to stream: <br>
      * * For zero-copy-streaming, 1MiB at a time, with at most 2MiB in flight at once. <br>
-     * * For streaming with SSL, 64kb at a time, with at most 32+64kb (default low water mark + batch size) in flight. <br>
+     * * For streaming with SSL, 64KiB at a time, with at most 32+64KiB (default low water mark + batch size) in flight. <br>
      * <p>
      * This method takes ownership of the provided {@link FileChannel}.
      * <p>

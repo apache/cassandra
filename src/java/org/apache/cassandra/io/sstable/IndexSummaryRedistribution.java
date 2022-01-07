@@ -94,7 +94,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         for (SSTableReader sstable : redistribute)
             total += sstable.getIndexSummaryOffHeapSize();
 
-        logger.info("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
+        logger.info("Beginning redistribution of index summaries for {} sstables with memory pool size {} MiB; current spaced used is {} MiB",
                      redistribute.size(), memoryPoolBytes / 1024L / 1024L, total / 1024.0 / 1024.0);
 
         final Map<SSTableReader, Double> readRates = new HashMap<>(redistribute.size());
@@ -119,7 +119,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
         long remainingBytes = memoryPoolBytes - nonRedistributingOffHeapSize;
 
-        logger.trace("Index summaries for compacting SSTables are using {} MB of space",
+        logger.trace("Index summaries for compacting SSTables are using {} MiB of space",
                      (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
         List<SSTableReader> newSSTables;
         try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
@@ -133,7 +133,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         for (SSTableReader sstable : newSSTables)
             total += sstable.getIndexSummaryOffHeapSize();
 
-        logger.info("Completed resizing of index summaries; current approximate memory used: {} MB, time spent: {}ms",
+        logger.info("Completed resizing of index summaries; current approximate memory used: {} MiB, time spent: {}ms",
                     total / 1024.0 / 1024.0, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
 
         return newSSTables;

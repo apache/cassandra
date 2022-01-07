@@ -66,7 +66,7 @@ import static org.junit.Assert.assertTrue;
 public class ValidatorTest
 {
     private static final long TEST_TIMEOUT = 60; //seconds
-    private static int testSizeMegabytes;
+    private static int testSizeMebibytes;
 
     private static final String keyspace = "ValidatorTest";
     private static final String columnFamily = "Standard1";
@@ -80,20 +80,20 @@ public class ValidatorTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
         partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
-        testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMiB();
+        testSizeMebibytes = DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
     @After
     public void tearDown()
     {
         MessagingService.instance().outboundSink.clear();
-        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMebibytes);
     }
 
     @Before
     public void setup()
     {
-        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMebibytes);
     }
 
     @Test
@@ -328,7 +328,7 @@ public class ValidatorTest
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         MerkleTrees trees = ((ValidationResponse) message.payload).trees;
 
-        // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
+        // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 mebibytes)
         Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
         int numTrees = 0;
         double totalResolution = 0;
@@ -347,7 +347,7 @@ public class ValidatorTest
         assertEquals(trees.rowCount(), 1 << 14);
         assertEquals(4, numTrees);
 
-        // With a single tree and a megabyte we should had a total resolution of 2^12 leaves; with multiple
+        // With a single tree and a mebibyte we should had a total resolution of 2^12 leaves; with multiple
         // ranges we should get similar overall resolution, but not more.
         assertTrue(totalResolution > (1 << 11) && totalResolution < (1 << 13));
     }

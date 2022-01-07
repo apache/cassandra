@@ -62,7 +62,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final ILifecycleTransaction transaction; // the readers we are rewriting (updated as they are replaced)
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
 
-    private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
+    private long currentlyOpenedEarlyAt; // the position (in MiB) in the target file we last (re)opened at
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals

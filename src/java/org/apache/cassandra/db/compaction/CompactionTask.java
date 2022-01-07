@@ -87,7 +87,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MB required, {}",
+            logger.warn("insufficient space to compact all requested files. {}MiB required, {}",
                         (float) expectedSize / 1024 / 1024,
                         StringUtils.join(transaction.originals(), ", "));
 
@@ -397,7 +397,7 @@ public class CompactionTask extends AbstractCompactionTask
             }
 
             sstablesRemoved++;
-            logger.warn("Not enough space for compaction, {}MB estimated.  Reducing scope.",
+            logger.warn("Not enough space for compaction, {}MiB estimated.  Reducing scope.",
                         (float) expectedWriteSize / 1024 / 1024);
         }
 

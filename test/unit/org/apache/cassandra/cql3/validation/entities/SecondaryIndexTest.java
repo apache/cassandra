@@ -612,7 +612,7 @@ public class SecondaryIndexTest extends CQLTester
     /**
      * Test for CASSANDRA-5732, Can not query secondary index
      * migrated from cql_tests.py:TestCQL.bug_5732_test(),
-     * which was executing with a row cache size of 100 MB
+     * which was executing with a row cache size of 100 MiB
      * and restarting the node, here we just cleanup the cache.
      */
     @Test
