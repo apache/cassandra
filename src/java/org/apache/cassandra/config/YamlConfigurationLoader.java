@@ -219,6 +219,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private final Set<String> nullProperties = new HashSet<>();
 
+        private final Set<String> deprecationWarnings = new HashSet<>();
+
         private final Map<Class<?>, Map<String, Replacement>> replacements;
 
         public PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
@@ -232,7 +234,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         {
             final Property result;
             Map<String, Replacement> typeReplacements = replacements.getOrDefault(type, Collections.emptyMap());
-            if(typeReplacements.containsKey(name))
+            if (typeReplacements.containsKey(name))
             {
                 Replacement replacement = typeReplacements.get(name);
                 final Property newProperty = super.getProperty(type, replacement.newName);
@@ -269,16 +271,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     }
                 };
 
-                if(replacement.deprecated)
-                {
-                    logger.warn("{} parameter has been deprecated. It has a new name; For more information, please refer to NEWS.txt", name);
-                }
+                if (replacement.deprecated)
+                    deprecationWarnings.add(replacement.oldName);
             }
             else
             {
                 result = super.getProperty(type, name);
             }
-
 
             if (result instanceof MissingProperty)
             {
@@ -326,14 +325,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         public void check() throws ConfigurationException
         {
             if (!nullProperties.isEmpty())
-            {
                 throw new ConfigurationException("Invalid yaml. Those properties " + nullProperties + " are not valid", false);
-            }
 
             if (!missingProperties.isEmpty())
-            {
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml", false);
-            }
+
+            if (!deprecationWarnings.isEmpty())
+                logger.warn("{} parameters have been deprecated. They have new names; For more information, please refer to NEWS.txt", deprecationWarnings);
         }
     }
 
