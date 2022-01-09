@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.RandomAccessFile;
 import java.lang.management.ManagementFactory;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -25,6 +24,7 @@ import java.nio.file.StandardOpenOption;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
@@ -56,20 +56,9 @@ public class MmapFileTest
         {
             int size = 1024 * 1024;
 
-            try (RandomAccessFile raf = new RandomAccessFile(f1.toJavaIOFile(), "rw"))
-            {
-                raf.setLength(size);
-            }
-
-            try (RandomAccessFile raf = new RandomAccessFile(f2.toJavaIOFile(), "rw"))
-            {
-                raf.setLength(size);
-            }
-
-            try (RandomAccessFile raf = new RandomAccessFile(f3.toJavaIOFile(), "rw"))
-            {
-                raf.setLength(size);
-            }
+            Util.setFileLength(f1, size);
+            Util.setFileLength(f2, size);
+            Util.setFileLength(f3,size);
 
             try (FileChannel channel = FileChannel.open(f1.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ))
             {

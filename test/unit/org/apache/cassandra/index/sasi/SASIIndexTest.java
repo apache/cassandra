@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.index.sasi;
 
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -95,9 +96,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.junit.*;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -2045,9 +2043,9 @@ public class SASIIndexTest
         Path path = FileSystems.getDefault().getPath(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age"));
 
         // Overwrite index file with garbage
-        try (Writer writer = new FileWriter(path.toFile(), false))
+        try(FileChannel fc = FileChannel.open(path, StandardOpenOption.WRITE))
         {
-            writer.write("garbage");
+            fc.truncate(8).write(ByteBuffer.wrap("grabage".getBytes(StandardCharsets.UTF_8)));
         }
 
         long size1 = Files.readAttributes(path, BasicFileAttributes.class).size();

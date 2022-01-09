@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;

@@ -19,7 +19,6 @@ package org.apache.cassandra.db.lifecycle;
 
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -29,6 +28,8 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -1226,10 +1227,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             if (!file.exists())
                 assertTrue(file.createFileIfNotExists());
 
-            try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
-            {
-                raf.setLength(size);
-            }
+            Util.setFileLength(file, size);
         }
 
         FileHandle dFile = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).complete();

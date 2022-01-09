@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3;
 
 
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -37,6 +36,7 @@ import com.datastax.driver.core.policies.Policies;
 import com.datastax.driver.core.utils.Bytes;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.FileWriter;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -145,10 +145,12 @@ public class CorruptionTest extends SchemaLoader
                     String basename = "bad-data-tid" + Thread.currentThread().getId();
                     File put = new File(basename+"-put");
                     File get = new File(basename+"-get");
-                    try(FileWriter pw = new FileWriter(put.toJavaIOFile())) {
+                    try (FileWriter pw = put.newWriter(File.WriteMode.OVERWRITE))
+                    {
                         pw.write(new String(putdata));
                     }
-                    try(FileWriter pw = new FileWriter(get.toJavaIOFile())) {
+                    try (FileWriter pw = get.newWriter(File.WriteMode.OVERWRITE))
+                    {
                         pw.write(new String(getdata));
                     }
                 }

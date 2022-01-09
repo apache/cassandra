@@ -19,8 +19,8 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.*;
 import java.util.function.*;
 
@@ -148,18 +148,18 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
 
     private void bruteForceCorruptionTest(SSTableReader ssTableReader, Consumer<SSTableReader> walker) throws Throwable
     {
-        RandomAccessFile raf = new RandomAccessFile(ssTableReader.getFilename(), "rw");
+        FileChannel fc = new File(ssTableReader.getFilename()).newReadWriteChannel();
 
         int corruptedCounter = 0;
 
-        int fileLength = (int)raf.length(); // in current test, it does fit into int
+        int fileLength = (int)fc.size(); // in current test, it does fit into int
         for (int i = 0; i < numberOfRuns; i++)
         {
             final int corruptionPosition = random.nextInt(fileLength - 1); //ensure at least one byte will be corrupted
             // corrupt max from position to end of file
             final int corruptionSize = Math.min(maxCorruptionSize, random.nextInt(fileLength - corruptionPosition));
 
-            byte[] backup = corruptSstable(raf, corruptionPosition, corruptionSize);
+            byte[] backup = corruptSstable(fc, corruptionPosition, corruptionSize);
 
             try
             {
@@ -174,12 +174,12 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
                 if (ChunkCache.instance != null)
                     ChunkCache.instance.invalidateFile(ssTableReader.getFilename());
 
-                restore(raf, corruptionPosition, backup);
+                restore(fc, corruptionPosition, backup);
             }
         }
 
         assertTrue(corruptedCounter > 0);
-        FileUtils.closeQuietly(raf);
+        FileUtils.closeQuietly(fc);
     }
 
     private Consumer<SSTableReader> sstableScanner()
@@ -230,29 +230,28 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
                             // no-op read
                         }
                     }
-                    rowIter.close();
                 }
             }
         };
     }
 
-    private byte[] corruptSstable(RandomAccessFile raf, int position, int corruptionSize) throws IOException
+    private byte[] corruptSstable(FileChannel fc, int position, int corruptionSize) throws IOException
     {
         byte[] backup = new byte[corruptionSize];
-        raf.seek(position);
-        raf.read(backup);
+        fc.position(position);
+        fc.read(ByteBuffer.wrap(backup));
 
-        raf.seek(position);
+        fc.position(position);
         byte[] corruption = new byte[corruptionSize];
         random.nextBytes(corruption);
-        raf.write(corruption);
+        fc.write(ByteBuffer.wrap(corruption));
 
         return backup;
     }
 
-    private void restore(RandomAccessFile raf, int position, byte[] backup) throws IOException
+    private void restore(FileChannel fc, int position, byte[] backup) throws IOException
     {
-        raf.seek(position);
-        raf.write(backup);
+        fc.position(position);
+        fc.write(ByteBuffer.wrap(backup));
     }
 }

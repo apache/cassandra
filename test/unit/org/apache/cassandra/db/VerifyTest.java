@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.net.UnknownHostException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +56,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompressionParams;
@@ -306,9 +307,9 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessReader file = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.DIGEST))))
         {
-            Long correctChecksum = Long.valueOf(file.readLine());
+            Long correctChecksum = file.readLong();
 
             writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         }
@@ -348,9 +349,9 @@ public class VerifyTest
         long startPosition = row0Start < row1Start ? row0Start : row1Start;
         long endPosition = row0Start < row1Start ? row1Start : row0Start;
 
-        RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw");
-        file.seek(startPosition);
-        file.writeBytes(StringUtils.repeat('z', (int) 2));
+        FileChannel file = new File(sstable.getFilename()).newReadWriteChannel();
+        file.position(startPosition);
+        file.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
         file.close();
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(sstable.getFilename());
@@ -400,9 +401,9 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
-        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
-        file.seek(0);
-        file.writeBytes(StringUtils.repeat('z', 2));
+        FileChannel file = new File(filenameToCorrupt).newReadWriteChannel();
+        file.position(0);
+        file.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
         file.close();
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
@@ -439,9 +440,9 @@ public class VerifyTest
 
         // break the sstable:
         Long correctChecksum;
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessReader file = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.DIGEST))))
         {
-            correctChecksum = Long.parseLong(file.readLine());
+            correctChecksum = file.readLong();
         }
         writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().mutateRepairStatus(false).invokeDiskFailurePolicy(true).build()))
@@ -508,9 +509,9 @@ public class VerifyTest
 
         sstable = cfs.getLiveSSTables().iterator().next();
         Long correctChecksum;
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessReader file = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.DIGEST))))
         {
-            correctChecksum = Long.parseLong(file.readLine());
+            correctChecksum = file.readLong();
         }
         writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true).build()))
@@ -554,9 +555,9 @@ public class VerifyTest
             verifier.verify(); //still not corrupt, should pass
         }
         String filenameToCorrupt = sstable.descriptor.filenameFor(componentToBreak);
-        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        try(FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
         {
-            file.setLength(3);
+            fileChannel.truncate(3);
         }
 
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
@@ -584,9 +585,9 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        try (RandomAccessReader file = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.DIGEST))))
         {
-            Long correctChecksum = Long.valueOf(file.readLine());
+            Long correctChecksum = file.readLong();
 
             writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         }

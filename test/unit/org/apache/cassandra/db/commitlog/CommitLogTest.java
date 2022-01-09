@@ -18,8 +18,13 @@
 */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.*;
 import org.apache.cassandra.io.util.File;
+
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;

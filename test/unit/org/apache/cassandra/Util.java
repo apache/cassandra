@@ -22,8 +22,11 @@ package org.apache.cassandra;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOError;
+import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -849,5 +852,28 @@ public class Util
             throw new RuntimeException(e);
         }
         Gossiper.instance.expireUpgradeFromVersion();
+    }
+
+    /**
+     * Sets the length of the file to given size. File will be created if not exist.
+     *
+     * @param file file for which length needs to be set
+     * @param size new szie
+     * @throws IOException on any I/O error.
+     */
+    public static void setFileLength(File file, long size) throws IOException
+    {
+        try (FileChannel fileChannel = file.newReadWriteChannel())
+        {
+            if (file.length() >= size)
+            {
+                fileChannel.truncate(size);
+            }
+            else
+            {
+                fileChannel.position(size - 1);
+                fileChannel.write(ByteBuffer.wrap(new byte[1]));
+            }
+        }
     }
 }

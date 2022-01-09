@@ -19,7 +19,6 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -157,8 +156,7 @@ public class AsyncStreamingOutputPlusTest
         StreamManager.StreamRateLimiter limiter = zeroCopy ? StreamManager.getEntireSSTableRateLimiter(FBUtilities.getBroadcastAddressAndPort())
                                                            : StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort());
 
-        try (RandomAccessFile raf = new RandomAccessFile(file.path(), "r");
-             FileChannel fileChannel = raf.getChannel();
+        try (FileChannel fileChannel = file.newReadChannel();
              AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
         {
             assertTrue(fileChannel.isOpen());

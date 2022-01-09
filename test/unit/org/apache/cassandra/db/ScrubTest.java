@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -443,10 +443,10 @@ public class ScrubTest
 
     private static void overrideWithGarbage(SSTableReader sstable, long startPosition, long endPosition) throws IOException
     {
-        try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))
+        try (FileChannel fileChannel = new File(sstable.getFilename()).newReadWriteChannel())
         {
-            file.seek(startPosition);
-            file.writeBytes(StringUtils.repeat('z', (int) (endPosition - startPosition)));
+            fileChannel.position(startPosition);
+            fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', (int) (endPosition - startPosition))));
         }
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(sstable.getFilename());

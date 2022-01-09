@@ -19,7 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -314,10 +315,10 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().clearUnsafe();
 
         String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        try (FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
         {
-            file.seek(0);
-            file.writeBytes(StringUtils.repeat('z', 2));
+            fileChannel.position(0);
+            fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
         }
 
         File backupdir = moveToBackupDir(sstables);
@@ -574,10 +575,10 @@ public class ImportTest extends CQLTester
         // corrupt the sstable which is still in the data directory
         SSTableReader sstableToCorrupt = sstables.iterator().next();
         String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        try (FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
         {
-            file.seek(0);
-            file.writeBytes(StringUtils.repeat('z', 2));
+            fileChannel.position(0);
+            fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
         }
 
         for (int i = 10; i < 20; i++)

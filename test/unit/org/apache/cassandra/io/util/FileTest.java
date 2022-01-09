@@ -44,32 +44,33 @@ public class FileTest
     private static final java.io.File dir;
     static
     {
-        java.io.File parent = new java.io.File(JAVA_IO_TMPDIR.getString());
+        java.io.File parent = new java.io.File(JAVA_IO_TMPDIR.getString()); //checkstyle: permit this instantiation
         String dirName = Long.toHexString(ThreadLocalRandom.current().nextLong());
-        while (new java.io.File(parent, dirName).exists())
+        while (new java.io.File(parent, dirName).exists()) //checkstyle: permit this instantiation
             dirName = Long.toHexString(ThreadLocalRandom.current().nextLong());
-        dir = new java.io.File(parent, dirName);
+        dir = new java.io.File(parent, dirName); //checkstyle: permit this instantiation
         dir.mkdirs();
         new File(dir).deleteRecursiveOnExit();
     }
 
+
     @Test
     public void testEquivalence() throws IOException
     {
-        java.io.File notExists = new java.io.File(dir, "notExists");
-        java.io.File regular = new java.io.File(dir, "regular");
+        java.io.File notExists = new java.io.File(dir, "notExists"); //checkstyle: permit this instantiation
+        java.io.File regular = new java.io.File(dir, "regular"); //checkstyle: permit this instantiation
         regular.createNewFile();
-        java.io.File regularLink = new java.io.File(dir, "regularLink");
+        java.io.File regularLink = new java.io.File(dir, "regularLink"); //checkstyle: permit this instantiation
         Files.createSymbolicLink(regularLink.toPath(), regular.toPath());
-        java.io.File emptySubdir = new java.io.File(dir, "empty");
-        java.io.File emptySubdirLink = new java.io.File(dir, "emptyLink");
+        java.io.File emptySubdir = new java.io.File(dir, "empty"); //checkstyle: permit this instantiation
+        java.io.File emptySubdirLink = new java.io.File(dir, "emptyLink"); //checkstyle: permit this instantiation
         emptySubdir.mkdir();
         Files.createSymbolicLink(emptySubdirLink.toPath(), emptySubdir.toPath());
-        java.io.File nonEmptySubdir = new java.io.File(dir, "nonEmpty");
-        java.io.File nonEmptySubdirLink = new java.io.File(dir, "nonEmptyLink");
+        java.io.File nonEmptySubdir = new java.io.File(dir, "nonEmpty"); //checkstyle: permit this instantiation
+        java.io.File nonEmptySubdirLink = new java.io.File(dir, "nonEmptyLink"); //checkstyle: permit this instantiation
         nonEmptySubdir.mkdir();
         Files.createSymbolicLink(nonEmptySubdirLink.toPath(), nonEmptySubdir.toPath());
-        new java.io.File(nonEmptySubdir, "something").createNewFile();
+        new java.io.File(nonEmptySubdir, "something").createNewFile(); //checkstyle: permit this instantiation
 
         testEquivalence("");
 
@@ -112,7 +113,7 @@ public class FileTest
 
     private void    testEquivalence(String path) throws IOException
     {
-        java.io.File file = new java.io.File(path);
+        java.io.File file = new java.io.File(path); //checkstyle: permit this instantiation
         if (file.exists()) testExists(path);
         else testNotExists(path);
     }
@@ -136,7 +137,7 @@ public class FileTest
         testEquivalence(path, java.io.File::toPath, File::toPath);
         testEquivalence(path, java.io.File::list, File::tryListNames);
         testEquivalence(path, java.io.File::listFiles, File::tryList);
-        java.io.File file = new java.io.File(path);
+        java.io.File file = new java.io.File(path); //checkstyle: permit this instantiation
         if (file.getParentFile() != null) testBasic(file.getParent());
         if (!file.equals(file.getAbsoluteFile())) testBasic(file.getAbsolutePath());
         if (!file.equals(file.getCanonicalFile())) testBasic(file.getCanonicalPath());
@@ -151,7 +152,7 @@ public class FileTest
         );
         for (Triple<BiFunction<java.io.File, Boolean, Boolean>, BiFunction<File, Boolean, Boolean>, Function<java.io.File, Boolean>> test : tests)
         {
-            java.io.File file = new java.io.File(path);
+            java.io.File file = new java.io.File(path); //checkstyle: permit this instantiation
             boolean cur = test.v3.apply(file);
             boolean canRead = file.canRead();
             boolean canWrite = file.canWrite();
@@ -210,7 +211,7 @@ public class FileTest
 
     private <T> void testEquivalence(String path, IOFn<java.io.File, T> canonical, IOFn<File, T> test, IOBiConsumer<java.io.File, Boolean> afterEach)
     {
-        java.io.File file = new java.io.File(path);
+        java.io.File file = new java.io.File(path); //checkstyle: permit this instantiation
         Object expect;
         try
         {
@@ -246,7 +247,7 @@ public class FileTest
     }
     private void testTryVsConfirm(String path, Predicate<java.io.File> canonical, IOConsumer<File> test, IOBiConsumer<java.io.File, Boolean> afterEach)
     {
-        java.io.File file = new java.io.File(path);
+        java.io.File file = new java.io.File(path); //checkstyle: permit this instantiation
         boolean expect = canonical.test(file);
         try { afterEach.accept(file, expect); } catch (IOException e) { throw new AssertionError(e); }
         boolean actual;

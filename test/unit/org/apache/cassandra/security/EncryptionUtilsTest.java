@@ -18,7 +18,6 @@
 package org.apache.cassandra.security;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.HashMap;
@@ -82,7 +81,7 @@ public class EncryptionUtilsTest
 
         File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
-        FileChannel channel = new RandomAccessFile(f.toJavaIOFile(), "rw").getChannel();
+        FileChannel channel = f.newReadWriteChannel();
         EncryptionUtils.encryptAndWrite(ByteBuffer.wrap(buf), channel, true, encryptor);
         channel.close();
 
@@ -111,7 +110,7 @@ public class EncryptionUtilsTest
         Cipher encryptor = cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
         File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
-        FileChannel channel = new RandomAccessFile(f.toJavaIOFile(), "rw").getChannel();
+        FileChannel channel = f.newReadWriteChannel();
         EncryptionUtils.encryptAndWrite(compressedBuffer, channel, true, encryptor);
 
         // decrypt

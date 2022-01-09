@@ -18,9 +18,9 @@
 */
 package org.apache.cassandra.schema;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -128,10 +128,7 @@ public class MockSchema
                 try
                 {
                     File file = new File(descriptor.filenameFor(Component.DATA));
-                    try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
-                    {
-                        raf.setLength(size);
-                    }
+                    Util.setFileLength(file, size);
                 }
                 catch (IOException e)
                 {

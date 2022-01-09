@@ -26,8 +26,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -223,11 +223,11 @@ public class NIODataInputStreamTest
         assertEquals(8190 - 10 - 4096, is.available());
 
         File f = FileUtils.createTempFile("foo", "bar");
-        RandomAccessFile fos = new RandomAccessFile(f.toJavaIOFile(), "rw");
-        fos.write(new byte[10]);
-        fos.seek(0);
+        FileChannel fos = f.newReadWriteChannel();
+        fos.write(ByteBuffer.wrap(new byte[10]));
+        fos.position(0);
 
-        is = new NIODataInputStream(fos.getChannel(), 9);
+        is = new NIODataInputStream(fos, 9);
 
         int remaining = 10;
         assertEquals(10, is.available());

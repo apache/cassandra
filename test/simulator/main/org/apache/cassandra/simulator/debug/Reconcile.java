@@ -20,17 +20,13 @@ package org.apache.cassandra.simulator.debug;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -40,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.utils.Closeable;
@@ -358,8 +355,8 @@ public class Reconcile
         File eventFile = new File(new File(loadFromDir), Long.toHexString(seed) + ".gz");
         File rngFile = new File(new File(loadFromDir), Long.toHexString(seed) + ".rng.gz");
 
-        try (BufferedReader eventIn = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(eventFile))));
-             DataInputPlus.DataInputStreamPlus rngIn = new DataInputPlus.DataInputStreamPlus(rngFile.exists() ? new GZIPInputStream(new FileInputStream(rngFile)) : new ByteArrayInputStream(new byte[0])))
+        try (BufferedReader eventIn = new BufferedReader(new InputStreamReader(new GZIPInputStream(eventFile.newInputStream())));
+             DataInputPlus.DataInputStreamPlus rngIn = new DataInputPlus.DataInputStreamPlus(rngFile.exists() ? new GZIPInputStream(rngFile.newInputStream()) : new ByteArrayInputStream(new byte[0])))
         {
             boolean inputHasWaitSites, inputHasWakeSites, inputHasRngCallSites;
             {
@@ -397,7 +394,7 @@ public class Reconcile
 
             class Line { int line = 1; } Line line = new Line(); // box for heap dump analysis
             try (ClusterSimulation<?> cluster = builder.create(seed);
-                 CloseableIterator<?> iter = cluster.simulation.iterator();)
+                 CloseableIterator<?> iter = cluster.simulation.iterator())
             {
                 try
                 {

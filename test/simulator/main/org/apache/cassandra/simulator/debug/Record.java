@@ -19,8 +19,6 @@
 package org.apache.cassandra.simulator.debug;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.channels.Channels;
@@ -40,12 +38,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
 
+import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class Record
@@ -72,8 +72,8 @@ public class Record
             logger.error("Seed 0x{} ({}) (With: {})", Long.toHexString(seed), eventFile, modifiers);
         }
 
-        try (PrintWriter eventOut = new PrintWriter(new GZIPOutputStream(new FileOutputStream(eventFile), 1 << 16));
-             DataOutputStreamPlus rngOut = new BufferedDataOutputStreamPlus(Channels.newChannel(withRng ? new GZIPOutputStream(new FileOutputStream(rngFile), 1 << 16) : new ByteArrayOutputStream(0))))
+        try (PrintWriter eventOut = new PrintWriter(new GZIPOutputStream(eventFile.newOutputStream(OVERWRITE), 1 << 16));
+             DataOutputStreamPlus rngOut = new BufferedDataOutputStreamPlus(Channels.newChannel(withRng ? new GZIPOutputStream(rngFile.newOutputStream(OVERWRITE), 1 << 16) : new ByteArrayOutputStream(0))))
         {
             eventOut.println("modifiers:"
                              + (withRng ? "rng," : "") + (withRngCallSites ? "rngCallSites," : "")
