@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.config;
 
-import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
@@ -27,6 +26,8 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -120,7 +121,7 @@ public class YamlConfigurationLoaderTest
         {
             try
             {
-                url = new File(path).toURI().toURL();
+                url = new File(path).toPath().toUri().toURL();
             }
             catch (MalformedURLException e)
             {
