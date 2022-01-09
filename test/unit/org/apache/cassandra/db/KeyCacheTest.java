@@ -341,7 +341,7 @@ public class KeyCacheTest
     @Test
     public void testKeyCacheLoadNegativeCacheLoadTime() throws Exception
     {
-        DatabaseDescriptor.setCacheLoadTimeout(-1);
+        DatabaseDescriptor.setCacheLoadTimeout(0);
         String cf = COLUMN_FAMILY7;
 
         createAndInvalidateCache(Collections.singletonList(Pair.create(KEYSPACE1, cf)), 100);

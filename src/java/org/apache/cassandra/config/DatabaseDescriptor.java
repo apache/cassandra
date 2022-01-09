@@ -2892,13 +2892,13 @@ public class DatabaseDescriptor
 
     public static int getCacheLoadTimeout()
     {
-        return conf.cache_load_timeout_seconds;
+        return conf.cache_load_timeout.toSecondsAsInt();
     }
 
     @VisibleForTesting
     public static void setCacheLoadTimeout(int seconds)
     {
-        conf.cache_load_timeout_seconds = seconds;
+        conf.cache_load_timeout = DurationSpec.inSeconds(seconds);
     }
 
     public static int getCounterCacheKeysToSave()
