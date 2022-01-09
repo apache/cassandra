@@ -24,7 +24,7 @@ import java.util.Optional;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.TestIdentifier;
 
-import org.apache.tools.ant.taskdefs.optional.junitlauncher2.LegacyBriefResultFormatter;
+import org.apache.cassandra.junitlauncher.LegacyBriefResultFormatter;
 
 /**
  * Prints plain text output of the test to a specified Writer.

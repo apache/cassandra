@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.tools.ant.taskdefs.optional.junitlauncher2;
+package org.apache.cassandra.junitlauncher;
 
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.reporting.ReportEntry;

@@ -29,7 +29,7 @@ import javax.xml.stream.XMLStreamWriter;
 import org.junit.platform.launcher.TestIdentifier;
 
 import com.sun.xml.internal.txw2.output.IndentingXMLStreamWriter;
-import org.apache.tools.ant.taskdefs.optional.junitlauncher2.LegacyXmlResultFormatter;
+import org.apache.cassandra.junitlauncher.LegacyXmlResultFormatter;
 import org.apache.tools.ant.util.DOMElementWriter;
 import org.apache.tools.ant.util.StringUtils;
 

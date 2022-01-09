@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.tools.ant.taskdefs.optional.junitlauncher2;
+package org.apache.cassandra.junitlauncher;
 
 import org.apache.tools.ant.taskdefs.optional.junitlauncher.TestResultFormatter;
 import org.apache.tools.ant.util.DOMElementWriter;
