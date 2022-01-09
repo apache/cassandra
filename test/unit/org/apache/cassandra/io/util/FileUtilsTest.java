@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +28,7 @@ import java.util.Arrays;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.assertj.core.api.Assertions;
 
@@ -228,9 +228,9 @@ public class FileUtilsTest
 
     private File createFile(File file, long size)
     {
-        try (RandomAccessFile f = new RandomAccessFile(file.toJavaIOFile(), "rw"))
+        try
         {
-            f.setLength(size);
+            Util.setFileLength(file, size);
         }
         catch (Exception e)
         {

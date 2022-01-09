@@ -2223,6 +2223,7 @@
           <formatter type="plain"/>
           <formatter type="xml" tofile="${checkstyle.report.file}"/>
           <fileset dir="${build.src.java}" includes="**/*.java"/>
+          <!--<fileset dir="${test.dir}" includes="**/*.java"/>-->
       </checkstyle>
   </target>
 

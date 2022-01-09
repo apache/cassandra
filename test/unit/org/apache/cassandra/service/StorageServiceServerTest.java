@@ -20,7 +20,6 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.io.util.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetAddress;
@@ -54,6 +53,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.io.util.FileWriter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
@@ -138,7 +138,7 @@ public class StorageServiceServerTest
 
         // Check to make sure we don't delete non-temp, non-datafile locations
         WindowsFailedSnapshotTracker.resetForTests();
-        PrintWriter tempPrinter = new PrintWriter(new FileWriter(WindowsFailedSnapshotTracker.TODELETEFILE, true));
+        PrintWriter tempPrinter = new PrintWriter(new FileWriter(new File(WindowsFailedSnapshotTracker.TODELETEFILE), File.WriteMode.APPEND));
         tempPrinter.println(".safeDir");
         tempPrinter.close();
 
