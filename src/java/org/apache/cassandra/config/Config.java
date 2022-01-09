@@ -377,18 +377,21 @@ public class Config
     public volatile boolean key_cache_migrate_during_compaction = true;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public DataStorageSpec key_cache_size = null;
-    public volatile int key_cache_save_period = 14400;
+    @Replaces(oldName = "key_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    public volatile DurationSpec key_cache_save_period = new DurationSpec("14400s");
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
     @Replaces(oldName = "row_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public volatile DataStorageSpec row_cache_size = new DataStorageSpec("0MiB");
-    public volatile int row_cache_save_period = 0;
+    @Replaces(oldName = "row_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    public volatile DurationSpec row_cache_save_period = new DurationSpec("0s");
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
     
     @Replaces(oldName = "counter_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public DataStorageSpec counter_cache_size = null;
-    public volatile int counter_cache_save_period = 7200;
+    @Replaces(oldName = "counter_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    public volatile DurationSpec counter_cache_save_period = new DurationSpec("7200s");
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public DurationSpec cache_load_timeout = new DurationSpec("30s");

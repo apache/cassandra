@@ -69,6 +69,7 @@ public class ParseAndConvertUnitsTest
         assertEquals(DurationSpec.inMilliseconds(2000), config.credentials_validity);
         assertEquals(DurationSpec.inMilliseconds(0), config.credentials_update_interval);
         assertEquals(DurationSpec.inMinutes(60), config.index_summary_resize_interval);
+        assertEquals(DurationSpec.inHours(4), config.key_cache_save_period);
 
         //Confirm space parameters were successfully parsed with the default values in cassandra.yaml
         assertNull(config.memtable_heap_space);

@@ -370,7 +370,7 @@ key_cache_size:
 # has limited use.
 #
 # Default is 14400 or 4 hours.
-key_cache_save_period: 14400
+key_cache_save_period: 4h
 
 # Number of keys from the key cache to save
 # Disabled by default, meaning all keys are going to be saved

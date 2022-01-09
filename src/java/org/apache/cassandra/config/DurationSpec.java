@@ -40,6 +40,7 @@ public final class DurationSpec
      * The Regexp used to parse the duration provided as String.
      */
     private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)"));
+    private static final Pattern VALUES_PATTERN = Pattern.compile(("^(\\d+)"));
 
     public final long quantity;
 
@@ -122,6 +123,42 @@ public final class DurationSpec
     }
 
     /**
+     * Creates a {@code DurationSpec} of the specified amount of hours.
+     *
+     * @param hours the amount of hours
+     * @return a duration
+     */
+    public static DurationSpec inHours(long hours)
+    {
+        return new DurationSpec(hours, TimeUnit.HOURS);
+    }
+
+    /**
+     * Creates a {@code DurationSpec} of the specified amount of seconds. Custom method for special cases.
+     *
+     * @param value which can be in the old form only presenting the quantity or the post CASSANDRA-15234 form - a
+     * value consisting of quantity and unit. This method is necessary for three parameters which didn't change their
+     * names but only their value format. (key_cache_save_period, row_cache_save_period, counter_cache_save_period)
+     * @return a duration
+     */
+    public static DurationSpec inSecondsString(String value)
+    {
+        //parse the string field value
+        Matcher matcher = VALUES_PATTERN.matcher(value);
+
+        long seconds;
+        //if the provided string value is just a number, then we create a Duration Spec value in hours
+        if(matcher.find())
+        {
+            seconds = Long.parseLong(matcher.group(1));
+            return new DurationSpec(seconds, TimeUnit.SECONDS);
+        }
+
+        //otherwise we just use the standard constructors
+        return new DurationSpec(value);
+    }
+
+    /**
      * @param symbol the time unit symbol
      * @return the time unit associated to the specified symbol
      */
@@ -151,6 +188,24 @@ public final class DurationSpec
     public long to(TimeUnit targetUnit)
     {
         return targetUnit.convert(quantity, unit);
+    }
+
+    /**
+     * @return this duration in number of hours
+     */
+    public long toHours()
+    {
+        return unit.toHours(quantity);
+    }
+
+    /**
+     * Returns this duration in number of minutes as an {@code int}
+     *
+     * @return this duration in number of minutes or {@code Integer.MAX_VALUE} if the number of minutes is too large.
+     */
+    public int toHoursAsInt()
+    {
+        return Ints.saturatedCast(toHours());
     }
 
     /**

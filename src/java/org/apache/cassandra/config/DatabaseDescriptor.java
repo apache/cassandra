@@ -2821,12 +2821,12 @@ public class DatabaseDescriptor
 
     public static int getKeyCacheSavePeriod()
     {
-        return conf.key_cache_save_period;
+        return conf.key_cache_save_period.toSecondsAsInt();
     }
 
     public static void setKeyCacheSavePeriod(int keyCacheSavePeriod)
     {
-        conf.key_cache_save_period = keyCacheSavePeriod;
+        conf.key_cache_save_period = DurationSpec.inHours(keyCacheSavePeriod);
     }
 
     public static int getKeyCacheKeysToSave()
@@ -2857,12 +2857,12 @@ public class DatabaseDescriptor
 
     public static int getRowCacheSavePeriod()
     {
-        return conf.row_cache_save_period;
+        return conf.row_cache_save_period.toSecondsAsInt();
     }
 
     public static void setRowCacheSavePeriod(int rowCacheSavePeriod)
     {
-        conf.row_cache_save_period = rowCacheSavePeriod;
+        conf.row_cache_save_period = DurationSpec.inSeconds(rowCacheSavePeriod);
     }
 
     public static int getRowCacheKeysToSave()
@@ -2882,12 +2882,12 @@ public class DatabaseDescriptor
 
     public static int getCounterCacheSavePeriod()
     {
-        return conf.counter_cache_save_period;
+        return conf.counter_cache_save_period.toSecondsAsInt();
     }
 
     public static void setCounterCacheSavePeriod(int counterCacheSavePeriod)
     {
-        conf.counter_cache_save_period = counterCacheSavePeriod;
+        conf.counter_cache_save_period = DurationSpec.inSeconds(counterCacheSavePeriod);
     }
 
     public static int getCacheLoadTimeout()

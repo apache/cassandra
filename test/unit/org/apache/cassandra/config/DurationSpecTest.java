@@ -96,6 +96,9 @@ public class DurationSpecTest
         assertEquals(new DurationSpec("10s"), new DurationSpec("10000ms"));
         assertEquals(new DurationSpec("10000ms"), new DurationSpec("10s"));
         assertEquals(DurationSpec.inMinutes(Long.MAX_VALUE), DurationSpec.inMinutes(Long.MAX_VALUE));
+        assertEquals(new DurationSpec("4h"), new DurationSpec("14400s"));
+        assertEquals(DurationSpec.inSecondsString("14400"), new DurationSpec("14400s"));
+        assertEquals(DurationSpec.inHours(Long.MAX_VALUE),DurationSpec.inHours(Long.MAX_VALUE));
         assertNotEquals(DurationSpec.inMinutes(Long.MAX_VALUE), DurationSpec.inMilliseconds(Long.MAX_VALUE));
         assertNotEquals(new DurationSpec("0m"), new DurationSpec("10ms"));
     }
