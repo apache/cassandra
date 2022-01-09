@@ -1013,7 +1013,7 @@ request_timeout: 10000ms
 # See (CASSANDRA-14358) for details.
 #
 # The amount of time to wait for internode tcp connections to establish.
-# internode_tcp_connect_timeout = 2000ms
+# internode_tcp_connect_timeout: 2000ms
 #
 # The amount of time unacknowledged data is allowed on a connection before we throw out the connection
 # Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
@@ -1023,10 +1023,7 @@ request_timeout: 10000ms
 
 # The amount of time unacknowledged data is allowed on a streaming connection.
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-# internode_streaming_tcp_user_timeout = 300000ms
-
-# The maximum continuous period a connection may be unwritable in application space
-# internode_application_timeout_in_ms = 30000
+# internode_streaming_tcp_user_timeout: 300000ms
 
 # Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 # and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
@@ -1043,7 +1040,7 @@ request_timeout: 10000ms
 # The global limit is imposed on all messages exceeding the per-link limit, simultaneously with the per-endpoint limit,
 # on all links to or from any node in the cluster.
 #
-# internode_application_send_queue_capacity: 4Mib
+# internode_application_send_queue_capacity: 4MiB
 # internode_application_send_queue_reserve_endpoint_capacity: 128MiB
 # internode_application_send_queue_reserve_global_capacity: 512MiB
 # internode_application_receive_queue_capacity: 4MiB
