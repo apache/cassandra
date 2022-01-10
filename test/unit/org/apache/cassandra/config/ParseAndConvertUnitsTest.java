@@ -106,7 +106,7 @@ public class ParseAndConvertUnitsTest
 
         //Confirm rate parameters were successfully parsed with the default values in cassandra.yaml
         assertEquals(DataRateSpec.inMebibytesPerSecond(0), config.compaction_throughput);
-        assertEquals(DataRateSpec.inMebibytesPerSecond(23841858), config.stream_throughput_outbound);
+        assertEquals(DataRateSpec.inMebibytesPerSecond(23841800), config.stream_throughput_outbound);
         assertEquals(DataRateSpec.inMebibytesPerSecond(24), config.inter_dc_stream_throughput_outbound);
     }
 }

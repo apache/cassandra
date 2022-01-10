@@ -1328,12 +1328,12 @@ public class NodeProbe implements AutoCloseable
 
     public int getEntireSSTableStreamThroughput()
     {
-        return ssProxy.getEntireSSTableStreamThroughputMbPerSec();
+        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSec();
     }
 
     public int getEntireSSTableInterDCStreamThroughput()
     {
-        return ssProxy.getEntireSSTableInterDCStreamThroughputMbPerSec();
+        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
     }
 
     public double getTraceProbability()
@@ -1441,12 +1441,12 @@ public class NodeProbe implements AutoCloseable
 
     public void setEntireSSTableStreamThroughput(int value)
     {
-        ssProxy.setEntireSSTableStreamThroughputMbPerSec(value);
+        ssProxy.setEntireSSTableStreamThroughputMebibytesPerSec(value);
     }
 
     public void setEntireSSTableInterDCStreamThroughput(int value)
     {
-        ssProxy.setEntireSSTableInterDCStreamThroughputMbPerSec(value);
+        ssProxy.setEntireSSTableInterDCStreamThroughputMebibytesPerSec(value);
     }
 
     public void setTraceProbability(double value)

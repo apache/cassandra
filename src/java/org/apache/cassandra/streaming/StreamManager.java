@@ -60,8 +60,8 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.LIMITER,
                                      StreamRateLimiter.INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec(),
-                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec());
+                                     DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec(),
+                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec());
     }
 
     /**
@@ -79,13 +79,13 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.ENTIRE_SSTABLE_LIMITER,
                                      StreamRateLimiter.ENTIRE_SSTABLE_INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec(),
-                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec());
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(),
+                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec());
     }
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
-        public static final double BYTES_PER_MEBIBIT = (1024 * 1024) / 8; //from bits
+        public static final double BYTES_PER_MEBIBYTE = 1024 * 1024; //from bits
         private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
@@ -148,25 +148,25 @@ public class StreamManager implements StreamManagerMBean
 
         private static double calculateRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
+            int throughput = DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateInterDCRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
+            int throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
+            int throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableInterDCRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
+            int throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
@@ -198,7 +198,7 @@ public class StreamManager implements StreamManagerMBean
         {
             // if throughput is set to 0 or negative value, throttling is disabled
             return throughput > 0
-                   ? throughput * BYTES_PER_MEBIBIT
+                   ? throughput * BYTES_PER_MEBIBYTE
                    : Double.MAX_VALUE;
         }
     }

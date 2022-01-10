@@ -38,7 +38,7 @@ public final class DataRateSpec
      */
     private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|KiB/s|B/s)$");
 
-    private final long quantity;
+    private final double quantity;
 
     private final DataRateUnit unit;
 
@@ -55,10 +55,13 @@ public final class DataRateSpec
         unit = DataRateUnit.fromSymbol(matcher.group(2));
     }
 
-    DataRateSpec(long quantity, DataRateUnit unit)
+    DataRateSpec(double quantity, DataRateUnit unit)
     {
         if (quantity < 0)
             throw new IllegalArgumentException("DataRate value must be non-negative");
+
+        if (quantity > Long.MAX_VALUE)
+            throw new NumberFormatException("DataRate value must be between 0 and Long.MAX_VALUE = 9223372036854775807");
 
         this.quantity = quantity;
         this.unit = unit;
@@ -105,7 +108,7 @@ public final class DataRateSpec
      */
     public static DataRateSpec megabitsPerSecondInMebibytesPerSecond(long megabitsPerSecond)
     {
-        long mebibytesPerSecond = Math.round((double)megabitsPerSecond * 0.119209);
+        double mebibytesPerSecond = (double)megabitsPerSecond * 0.119209289550781;
 
         return new DataRateSpec(mebibytesPerSecond, DataRateUnit.MEBIBYTES_PER_SECOND);
     }
@@ -121,7 +124,7 @@ public final class DataRateSpec
     /**
      * @return the data rate in bytes per seconds
      */
-    public long toBytesPerSecond()
+    public double toBytesPerSecond()
     {
         return unit.toBytesPerSecond(quantity);
     }
@@ -133,13 +136,13 @@ public final class DataRateSpec
      */
     public int toBytesPerSecondAsInt()
     {
-        return Ints.saturatedCast(toBytesPerSecond());
+        return Ints.saturatedCast(Math.round(toBytesPerSecond()));
     }
 
     /**
      * @return the data rate in kibibyts per seconds
      */
-    public long toKibibytesPerSecond()
+    public double toKibibytesPerSecond()
     {
         return unit.toKibibytesPerSecond(quantity);
     }
@@ -151,13 +154,13 @@ public final class DataRateSpec
      */
     public int toKibibytesPerSecondAsInt()
     {
-        return Ints.saturatedCast(toKibibytesPerSecond());
+        return Ints.saturatedCast(Math.round(toKibibytesPerSecond()));
     }
 
     /**
      * @return the data rate in mebibytes per seconds
      */
-    public long toMebibytesPerSecond()
+    public double toMebibytesPerSecond()
     {
         return unit.toMebibytesPerSecond(quantity);
     }
@@ -169,7 +172,7 @@ public final class DataRateSpec
      */
     public int toMebibytesPerSecondAsInt()
     {
-        return Ints.saturatedCast(toMebibytesPerSecond());
+        return Ints.saturatedCast(Math.round(toMebibytesPerSecond()));
     }
 
     /**
@@ -178,7 +181,7 @@ public final class DataRateSpec
      *
      * @return the data rate in megabits per second.
      */
-    public long toMegabitsPerSecond()
+    public double toMegabitsPerSecond()
     {
         return unit.toMegabitsPerSecond(quantity);
     }
@@ -191,7 +194,7 @@ public final class DataRateSpec
      */
     public int toMegabitsPerSecondAsInt()
     {
-        return Ints.saturatedCast(toMegabitsPerSecond());
+        return Ints.saturatedCast(Math.round(toMegabitsPerSecond()));
     }
 
     @Override
@@ -221,99 +224,99 @@ public final class DataRateSpec
     @Override
     public String toString()
     {
-        return quantity + unit.symbol;
+        return Math.round(quantity) + unit.symbol;
     }
 
     public enum DataRateUnit
     {
         BYTES_PER_SECOND("B/s")
         {
-            public long toBytesPerSecond(long d)
+            public double toBytesPerSecond(double d)
             {
                 return d;
             }
 
-            public long toKibibytesPerSecond(long d)
+            public double toKibibytesPerSecond(double d)
             {
                 return d / 1024;
             }
 
-            public long toMebibytesPerSecond(long d)
+            public double toMebibytesPerSecond(double d)
             {
                 return d / (1024 * 1024);
             }
 
-            public long toMegabitsPerSecond(long d) { return d / 125000; }
+            public double toMegabitsPerSecond(double d) { return d / 125000; }
 
-            public long convert(long source, DataRateUnit sourceUnit)
+            public double convert(double source, DataRateUnit sourceUnit)
             {
                 return sourceUnit.toBytesPerSecond(source);
             }
         },
         KIBIBYTES_PER_SECOND("KiB/s")
         {
-            public long toBytesPerSecond(long d)
+            public double toBytesPerSecond(double d)
             {
-                return x(d, 1024, MAX / 1024);
+                return x(d, 1024, MAX / 1024.0);
             }
 
-            public long toKibibytesPerSecond(long d)
+            public double toKibibytesPerSecond(double d)
             {
                 return d;
             }
 
-            public long toMebibytesPerSecond(long d)
+            public double toMebibytesPerSecond(double d)
             {
                 return d / 1024;
             }
 
-            public long toMegabitsPerSecond(long d)
+            public double toMegabitsPerSecond(double d)
             {
                 return d / 122;
             }
 
-            public long convert(long source, DataRateUnit sourceUnit)
+            public double convert(double source, DataRateUnit sourceUnit)
             {
                 return sourceUnit.toKibibytesPerSecond(source);
             }
         },
         MEBIBYTES_PER_SECOND("MiB/s")
         {
-            public long toBytesPerSecond(long d)
+            public double toBytesPerSecond(double d)
             {
-                return x(d, 1024 * 1024, MAX / (1024 * 1024));
+                return x(d, 1024 * 1024, MAX / (1024.0 * 1024.0));
             }
 
-            public long toKibibytesPerSecond(long d)
+            public double toKibibytesPerSecond(double d)
             {
-                return x(d, 1024, MAX / (1024));
+                return x(d, 1024, MAX / (1024.0));
             }
 
-            public long toMebibytesPerSecond(long d)
+            public double toMebibytesPerSecond(double d)
             {
                 return d;
             }
 
-            public long toMegabitsPerSecond(long d)
+            public double toMegabitsPerSecond(double d)
             {
-                if ((double)d > MAX / (MEGABITS_PER_MEBIBYTE))
+                if (d > MAX / (MEGABITS_PER_MEBIBYTE))
                     return MAX;
                 return Math.round(d * MEGABITS_PER_MEBIBYTE);
             }
 
-            public long convert(long source, DataRateUnit sourceUnit)
+            public double convert(double source, DataRateUnit sourceUnit)
             {
                 return sourceUnit.toMebibytesPerSecond(source);
             }
         };
 
-        static final long MAX = Long.MAX_VALUE;
-        static final double MEGABITS_PER_MEBIBYTE = 8.38861;
+        static final double MAX = Long.MAX_VALUE;
+        static final double MEGABITS_PER_MEBIBYTE = 8.388608;
 
         /**
          * Scale d by m, checking for overflow. This has a short name to make above code more readable.
          */
-        static long x(long d, long m, long over)
+        static double x(double d, double m, double over)
         {
             if (d > over)
                 return MAX;
@@ -347,24 +350,24 @@ public final class DataRateSpec
             this.symbol = symbol;
         }
 
-        public long toBytesPerSecond(long d)
+        public double toBytesPerSecond(double d)
         {
             throw new AbstractMethodError();
         }
 
-        public long toKibibytesPerSecond(long d)
+        public double toKibibytesPerSecond(double d)
         {
             throw new AbstractMethodError();
         }
 
-        public long toMebibytesPerSecond(long d)
+        public double toMebibytesPerSecond(double d)
         {
             throw new AbstractMethodError();
         }
 
-        public long toMegabitsPerSecond(long d) { throw new AbstractMethodError(); }
+        public double toMegabitsPerSecond(double d) { throw new AbstractMethodError(); }
 
-        public long convert(long source, DataRateUnit sourceUnit)
+        public double convert(double source, DataRateUnit sourceUnit)
         {
             throw new AbstractMethodError();
         }

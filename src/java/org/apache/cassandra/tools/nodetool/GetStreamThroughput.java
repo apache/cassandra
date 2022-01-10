@@ -22,7 +22,7 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getstreamthroughput", description = "Print the MiB/s throughput cap for streaming and entire SSTable streaming in the system")
+@Command(name = "getstreamthroughput", description = "Print the megabits per second throughput cap for streaming and entire SSTable streaming in the system")
 public class GetStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
@@ -36,6 +36,8 @@ public class GetStreamThroughput extends NodeToolCmd
 
         probe.output().out.printf("Current %sstream throughput: %s%n",
                                   entireSSTableThroughput ? "entire SSTable " : "",
-                                  throughput > 0 ? throughput + " MiB/s" : "unlimited");
+                                  throughput > 0 ? throughput +
+                                                   (entireSSTableThroughput ? " MiB/s" : " megabits per second")
+                                                 : "unlimited");
     }
 }

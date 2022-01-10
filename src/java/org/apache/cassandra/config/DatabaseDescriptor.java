@@ -1831,7 +1831,7 @@ public class DatabaseDescriptor
         return conf.compaction_throughput.toMebibytesPerSecondAsInt();
     }
 
-    public static void setCompactionThroughputMiBPerSec(int value)
+    public static void setCompactionThroughputMebibytesPerSec(int value)
     {
         conf.compaction_throughput = DataRateSpec.inMebibytesPerSecond(value);
     }
@@ -1892,19 +1892,24 @@ public class DatabaseDescriptor
         return conf.stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
+    public static int getStreamThroughputOutboundMebibytesPerSec()
+    {
+        return conf.stream_throughput_outbound.toMebibytesPerSecondAsInt();
+    }
+
     public static void setStreamThroughputOutboundMegabitsPerSec(int value)
     {
         conf.stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
     }
 
-    public static int getEntireSSTableStreamThroughputOutboundMegabitsPerSec()
+    public static int getEntireSSTableStreamThroughputOutboundMebibytesPerSec()
     {
-        return conf.entire_sstable_stream_throughput_outbound.toMegabitsPerSecondAsInt();
+        return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecondAsInt();
     }
 
-    public static void setEntireSSTableStreamThroughputOutboundMegabitsPerSec(int value)
+    public static void setEntireSSTableStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        conf.entire_sstable_stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
+        conf.entire_sstable_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(value);
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
@@ -1922,14 +1927,14 @@ public class DatabaseDescriptor
         conf.inter_dc_stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
     }
 
-    public static int getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec()
+    public static int getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec()
     {
-        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
+        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
     }
 
-    public static void setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(int value)
+    public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        conf.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.megabitsPerSecondInMebibytesPerSecond(value);
+        conf.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(value);
     }
 
     /**

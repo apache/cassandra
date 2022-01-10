@@ -32,36 +32,36 @@ public class DataRateSpecTest
     @Test
     public void testConversions()
     {
-        assertEquals(10, new DataRateSpec("10B/s").toBytesPerSecond());
-        assertEquals(10240, new DataRateSpec("10KiB/s").toBytesPerSecond());
-        assertEquals(0, new DataRateSpec("10KiB/s").toMebibytesPerSecond());
-        assertEquals(10240, new DataRateSpec("10MiB/s").toKibibytesPerSecond());
-        assertEquals(10485760, new DataRateSpec("10MiB/s").toBytesPerSecond());
-        assertEquals(10485760, new DataRateSpec("10MiB/s").toBytesPerSecond());
-        assertEquals(new DataRateSpec("24MiB/s"), DataRateSpec.megabitsPerSecondInMebibytesPerSecond(200L));
+        assertEquals(10, new DataRateSpec("10B/s").toBytesPerSecond(), 0);
+        assertEquals(10240, new DataRateSpec("10KiB/s").toBytesPerSecond(), 0);
+        assertEquals(0, new DataRateSpec("10KiB/s").toMebibytesPerSecond(), 0.1);
+        assertEquals(10240, new DataRateSpec("10MiB/s").toKibibytesPerSecond(), 0);
+        assertEquals(10485760, new DataRateSpec("10MiB/s").toBytesPerSecond(), 0);
+        assertEquals(10485760, new DataRateSpec("10MiB/s").toBytesPerSecond(), 0);
+        assertEquals(new DataRateSpec("24MiB/s").toString(), DataRateSpec.megabitsPerSecondInMebibytesPerSecond(200L).toString());
     }
 
     @Test
     public void testOverflowingDuringConversion()
     {
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807B/s").toBytesPerSecond());
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807B/s").toBytesPerSecondAsInt());
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toBytesPerSecond());
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toBytesPerSecondAsInt());
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecond());
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecondAsInt());
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecond());
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecondAsInt());
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807B/s").toBytesPerSecond(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807B/s").toBytesPerSecondAsInt(), 0);
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toBytesPerSecond(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toBytesPerSecondAsInt(), 0);
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecond(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecondAsInt(), 0);
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecond(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toBytesPerSecondAsInt(), 0);
 
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toMegabitsPerSecond());
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toMegabitsPerSecond(), 0);
         assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toMegabitsPerSecondAsInt());
 
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toKibibytesPerSecond());
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toKibibytesPerSecond(), 0);
         assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807KiB/s").toKibibytesPerSecondAsInt());
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toKibibytesPerSecond());
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toKibibytesPerSecond(), 0);
         assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toKibibytesPerSecondAsInt());
 
-        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toMebibytesPerSecond());
+        assertEquals(Long.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toMebibytesPerSecond(), 0);
         assertEquals(Integer.MAX_VALUE, new DataRateSpec("9223372036854775807MiB/s").toMebibytesPerSecondAsInt());
     }
 

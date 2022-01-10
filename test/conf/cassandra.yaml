@@ -47,7 +47,7 @@ scripted_user_defined_functions_enabled: true
 prepared_statements_cache_size: 1MiB
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
-stream_throughput_outbound: 23841858MiB/s
+stream_throughput_outbound: 23841800MiB/s
 sasi_indexes_enabled: true
 materialized_views_enabled: true
 drop_compact_storage_enabled: true
