@@ -7,7 +7,6 @@ six>=1.12.0
 # Used ccm version is tracked by cassandra-test branch in ccm repo. Please create a PR there for fixes or upgrades to new releases.
 -e git+https://github.com/riptano/ccm.git@cassandra-test#egg=ccm
 coverage
-cql
 decorator
 docopt
 enum34
