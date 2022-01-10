@@ -179,7 +179,7 @@ public class TrackerTest
         List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17, cfs),
                                                        MockSchema.sstable(1, 121, cfs),
                                                        MockSchema.sstable(2, 9, cfs));
-        tracker.addSSTables(copyOf(readers));
+        tracker.addSSTables(copyOf(readers), OperationType.UNKNOWN);
 
         Assert.assertEquals(3, tracker.view.get().sstables.size());
 
@@ -350,8 +350,9 @@ public class TrackerTest
         Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
-        tracker.notifyAdded(singleton(r1), false);
+        tracker.notifyAdded(singleton(r1), OperationType.UNKNOWN, false);
         Assert.assertEquals(singleton(r1), ((SSTableAddedNotification) listener.received.get(0)).added);
+        Assert.assertFalse(((SSTableAddedNotification) listener.received.get(0)).fromStreaming());
         listener.received.clear();
         tracker.notifyDeleting(r1);
         Assert.assertEquals(r1, ((SSTableDeletingNotification) listener.received.get(0)).deleting);
@@ -371,13 +372,18 @@ public class TrackerTest
         MockListener failListener = new MockListener(true);
         tracker.subscribe(failListener);
         tracker.subscribe(listener);
-        Assert.assertNotNull(tracker.notifyAdded(singleton(r1), false, null, null));
+        Assert.assertNotNull(tracker.notifyAdded(singleton(r1), OperationType.REGION_DECOMMISSION, false, null, null));
         Assert.assertEquals(singleton(r1), ((SSTableAddedNotification) listener.received.get(0)).added);
+        Assert.assertEquals(OperationType.REGION_DECOMMISSION, ((SSTableAddedNotification) listener.received.get(0)).operationType);
         Assert.assertFalse(((SSTableAddedNotification) listener.received.get(0)).memtable().isPresent());
+        Assert.assertTrue(((SSTableAddedNotification) listener.received.get(0)).fromStreaming());
         listener.received.clear();
         Assert.assertNotNull(tracker.notifySSTablesChanged(singleton(r1), singleton(r2), OperationType.COMPACTION, null));
         Assert.assertEquals(singleton(r1), ((SSTableListChangedNotification) listener.received.get(0)).removed);
         Assert.assertEquals(singleton(r2), ((SSTableListChangedNotification) listener.received.get(0)).added);
+        listener.received.clear();
+        Assert.assertNotNull(tracker.notifyAdded(singleton(r1), OperationType.UNKNOWN, true, null, null));
+        Assert.assertEquals(singleton(r1), ((InitialSSTableAddedNotification) listener.received.get(0)).added);
         listener.received.clear();
     }
 

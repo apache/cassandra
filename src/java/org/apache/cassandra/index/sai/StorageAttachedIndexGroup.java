@@ -275,7 +275,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
             // Avoid validation for index files just written following Memtable flush. ZCS streaming should
             // validate index checksum.
-            boolean validate = !notice.memtable().isPresent();
+            boolean validate = notice.fromStreaming() || !notice.memtable().isPresent();
             onSSTableChanged(Collections.emptySet(), notice.added, indices, validate);
         }
         else if (notification instanceof SSTableListChangedNotification)
