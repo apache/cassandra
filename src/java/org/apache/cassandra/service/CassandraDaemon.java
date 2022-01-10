@@ -356,7 +356,7 @@ public class CassandraDaemon
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
         // Prepared statements
-        QueryProcessor.preloadPreparedStatement();
+        QueryProcessor.instance.preloadPreparedStatements();
 
         // Metrics
         String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");

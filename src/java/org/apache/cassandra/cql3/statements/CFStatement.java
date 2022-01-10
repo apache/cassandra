@@ -27,10 +27,11 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public abstract class CFStatement extends ParsedStatement
 {
     protected final CFName cfName;
-
+    protected Boolean fullyQualified;
     protected CFStatement(CFName cfName)
     {
         this.cfName = cfName;
+        this.fullyQualified = cfName != null ? cfName.hasKeyspace() : null;
     }
 
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
@@ -49,6 +50,13 @@ public abstract class CFStatement extends ParsedStatement
     {
         if (!cfName.hasKeyspace())
             cfName.setKeyspace(keyspace, true);
+    }
+
+    public boolean isFullyQualified()
+    {
+        if (fullyQualified == null)
+            throw new IllegalStateException("Cannot determine whether or not the query was fully qualified");
+        return fullyQualified;
     }
 
     public String keyspace()
