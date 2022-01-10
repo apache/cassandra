@@ -223,6 +223,7 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
     @Override
     public void channelInactive(ChannelHandlerContext ctx)
     {
+        ctx.read();
         close();
         ctx.fireChannelInactive();
     }
