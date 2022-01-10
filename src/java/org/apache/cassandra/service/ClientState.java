@@ -44,6 +44,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.MD5Digest;
 
 /**
  * State related to a client connection.
@@ -81,6 +82,7 @@ public class ClientState
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
+    private volatile boolean issuedPreparedStatementsUseWarning;
 
     /**
      * Force Compact Tables to be represented as CQL ones for the current client session (simulates
@@ -441,5 +443,17 @@ public class ClientState
     private Set<Permission> authorize(IResource resource)
     {
         return user.getPermissions(resource);
+    }
+
+    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, String preparedKeyspace)
+    {
+        if (!issuedPreparedStatementsUseWarning)
+        {
+            ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements is considered to be an anti-pattern due to ambiguity in non-qualified table names. " +
+                                                   "Please consider removing instances of `Session#setKeyspace(<keyspace>)`, `Session#execute(\"USE <keyspace>\")` and `cluster.newSession(<keyspace>)` from your code, and " +
+                                                   "always use fully qualified table names (e.g. <keyspace>.<table>). " +
+                                                   "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
+            issuedPreparedStatementsUseWarning = true;
+        }
     }
 }
