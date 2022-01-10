@@ -386,6 +386,8 @@ public class Config
     public volatile boolean check_for_duplicate_rows_during_reads = true;
     public volatile boolean check_for_duplicate_rows_during_compaction = true;
 
+    public volatile boolean force_new_prepared_statement_behaviour = false;
+
     public static boolean isClientMode()
     {
         return isClientMode;
