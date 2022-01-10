@@ -21,6 +21,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -36,8 +37,12 @@ public class SSTableAddedNotification implements INotification
     @Nullable
     private final Memtable memtable;
 
+    /** The type of operation that created the sstables */
+    public final OperationType operationType;
+
     /**
-     * Creates a new {@code SSTableAddedNotification} for the specified SSTables and optional memtable.
+     * Creates a new {@code SSTableAddedNotification} for the specified SSTables and optional memtable using
+     * an unknown operation type.
      *
      * @param added    the added SSTables
      * @param memtable the memtable from which the tables come when they have been added due to a memtable flush,
@@ -45,8 +50,22 @@ public class SSTableAddedNotification implements INotification
      */
     public SSTableAddedNotification(Iterable<SSTableReader> added, @Nullable Memtable memtable)
     {
+        this(added, memtable, OperationType.UNKNOWN);
+    }
+
+    /**
+     * Creates a new {@code SSTableAddedNotification} for the specified SSTables and optional memtable.
+     *
+     * @param added    the added SSTables
+     * @param memtable the memtable from which the tables come when they have been added due to a memtable flush,
+     *                 or {@code null} if they don't come from a flush
+     * @param operationType the type of operation that created the sstables
+     */
+    public SSTableAddedNotification(Iterable<SSTableReader> added, @Nullable Memtable memtable, OperationType operationType)
+    {
         this.added = added;
         this.memtable = memtable;
+        this.operationType = operationType;
     }
 
     /**
@@ -58,5 +77,15 @@ public class SSTableAddedNotification implements INotification
     public Optional<Memtable> memtable()
     {
         return Optional.ofNullable(memtable);
+    }
+
+    /**
+     * @return true if curent notification is due to streaming sstables
+     */
+    public boolean fromStreaming()
+    {
+        return operationType == OperationType.STREAM
+               || operationType == OperationType.REGION_DECOMMISSION
+               || operationType == OperationType.REGION_REPAIR;
     }
 }

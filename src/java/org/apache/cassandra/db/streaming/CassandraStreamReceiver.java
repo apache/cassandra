@@ -235,7 +235,7 @@ public class CassandraStreamReceiver implements StreamReceiver
 
                 // add sstables (this will build secondary indexes too, see CASSANDRA-10130)
                 logger.debug("[Stream #{}] Received {} sstables from {} ({})", session.planId(), readers.size(), session.peer, readers);
-                cfs.addSSTables(readers);
+                cfs.addSSTables(readers, OperationType.STREAM);
 
                 //invalidate row and counter cache
                 if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
