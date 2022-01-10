@@ -28,6 +28,7 @@ import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -179,7 +180,7 @@ public class SSTableImporter
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
-            cfs.getTracker().addSSTables(newSSTables);
+            cfs.getTracker().addSSTables(newSSTables, OperationType.UNKNOWN);
             for (SSTableReader reader : newSSTables)
             {
                 try
