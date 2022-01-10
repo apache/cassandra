@@ -941,7 +941,7 @@ public class SelectStatement implements CQLStatement
 
         protected ParsedStatement.Prepared prepare(SelectStatement stmt, VariableSpecifications boundNames, CFMetaData cfm)
         {
-            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm), cfm.ksName);
+            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm), cfm.ksName, isFullyQualified());
         }
 
         /**
