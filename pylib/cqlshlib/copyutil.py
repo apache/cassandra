@@ -197,7 +197,15 @@ class ReceivingChannels(object):
         Implementation of the recv method for Linux, where select is available. Receive an object from
         all pipes that are ready for reading without blocking.
         """
-        readable, _, _ = select(self._readers, [], [], timeout)
+        while True:
+            try:
+                readable, _, _ = select(self._readers, [], [], timeout)
+            except select.error as exc:
+                # Do not abort on window resize:
+                if exc[0] != errno.EINTR:
+                    raise
+            else:
+                break
         for r in readable:
             with self._rlocks_by_readers[r]:
                 try:
