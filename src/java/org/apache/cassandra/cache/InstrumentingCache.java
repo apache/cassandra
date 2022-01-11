@@ -20,6 +20,7 @@ package org.apache.cassandra.cache;
 import java.util.Iterator;
 
 import org.apache.cassandra.metrics.CacheMetrics;
+import org.apache.cassandra.service.CacheService;
 
 /**
  * Wraps an ICache in requests + hits tracking.
@@ -27,15 +28,15 @@ import org.apache.cassandra.metrics.CacheMetrics;
 public class InstrumentingCache<K, V>
 {
     private final ICache<K, V> map;
-    private final String type;
+    private final CacheService.CacheType type;
 
     private CacheMetrics metrics;
 
-    public InstrumentingCache(String type, ICache<K, V> map)
+    public InstrumentingCache(CacheService.CacheType type, ICache<K, V> map)
     {
         this.map = map;
         this.type = type;
-        this.metrics = new CacheMetrics(type, map);
+        this.metrics = CacheMetrics.create(type, map);
     }
 
     public void put(K key, V value)
@@ -55,12 +56,11 @@ public class InstrumentingCache<K, V>
 
     public V get(K key)
     {
-        metrics.requests.mark();
         V v = map.get(key);
         if (v != null)
-            metrics.hits.mark();
+            metrics.recordHits(1);
         else
-            metrics.misses.mark();
+            metrics.recordMisses(1);
         return v;
     }
 
@@ -100,7 +100,7 @@ public class InstrumentingCache<K, V>
 
         // this does not clear metered metrics which are defined statically. for testing purposes, these can be
         // cleared by CacheMetrics.reset()
-        metrics = new CacheMetrics(type, map);
+        metrics = CacheMetrics.create(type, map);
     }
 
     public Iterator<K> keyIterator()

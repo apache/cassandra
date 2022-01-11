@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class CodahaleChunkCacheMetrics implements ChunkCacheMetrics
 {
     /** Metrics in common with ICache implementations */
-    private final CacheMetrics metrics;
+    private final CodahaleCacheMetrics metrics;
 
     /** Latency of misses */
     public final Timer missLatency;
@@ -45,7 +45,7 @@ public class CodahaleChunkCacheMetrics implements ChunkCacheMetrics
      */
     CodahaleChunkCacheMetrics(ChunkCache cache)
     {
-        metrics = new CacheMetrics("ChunkCache", cache);
+        metrics = new CodahaleCacheMetrics("ChunkCache", cache);
         missLatency = metrics.registerTimer("MissLatency");
     }
 
@@ -83,6 +83,30 @@ public class CodahaleChunkCacheMetrics implements ChunkCacheMetrics
     public double hitRate()
     {
         return metrics.hitRate.getValue();
+    }
+
+    @Override
+    public double hitOneMinuteRate()
+    {
+        return metrics.hitOneMinuteRate();
+    }
+
+    @Override
+    public double hitFiveMinuteRate()
+    {
+        return metrics.hitFiveMinuteRate();
+    }
+
+    @Override
+    public double hitFifteenMinuteRate()
+    {
+        return metrics.hitFifteenMinuteRate();
+    }
+
+    @Override
+    public double requestsFifteenMinuteRate()
+    {
+        return metrics.requestsFifteenMinuteRate();
     }
 
     @Override
@@ -124,17 +148,7 @@ public class CodahaleChunkCacheMetrics implements ChunkCacheMetrics
     @Override
     public long entries()
     {
-        return metrics.entries.getValue();
-    }
-
-    public long requestsFifteenMinuteRate()
-    {
-        return (long) metrics.requests.getFifteenMinuteRate();
-    }
-
-    public long hitsFifteenMinuteRate()
-    {
-        return (long) metrics.hits.getFifteenMinuteRate();
+        return metrics.entries();
     }
 
     @Nonnull

@@ -21,12 +21,16 @@ package org.apache.cassandra.metrics;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.AfterClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.cache.ICache;
 import org.apache.cassandra.cache.InstrumentingCache;
+import org.apache.cassandra.service.CacheService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -34,11 +38,30 @@ public class CacheMetricsTest
 {
     private static final long capacity = 65536;
 
+    @AfterClass
+    public static void teardown()
+    {
+        System.clearProperty("cassandra.use_micrometer_metrics");
+    }
+
     @Test
+    public void testCodahaleCacheMetrics()
+    {
+        System.setProperty("cassandra.use_micrometer_metrics", "false");
+        testCacheMetrics();
+    }
+
+    @Test
+    public void testMicrometerCacheMetrics()
+    {
+        System.setProperty("cassandra.use_micrometer_metrics", "true");
+        testCacheMetrics();
+    }
+
     public void testCacheMetrics()
     {
         ICache<String,Object> mockedCache = new MapMockedCache();
-        InstrumentingCache<String,Object> cache = new InstrumentingCache<>("cache", mockedCache);
+        InstrumentingCache<String,Object> cache = new InstrumentingCache<>(CacheService.CacheType.KEY_CACHE, mockedCache);
         CacheMetrics metrics = cache.getMetrics();
 
         assertCacheMetrics(metrics, expect(mockedCache));
@@ -58,8 +81,6 @@ public class CacheMetricsTest
         assertCacheMetrics(metrics, expect(mockedCache).hits(80).misses(20));
 
         cache.clear();
-        metrics.reset();
-        assertCacheMetrics(metrics, expect(mockedCache));
     }
 
     private void getFromCache(InstrumentingCache<String,Object> cache, String key, int times)
@@ -76,16 +97,23 @@ public class CacheMetricsTest
         // calculations - applying some general assertions for hitRate calculations that essentially just smoke test
         // existence (i.e. NaN at initialization) since they are established by way of an inner class on CacheMetrics
         // itself.
-        assertEquals(expectation.cacheSize.capacity(), actual.capacity.getValue().longValue());
-        assertEquals(expectation.cacheSize.weightedSize(), actual.size.getValue().longValue());
-        assertEquals(expectation.cacheSize.size(), actual.entries.getValue().intValue());
-        assertEquals(expectation.hits, actual.hits.getCount());
-        assertEquals(expectation.misses, actual.misses.getCount());
-        assertEquals(expectation.requests(), actual.requests.getCount());
-        assertEquals(expectation.hitRate(), actual.hitRate.getValue(), 0.001d);
-        assertEquals(Double.NaN, actual.oneMinuteHitRate.getValue(), 0.001d);
-        assertEquals(Double.NaN, actual.fiveMinuteHitRate.getValue(), 0.001d);
-        assertEquals(Double.NaN, actual.fifteenMinuteHitRate.getValue(), 0.001d);
+        if (actual instanceof MicrometerCacheMetrics)
+        {
+            Uninterruptibles.sleepUninterruptibly(2 * MicrometerCacheMetrics.hitRateUpdateIntervalNanos, TimeUnit.NANOSECONDS);
+        }
+
+        assertEquals(expectation.cacheSize.capacity(), actual.capacity());
+        assertEquals(expectation.cacheSize.weightedSize(), actual.size());
+        assertEquals(expectation.cacheSize.size(), actual.entries());
+        assertEquals(expectation.hits, actual.hits());
+        assertEquals(expectation.misses, actual.misses());
+        assertEquals(expectation.requests(), actual.requests());
+        // the hit rate computation is vastly different in different implementations;
+        // let's just test that it is being computed
+        assertEquals(expectation.hitRate(), actual.hitRate(), 1);
+        assertEquals(Double.NaN, actual.hitOneMinuteRate(), 0.001d);
+        assertEquals(Double.NaN, actual.hitFiveMinuteRate(), 0.001d);
+        assertEquals(Double.NaN, actual.hitFifteenMinuteRate(), 0.001d);
     }
 
     static CacheMetricsExpectation expect(CacheSize cacheSize)
