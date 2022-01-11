@@ -726,7 +726,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // before sending the message (without closing the channel)
         // see CASSANDRA-17116
         if (isPreview())
-            setComplete();
+            state(State.COMPLETE);
         channel.sendControlMessage(prepareSynAck);
 
         streamResult.handleSessionPrepared(this);
@@ -735,12 +735,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             completePreview();
         else
             maybeCompleted();
-    }
-
-    private void setComplete()
-    {
-        state(State.WAIT_COMPLETE);
-        state(State.COMPLETE);
     }
 
     private void prepareSynAck(PrepareSynAckMessage msg)
@@ -887,7 +881,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             // the session.  To avoid a race condition between sending and setting state, make sure to update the state
             // before sending the message (without closing the channel)
             // see CASSANDRA-17116
-            setComplete();
+            state(State.COMPLETE);
             Future<?> messageFuture = channel.sendControlMessage(new CompleteMessage());
             messageFuture.addListener(f -> {
                 if (f.isSuccess())
