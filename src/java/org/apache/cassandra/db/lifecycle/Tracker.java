@@ -462,7 +462,7 @@ public class Tracker
 
     // NOTIFICATION
 
-    Throwable notifySSTablesChanged(Collection<SSTableReader> removed, Collection<SSTableReader> added, OperationType compactionType, Throwable accumulate)
+    public Throwable notifySSTablesChanged(Collection<SSTableReader> removed, Collection<SSTableReader> added, OperationType compactionType, Throwable accumulate)
     {
         INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
         for (INotificationConsumer subscriber : subscribers)

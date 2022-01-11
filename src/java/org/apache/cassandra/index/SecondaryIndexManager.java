@@ -86,6 +86,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
@@ -118,6 +119,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
+import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -1722,7 +1724,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public void handleNotification(INotification notification, Object sender)
     {
-        if (!indexes.isEmpty() && notification instanceof SSTableAddedNotification)
+        if (indexes.isEmpty())
+            return;
+
+        if (notification instanceof SSTableAddedNotification)
         {
             SSTableAddedNotification notice = (SSTableAddedNotification) notification;
 
@@ -1734,6 +1739,20 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                             .filter(Index::shouldBuildBlocking)
                                             .collect(Collectors.toSet()),
                                      false);
+        }
+        else if (notification instanceof SSTableListChangedNotification)
+        {
+            // when reloading remote sstables, index may not be built
+            SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
+            if (notice.compactionType == OperationType.REMOTE_RELOAD)
+            {
+                buildIndexesBlocking(Lists.newArrayList(notice.added),
+                                     indexes.values()
+                                            .stream()
+                                            .filter(Index::shouldBuildBlocking)
+                                            .collect(Collectors.toSet()),
+                                     false);
+            }
         }
     }
 
