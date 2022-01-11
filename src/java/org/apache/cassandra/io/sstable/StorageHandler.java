@@ -64,6 +64,10 @@ public abstract class StorageHandler
         REPAIR,
         /** A request over forced by users to reload. */
         USER_REQUESTED,
+        /** SSTables might have been added or removed, regardless of a specific reason
+         * e.g. it could be compaction or flushing or regions being updated which caused
+         * new sstables to arrive */
+        SSTABLES_CHANGED
     }
 
     protected final TableMetadataRef metadata;
