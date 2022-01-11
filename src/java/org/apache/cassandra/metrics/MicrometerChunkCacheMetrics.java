@@ -19,7 +19,6 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -29,9 +28,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import org.apache.cassandra.cache.CacheSize;
-import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MovingAverage;
 
 /**
  * Micrometer implementation for the chunk cache metrics.
@@ -39,38 +36,21 @@ import org.apache.cassandra.utils.MovingAverage;
 public class MicrometerChunkCacheMetrics extends MicrometerMetrics implements ChunkCacheMetrics
 {
     public static final String CHUNK_CACHE_MISS_LATENCY = "chunk_cache_miss_latency_seconds";
-    public static final String CHUNK_CACHE_MISSES = "chunk_cache_misses";
-    public static final String CHUNK_CACHE_HITS = "chunk_cache_hits";
-    public static final String CHUNK_CACHE_REQUESTS = "chunk_cache_requests";
     public static final String CHUNK_CACHE_EVICTIONS = "chunk_cache_evictions";
-    public static final String CHUNK_CACHE_CAPACITY = "chunk_cache_capacity";
-    public static final String CHUNK_CACHE_SIZE = "chunk_cache_size";
-    public static final String CHUNK_CACHE_NUM_ENTRIES = "chunk_cache_num_entries";
-    public static final String CHUNK_CACHE_HIT_RATE = "chunk_cache_hit_rate";
-
-    @VisibleForTesting
-    protected final static long hitRateUpdateInterval = TimeUnit.MILLISECONDS.toNanos(100);
 
     private final CacheSize cache;
-    private final MovingAverage hitRate;
-    private final AtomicLong hitRateUpdateTime;
 
+    private volatile MicrometerCacheMetrics metrics;
     private volatile Timer missLatency;
-    private volatile Counter misses;
-    private volatile Counter hits;
-    private volatile Counter requests;
     private volatile Counter evictions;
 
     MicrometerChunkCacheMetrics(CacheSize cache)
     {
         this.cache = cache;
-        this.hitRate = ExpMovingAverage.decayBy1000();
-        this.hitRateUpdateTime = new AtomicLong(System.nanoTime());
+        this.metrics = new MicrometerCacheMetrics("chunk_cache", cache);
+        this.metrics.register(registryWithTags().left, registryWithTags().right);
 
         this.missLatency = timer(CHUNK_CACHE_MISS_LATENCY);
-        this.misses = counter(CHUNK_CACHE_MISSES);
-        this.hits = counter(CHUNK_CACHE_HITS);
-        this.requests = counter(CHUNK_CACHE_REQUESTS);
         this.evictions = counter(CHUNK_CACHE_EVICTIONS);
     }
 
@@ -79,40 +59,17 @@ public class MicrometerChunkCacheMetrics extends MicrometerMetrics implements Ch
     {
         super.register(newRegistry, newTags);
 
-        gauge(CHUNK_CACHE_CAPACITY, cache, CacheSize::capacity);
-        gauge(CHUNK_CACHE_SIZE, cache, CacheSize::weightedSize);
-        gauge(CHUNK_CACHE_NUM_ENTRIES, cache, CacheSize::size);
-        gauge(CHUNK_CACHE_HIT_RATE, hitRate, MovingAverage::get);
+        this.metrics = new MicrometerCacheMetrics("chunk_cache", cache);
+        this.metrics.register(newRegistry, newTags);
 
         this.missLatency = timer(CHUNK_CACHE_MISS_LATENCY);
-        this.misses = counter(CHUNK_CACHE_MISSES);
-        this.hits = counter(CHUNK_CACHE_HITS);
-        this.requests = counter(CHUNK_CACHE_REQUESTS);
         this.evictions = counter(CHUNK_CACHE_EVICTIONS);
     }
 
     @Override
     public void recordMisses(int count)
     {
-        misses.increment(count);
-        requests.increment(count);
-        updateHitRate();
-    }
-
-    private void updateHitRate()
-    {
-        long lastUpdate = hitRateUpdateTime.get();
-        if ((System.nanoTime() - lastUpdate) >= hitRateUpdateInterval)
-        {
-            if (hitRateUpdateTime.compareAndSet(lastUpdate, System.nanoTime()))
-            {
-                double numRequests = requests.count();
-                if (numRequests > 0)
-                    hitRate.update(hits.count() / numRequests);
-                else
-                    hitRate.update(0);
-            }
-        }
+        metrics.recordMisses(count);
     }
 
     @Override
@@ -140,33 +97,55 @@ public class MicrometerChunkCacheMetrics extends MicrometerMetrics implements Ch
     @Override
     public void recordHits(int count)
     {
-        hits.increment(count);
-        requests.increment(count);
-        updateHitRate();
+        metrics.recordHits(count);
     }
 
     @Override
     public double hitRate()
     {
-        return hitRate.get();
+        return metrics.hitRate();
+    }
+
+    @Override
+    public double hitOneMinuteRate()
+    {
+        return metrics.hitOneMinuteRate();
+    }
+
+    @Override
+    public double hitFiveMinuteRate()
+    {
+        return metrics.hitFiveMinuteRate();
+    }
+
+    @Override
+    public double hitFifteenMinuteRate()
+    {
+        return metrics.hitFifteenMinuteRate();
+    }
+
+    @Override
+    public double requestsFifteenMinuteRate()
+    {
+        return metrics.requestsFifteenMinuteRate();
     }
 
     @Override
     public long requests()
     {
-        return (long) requests.count();
+        return metrics.requests();
     }
 
     @Override
     public long misses()
     {
-        return (long) misses.count();
+        return metrics.misses();
     }
 
     @Override
     public long hits()
     {
-        return (long) hits.count();
+        return metrics.hits();
     }
 
     @Override
@@ -178,28 +157,18 @@ public class MicrometerChunkCacheMetrics extends MicrometerMetrics implements Ch
     @Override
     public long capacity()
     {
-        return cache.capacity();
+        return metrics.capacity();
     }
 
     @Override
     public long size()
     {
-        return cache.weightedSize();
+        return metrics.size();
     }
 
     public long entries()
     {
-        return cache.size();
-    }
-
-    public long requestsFifteenMinuteRate()
-    {
-        return 0;
-    }
-
-    public long hitsFifteenMinuteRate()
-    {
-        return 0;
+        return metrics.entries();
     }
 
     @Override
@@ -214,7 +183,7 @@ public class MicrometerChunkCacheMetrics extends MicrometerMetrics implements Ch
     @Override
     public CacheStats snapshot()
     {
-        return new CacheStats((long) hits.count(), (long) misses.count(), missLatency.count(),
+        return new CacheStats(metrics.hits(), metrics.misses(), missLatency.count(),
                 0L, (long) missLatency.totalTime(TimeUnit.NANOSECONDS), (long) evictions.count(), 0L);
     }
 
