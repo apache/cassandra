@@ -3191,4 +3191,20 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k1, k2) VALUES (uuid(), 'k2')");
         assertRowCount(execute("SELECT system.token(k1, k2) FROM %s"), 1);
     }
+
+    @Test
+    public void testLikeQueryWithoutFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1, k2))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        assertRows(execute("SELECT k2 from %s where k2 like '%%Doe'"), row("John Doe"));
+    }
+
+    @Test
+    public void testLikeQueryWithFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        assertRows(execute("SELECT k2 from %s where k2 like '%%Doe' ALLOW FILTERING"), row("John Doe"));
+    }
 }
