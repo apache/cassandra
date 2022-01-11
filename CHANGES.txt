@@ -1,5 +1,6 @@
 3.0.29
  * Fix running Ant rat targets without git (CASSANDRA-17974)
+ * Fix intermittent failure in nodetool toppartitions (CASSANDRA-17254)
 
 
 3.0.28
