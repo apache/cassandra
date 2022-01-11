@@ -726,9 +726,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // before sending the message (without closing the channel)
         // see CASSANDRA-17116
         if (isPreview())
-        {
             setComplete();
-        }
         channel.sendControlMessage(prepareSynAck);
 
         streamResult.handleSessionPrepared(this);
