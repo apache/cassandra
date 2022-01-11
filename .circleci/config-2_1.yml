@@ -30,7 +30,7 @@ default_env_vars: &default_env_vars
     CASS_DRIVER_NO_CYTHON: true
     #Skip all syncing to disk to avoid performance issues in flaky CI environments
     CASSANDRA_SKIP_SYNC: true
-    DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+    DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     DTEST_BRANCH: trunk
     CCM_MAX_HEAP_SIZE: 1024M
     CCM_HEAP_NEWSIZE: 256M
@@ -258,7 +258,7 @@ commands:
     - run:
         name: Clone Cassandra Repository (via git)
         command: |
-          git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH git://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+          git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
 
   clone_dtest:
     steps:
