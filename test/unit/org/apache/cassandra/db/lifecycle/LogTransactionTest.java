@@ -115,7 +115,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
                 assertNotNull(txnLogs);
                 assertNotNull(txnLogs.id());
-                assertEquals(OperationType.COMPACTION, txnLogs.type());
+                assertEquals(OperationType.COMPACTION, txnLogs.opType());
 
                 txnLogs.trackNew(sstableNew);
                 tidier = txnLogs.obsoleted(sstableOld);

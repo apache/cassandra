@@ -801,7 +801,10 @@ public class Directories
         TEMPORARY,
 
         /** A transaction log file (contains information on final and temporary files). */
-        TXN_LOG;
+        TXN_LOG,
+
+        /** An sstable file that was marked for deletion */
+        OBSOLETE;
     }
 
     /**
