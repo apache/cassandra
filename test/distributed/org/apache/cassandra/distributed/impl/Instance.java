@@ -463,7 +463,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
-                    System.setProperty("cassandra.ring_delay_ms", "5000");
+                    System.setProperty("cassandra.ring_delay_ms", "15000");
                     System.setProperty("cassandra.consistent.rangemovement", "false");
                     System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
                 }
@@ -710,6 +710,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.shutdownServer();
             }
 
+            error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
+
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
@@ -728,9 +730,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
-                                () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES)
+                                () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor()))
             );
+
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES));
 
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
