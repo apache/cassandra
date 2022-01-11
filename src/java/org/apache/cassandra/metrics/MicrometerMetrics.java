@@ -66,4 +66,9 @@ public abstract class MicrometerMetrics
         Preconditions.checkArgument(!this.registryWithTags.left.equals(newRegistry), "Cannot set the same registry twice!");
         this.registryWithTags = Pair.create(newRegistry, newTags);
     }
+
+    public Pair<MeterRegistry, Tags> registryWithTags()
+    {
+        return this.registryWithTags;
+    }
 }

@@ -65,15 +65,22 @@ public class CacheService implements CacheServiceMBean
 
     public enum CacheType
     {
-        KEY_CACHE("KeyCache"),
-        ROW_CACHE("RowCache"),
-        COUNTER_CACHE("CounterCache");
+        KEY_CACHE("KeyCache", "key_cache"),
+        ROW_CACHE("RowCache", "row_cache"),
+        COUNTER_CACHE("CounterCache", "counter_cache");
 
         private final String name;
+        private final String micrometerMetricsPrefix;
 
-        CacheType(String typeName)
+        CacheType(String typeName, String micrometerMetricsPrefix)
         {
-            name = typeName;
+            this.name = typeName;
+            this.micrometerMetricsPrefix = micrometerMetricsPrefix;
+        }
+
+        public String micrometerMetricsPrefix()
+        {
+            return micrometerMetricsPrefix;
         }
 
         public String toString()
