@@ -703,9 +703,6 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
             // there must be a suitable INDEX for LIKE_XXX expressions
             RowFilter.SimpleExpression expression = filter.add(columnDef, operation.left, operation.right);
-            indexRegistry.getBestIndexFor(expression)
-                         .orElseThrow(() -> invalidRequest("%s is only supported on properly indexed columns",
-                                                           expression));
         }
 
         @Override
