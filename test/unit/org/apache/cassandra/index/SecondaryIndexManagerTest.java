@@ -19,6 +19,7 @@ package org.apache.cassandra.index;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -29,12 +30,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -49,6 +55,20 @@ import static org.junit.Assert.fail;
 
 public class SecondaryIndexManagerTest extends CQLTester
 {
+    private static boolean backups;
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        backups = DatabaseDescriptor.isIncrementalBackupsEnabled();
+        DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+    }
+
+    @AfterClass
+    public static void afterClass()
+    {
+        DatabaseDescriptor.setIncrementalBackupsEnabled(backups);
+    }
 
     @After
     public void after()
@@ -116,6 +136,40 @@ public class SecondaryIndexManagerTest extends CQLTester
             cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
             assertMarkedAsBuilt(indexName);
         }
+    }
+
+    @Test
+    public void testIndexRebuildWhenAddingSStableViaRemoteReload() throws Throwable
+    {
+        String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'StorageAttachedIndex'");
+
+        waitForIndex(KEYSPACE, tableName, indexName);
+        assertMarkedAsBuilt(indexName);
+
+        execute("Insert into %s(a,b,c) VALUES(1,1,1)");
+        assertRows(execute("SELECT * FROM %s WHERE c=1"), row(1, 1, 1));
+        flush(KEYSPACE);
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+
+        // unlink sstable and index context: expect no rows to be read by base and index
+        cfs.clearUnsafe();
+        IndexMetadata indexMetadata = cfs.metadata().indexes.iterator().next();
+        ((StorageAttachedIndex) cfs.getIndexManager().getIndex(indexMetadata)).getIndexContext().drop(sstables);
+        assertEmpty(execute("SELECT * FROM %s WHERE a=1"));
+        assertEmpty(execute("SELECT * FROM %s WHERE c=1"));
+
+        // track sstable again: expect no rows to be read by index
+        cfs.getTracker().addInitialSSTables(sstables);
+        assertRows(execute("SELECT * FROM %s WHERE a=1"), row(1, 1, 1));
+        assertEmpty(execute("SELECT * FROM %s WHERE c=1"));
+
+        // remote reload should trigger index rebuild
+        cfs.getTracker().notifySSTablesChanged(Collections.emptySet(), sstables, OperationType.REMOTE_RELOAD, null);
+        assertRows(execute("SELECT * FROM %s WHERE a=1"), row(1, 1, 1));
+        assertRows(execute("SELECT * FROM %s WHERE c=1"), row(1, 1, 1));
     }
 
     @Test
