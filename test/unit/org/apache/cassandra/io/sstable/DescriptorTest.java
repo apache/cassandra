@@ -33,6 +33,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
@@ -135,6 +136,19 @@ public class DescriptorTest
             assertNotNull(Descriptor.fromFilename(name));
             assertNotNull(name, Descriptor.validFilenameWithComponent(new File(name).name()));
         }
+    }
+
+    @Test
+    public void testValidFilename()
+    {
+        String names[] = {
+        "system-schema_keyspaces-k234a-1-CompressionInfo.db",  "system-schema_keyspaces-ka-aa-Summary.db",
+        "system-schema_keyspaces-XXX-ka-1-Data.db",             "system-schema_keyspaces-k",
+        "system-schema_keyspace-ka-1-AAA-Data.db",  "system-schema-keyspace-ka-1-AAA-Data.db"
+        };
+
+        for (String name : names)
+            assertFalse(Descriptor.validFilename(name));
     }
 
     @Test

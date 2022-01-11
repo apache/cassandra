@@ -44,7 +44,7 @@ public interface ILogTransactionsFactory
     /**
      * Create {@link AbstractLogTransaction} that tracks sstable files involved in a transaction across sstables:
      */
-    AbstractLogTransaction createLogTransaction(OperationType operationType, TableMetadataRef metadata);   // FIXME NPE, check usage
+    AbstractLogTransaction createLogTransaction(OperationType operationType, TableMetadataRef metadata);
 
     /**
      * Create {@link ILogAwareFileLister} that lists files which are not removed by log transactions in a folder.

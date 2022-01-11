@@ -31,8 +31,6 @@ import org.apache.cassandra.utils.concurrent.Transactional;
  */
 public abstract class AbstractLogTransaction extends Transactional.AbstractTransactional implements Transactional, LifecycleNewTracker
 {
-    public abstract OperationType type();
-
     public abstract UUID id();
 
     public abstract Throwable prepareForObsoletion(Iterable<SSTableReader> readers,

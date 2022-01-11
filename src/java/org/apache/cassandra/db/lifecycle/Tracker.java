@@ -306,7 +306,7 @@ public class Tracker
                     accumulate = updateSizeTracking(removed, emptySet(), accumulate);
                     accumulate = release(selfRefs(removed), accumulate);
                     // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
-                    accumulate = notifySSTablesChanged(removed, Collections.emptySet(), txnLogs.type(), accumulate);
+                    accumulate = notifySSTablesChanged(removed, Collections.emptySet(), txnLogs.opType(), accumulate);
                 }
             }
             catch (Throwable t)
