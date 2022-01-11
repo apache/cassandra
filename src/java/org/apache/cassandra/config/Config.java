@@ -79,6 +79,8 @@ public class Config
     public String hints_directory;
     public boolean hint_window_persistent_enabled = true;
 
+    public volatile boolean force_new_prepared_statement_behaviour = false;
+
     public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 

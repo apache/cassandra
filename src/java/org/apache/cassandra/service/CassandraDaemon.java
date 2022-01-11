@@ -378,7 +378,7 @@ public class CassandraDaemon
         ActiveRepairService.instance.start();
 
         // Prepared statements
-        QueryProcessor.preloadPreparedStatement();
+        QueryProcessor.instance.preloadPreparedStatements();
 
         // Metrics
         String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");

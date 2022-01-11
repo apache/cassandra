@@ -170,7 +170,7 @@ public class MessagePayloadTest extends CQLTester
                 payloadEquals(respMap, executeResponse.getCustomPayload());
 
                 BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
-                                                             Collections.<Object>singletonList("INSERT INTO atable (pk,v) VALUES (1, 'foo')"),
+                                                             Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
                                                              Collections.singletonList(Collections.<ByteBuffer>emptyList()),
                                                              queryOptions);
                 reqMap = Collections.singletonMap("foo", bytes(45));
