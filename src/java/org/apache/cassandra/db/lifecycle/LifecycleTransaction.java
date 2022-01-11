@@ -184,7 +184,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     @Override //LifecycleNewTracker
     public OperationType opType()
     {
-        return log.type();
+        return log.opType();
     }
 
     public UUID opId()
@@ -235,7 +235,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         accumulate = tracker.updateSizeTracking(logged.obsolete, logged.update, accumulate);
         accumulate = runOnCommitHooks(accumulate);
         accumulate = release(selfRefs(logged.obsolete), accumulate);
-        accumulate = tracker.notifySSTablesChanged(originals, logged.update, log.type(), accumulate);
+        accumulate = tracker.notifySSTablesChanged(originals, logged.update, log.opType(), accumulate);
 
         return accumulate;
     }
@@ -543,7 +543,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
             originals.remove(reader);
             marked.remove(reader);
         }
-        return new LifecycleTransaction(tracker, log.type(), readers);
+        return new LifecycleTransaction(tracker, log.opType(), readers);
     }
 
     /**

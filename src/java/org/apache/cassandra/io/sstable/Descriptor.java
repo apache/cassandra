@@ -315,6 +315,11 @@ public class Descriptor
         }
     }
 
+    public static boolean validFilename(String name)
+    {
+        return validFilenameWithComponent(name) != null;
+    }
+
     private static List<String> filenameTokens(String name)
     {
         List<String> tokens = filenameSplitter.splitToList(name);

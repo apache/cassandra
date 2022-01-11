@@ -205,12 +205,6 @@ final class LogTransaction extends AbstractLogTransaction
     }
 
     @Override
-    public OperationType type()
-    {
-        return txnFile.type();
-    }
-
-    @Override
     public UUID id()
     {
         return txnFile.id();
