@@ -31,6 +31,8 @@ import sys
 import threading
 import time
 import traceback
+import select
+import errno
 
 from bisect import bisect_right
 from calendar import timegm
@@ -39,7 +41,6 @@ from decimal import Decimal
 from Queue import Queue
 from random import randint
 from StringIO import StringIO
-from select import select
 from uuid import UUID
 from util import profile_on, profile_off
 
@@ -191,7 +192,15 @@ class ReceivingChannels(object):
         Implementation of the recv method for Linux, where select is available. Receive an object from
         all pipes that are ready for reading without blocking.
         """
-        readable, _, _ = select(self._readers, [], [], timeout)
+        while True:
+            try:
+                readable, _, _ = select.select(self._readers, [], [], timeout)
+            except select.error, exc:
+                # Do not abort on window resize:
+                if exc[0] != errno.EINTR:
+                    raise
+            else:
+                break
         for r in readable:
             with self._rlocks_by_readers[r]:
                 try:
