@@ -271,8 +271,8 @@ public class KeyCacheCqlTest extends CQLTester
             expectedRequests += recentBloomFilterFalsePositives() + 20;
         }
 
-        long hits = metrics.hits.getCount();
-        long requests = metrics.requests.getCount();
+        long hits = metrics.hits();
+        long requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(0), hits);
         assertEquals(cacheInteractionsIfSupported(expectedRequests), requests);
 
@@ -289,8 +289,8 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         metrics = CacheService.instance.keyCache.getMetrics();
-        hits = metrics.hits.getCount();
-        requests = metrics.requests.getCount();
+        hits = metrics.hits();
+        requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(200), hits);
         assertEquals(cacheInteractionsIfSupported(expectedRequests), requests);
 
@@ -365,8 +365,8 @@ public class KeyCacheCqlTest extends CQLTester
             expectedNumberOfRequests += recentBloomFilterFalsePositives() + 20;
         }
 
-        long hits = metrics.hits.getCount();
-        long requests = metrics.requests.getCount();
+        long hits = metrics.hits();
+        long requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(0), hits);
         assertEquals(cacheInteractionsIfSupported(expectedNumberOfRequests), requests);
 
@@ -384,8 +384,8 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         metrics = CacheService.instance.keyCache.getMetrics();
-        hits = metrics.hits.getCount();
-        requests = metrics.requests.getCount();
+        hits = metrics.hits();
+        requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(200), hits);
         assertEquals(cacheInteractionsIfSupported(expectedNumberOfRequests), requests);
 
@@ -444,8 +444,8 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
-        long hits = metrics.hits.getCount();
-        long requests = metrics.requests.getCount();
+        long hits = metrics.hits();
+        long requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(0), hits);
         assertEquals(cacheInteractionsIfSupported(10), requests);
 
@@ -458,8 +458,8 @@ public class KeyCacheCqlTest extends CQLTester
             expectedNumberOfRequests += recentBloomFilterFalsePositives() + 1;
         }
 
-        hits = metrics.hits.getCount();
-        requests = metrics.requests.getCount();
+        hits = metrics.hits();
+        requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(10), hits);
         assertEquals(cacheInteractionsIfSupported(expectedNumberOfRequests), requests);
     }
@@ -495,8 +495,8 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
-        long hits = metrics.hits.getCount();
-        long requests = metrics.requests.getCount();
+        long hits = metrics.hits();
+        long requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(0), hits);
         assertEquals(cacheInteractionsIfSupported(10), requests);
 
@@ -507,8 +507,8 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         metrics = CacheService.instance.keyCache.getMetrics();
-        hits = metrics.hits.getCount();
-        requests = metrics.requests.getCount();
+        hits = metrics.hits();
+        requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(10), hits);
         assertEquals(cacheInteractionsIfSupported(10 + 10), requests);
 
@@ -523,8 +523,8 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         metrics = CacheService.instance.keyCache.getMetrics();
-        hits = metrics.hits.getCount();
-        requests = metrics.requests.getCount();
+        hits = metrics.hits();
+        requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(10 + 100), hits);
         assertEquals(cacheInteractionsIfSupported(20 + 100), requests);
 
@@ -538,8 +538,8 @@ public class KeyCacheCqlTest extends CQLTester
             }
         }
 
-        hits = metrics.hits.getCount();
-        requests = metrics.requests.getCount();
+        hits = metrics.hits();
+        requests = metrics.requests();
         assertEquals(cacheInteractionsIfSupported(110 + 4910), hits);
         assertEquals(cacheInteractionsIfSupported(120 + 5500), requests);
     }
@@ -604,10 +604,10 @@ public class KeyCacheCqlTest extends CQLTester
         CassandraMetricsRegistry.Metrics.getNames().forEach(CassandraMetricsRegistry.Metrics::remove);
         CacheService.instance.keyCache.clear();
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
-        Assert.assertEquals(0, metrics.entries.getValue().intValue());
-        Assert.assertEquals(0L, metrics.hits.getCount());
-        Assert.assertEquals(0L, metrics.requests.getCount());
-        Assert.assertEquals(0L, metrics.size.getValue().longValue());
+        Assert.assertEquals(0, metrics.entries());
+        Assert.assertEquals(0L, metrics.hits());
+        Assert.assertEquals(0L, metrics.requests());
+        Assert.assertEquals(0L, metrics.size());
     }
 
     private static void triggerBlockingFlush(Index index) throws Exception

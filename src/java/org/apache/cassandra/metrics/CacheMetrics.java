@@ -17,106 +17,44 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.function.DoubleSupplier;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import com.codahale.metrics.*;
 import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.service.CacheService;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.config.CassandraRelevantProperties.USE_MICROMETER;
 
 /**
  * Metrics for {@code ICache}.
  */
-public class CacheMetrics
+public interface CacheMetrics
 {
-    /** Cache capacity in bytes */
-    public final Gauge<Long> capacity;
-    /** Total size of cache, in bytes */
-    public final Gauge<Long> size;
-    /** Total number of cache entries */
-    public final Gauge<Integer> entries;
-
-    /** Total number of cache hits */
-    public final Meter hits;
-    /** Total number of cache misses */
-    public final Meter misses;
-    /** Total number of cache requests */
-    public final Meter requests;
-
-    /** all time cache hit rate */
-    public final Gauge<Double> hitRate;
-    /** 1m hit rate */
-    public final Gauge<Double> oneMinuteHitRate;
-    /** 5m hit rate */
-    public final Gauge<Double> fiveMinuteHitRate;
-    /** 15m hit rate */
-    public final Gauge<Double> fifteenMinuteHitRate;
-
-    protected final MetricNameFactory factory;
-
-    /**
-     * Create metrics for given cache.
-     *
-     * @param type Type of Cache to identify metrics.
-     * @param cache Cache to measure metrics
-     */
-    public CacheMetrics(String type, CacheSize cache)
+    static CacheMetrics create(CacheService.CacheType cacheType, CacheSize cache)
     {
-        factory = new DefaultNameFactory("Cache", type);
-
-        capacity = registerGauge("Capacity", cache::capacity);
-        size = registerGauge("Size", cache::weightedSize);
-        entries = registerGauge("Entries", cache::size);
-
-        requests = registerMeter("Requests");
-
-        hits = registerMeter("Hits");
-        misses = registerMeter("Misses");
-
-        hitRate = registerGauge("HitRate", ratioGauge(hits::getCount, requests::getCount));
-        oneMinuteHitRate = registerGauge("OneMinuteHitRate", ratioGauge(hits::getOneMinuteRate, requests::getOneMinuteRate));
-        fiveMinuteHitRate = registerGauge("FiveMinuteHitRate", ratioGauge(hits::getFiveMinuteRate, requests::getFiveMinuteRate));
-        fifteenMinuteHitRate = registerGauge("FifteenMinuteHitRate", ratioGauge(hits::getFifteenMinuteRate, requests::getFifteenMinuteRate));
+        return USE_MICROMETER.getBoolean()
+               ? new MicrometerCacheMetrics(cacheType.micrometerMetricsPrefix(), cache)
+               : new CodahaleCacheMetrics(cacheType.toString(), cache);
     }
 
-    protected final <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
-    {
-        return Metrics.register(factory.createMetricName(name), gauge);
-    }
+    long requests();
 
-    protected final Meter registerMeter(String name)
-    {
-        return Metrics.meter(factory.createMetricName(name));
-    }
+    long capacity();
 
-    protected final Timer registerTimer(String name)
-    {
-        return Metrics.timer(factory.createMetricName(name));
-    }
+    long size();
 
-    @VisibleForTesting
-    public void reset()
-    {
-        // No actual reset happens. The Meter counter is put to zero but will not reset the moving averages
-        // It rather injects a weird value into them.
-        // This method is being only used by CacheMetricsTest and CachingBench so fixing this issue was acknowledged
-        // but not considered mandatory to be fixed now (CASSANDRA-16228)
-        hits.mark(-hits.getCount());
-        misses.mark(-misses.getCount());
-        requests.mark(-requests.getCount());
-    }
+    long entries();
 
-    private static RatioGauge ratioGauge(DoubleSupplier numeratorSupplier, DoubleSupplier denominatorSupplier)
-    {
-        return new RatioGauge()
-        {
-            @Override
-            public Ratio getRatio()
-            {
-                return Ratio.of(numeratorSupplier.getAsDouble(), denominatorSupplier.getAsDouble());
-            }
-        };
-    }
+    long hits();
+
+    long misses();
+
+    double hitRate();
+
+    double hitOneMinuteRate();
+    double hitFiveMinuteRate();
+    double hitFifteenMinuteRate();
+
+    double requestsFifteenMinuteRate();
+
+    void recordHits(int count);
+
+    void recordMisses(int count);
 }

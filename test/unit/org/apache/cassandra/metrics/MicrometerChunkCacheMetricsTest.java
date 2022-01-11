@@ -33,7 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
-import static org.apache.cassandra.metrics.MicrometerChunkCacheMetrics.hitRateUpdateInterval;
+import static org.apache.cassandra.metrics.MicrometerCacheMetrics.hitRateUpdateIntervalNanos;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -66,7 +66,7 @@ public class MicrometerChunkCacheMetricsTest
     public void after()
     {
         // Reset to not use micrometer metrics
-        System.setProperty("cassandra.use_micrometer_metrics", "false");
+        System.clearProperty("cassandra.use_micrometer_metrics");
     }
 
     @Test
@@ -76,7 +76,7 @@ public class MicrometerChunkCacheMetricsTest
         assertEquals(90, chunkCacheMetrics.hits());
 
         // Added delay to increase code coverage updating hit rate when calling recordMisses
-        Thread.sleep(2 * TimeUnit.NANOSECONDS.toMillis(hitRateUpdateInterval));
+        Thread.sleep(2 * TimeUnit.NANOSECONDS.toMillis(hitRateUpdateIntervalNanos));
 
         chunkCacheMetrics.recordMisses(10);
         assertEquals(10, chunkCacheMetrics.misses());
@@ -109,9 +109,9 @@ public class MicrometerChunkCacheMetricsTest
 
         assertEquals(0, chunkCacheMetrics.entries());
 
-        assertEquals(0, chunkCacheMetrics.requestsFifteenMinuteRate());
+        assertTrue(Double.isNaN(chunkCacheMetrics.requestsFifteenMinuteRate()));
 
-        assertEquals(0, chunkCacheMetrics.hitsFifteenMinuteRate());
+        assertTrue(Double.isNaN(chunkCacheMetrics.hitFifteenMinuteRate()));
 
         CacheStats snapshot = chunkCacheMetrics.snapshot();
         assertNotNull(snapshot);
