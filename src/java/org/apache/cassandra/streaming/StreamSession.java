@@ -23,6 +23,7 @@ import java.nio.channels.ClosedChannelException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -639,6 +640,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         boolean isEofException = e instanceof EOFException || e instanceof ClosedChannelException;
         if (isEofException)
         {
+            State state = this.state;
             if (state.finalState)
             {
                 logger.debug("[Stream #{}] Socket closed after session completed with state {}", planId(), state);
@@ -718,6 +720,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
+        // After sending the message the initiator can close the channel which will cause a ClosedChannelException
+        // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
+        // the session.  To avoid a race condition between sending and setting state, make sure to update the state
+        // before sending the message (without closing the channel)
+        // see CASSANDRA-17116
+        if (isPreview())
+        {
+            state(State.WAIT_COMPLETE);
+            state(State.COMPLETE);
+        }
         channel.sendControlMessage(prepareSynAck);
 
         streamResult.handleSessionPrepared(this);
@@ -839,10 +851,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         if (!isFollower) // initiator
         {
-            if (state == State.WAIT_COMPLETE)
-                closeSession(State.COMPLETE);
-            else
-                state(State.WAIT_COMPLETE);
+            initiatorCompleteOrWait();
         }
         else // follower
         {
@@ -866,18 +875,35 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         maybeCompleted = true;
         if (!isFollower) // initiator
         {
-            if (state == State.WAIT_COMPLETE)
-                closeSession(State.COMPLETE);
-            else
-                state(State.WAIT_COMPLETE);
+            initiatorCompleteOrWait();
         }
         else // follower
         {
             Future<?> messageFuture = channel.sendControlMessage(new CompleteMessage());
-            messageFuture.addListener(f -> closeSession(State.COMPLETE));
+            messageFuture.addListener(f -> {
+                if (f.isSuccess())
+                {
+                    closeSession(State.COMPLETE);
+                }
+                else
+                {
+                    logger.error("Unable to send COMPLETE message to {}", channel.peer());
+                    closeSession(State.FAILED);
+                }
+            });
         }
 
         return true;
+    }
+
+    private void initiatorCompleteOrWait()
+    {
+        // This is called when coordination completes AND when COMPLETE message is seen; it is possible that the
+        // COMPLETE method is seen first!
+        if (state == State.WAIT_COMPLETE)
+            closeSession(State.COMPLETE);
+        else
+            state(State.WAIT_COMPLETE);
     }
 
     /**
