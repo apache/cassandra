@@ -727,14 +727,22 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // see CASSANDRA-17116
         if (isPreview())
             state(State.COMPLETE);
-        channel.sendControlMessage(prepareSynAck);
+        Future<?> synAckMessage = channel.sendControlMessage(prepareSynAck);
+        synAckMessage.addListener(f -> {
+            if (!f.isSuccess())
+            {
+                closeSession(State.FAILED);
+            }
+            else
+            {
+                streamResult.handleSessionPrepared(this);
 
-        streamResult.handleSessionPrepared(this);
-
-        if (isPreview())
-            completePreview();
-        else
-            maybeCompleted();
+                if (isPreview())
+                    completePreview();
+                else
+                    maybeCompleted();
+            }
+        });
     }
 
     private void prepareSynAck(PrepareSynAckMessage msg)
