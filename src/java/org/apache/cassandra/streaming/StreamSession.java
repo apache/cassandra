@@ -1006,7 +1006,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 {
                     // pass the session planId/index to the OFM (which is only set at init(), after the transfers have already been created)
                     ofm.header.addSessionInfo(this);
-                    channel.sendControlMessage(ofm).syncUninterruptibly();
+                    // do not sync here as this does disk access
+                    channel.sendControlMessage(ofm);
                 }
             }
             else
