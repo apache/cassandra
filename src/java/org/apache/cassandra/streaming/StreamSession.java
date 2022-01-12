@@ -537,7 +537,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void state(State newState)
     {
         if (logger.isDebugEnabled())
-            logger.debug("[Stream #{}] Changing session state from {} to {}", planId(), state, newState);
+            logger.debug("[Stream #{}] Changing session state from {} to {}", planId(), state, newState, new Throwable("caller"));
 
         sink.recordState(peer, newState);
         state = newState;
