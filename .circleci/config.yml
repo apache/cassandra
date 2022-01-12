@@ -109,7 +109,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -132,7 +132,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -283,7 +283,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -303,10 +303,10 @@ jobs:
   repeated_upgrade_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -403,7 +403,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -423,10 +423,10 @@ jobs:
   j8_repeated_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -523,7 +523,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -620,7 +620,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -640,10 +640,10 @@ jobs:
   j8_dtests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -694,7 +694,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -714,10 +714,10 @@ jobs:
   j8_upgradetests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 100
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -809,7 +809,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -832,7 +832,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -917,7 +917,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -937,10 +937,10 @@ jobs:
   j8_dtests-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -991,7 +991,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1099,7 +1099,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1161,7 +1161,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1184,7 +1184,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1269,7 +1269,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1292,7 +1292,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1443,7 +1443,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1537,7 +1537,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.streaming.StreamManagerTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
