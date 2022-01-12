@@ -21,11 +21,14 @@ package org.apache.cassandra.auth;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.annotation.concurrent.ThreadSafe;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@ThreadSafe
 public class AuthCacheService
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthCacheService.class);
@@ -45,7 +48,7 @@ public class AuthCacheService
         caches.remove(cache);
     }
 
-    public void warmCaches()
+    public synchronized void warmCaches()
     {
         logger.info("Initiating bulk load of {} auth cache(s)", caches.size());
         for (AuthCache<?, ?> cache : caches)
@@ -55,12 +58,13 @@ public class AuthCacheService
     }
 
     /**
+     * WARNING: Only call this once per node run. This is not idempotent.
+     *
      * We have a couple of static initializer functions to create caches scattered across various classes, some solo
      * and some with multiple member variables. As we expect these caches to be created and initialized in one logical
      * block, we tie them together and use them here.
      *
-     * Note: We also register the PasswordAuthenticator cache with the {@link AuthCacheService} with an instance member
-     * call to: {@link PasswordAuthenticator#setup}
+     * Note: We also register the PasswordAuthenticator cache with the {@link AuthCacheService} in it's constructor
      */
     @VisibleForTesting
     public static void initializeAndRegisterCaches()

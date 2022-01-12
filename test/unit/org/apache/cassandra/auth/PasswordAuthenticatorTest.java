@@ -195,8 +195,7 @@ public class PasswordAuthenticatorTest extends CQLTester
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, r, options);
         }
 
-        PasswordAuthenticator localAuthenticator = new PasswordAuthenticator();
-        Map<String, String> cacheEntries = localAuthenticator.bulkLoader().get();
+        Map<String, String> cacheEntries = authenticator.bulkLoader().get();
 
         assertEquals(ALL_ROLES.length, cacheEntries.size());
         cacheEntries.forEach((username, hash) -> assertTrue(BCrypt.checkpw("hash_for_" + username, hash)));
@@ -205,8 +204,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     @Test
     public void warmCacheWithEmptyTable()
     {
-        PasswordAuthenticator localAuthenticator = new PasswordAuthenticator();
-        Map<String, String> cacheEntries = localAuthenticator.bulkLoader().get();
+        Map<String, String> cacheEntries = authenticator.bulkLoader().get();
         assertTrue(cacheEntries.isEmpty());
     }
 }

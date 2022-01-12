@@ -76,7 +76,13 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
 
-    private CredentialsCache cache;
+    private final CredentialsCache cache;
+
+    public PasswordAuthenticator()
+    {
+        cache = new CredentialsCache(this);
+        AuthCacheService.instance.register(cache);
+    }
 
     // No anonymous access.
     public boolean requireAuthentication()
@@ -212,9 +218,6 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.ROLES);
         authenticateStatement = prepare(query);
-
-        cache = new CredentialsCache(this);
-        AuthCacheService.instance.register(cache);
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
