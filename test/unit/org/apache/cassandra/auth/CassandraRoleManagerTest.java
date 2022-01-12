@@ -36,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.auth.AuthTestUtils.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class CassandraRoleManagerTest
@@ -105,7 +106,7 @@ public class CassandraRoleManagerTest
     }
 
     @Test
-    public void confirmFastRoleSetup() throws Exception
+    public void confirmFastRoleSetup()
     {
         IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         roleManager.setup();
@@ -114,14 +115,14 @@ public class CassandraRoleManagerTest
 
         CassandraRoleManager crm = new CassandraRoleManager();
 
-        assertEquals(CassandraRoleManager.hasExistingRoles(), true);
-        assertEquals(crm.isClusterReady(), false);
+        assertTrue("Expected the role manager to have existing roles before CassandraRoleManager setup", CassandraRoleManager.hasExistingRoles());
+        assertFalse("Expected Role Manager flag to indicate cluster readiness to be false", crm.isClusterReady());
 
         crm.setup();
 
         // isClusterReady should toggle immediately, without waiting for the scheduled task
-        assertEquals(CassandraRoleManager.hasExistingRoles(), true);
-        assertEquals(crm.isClusterReady(), true);
+        assertTrue("Expected the role manager to continue to have existing roles after CassandraRoleManager setup", CassandraRoleManager.hasExistingRoles());
+        assertTrue("Expected cluster ready flag to be true after CassandraRoleManager.setup call", crm.isClusterReady());
     }
 
     @Test

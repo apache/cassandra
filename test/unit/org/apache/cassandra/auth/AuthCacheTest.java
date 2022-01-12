@@ -46,6 +46,8 @@ public class AuthCacheTest
     private int validity = 2000;
     private boolean isCacheEnabled = true;
 
+    private final int MAX_ENTRIES = 10;
+
     @Test
     public void testCacheLoaderIsCalledOnFirst()
     {
@@ -213,7 +215,7 @@ public class AuthCacheTest
         }
     }
 
-@Test
+    @Test
     public void warmCacheUsingEntryProvider()
     {
         AtomicBoolean provided = new AtomicBoolean(false);
@@ -243,10 +245,9 @@ public class AuthCacheTest
     @Test
     public void providerSuppliesMoreEntriesThanCapacity()
     {
-        final int maxEntries = 10;
         Supplier<Map<String, Integer>> bulkLoader = () -> {
             Map<String, Integer> entries = new HashMap<>();
-            for (int i = 0; i < maxEntries * 2; i++)
+            for (int i = 0; i < MAX_ENTRIES * 2; i++)
                 entries.put(Integer.toString(i), i);
             return entries;
         };
@@ -257,7 +258,7 @@ public class AuthCacheTest
                                         () -> isCacheEnabled);
         cache.warm();
         cache.cleanup(); // Force the cleanup task rather than waiting for it to be scheduled to get accurate count
-        assertEquals(maxEntries, cache.getEstimatedSize());
+        assertEquals(MAX_ENTRIES, cache.getEstimatedSize());
     }
 
     @Test
@@ -387,7 +388,7 @@ public class AuthCacheTest
                   getValidityDelegate,
                   (updateInterval) -> {},               // set update interval
                   () -> 1000,                           // get update interval
-                  (maxEntries) -> {},                   // set max entries
+                  (MAX_ENTRIES) -> {},                   // set max entries
                   () -> 10,                             // get max entries
                   (updateActiveUpdate) -> {},           // set active update enabled
                   () -> false,                          // get active update enabled

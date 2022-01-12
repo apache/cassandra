@@ -26,6 +26,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.mindrot.jbcrypt.BCrypt;
+
 import com.datastax.driver.core.Authenticator;
 import com.datastax.driver.core.EndPoint;
 import com.datastax.driver.core.PlainTextAuthProvider;
@@ -37,7 +39,6 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.mindrot.jbcrypt.BCrypt;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
@@ -54,7 +55,7 @@ import static org.apache.cassandra.auth.CassandraRoleManager.GENSALT_LOG2_ROUNDS
 
 public class PasswordAuthenticatorTest extends CQLTester
 {
-    private static PasswordAuthenticator authenticator = new PasswordAuthenticator();
+    private final static PasswordAuthenticator authenticator = new PasswordAuthenticator();
 
     @BeforeClass
     public static void setupClass() throws Exception
@@ -134,7 +135,6 @@ public class PasswordAuthenticatorTest extends CQLTester
         }
     }
 
-
     @Test(expected = AuthenticationException.class)
     public void testEmptyUsername()
     {
@@ -184,7 +184,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     }
 
     @Test
-    public void warmCacheLoadsAllEntriesFromTables() throws Exception
+    public void warmCacheLoadsAllEntriesFromTables()
     {
         IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         roleManager.setup();
@@ -195,18 +195,18 @@ public class PasswordAuthenticatorTest extends CQLTester
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, r, options);
         }
 
-        PasswordAuthenticator authenticator = new PasswordAuthenticator();
-        Map<String, String> cacheEntries = authenticator.bulkLoader().get();
+        PasswordAuthenticator localAuthenticator = new PasswordAuthenticator();
+        Map<String, String> cacheEntries = localAuthenticator.bulkLoader().get();
 
         assertEquals(ALL_ROLES.length, cacheEntries.size());
         cacheEntries.forEach((username, hash) -> assertTrue(BCrypt.checkpw("hash_for_" + username, hash)));
     }
 
     @Test
-    public void warmCacheWithEmptyTable() throws Exception
+    public void warmCacheWithEmptyTable()
     {
-        PasswordAuthenticator authenticator = new PasswordAuthenticator();
-        Map<String, String> cacheEntries = authenticator.bulkLoader().get();
+        PasswordAuthenticator localAuthenticator = new PasswordAuthenticator();
+        Map<String, String> cacheEntries = localAuthenticator.bulkLoader().get();
         assertTrue(cacheEntries.isEmpty());
     }
 }

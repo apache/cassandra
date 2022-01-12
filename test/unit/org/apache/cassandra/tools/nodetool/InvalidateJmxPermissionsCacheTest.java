@@ -21,11 +21,16 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.Set;
 import javax.security.auth.Subject;
 
-import org.apache.cassandra.auth.*;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.auth.AuthCacheService;
+import org.apache.cassandra.auth.AuthTestUtils;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CassandraPrincipal;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;

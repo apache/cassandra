@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -52,7 +53,7 @@ public class CassandraAuthorizerTruncatingTests extends CQLTester
     @BeforeClass
     public static void setupClass()
     {
-        System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
+        CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setAuthorizer(new StubAuthorizer());
         requireAuthentication();

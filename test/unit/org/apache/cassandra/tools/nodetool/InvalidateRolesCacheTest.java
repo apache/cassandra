@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.apache.cassandra.auth.AuthCacheService;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
 

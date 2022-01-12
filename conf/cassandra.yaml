@@ -1526,6 +1526,10 @@ report_unconfirmed_repaired_data_mismatches: false
 # auth_read_consistency_level: LOCAL_QUORUM
 # auth_write_consistency_level: EACH_QUORUM
 
+# Delays on auth resolution can lead to a thundering herd problem on reconnects; this option will enable
+# warming of auth caches prior to node completing startup. See CASSANDRA-16958
+# auth_cache_warming_enabled: false
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################

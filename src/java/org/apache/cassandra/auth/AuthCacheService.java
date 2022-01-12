@@ -59,8 +59,8 @@ public class AuthCacheService
      * and some with multiple member variables. As we expect these caches to be created and initialized in one logical
      * block, we tie them together and use them here.
      *
-     * Note: We also register the PasswordAuthenticator cache here with an instance member call to:
-     * {@link PasswordAuthenticator#setup}
+     * Note: We also register the PasswordAuthenticator cache with the {@link AuthCacheService} with an instance member
+     * call to: {@link PasswordAuthenticator#setup}
      */
     @VisibleForTesting
     public static void initializeAndRegisterCaches()
