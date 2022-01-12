@@ -365,7 +365,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                                                               getPendingRepair(),
                                                               getPreviewKind());
 
-            channel.sendControlMessage(message);
+            channel.sendControlMessage(message).sync();
             onInitializationComplete();
         }
         catch (Exception e)
@@ -627,7 +627,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             prepare.summaries.add(task.getSummary());
         }
 
-        channel.sendControlMessage(prepare);
+        channel.sendControlMessage(prepare).syncUninterruptibly();
     }
 
     /**
@@ -661,7 +661,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         logError(e);
         // send session failure message
         if (channel.connected())
-            channel.sendControlMessage(new SessionFailedMessage());
+            channel.sendControlMessage(new SessionFailedMessage()).syncUninterruptibly();
         // fail session
         return closeSession(State.FAILED);
     }
@@ -727,22 +727,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // see CASSANDRA-17116
         if (isPreview())
             state(State.COMPLETE);
-        Future<?> synAckMessage = channel.sendControlMessage(prepareSynAck);
-        synAckMessage.addListener(f -> {
-            if (!f.isSuccess())
-            {
-                closeSession(State.FAILED);
-            }
-            else
-            {
-                streamResult.handleSessionPrepared(this);
+        channel.sendControlMessage(prepareSynAck).syncUninterruptibly();
+        streamResult.handleSessionPrepared(this);
 
-                if (isPreview())
-                    completePreview();
-                else
-                    maybeCompleted();
-            }
-        });
+        if (isPreview())
+            completePreview();
+        else
+            maybeCompleted();
     }
 
     private void prepareSynAck(PrepareSynAckMessage msg)
@@ -754,7 +745,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
             if (!isPreview())
-                channel.sendControlMessage(new PrepareAckMessage());
+                channel.sendControlMessage(new PrepareAckMessage()).syncUninterruptibly();
         }
 
         if (isPreview())
@@ -811,7 +802,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
-        channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
+        channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         long receivedStartNanos = nanoTime();
         try
@@ -890,18 +881,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             // before sending the message (without closing the channel)
             // see CASSANDRA-17116
             state(State.COMPLETE);
-            Future<?> messageFuture = channel.sendControlMessage(new CompleteMessage());
-            messageFuture.addListener(f -> {
-                if (f.isSuccess())
-                {
-                    closeSession(State.COMPLETE);
-                }
-                else
-                {
-                    logger.error("Unable to send COMPLETE message to {}", channel.peer());
-                    closeSession(State.FAILED);
-                }
-            });
+            channel.sendControlMessage(new CompleteMessage()).syncUninterruptibly();
+            closeSession(State.COMPLETE);
         }
 
         return true;
@@ -1025,7 +1006,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 {
                     // pass the session planId/index to the OFM (which is only set at init(), after the transfers have already been created)
                     ofm.header.addSessionInfo(this);
-                    channel.sendControlMessage(ofm);
+                    channel.sendControlMessage(ofm).syncUninterruptibly();
                 }
             }
             else
