@@ -122,8 +122,8 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             return;
 
         Stream<InetAddressAndPort> unreachableNotAdministrativelyInactive =
-        Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                              !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
+            Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
+                                                                      !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
         Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(),
                                                              unreachableNotAdministrativelyInactive);
         List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&

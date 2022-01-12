@@ -55,7 +55,7 @@ class CqlshCompletionCase(BaseTestCase):
         env = os.environ.copy()
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
-            env['LC_CTYPE'] = 'en_US.utf8'
+             env['LC_CTYPE'] = 'en_US.utf8'
         self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
@@ -102,7 +102,7 @@ class CqlshCompletionCase(BaseTestCase):
 
         if split_completed_lines:
             completed_lines = list(map(set, (completion_separation_re.split(line.strip())
-                                             for line in choice_lines)))
+                                  for line in choice_lines)))
 
             if not completed_lines:
                 return set()
@@ -153,6 +153,7 @@ class CqlshCompletionCase(BaseTestCase):
                 # retry once
                 self.cqlsh.send(CTRL_C)
                 self.cqlsh.read_to_next_prompt(timeout=10.0)
+
 
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
@@ -611,8 +612,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc',
-                                     'read_repair'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
                             choices=['bloom_filter_fp_chance', 'compaction',
                                      'compression',
@@ -621,8 +621,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc',
-                                     'read_repair'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance ',
                             immediate='= ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance = ',
@@ -670,8 +669,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc',
-                                     'read_repair'])
+                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'DateTieredCompactionStrategy', '",
                             choices=['base_time_seconds', 'max_sstable_age_days',
@@ -686,7 +684,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
+                                     'only_purge_repaired_tombstones','provide_overlapping_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])

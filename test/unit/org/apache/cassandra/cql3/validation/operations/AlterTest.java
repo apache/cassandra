@@ -229,19 +229,19 @@ public class AlterTest extends CQLTester
         String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 } AND durable_writes=false");
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes FROM system_schema.keyspaces"),
-                                        row(KEYSPACE, true),
-                                        row(KEYSPACE_PER_TEST, true),
-                                        row(ks1, true),
-                                        row(ks2, false));
+                   row(KEYSPACE, true),
+                   row(KEYSPACE_PER_TEST, true),
+                   row(ks1, true),
+                   row(ks2, false));
 
         schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication = { 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 1 } AND durable_writes=False");
         schemaChange("ALTER KEYSPACE " + ks2 + " WITH durable_writes=true");
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(ks1, false, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1")),
-                                        row(ks2, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
+                   row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                   row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                   row(ks1, false, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1")),
+                   row(ks2, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
         execute("USE " + ks1);
 
@@ -299,8 +299,8 @@ public class AlterTest extends CQLTester
 
         assertRows(execute("SELECT table_name, compaction FROM system_schema.tables WHERE keyspace_name='" + ks1 + "'"),
                    row("tbl1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy",
-                                   "min_threshold", "7",
-                                   "max_threshold", "32")));
+                                  "min_threshold", "7",
+                                  "max_threshold", "32")));
         metadata.clearUnsafe();
     }
 
@@ -440,8 +440,7 @@ public class AlterTest extends CQLTester
         String[] stmts = { "ALTER KEYSPACE WITH WITH DURABLE_WRITES = true",
                            "ALTER KEYSPACE ks WITH WITH DURABLE_WRITES = true" };
 
-        for (String stmt : stmts)
-        {
+        for (String stmt : stmts) {
             assertAlterTableThrowsException(SyntaxException.class, "no viable alternative at input 'WITH'", stmt);
         }
     }
@@ -544,16 +543,12 @@ public class AlterTest extends CQLTester
 
     private void assertAlterKeyspaceThrowsException(Class<? extends Throwable> clazz, String msg, String stmt)
     {
-        assertThrowsException(clazz, msg, () -> {
-            alterKeyspaceMayThrow(stmt);
-        });
+        assertThrowsException(clazz, msg, () -> {alterKeyspaceMayThrow(stmt);});
     }
 
     private void assertAlterTableThrowsException(Class<? extends Throwable> clazz, String msg, String stmt)
     {
-        assertThrowsException(clazz, msg, () -> {
-            alterTableMayThrow(stmt);
-        });
+        assertThrowsException(clazz, msg, () -> {alterTableMayThrow(stmt);});
     }
 
     private static void assertThrowsException(Class<? extends Throwable> clazz, String msg, CheckedFunction function)
@@ -626,11 +621,11 @@ public class AlterTest extends CQLTester
     public void testAlterTypeUsedInPartitionKey() throws Throwable
     {
         // frozen UDT used directly in a partition key
-        String type1 = createType("CREATE TYPE %s (v1 int)");
+        String  type1 = createType("CREATE TYPE %s (v1 int)");
         String table1 = createTable("CREATE TABLE %s (pk frozen<" + type1 + ">, val int, PRIMARY KEY(pk));");
 
         // frozen UDT used in a frozen UDT used in a partition key
-        String type2 = createType("CREATE TYPE %s (v1 frozen<" + type1 + ">, v2 frozen<" + type1 + ">)");
+        String  type2 = createType("CREATE TYPE %s (v1 frozen<" + type1 + ">, v2 frozen<" + type1 + ">)");
         String table2 = createTable("CREATE TABLE %s (pk frozen<" + type2 + ">, val int, PRIMARY KEY(pk));");
 
         // frozen UDT used in a frozen collection used in a partition key
@@ -768,5 +763,4 @@ public class AlterTest extends CQLTester
 
         assertInvalidThrow(InvalidRequestException.class, "ALTER KEYSPACE ks1 WITH replication= { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
     }
-
 }

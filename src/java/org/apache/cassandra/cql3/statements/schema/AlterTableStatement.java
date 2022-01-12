@@ -91,8 +91,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         TableMetadata table = null == keyspace
-                              ? null
-                              : keyspace.getTableOrViewNullable(tableName);
+                            ? null
+                            : keyspace.getTableOrViewNullable(tableName);
 
         if (null == table)
         {
@@ -132,7 +132,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
     /**
      * ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;
-     * <p>
+     *
      * No longer supported.
      */
     public static class AlterColumn extends AlterTableStatement
@@ -171,7 +171,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private final Collection<Column> newColumns;
         private final boolean ifColumnNotExists;
 
-        private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns, boolean ifColumnNotExists, boolean ifTableExists)
+        private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns, boolean ifTableExists, boolean ifColumnNotExists)
         {
             super(keyspaceName, tableName, ifTableExists);
             this.newColumns = newColumns;
@@ -270,7 +270,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private final boolean ifColumnExists;
         private final Long timestamp;
 
-        private DropColumns(String keyspaceName, String tableName, Set<ColumnIdentifier> removedColumns, boolean ifColumnExists, Long timestamp, boolean ifTableExists)
+        private DropColumns(String keyspaceName, String tableName, Set<ColumnIdentifier> removedColumns, boolean ifTableExists, boolean ifColumnExists, Long timestamp)
         {
             super(keyspaceName, tableName, ifTableExists);
             this.removedColumns = removedColumns;
@@ -339,7 +339,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private final Map<ColumnIdentifier, ColumnIdentifier> renamedColumns;
         private final boolean ifColumnsExists;
 
-        private RenameColumns(String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns, boolean ifColumnsExists, boolean ifTableExists)
+        private RenameColumns(String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns, boolean ifTableExists, boolean ifColumnsExists)
         {
             super(keyspaceName, tableName, ifTableExists);
             this.renamedColumns = renamedColumns;
@@ -453,7 +453,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private static final Logger logger = LoggerFactory.getLogger(AlterTableStatement.class);
         private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
-
         private DropCompactStorage(String keyspaceName, String tableName, boolean ifTableExists)
         {
             super(keyspaceName, tableName, ifTableExists);
@@ -470,8 +469,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateCanDropCompactStorage();
 
             Set<Flag> flags = table.isCounter()
-                              ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
-                              : ImmutableSet.of(Flag.COMPOUND);
+                            ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
+                            : ImmutableSet.of(Flag.COMPOUND);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(flags)));
         }
@@ -481,12 +480,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
          * to use DROP COMPACT STORAGE, we need to ensure that no pre-3.0 sstables exists in the cluster, as we won't be
          * able to read them anymore once COMPACT STORAGE is dropped (see CASSANDRA-15897). In practice, this method checks
          * 3 things:
-         * 1) that all nodes are on 3.0+. We need this because 2.x nodes don't advertise their sstable versions.
-         * 2) for 3.0+, we use the new (CASSANDRA-15897) sstables versions set gossiped by all nodes to ensure all
-         * sstables have been upgraded cluster-wise.
-         * 3) if the cluster still has some 3.0 nodes that predate CASSANDRA-15897, we will not have the sstable versions
-         * for them. In that case, we also refuse DROP COMPACT (even though it may well be safe at this point) and ask
-         * the user to upgrade all nodes.
+         *   1) that all nodes are on 3.0+. We need this because 2.x nodes don't advertise their sstable versions.
+         *   2) for 3.0+, we use the new (CASSANDRA-15897) sstables versions set gossiped by all nodes to ensure all
+         *      sstables have been upgraded cluster-wise.
+         *   3) if the cluster still has some 3.0 nodes that predate CASSANDRA-15897, we will not have the sstable versions
+         *      for them. In that case, we also refuse DROP COMPACT (even though it may well be safe at this point) and ask
+         *      the user to upgrade all nodes.
          */
         private void validateCanDropCompactStorage()
         {
@@ -514,7 +513,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 {
                     boolean has2xSStables = onComma.splitToList(sstableVersionsString)
                                                    .stream()
-                                                   .anyMatch(v -> v.compareTo("big-ma") <= 0);
+                                                   .anyMatch(v -> v.compareTo("big-ma")<=0);
                     if (has2xSStables)
                         with2xSStables.add(node);
                 }
@@ -586,18 +585,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case ALTER_COLUMN:
-                    return new AlterColumn(keyspaceName, tableName, ifTableExists);
-                case ADD_COLUMNS:
-                    return new AddColumns(keyspaceName, tableName, addedColumns, ifColumnNotExists, ifTableExists);
-                case DROP_COLUMNS:
-                    return new DropColumns(keyspaceName, tableName, droppedColumns, ifColumnExists, timestamp, ifTableExists);
-                case RENAME_COLUMNS:
-                    return new RenameColumns(keyspaceName, tableName, renamedColumns, ifColumnExists, ifTableExists);
-                case ALTER_OPTIONS:
-                    return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
-                case DROP_COMPACT_STORAGE:
-                    return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
+                case          ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName, ifTableExists);
+                case           ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns, ifTableExists, ifColumnNotExists);
+                case          DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, ifTableExists, ifColumnExists, timestamp);
+                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists, ifColumnExists);
+                case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
+                case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
             }
 
             throw new AssertionError();

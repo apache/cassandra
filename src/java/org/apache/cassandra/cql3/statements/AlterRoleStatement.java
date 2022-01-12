@@ -26,9 +26,9 @@ import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import static org.apache.cassandra.cql3.statements.RequestValidations.*;
 
 public class AlterRoleStatement extends AuthenticationStatement
 {
@@ -66,7 +66,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         state.ensureNotAnonymous();
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
         {
-            RequestValidations.checkTrue(ifExists, String.format("Role %s doesn't exist", role.getRoleName()));
+            checkTrue(ifExists, "Role %s doesn't exist", role.getRoleName());
         }
     }
 

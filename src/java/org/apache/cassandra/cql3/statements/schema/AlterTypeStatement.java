@@ -73,8 +73,8 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         UserType type = null == keyspace
-                        ? null
-                        : keyspace.types.getNullable(bytes(typeName));
+                      ? null
+                      : keyspace.types.getNullable(bytes(typeName));
 
         if (null == type)
         {
@@ -105,7 +105,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private final CQL3Type.Raw type;
         private final boolean ifFieldNotExists;
 
-        private AddField(String keyspaceName, String typeName, FieldIdentifier fieldName, CQL3Type.Raw type, boolean ifFieldNotExists, boolean ifExists)
+        private AddField(String keyspaceName, String typeName, FieldIdentifier fieldName, CQL3Type.Raw type, boolean ifExists, boolean ifFieldNotExists)
         {
             super(keyspaceName, typeName, ifExists);
             this.fieldName = fieldName;
@@ -155,7 +155,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private final Map<FieldIdentifier, FieldIdentifier> renamedFields;
         private final boolean ifFieldExists;
 
-        private RenameFields(String keyspaceName, String typeName, Map<FieldIdentifier, FieldIdentifier> renamedFields, boolean ifFieldExists, boolean ifExists)
+        private RenameFields(String keyspaceName, String typeName, Map<FieldIdentifier, FieldIdentifier> renamedFields, boolean ifExists, boolean ifFieldExists)
         {
             super(keyspaceName, typeName, ifExists);
             this.ifFieldExists = ifFieldExists;
@@ -249,12 +249,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case ADD_FIELD:
-                    return new AddField(keyspaceName, typeName, newFieldName, newFieldType, ifFieldNotExists, ifExists);
-                case RENAME_FIELDS:
-                    return new RenameFields(keyspaceName, typeName, renamedFields, ifFieldExists, ifExists);
-                case ALTER_FIELD:
-                    return new AlterField(keyspaceName, typeName, ifExists);
+                case     ADD_FIELD: return new AddField(keyspaceName, typeName, newFieldName, newFieldType, ifExists, ifFieldNotExists);
+                case RENAME_FIELDS: return new RenameFields(keyspaceName, typeName, renamedFields, ifExists, ifFieldExists);
+                case   ALTER_FIELD: return new AlterField(keyspaceName, typeName, ifExists);
             }
 
             throw new AssertionError();
