@@ -37,7 +37,7 @@ print_help()
   echo "   -h Generate config.yml using high resources"
   echo "   -e <key=value> Environment variables to be used in the generated config.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
-  echo "                   -e DTEST_REPO=git://github.com/adelapena/cassandra-dtest.git"
+  echo "                   -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git"
   echo "                   -e REPEATED_UTEST_TARGET=testsome"
   echo "                   -e REPEATED_UTEST_CLASS=org.apache.cassandra.cql3.ViewTest"
   echo "                   -e REPEATED_UTEST_METHODS=testCompoundPartitionKey,testStaticTable"
