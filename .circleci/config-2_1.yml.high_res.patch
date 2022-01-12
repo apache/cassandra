@@ -2,7 +2,7 @@
 +++ .circleci/config-2_1.yml.HIGHRES	2021-10-19 11:26:16.000000000 +0100
 @@ -40,8 +40,8 @@
      CASSANDRA_SKIP_SYNC: true
-     DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+     DTEST_REPO: https://github.com/apache/cassandra-dtest.git
      DTEST_BRANCH: trunk
 -    CCM_MAX_HEAP_SIZE: 1024M
 -    CCM_HEAP_NEWSIZE: 256M
