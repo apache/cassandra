@@ -58,7 +58,7 @@ dtest repo and branch with MIDRES config you can run:
 
 ```
 generate.sh -m \
-  -e DTEST_REPO=git://github.com/adelapena/cassandra-dtest.git \
+  -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git \
   -e DTEST_BRANCH=CASSANDRA-8272 
 ```
 
