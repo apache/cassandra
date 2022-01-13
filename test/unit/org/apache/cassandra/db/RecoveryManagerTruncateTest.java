@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -106,7 +107,8 @@ public class RecoveryManagerTruncateTest
 
         // and now truncate it
         cfs.truncateBlocking();
-        assert 0 != CommitLog.instance.resetUnsafe(false);
+        Map<Keyspace, Integer> replayed = CommitLog.instance.resetUnsafe(false);
+        assertFalse("Expect no mutation replayed, but got " + replayed, replayed.isEmpty());
 
         // and validate truncation.
         Util.assertEmptyUnfiltered(Util.cmd(cfs).build());
