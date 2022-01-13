@@ -132,15 +132,6 @@ public class CassandraRoleManager implements IRoleManager
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
 
-    // Will be set to true when all nodes in the cluster are on a version which supports roles (i.e. 2.2+)
-    private volatile boolean isClusterReady = false;
-
-    @VisibleForTesting
-    public boolean isClusterReady()
-    {
-        return isClusterReady;
-    }
-
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
@@ -155,7 +146,6 @@ public class CassandraRoleManager implements IRoleManager
     public void setup()
     {
         loadRoleStatement();
-        isClusterReady = true;
         scheduleSetupTask(() -> {
             setupDefaultRole();
             return null;
@@ -396,7 +386,6 @@ public class CassandraRoleManager implements IRoleManager
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
         ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
-            isClusterReady = true;
             try
             {
                 setupTask.call();
@@ -564,11 +553,6 @@ public class CassandraRoleManager implements IRoleManager
     UntypedResultSet process(String query, ConsistencyLevel consistencyLevel)
     throws RequestValidationException, RequestExecutionException
     {
-        if (!isClusterReady)
-            throw new InvalidRequestException("Cannot process role related query as the role manager isn't yet setup. "
-                                            + "This is likely because some of nodes in the cluster are on version 2.1 or earlier. "
-                                            + "You need to upgrade all nodes to Cassandra 2.2 or more to use roles.");
-
         return QueryProcessor.process(query, consistencyLevel);
     }
 
