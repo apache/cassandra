@@ -1,0 +1,16 @@
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -205,13 +205,8 @@
+         archiver.maybeRestoreArchive();
+ 
+         // List the files again as archiver may have added segments.
+-<<<<<<<
+         File[] files = getUnmanagedFiles();
+-        int replayed = 0;
+-=======
+-        File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
+         Map<Keyspace, Integer> replayedKeyspaces = Collections.emptyMap();
+->>>>>>>
+         if (files.length == 0)
+         {
+             logger.info("No commitlog files found; skipping replay");

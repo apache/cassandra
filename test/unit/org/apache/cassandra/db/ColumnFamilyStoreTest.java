@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterators;
 import com.googlecode.concurrenttrees.common.Iterables;
@@ -49,6 +50,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -176,6 +178,27 @@ public class ColumnFamilyStoreTest
         };
 
         reTest(cfs, r);
+    }
+
+    @Test
+    public void testDiscardSSTables() throws ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1").clustering("Column1").build().applyUnsafe();
+        cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS).get();
+
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1").clustering("Column1").build().applyUnsafe();
+        cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS).get();
+
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        assertEquals(2, sstables.size());
+
+        SSTableReader discarded = sstables.iterator().next();
+        cfs.discardSSTables(sstables, s -> s == discarded, OperationType.SSTABLE_DISCARD);
+
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertFalse(cfs.getLiveSSTables().contains(discarded));
     }
 
     @Test
