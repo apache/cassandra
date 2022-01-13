@@ -82,7 +82,6 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataStorageSpec("134217728B"), config.internode_application_receive_queue_reserve_endpoint_capacity);
         assertEquals(new DataStorageSpec("536870912B"), config.internode_application_receive_queue_reserve_global_capacity);
         assertEquals(new DataStorageSpec("16MiB"), config.native_transport_max_frame_size);
-        //assertEquals(new DataStorageSpec("32KiB"), config.native_transport_frame_block_size);
         assertEquals(new DataStorageSpec("256MiB"), config.max_value_size);
         assertEquals(new DataStorageSpec("4KiB"), config.column_index_size);
         assertEquals(new DataStorageSpec("2KiB"), config.column_index_cache_size);
