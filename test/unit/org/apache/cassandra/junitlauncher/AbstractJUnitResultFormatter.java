@@ -44,12 +44,12 @@ import org.apache.tools.ant.taskdefs.optional.junitlauncher.TestResultFormatter;
 import org.apache.tools.ant.util.FileUtils;
 
 /**
- * This class contains common logic for Cassandra's implementation of 
+ * This class contains common logic for Cassandra's implementation of
  * {@code org.apache.tools.ant.taskdefs.optional.junitlauncher.TestResultFormamter}. It is inspired by
- *  {@code org.apache.tools.ant.taskdefs.optional.junitlauncher.AbstractJUnitResultFormatter} class. Unfortunately,
- *  we could not make ant-junitlauncher extensible, see https://github.com/apache/ant/pull/169 for details.
+ * {@code org.apache.tools.ant.taskdefs.optional.junitlauncher.AbstractJUnitResultFormatter} class. Unfortunately,
+ * we could not make ant-junitlauncher extensible, see https://github.com/apache/ant/pull/169 for details.
  */
-public abstract class AbstractJUnitResultFormatter implements TestResultFormatter
+abstract class AbstractJUnitResultFormatter implements TestResultFormatter
 {
     protected TestExecutionContext context;
 
@@ -96,7 +96,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
      * @return Returns true if there's any stdout data, that was generated during the
      * tests, is available for use. Else returns false.
      */
-    protected boolean hasSysOut()
+    boolean hasSysOut()
     {
         return this.sysOutStore != null && this.sysOutStore.hasData();
     }
@@ -105,7 +105,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
      * @return Returns true if there's any stderr data, that was generated during the
      * tests, is available for use. Else returns false.
      */
-    protected boolean hasSysErr()
+    boolean hasSysErr()
     {
         return this.sysErrStore != null && this.sysErrStore.hasData();
     }
@@ -117,7 +117,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
      * be called
      * @throws IOException If there's any I/O problem while creating the {@link Reader}
      */
-    protected Reader getSysOutReader() throws IOException
+    Reader getSysOutReader() throws IOException
     {
         return this.sysOutStore.getReader();
     }
@@ -129,7 +129,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
      * be called
      * @throws IOException If there's any I/O problem while creating the {@link Reader}
      */
-    protected Reader getSysErrReader() throws IOException
+    Reader getSysErrReader() throws IOException
     {
         return this.sysErrStore.getReader();
     }
@@ -141,7 +141,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
      * @param writer The {@link Writer} to use. Cannot be null.
      * @throws IOException If any I/O problem occurs during writing the data
      */
-    protected void writeSysOut(final Writer writer) throws IOException
+    void writeSysOut(final Writer writer) throws IOException
     {
         Objects.requireNonNull(writer, "Writer cannot be null");
         this.writeFrom(this.sysOutStore, writer);
@@ -154,13 +154,13 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
      * @param writer The {@link Writer} to use. Cannot be null.
      * @throws IOException If any I/O problem occurs during writing the data
      */
-    protected void writeSysErr(final Writer writer) throws IOException
+    void writeSysErr(final Writer writer) throws IOException
     {
         Objects.requireNonNull(writer, "Writer cannot be null");
         this.writeFrom(this.sysErrStore, writer);
     }
 
-    static Optional<TestIdentifier> traverseAndFindTestClass(final TestPlan testPlan, final TestIdentifier testIdentifier)
+    protected static Optional<TestIdentifier> traverseAndFindTestClass(final TestPlan testPlan, final TestIdentifier testIdentifier)
     {
         if (isTestClass(testIdentifier).isPresent())
             return Optional.of(testIdentifier);
@@ -168,7 +168,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
         return parent.isPresent() ? traverseAndFindTestClass(testPlan, parent.get()) : Optional.empty();
     }
 
-    static Optional<ClassSource> isTestClass(final TestIdentifier testIdentifier)
+    protected static Optional<ClassSource> isTestClass(final TestIdentifier testIdentifier)
     {
         if (testIdentifier == null)
             return Optional.empty();
@@ -203,7 +203,7 @@ public abstract class AbstractJUnitResultFormatter implements TestResultFormatte
     {
         // we currently just log it and move on.
         this.context.getProject().ifPresent((p) -> p.log("Exception in listener "
-                                                         + AbstractJUnitResultFormatter.this.getClass().getName(), t, Project.MSG_DEBUG));
+            + AbstractJUnitResultFormatter.this.getClass().getName(), t, Project.MSG_DEBUG));
     }
 
 

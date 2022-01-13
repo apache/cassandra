@@ -646,7 +646,7 @@
           <dependency groupId="javax.inject" artifactId="javax.inject" version="1"/>
           <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations" version="1.3"/>
 
-          <dependency groupId="org.apache.ant" artifactId="ant-junitlauncher" version="1.10.13-SNAPSHOT" scope="test"/>
+          <dependency groupId="org.apache.ant" artifactId="ant-junitlauncher" version="1.10.11" scope="test"/>
           <dependency groupId="org.junit.jupiter" artifactId="junit-jupiter" version="${junit.version}" scope="test"/>
           <dependency groupId="org.junit.vintage" artifactId="junit-vintage-engine" version="${junit.version}" scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
@@ -1343,7 +1343,7 @@
       <condition property="showoutput" value="true">
         <istrue value="${showoutput}"/>
       </condition>
-      <taskdef name="junitlauncher-timeout" classname="org.apache.cassandra.JStackJUnitLauncherTask">
+      <taskdef name="junitlauncher-timeout" classname="org.apache.cassandra.junitlauncher.JStackJUnitLauncherTask">
         <classpath>
           <pathelement location="${test.classes}"/>
         </classpath>
@@ -1352,15 +1352,15 @@
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
 
+      <!-- local allows us to set `testfiles` property multiple times -->
+      <local name="testfiles"/>
       <pathconvert id="testfiles" pathsep="," property="testfiles">
         <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
         <filelist dir="@{inputdir}" files="@{filelist}"/>
         <mapper>
-            <globmapper from="@{inputdir}/*.java" to="*.class"/>
+          <globmapper from="@{inputdir}/*.java" to="*.class"/>
         </mapper>
       </pathconvert>
-      <!-- TODO: remove me -->
-      <echo message="Tests to run: ${testfiles} | @{inputdir} | @{filter} | @{exclude} | @{filelist} "/>
       <junitlauncher-timeout failureproperty="testfailed">
         <classpath>
           <pathelement path="${java.class.path}"/>
@@ -1372,13 +1372,14 @@
           <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${test.conf}"/>
         </classpath>
-        <listener classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
-        <listener classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" if="${showoutput}" sendSysOut="true" sendSysErr="true"/>
+        <listener classname="org.apache.cassandra.junitlauncher.CassandraBriefJUnitResultFormatter" if="${showoutput}" sendSysOut="true" sendSysErr="true"/>
+        <listener classname="org.apache.cassandra.junitlauncher.CassandraXMLJUnitResultFormatter" sendSysOut="true" sendSysErr="true"/>
         <testclasses outputdir="${build.test.dir}/output/@{testtag}">
             <fileset dir="${test.classes}" includes="${testfiles}"/>
             <fileset dir="${stress.test.classes}" includes="${testfiles}"/>
             <fileset dir="${fqltool.test.classes}" includes="${testfiles}"/>
-            <fork timeout="@{timeout}" mode="@{forkmode}">
+            <!-- TODO: forkmode? -->
+            <fork timeout="@{timeout}">
                 <!-- ant-junitlauncher does not support `maxmemory` parameter, effectively it equals to passing Xmx directly -->
                 <jvmarg value="-Xmx1024m"/>
                 <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1420,14 +1421,14 @@
       </junitlauncher-timeout>
       <!-- TODO: since "extension" feature is available in ant 1.10.13 only we rename txt files to xml manually -->
       <!-- See: https://github.com/apache/ant/pull/168 -->
-      <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false" quiet="true">
+      <move todir="${build.test.dir}/output/@{testtag}" includeemptydirs="false" overwrite="true">
         <fileset dir="${build.test.dir}/output/@{testtag}"/>
         <mapper type="glob" from="*.txt" to="*.xml"/>
       </move>
 
       <!-- TODO: ant community rejected to support "useFile" feature that's why we need to remove txt files created for "brief" formatter manually -->
       <!-- See: https://github.com/apache/ant/pull/171 -->
-      <delete quiet="true">
+      <delete>
         <fileset dir="${build.test.dir}/output/@{testtag}" includes="**/*.txt"/>
       </delete>
 

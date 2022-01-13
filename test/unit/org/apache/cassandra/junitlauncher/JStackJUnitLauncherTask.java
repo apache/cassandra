@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra;
+package org.apache.cassandra.junitlauncher;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class JStackJUnitLauncherTask extends JUnitLauncherTask
         {
             if (pid > 0)
             {
-                ProcessBuilder pb = new ProcessBuilder("jstack","-l", String.valueOf(pid));
+                ProcessBuilder pb = new ProcessBuilder("jstack", "-l", String.valueOf(pid));
                 try
                 {
                     Process p = pb.start();
@@ -63,16 +63,16 @@ public class JStackJUnitLauncherTask extends JUnitLauncherTask
                     {
                         StringBuilder sb = new StringBuilder();
                         String line;
-                        while((line = br.readLine()) != null)
+                        while ((line = br.readLine()) != null)
                         {
                             sb.append(line).append("\n");
                         }
-                        System.out.println(sb.toString());
+                        System.out.println(sb);
                     }
                 }
                 catch (IOException e)
                 {
-                    System.err.println("Could not get stack for "+pid);
+                    System.err.println("Could not get stack for " + pid);
                     e.printStackTrace();
                 }
             }
@@ -99,5 +99,4 @@ public class JStackJUnitLauncherTask extends JUnitLauncherTask
             return -1;
         }
     }
-
 }
