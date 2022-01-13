@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -35,6 +36,7 @@ public class AuthCacheService
     public static final AuthCacheService instance = new AuthCacheService();
 
     private final Set<AuthCache<?, ?>> caches = new HashSet<>();
+    private static final AtomicBoolean cachesRegistered = new AtomicBoolean(false);
 
     public synchronized void register(AuthCache<?, ?> cache)
     {
@@ -58,7 +60,7 @@ public class AuthCacheService
     }
 
     /**
-     * WARNING: Only call this once per node run. This is not idempotent.
+     * NOTE: Can only be called once per instance run.
      *
      * We have a couple of static initializer functions to create caches scattered across various classes, some solo
      * and some with multiple member variables. As we expect these caches to be created and initialized in one logical
@@ -69,7 +71,10 @@ public class AuthCacheService
     @VisibleForTesting
     public static void initializeAndRegisterCaches()
     {
-        AuthenticatedUser.init();
-        Roles.init();
+        if (!cachesRegistered.getAndSet(true))
+        {
+            AuthenticatedUser.init();
+            Roles.init();
+        }
     }
 }
