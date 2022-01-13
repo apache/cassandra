@@ -41,6 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.CDCWriteException;
@@ -62,6 +64,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.STARTUP;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.CommitLogSegmentFileComparator;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
@@ -160,11 +163,16 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * Perform recovery on commit logs located in the directory specified by the config file.
+     * The recovery is executed as a commit log read followed by a flush.
      *
-     * @return the number of mutations replayed
+     * @param flushReason the reason for flushing that fallows commit log reading, use
+     *                    {@link org.apache.cassandra.db.ColumnFamilyStore.FlushReason#STARTUP} when recovering on a
+     *                    node start. Use {@link org.apache.cassandra.db.ColumnFamilyStore.FlushReason#REMOTE_REPLAY}
+     *                    when replying commit logs to a remote storage.
+     * @return keyspaces and the corresponding number of partition updates
      * @throws IOException
      */
-    public int recoverSegmentsOnDisk() throws IOException
+    public Map<Keyspace, Integer> recoverSegmentsOnDisk(ColumnFamilyStore.FlushReason flushReason) throws IOException
     {
         BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
@@ -182,7 +190,7 @@ public class CommitLog implements CommitLogMBean
 
         // List the files again as archiver may have added segments.
         File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
-        int replayed = 0;
+        Map<Keyspace, Integer> replayedKeyspaces = Collections.emptyMap();
         if (files.length == 0)
         {
             logger.info("No commitlog files found; skipping replay");
@@ -191,34 +199,37 @@ public class CommitLog implements CommitLogMBean
         {
             Arrays.sort(files, new CommitLogSegmentFileComparator());
             logger.info("Replaying {}", StringUtils.join(files, ", "));
-            replayed = recoverFiles(files);
-            logger.info("Log replay complete, {} replayed mutations", replayed);
+            replayedKeyspaces = recoverFiles(flushReason, files);
+            logger.info("Log replay complete, {} replayed mutations", replayedKeyspaces.values().stream().reduce(Integer::sum).orElse(0));
 
             for (File f : files)
                 segmentManager.handleReplayedSegment(f);
         }
 
-        return replayed;
+        return replayedKeyspaces;
     }
 
     /**
-     * Perform recovery on a list of commit log files.
+     * Perform recovery on a list of commit log files. The recovery is executed as a commit log read followed by a
+     * flush.
      *
+     * @param flushReason the reason for flushing that follows commit log reading
      * @param clogs   the list of commit log files to replay
-     * @return the number of mutations replayed
+     * @return keyspaces and the corresponding number of partition updates
      */
-    public int recoverFiles(File... clogs) throws IOException
+    @VisibleForTesting
+    public Map<Keyspace, Integer> recoverFiles(ColumnFamilyStore.FlushReason flushReason, File... clogs) throws IOException
     {
         CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
         replayer.replayFiles(clogs);
-        return replayer.blockForWrites();
+        return replayer.blockForWrites(flushReason);
     }
 
     public void recoverPath(String path, boolean tolerateTruncation) throws IOException
     {
         CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
         replayer.replayPath(new File(path), tolerateTruncation);
-        replayer.blockForWrites();
+        replayer.blockForWrites(STARTUP);
     }
 
     private static UUID getLocalHostId()
@@ -452,10 +463,10 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * FOR TESTING PURPOSES
-     * @return the number of files recovered
+     * @return keyspaces and the corresponding number of partition updates
      */
     @VisibleForTesting
-    synchronized public int resetUnsafe(boolean deleteSegments) throws IOException
+    synchronized public Map<Keyspace, Integer> resetUnsafe(boolean deleteSegments) throws IOException
     {
         stopUnsafe(deleteSegments);
         resetConfiguration();
@@ -502,10 +513,10 @@ public class CommitLog implements CommitLogMBean
      * FOR TESTING PURPOSES
      */
     @VisibleForTesting
-    synchronized public int restartUnsafe() throws IOException
+    synchronized public Map<Keyspace, Integer> restartUnsafe() throws IOException
     {
         started = false;
-        return start().recoverSegmentsOnDisk();
+        return start().recoverSegmentsOnDisk(ColumnFamilyStore.FlushReason.STARTUP);
     }
 
     public static long freeDiskSpace()

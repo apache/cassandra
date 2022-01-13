@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.Before;
@@ -52,6 +53,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
+import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public class RecoveryManagerFlushedTest
@@ -126,8 +129,12 @@ public class RecoveryManagerFlushedTest
         logger.debug("begin manual replay");
         // replay the commit log (nothing on Standard1 should be replayed since everything was flushed, so only the row on Standard2
         // will be replayed)
-        int replayed = CommitLog.instance.resetUnsafe(false);
-        assert replayed == 1 : "Expecting only 1 replayed mutation, got " + replayed;
+        Map<Keyspace, Integer> replayed = CommitLog.instance.resetUnsafe(false);
+        assertEquals("Expecting only one keyspace with replayed mutations", 1, replayed.size());
+        Keyspace replayedKeyspace = replayed.keySet().iterator().next();
+        Integer keyspaceReplayedCount = replayed.values().iterator().next();
+        assertEquals(String.format("Expecting %s keyspace, not %s", KEYSPACE1, replayedKeyspace.getName()), KEYSPACE1, replayedKeyspace.getName());
+        assertEquals("Expecting only 1 replayed mutation, got " + replayed, 1, (int) keyspaceReplayedCount);
     }
 
     private void insertRow(String cfname, String key)
