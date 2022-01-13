@@ -229,7 +229,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         STREAMS_RECEIVED,
         REPAIR,
         SCHEMA_CHANGE,
-        UNIT_TESTS; // explicitly requested flush needed for a test
+        UNIT_TESTS, // explicitly requested flush needed for a test
+        /** Flush performed to a remote storage. Used by remote commit log replay */
+        REMOTE_REPLAY
     }
 
     private static final String[] COUNTER_NAMES = new String[]{"table", "count", "error", "value"};
@@ -3126,8 +3128,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (!truncatedSSTables.isEmpty())
         {
             logger.info("Truncation is dropping {} sstables and keeping {} due to sstable.maxDataAge > truncatedAt", truncatedSSTables.size(), keptSSTables);
-            markObsolete(truncatedSSTables, OperationType.UNKNOWN);
+            markObsolete(truncatedSSTables, OperationType.TRUNCATE_TABLE);
         }
+    }
+
+    /**
+     * Discard sstables that matches given filter with provided operation type
+     */
+    public void discardSSTables(Iterable<SSTableReader> sstables, Predicate<SSTableReader> filter, OperationType operationType)
+    {
+        List<SSTableReader> discarded = new ArrayList<>();
+        for (SSTableReader sstable : sstables)
+        {
+            if (filter.apply(sstable))
+                discarded.add(sstable);
+        }
+
+        if (!discarded.isEmpty())
+            markObsolete(discarded, operationType);
     }
 
     public double getDroppableTombstoneRatio()

@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
@@ -241,7 +242,7 @@ public class RecoveryManagerTest
 
         keyspace1.getColumnFamilyStore("Counter1").clearUnsafe();
 
-        int replayed = CommitLog.instance.resetUnsafe(false);
+        CommitLog.instance.resetUnsafe(false);
 
         ColumnMetadata counterCol = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
         Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val").build());
