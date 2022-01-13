@@ -720,6 +720,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
+
+        streamResult.handleSessionPrepared(this);
         // After sending the message the initiator can close the channel which will cause a ClosedChannelException
         // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
         // the session.  To avoid a race condition between sending and setting state, make sure to update the state
@@ -728,7 +730,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (isPreview())
             state(State.COMPLETE);
         channel.sendControlMessage(prepareSynAck).syncUninterruptibly();
-        streamResult.handleSessionPrepared(this);
 
         if (isPreview())
             completePreview();
