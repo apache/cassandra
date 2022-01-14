@@ -37,7 +37,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.nodes.NodeInfo;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -86,7 +85,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneRack;
-        String rack = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getRack).orElse(null);
+        String rack = Nodes.getRack(endpoint, null);
         if (rack == null)
         {
             if (savedEndpoints == null)
@@ -102,7 +101,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneDc;
-        String dc = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getDataCenter).orElse(null);
+        String dc = Nodes.getDataCenter(endpoint, null);
         if (dc == null)
         {
             if (savedEndpoints == null)
