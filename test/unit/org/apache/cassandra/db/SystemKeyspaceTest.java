@@ -36,7 +36,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.nodes.LocalInfo;
+import org.apache.cassandra.nodes.ILocalInfo;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
@@ -192,7 +192,7 @@ public class SystemKeyspaceTest
 
     private String readLocalVersion()
     {
-        LocalInfo info = Nodes.local().get();
+        ILocalInfo info = Nodes.local().get();
         return info != null && info.getReleaseVersion() != null ? info.getReleaseVersion().toString() : null;
     }
 }

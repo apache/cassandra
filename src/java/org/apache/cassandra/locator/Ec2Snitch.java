@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.nodes.NodeInfo;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -130,7 +129,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2zone;
-        String rack = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getRack).orElse(null);
+        String rack = Nodes.getRack(endpoint, null);
         if (rack == null)
         {
             if (savedEndpoints == null)
@@ -146,7 +145,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2region;
-        String dc = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getDataCenter).orElse(null);
+        String dc = Nodes.getDataCenter(endpoint, null);
         if (dc == null)
         {
             if (savedEndpoints == null)
