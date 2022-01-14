@@ -44,9 +44,9 @@ public class NativeMixedVersionTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c ->
                                                   c.with(Feature.values())
-                                                   .set("track_warnings", ImmutableMap.of(
+                                                   .set("guardrails", ImmutableMap.of(
                                                        "enabled", true,
-                                                       "local_read_size", ImmutableMap.of("warn_threshold_kb", 1)
+                                                       "local_read_size", ImmutableMap.of("warn_threshold_in_kb", 1)
                                                    ))
                                       )
                                       .start())

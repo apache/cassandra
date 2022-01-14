@@ -25,6 +25,7 @@ import com.codahale.metrics.Histogram;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.RowIndexEntryTooLargeException;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -352,11 +353,11 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         private void checkSize(int entries, int bytes)
         {
             ReadCommand command = ReadCommand.getCommand();
-            if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getTrackWarningsEnabled())
+            if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !Guardrails.enabled(null))
                 return;
 
-            int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKb() * 1024;
-            int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKb() * 1024;
+            int warnThreshold = Math.max(0, Guardrails.instance.getRowIndexSizeWarnThresholdInKB()) * 1024;
+            int abortThreshold = Math.max(0, Guardrails.instance.getRowIndexSizeAbortThresholdInKB()) * 1024;
             if (warnThreshold == 0 && abortThreshold == 0)
                 return;
 
@@ -369,7 +370,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             {
                 String msg = String.format("Query %s attempted to access a large RowIndexEntry estimated to be %d bytes " +
                                            "in-memory (total entries: %d, total bytes: %d) but the max allowed is %d;" +
-                                           " query aborted  (see row_index_size_abort_threshold_kb)",
+                                           " query aborted  (see guardrails.row_index_size.abort_threshold_in_kb)",
                                            command.toCQLString(), estimatedMemory, entries, bytes, abortThreshold);
                 MessageParams.remove(ParamType.ROW_INDEX_SIZE_WARN);
                 MessageParams.add(ParamType.ROW_INDEX_SIZE_ABORT, estimatedMemory);

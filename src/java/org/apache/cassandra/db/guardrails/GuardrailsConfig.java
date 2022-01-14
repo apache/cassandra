@@ -100,6 +100,24 @@ public interface GuardrailsConfig
     boolean getReadBeforeWriteListOperationsEnabled();
 
     /**
+     * @return The threshold to warn or abort when the materialized size in kilobytes of a query on the coordinator is
+     * greater than threshold.
+     */
+    public LongKBThreshold getCoordinatorReadSize();
+
+    /**
+     * @return The threshold to warn or abort when the heap size in kilobytes of a query on the local node is greater
+     * than threshold.
+     */
+    public LongKBThreshold getLocalReadSize();
+
+    /**
+     * @return The threshold to warn or abort when the memory size in kilobytes of the RowIndexEntry is greater than
+     * threshold.
+     */
+    public IntKBThreshold getRowIndexSize();
+
+    /**
      * Configuration of {@code int}-based thresholds to check if the guarded value should trigger a warning or abort the
      * operation.
      */
@@ -114,6 +132,42 @@ public interface GuardrailsConfig
          * @return The threshold to abort the operation when the guarded value exceeds it. A negative value means disabled.
          */
         public int getAbortThreshold();
+    }
+
+    /**
+     * Configuration of {@code int} kilobytes-based thresholds to check if the guarded value should trigger a warning
+     * or abort the operation.
+     */
+    public interface IntKBThreshold
+    {
+        /**
+         * @return The threshold in kilobytes to warn when the guarded value exceeds it. A negative value means disabled.
+         */
+        public int getWarnThresholdInKB();
+
+        /**
+         * @return The threshold in kilobytes to abort the operation when the guarded value exceeds it. A negative value
+         * means disabled.
+         */
+        public int getAbortThresholdInKB();
+    }
+
+    /**
+     * Configuration of {@code long} kilobytes-based thresholds to check if the guarded value should trigger a warning
+     * or abort the operation.
+     */
+    public interface LongKBThreshold
+    {
+        /**
+         * @return The threshold in kilobytes to warn when the guarded value exceeds it. A negative value means disabled.
+         */
+        public long getWarnThresholdInKB();
+
+        /**
+         * @return The threshold in kilobytes to abort the operation when the guarded value exceeds it. A negative value
+         * means disabled.
+         */
+        public long getAbortThresholdInKB();
     }
 
     /**

@@ -64,6 +64,9 @@ public class GuardrailsOptions implements GuardrailsConfig
     public final IntThreshold materialized_views_per_table = new IntThreshold();
     public final TableProperties table_properties = new TableProperties();
     public final IntThreshold page_size = new IntThreshold();
+    public final LongKBThreshold coordinator_read_size = new LongKBThreshold();
+    public final LongKBThreshold local_read_size = new LongKBThreshold();
+    public final IntKBThreshold row_index_size = new IntKBThreshold();
 
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
@@ -76,7 +79,10 @@ public class GuardrailsOptions implements GuardrailsConfig
         secondary_indexes_per_table.init("secondary_indexes_per_table");
         materialized_views_per_table.init("materialized_views_per_table");
         table_properties.init("table_properties");
-        page_size.init("guardrails.page_size");
+        page_size.init("page_size");
+        coordinator_read_size.init("coordinator_read_size");
+        local_read_size.init("local_read_size");
+        row_index_size.init("row_index_size");
     }
 
     @Override
@@ -143,6 +149,24 @@ public class GuardrailsOptions implements GuardrailsConfig
         return page_size;
     }
 
+    @Override
+    public LongKBThreshold getCoordinatorReadSize()
+    {
+        return coordinator_read_size;
+    }
+
+    @Override
+    public LongKBThreshold getLocalReadSize()
+    {
+        return local_read_size;
+    }
+
+    @Override
+    public IntKBThreshold getRowIndexSize()
+    {
+        return row_index_size;
+    }
+
     public void setUserTimestampsEnabled(boolean enabled)
     {
         updatePropertyWithLogging(NAME_PREFIX + "user_timestamps_enabled",
@@ -199,8 +223,6 @@ public class GuardrailsOptions implements GuardrailsConfig
 
         public abstract long maxValue();
 
-        public abstract boolean allowZero();
-
         protected void validate(long warn, long abort)
         {
             validateLimits(warn, name + ".warn_threshold");
@@ -214,7 +236,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                 throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
                                                           value, name, maxValue()));
 
-            if (value == 0 && !allowZero())
+            if (value == 0)
                 throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
                                                           "if attempting to disable use %d",
                                                           name, DISABLED));
@@ -272,11 +294,79 @@ public class GuardrailsOptions implements GuardrailsConfig
         {
             return Integer.MAX_VALUE;
         }
+    }
+
+    public static class IntKBThreshold extends Threshold implements GuardrailsConfig.IntKBThreshold
+    {
+        public volatile int warn_threshold_in_kb = (int) DISABLED;
+        public volatile int abort_threshold_in_kb = (int) DISABLED;
 
         @Override
-        public boolean allowZero()
+        public int getWarnThresholdInKB()
         {
-            return false;
+            return warn_threshold_in_kb;
+        }
+
+        @Override
+        public int getAbortThresholdInKB()
+        {
+            return abort_threshold_in_kb;
+        }
+
+        public void setThresholdsInKB(int warn, int abort)
+        {
+            validate(warn, abort);
+            updatePropertyWithLogging(name + ".warn_threshold_in_kb", warn, () -> warn_threshold_in_kb, x -> warn_threshold_in_kb = x);
+            updatePropertyWithLogging(name + ".abort_threshold_in_kb", abort, () -> abort_threshold_in_kb, x -> abort_threshold_in_kb = x);
+        }
+
+        @Override
+        protected void validate()
+        {
+            validate(warn_threshold_in_kb, abort_threshold_in_kb);
+        }
+
+        @Override
+        public long maxValue()
+        {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    public static class LongKBThreshold extends Threshold implements GuardrailsConfig.LongKBThreshold
+    {
+        public volatile long warn_threshold_in_kb = DISABLED;
+        public volatile long abort_threshold_in_kb = DISABLED;
+
+        @Override
+        public long getWarnThresholdInKB()
+        {
+            return warn_threshold_in_kb;
+        }
+
+        @Override
+        public long getAbortThresholdInKB()
+        {
+            return abort_threshold_in_kb;
+        }
+
+        public void setThresholdsInKB(long warn, long abort)
+        {
+            validate(warn, abort);
+            updatePropertyWithLogging(name + ".warn_threshold_in_kb", warn, () -> warn_threshold_in_kb, x -> warn_threshold_in_kb = x);
+            updatePropertyWithLogging(name + ".abort_threshold_in_kb", abort, () -> abort_threshold_in_kb, x -> abort_threshold_in_kb = x);
+        }
+
+        @Override
+        protected void validate()
+        {
+            validate(warn_threshold_in_kb, abort_threshold_in_kb);
+        }
+
+        @Override
+        public long maxValue()
+        {
+            return Long.MAX_VALUE;
         }
     }
 
