@@ -220,4 +220,64 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     void setReadBeforeWriteListOperationsEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when the materialized size in kilobytes of a query on the coordinator is
+     * greater than threshold. -1 means disabled.
+     */
+    public long getCoordinatorReadSizeWarnThresholdInKB();
+
+    /**
+     * @return The threshold to abort when the materialized size in kilobytes of a query on the coordinator is
+     * greater than threshold. -1 means disabled.
+     */
+    public long getCoordinatorReadSizeAbortThresholdInKB();
+
+    /**
+     * @param warn  The threshold to warn when the materialized size in kilobytes of a query on the coordinator is
+     *              greater than threshold. -1 means disabled.
+     * @param abort The threshold to abort when the materialized size in kilobytes of a query on the coordinator is
+     *              greater than threshold. -1 means disabled.
+     */
+    public void setCoordinatorReadSizeWarnThresholdInKB(long warn, long abort);
+
+    /**
+     * @return The threshold to warn when the heap size in kilobytes of a query on the local node is greater than
+     * threshold. -1 means disabled.
+     */
+    public long getLocalReadSizeWarnThresholdInKB();
+
+    /**
+     * @return The threshold to abort when the heap size in kilobytes of a query on the local node is greater than
+     * threshold. -1 means disabled.
+     */
+    public long getLocalReadSizeAbortThresholdInKB();
+
+    /**
+     * @param warn  The threshold to warn when the heap size in kilobytes of a query on the local node is greater than
+     *              threshold. -1 means disabled.
+     * @param abort The threshold to abort when the heap size in kilobytes of a query on the local node is greater than
+     *              threshold. -1 means disabled.
+     */
+    public void setLocalReadSizeWarnThresholdInKB(long warn, long abort);
+
+    /**
+     * @return The threshold to warn when the memory size in kilobytes of the RowIndexEntry is greater than threshold.
+     * -1 means disabled.
+     */
+    public int getRowIndexSizeWarnThresholdInKB();
+
+    /**
+     * @return The threshold to abort when the memory size in kilobytes of the RowIndexEntry is greater than threshold.
+     * -1 means disabled.
+     */
+    public int getRowIndexSizeAbortThresholdInKB();
+
+    /**
+     * @param warn  The threshold to warn when the memory size in kilobytes of the RowIndexEntry is greater than
+     *              threshold. -1 means disabled.
+     * @param abort The threshold to abort when the memory size in kilobytes of the RowIndexEntry is greater than
+     *              threshold. -1 means disabled.
+     */
+    public void setRowIndexSizeWarnThresholdInKB(int warn, int abort);
 }

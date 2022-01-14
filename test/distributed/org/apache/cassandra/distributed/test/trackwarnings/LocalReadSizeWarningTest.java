@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.junit.BeforeClass;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,11 +38,8 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
         // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
             // disable coordinator version
-            DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(0);
-            DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(0);
-
-            DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(1);
-            DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(2);
+            Guardrails.instance.setCoordinatorReadSizeWarnThresholdInKB(-1, -1);
+            Guardrails.instance.setLocalReadSizeWarnThresholdInKB(1, 2);
         }));
     }
 
@@ -50,14 +47,14 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.warn_threshold_kb)").contains("and issued local read size warnings for query");
+        assertThat(warnings.get(0)).contains("(see guardrails.local_read_size.warn_threshold_in_kb)").contains("and issued local read size warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.abort_threshold_kb)").contains("aborted the query");
+        assertThat(warnings.get(0)).contains("(see guardrails.local_read_size.abort_threshold_in_kb)").contains("aborted the query");
     }
 
     @Override

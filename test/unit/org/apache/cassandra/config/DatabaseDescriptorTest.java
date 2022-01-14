@@ -614,54 +614,56 @@ public class DatabaseDescriptorTest
             .hasMessageContaining(expectedMessage);
     }
 
-    // coordinator read
     @Test
     public void testClientLargeReadWarnAndAbortNegative()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = -2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
-        Assertions.assertThat(conf.track_warnings.coordinator_read_size.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.coordinator_read_size.abort_threshold_kb).isEqualTo(0);
+        conf.guardrails.coordinator_read_size.warn_threshold_in_kb = -2;
+        conf.guardrails.coordinator_read_size.abort_threshold_in_kb = -2;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyGuardrails(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("Invalid guardrails configuration: Invalid value -2 for " +
+                              "guardrails.coordinator_read_size.warn_threshold: negative values are not allowed, " +
+                              "outside of -1 which disables the guardrail");
     }
 
     @Test
     public void testClientLargeReadWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+        conf.guardrails.coordinator_read_size.warn_threshold_in_kb = 2;
+        conf.guardrails.coordinator_read_size.abort_threshold_in_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyGuardrails(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.coordinator_read_size");
+                  .hasMessage("Invalid guardrails configuration: The warn threshold 2 for " +
+                              "guardrails.coordinator_read_size should be lower than the abort threshold 1");
     }
 
     @Test
     public void testClientLargeReadWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.coordinator_read_size.warn_threshold_in_kb = 2;
+        conf.guardrails.coordinator_read_size.abort_threshold_in_kb = 2;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test
     public void testClientLargeReadWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.coordinator_read_size.warn_threshold_in_kb = 2;
+        conf.guardrails.coordinator_read_size.abort_threshold_in_kb = -1;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test
     public void testClientLargeReadAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 0;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.coordinator_read_size.warn_threshold_in_kb = -1;
+        conf.guardrails.coordinator_read_size.abort_threshold_in_kb = 2;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     // local read
@@ -669,49 +671,52 @@ public class DatabaseDescriptorTest
     public void testLocalLargeReadWarnAndAbortNegative()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = -2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
-        Assertions.assertThat(conf.track_warnings.local_read_size.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.local_read_size.abort_threshold_kb).isEqualTo(0);
+        conf.guardrails.local_read_size.warn_threshold_in_kb = -2;
+        conf.guardrails.local_read_size.abort_threshold_in_kb = -2;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyGuardrails(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("Invalid guardrails configuration: Invalid value -2 for " +
+                              "guardrails.local_read_size.warn_threshold: negative values are not allowed, " +
+                              "outside of -1 which disables the guardrail");
     }
 
     @Test
     public void testLocalLargeReadWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+        conf.guardrails.local_read_size.warn_threshold_in_kb = 2;
+        conf.guardrails.local_read_size.abort_threshold_in_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyGuardrails(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.local_read_size");
+                  .hasMessage("Invalid guardrails configuration: The warn threshold 2 for guardrails.local_read_size " +
+                              "should be lower than the abort threshold 1");
     }
 
     @Test
     public void testLocalLargeReadWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.local_read_size.warn_threshold_in_kb = 2;
+        conf.guardrails.local_read_size.abort_threshold_in_kb = 2;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test
     public void testLocalLargeReadWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.local_read_size.warn_threshold_in_kb = 2;
+        conf.guardrails.local_read_size.abort_threshold_in_kb = -1;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test
     public void testLocalLargeReadAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 0;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.local_read_size.warn_threshold_in_kb = -1;
+        conf.guardrails.local_read_size.abort_threshold_in_kb = 2;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     // row index entry
@@ -719,49 +724,52 @@ public class DatabaseDescriptorTest
     public void testRowIndexSizeWarnAndAbortNegative()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = -2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
-        Assertions.assertThat(conf.track_warnings.row_index_size.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.row_index_size.abort_threshold_kb).isEqualTo(0);
+        conf.guardrails.row_index_size.warn_threshold_in_kb = -2;
+        conf.guardrails.row_index_size.abort_threshold_in_kb = -2;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyGuardrails(conf))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("Invalid guardrails configuration: Invalid value -2 for " +
+                              "guardrails.row_index_size.warn_threshold: negative values are not allowed, " +
+                              "outside of -1 which disables the guardrail");
     }
 
     @Test
     public void testRowIndexSizeWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+        conf.guardrails.row_index_size.warn_threshold_in_kb = 2;
+        conf.guardrails.row_index_size.abort_threshold_in_kb = 1;
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyGuardrails(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.row_index_size");
+                  .hasMessage("Invalid guardrails configuration: The warn threshold 2 for guardrails.row_index_size " +
+                              "should be lower than the abort threshold 1");
     }
 
     @Test
     public void testRowIndexSizeWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.row_index_size.warn_threshold_in_kb = 2;
+        conf.guardrails.row_index_size.abort_threshold_in_kb = 2;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test
     public void testRowIndexSizeWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.row_index_size.warn_threshold_in_kb = 2;
+        conf.guardrails.row_index_size.abort_threshold_in_kb = -1;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test
     public void testRowIndexSizeAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 0;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.guardrails.row_index_size.warn_threshold_in_kb = -1;
+        conf.guardrails.row_index_size.abort_threshold_in_kb = 2;
+        DatabaseDescriptor.applyGuardrails(conf);
     }
 
     @Test

@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.junit.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,10 +40,7 @@ public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
 
         // setup threshold after init to avoid driver issues loading
         // the test uses a rather small limit, which causes driver to fail while loading metadata
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(1);
-            DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(2);
-        }));
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> Guardrails.instance.setCoordinatorReadSizeWarnThresholdInKB(1, 2)));
     }
 
     private static void assertPrefix(String expectedPrefix, String actual)

@@ -369,8 +369,6 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
-    public final TrackWarnings track_warnings = new TrackWarnings();
-
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 

@@ -854,7 +854,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 store.metric.coordinatorReadSizeAborts.mark();
                 store.metric.coordinatorReadSize.update(result.getSize());
             }
-            // read errors require blockFor and recieved (its in the protocol message), but this isn't known;
+            // read errors require blockFor and received (it's in the protocol message), but this isn't known;
             // to work around this, treat the coordinator as the only response we care about and mark it failed
             ReadSizeAbortException exception = new ReadSizeAbortException(clientMsg, options.getConsistency(), 0, 1, true,
                                                                           ImmutableMap.of(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_SIZE));

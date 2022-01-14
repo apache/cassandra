@@ -25,6 +25,7 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,8 +37,7 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
         AbstractClientSizeWarning.setupClass();
 
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setRowIndexSizeWarnThresholdKb(1);
-            DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(2);
+            Guardrails.instance.setRowIndexSizeWarnThresholdInKB(1, 2);
 
             // hack to force multiple index entries
             DatabaseDescriptor.setColumnIndexCacheSize(1 << 20);
@@ -93,14 +93,14 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
+        assertThat(warnings.get(0)).contains("(see guardrails.row_index_size.warn_threshold_in_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold_kb)").contains("bytes in RowIndexEntry and aborted the query");
+        assertThat(warnings.get(0)).contains("(see guardrails.row_index_size.abort_threshold_in_kb)").contains("bytes in RowIndexEntry and aborted the query");
     }
 
     @Override

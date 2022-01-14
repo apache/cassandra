@@ -38,10 +38,10 @@ public final class Guardrails implements GuardrailsMBean
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=Guardrails";
 
     private static final GuardrailsConfigProvider CONFIG_PROVIDER = GuardrailsConfigProvider.instance;
-    private static final GuardrailsOptions DEFAULT_CONFIG = DatabaseDescriptor.getGuardrailsConfig();
+    public static final GuardrailsOptions DEFAULT_CONFIG = DatabaseDescriptor.getGuardrailsConfig();
 
     @VisibleForTesting
-    static final Guardrails instance = new Guardrails();
+    public static final Guardrails instance = new Guardrails();
 
     /**
      * Guardrail on the total number of user keyspaces.
@@ -349,6 +349,60 @@ public final class Guardrails implements GuardrailsMBean
     public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setReadBeforeWriteListOperationsEnabled(enabled);
+    }
+
+    @Override
+    public long getCoordinatorReadSizeWarnThresholdInKB()
+    {
+        return DEFAULT_CONFIG.getCoordinatorReadSize().getWarnThresholdInKB();
+    }
+
+    @Override
+    public long getCoordinatorReadSizeAbortThresholdInKB()
+    {
+        return DEFAULT_CONFIG.getCoordinatorReadSize().getAbortThresholdInKB();
+    }
+
+    @Override
+    public void setCoordinatorReadSizeWarnThresholdInKB(long warn, long abort)
+    {
+        DEFAULT_CONFIG.getCoordinatorReadSize().setThresholdsInKB(warn, abort);
+    }
+
+    @Override
+    public long getLocalReadSizeWarnThresholdInKB()
+    {
+        return DEFAULT_CONFIG.getLocalReadSize().getWarnThresholdInKB();
+    }
+
+    @Override
+    public long getLocalReadSizeAbortThresholdInKB()
+    {
+        return DEFAULT_CONFIG.getLocalReadSize().getAbortThresholdInKB();
+    }
+
+    @Override
+    public void setLocalReadSizeWarnThresholdInKB(long warn, long abort)
+    {
+        DEFAULT_CONFIG.getLocalReadSize().setThresholdsInKB(warn, abort);
+    }
+
+    @Override
+    public int getRowIndexSizeWarnThresholdInKB()
+    {
+        return DEFAULT_CONFIG.getRowIndexSize().getWarnThresholdInKB();
+    }
+
+    @Override
+    public int getRowIndexSizeAbortThresholdInKB()
+    {
+        return DEFAULT_CONFIG.getRowIndexSize().getAbortThresholdInKB();
+    }
+
+    @Override
+    public void setRowIndexSizeWarnThresholdInKB(int warn, int abort)
+    {
+        DEFAULT_CONFIG.getRowIndexSize().setThresholdsInKB(warn, abort);
     }
 
     private static String toCSV(Set<String> values)

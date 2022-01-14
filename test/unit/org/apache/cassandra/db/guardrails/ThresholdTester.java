@@ -135,11 +135,10 @@ public abstract class ThresholdTester extends GuardrailTester
                   .isEqualTo(abortGetter.applyAsLong(guardrails()));
     }
 
-    private void assertInvalidPositiveProperty(BiConsumer<Guardrails, Long> setter,
-                                               long value,
-                                               long maxValue,
-                                               boolean allowZero,
-                                               String name)
+    private void assertInvalidStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter,
+                                                       long value,
+                                                       long maxValue,
+                                                       String name)
     {
         try
         {
@@ -153,7 +152,7 @@ public abstract class ThresholdTester extends GuardrailTester
             if (value > maxValue)
                 expectedMessage = format("Invalid value %d for %s: maximum allowed value is %d",
                                          value, name, maxValue);
-            if (value == 0 && !allowZero)
+            if (value == 0)
                 expectedMessage = format("Invalid value for %s: 0 is not allowed; if attempting to disable use %s",
                                          name, GuardrailsOptions.Threshold.DISABLED);
 
@@ -169,7 +168,7 @@ public abstract class ThresholdTester extends GuardrailTester
 
     private void assertInvalidStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, long value, String name)
     {
-        assertInvalidPositiveProperty(setter, value, config.maxValue(), config.allowZero(), name);
+        assertInvalidStrictlyPositiveProperty(setter, value, config.maxValue(), name);
     }
 
     protected void testValidationOfStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, String name)
