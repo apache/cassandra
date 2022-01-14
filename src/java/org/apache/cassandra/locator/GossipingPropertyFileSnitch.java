@@ -28,7 +28,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.nodes.NodeInfo;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -89,7 +88,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myDC;
 
-        String dc = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getDataCenter).orElse(null);
+        String dc = Nodes.getDataCenter(endpoint, null);
         if (dc == null)
         {
             if (psnitch == null)
@@ -117,7 +116,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myRack;
 
-        String rack = Nodes.localOrPeerInfoOpt(endpoint).map(NodeInfo::getRack).orElse(null);
+        String rack = Nodes.getRack(endpoint, null);
         if (rack == null)
         {
             if (psnitch == null)

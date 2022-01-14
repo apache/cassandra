@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.nodes;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -27,7 +29,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,7 +38,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.LoadingMap;
 
@@ -94,12 +97,12 @@ public class Nodes
      * informatino is available).
      */
     @Nullable
-    public static NodeInfo<?> localOrPeerInfo(InetAddressAndPort endpoint)
+    public static INodeInfo<?> localOrPeerInfo(InetAddressAndPort endpoint)
     {
         return Objects.equals(endpoint, FBUtilities.getBroadcastAddressAndPort()) ? local().get() : peers().get(endpoint);
     }
 
-    public static Optional<NodeInfo<?>> localOrPeerInfoOpt(InetAddressAndPort endpoint)
+    public static Optional<INodeInfo<?>> localOrPeerInfoOpt(InetAddressAndPort endpoint)
     {
         return Optional.ofNullable(localOrPeerInfo(endpoint));
     }
@@ -107,7 +110,7 @@ public class Nodes
     /**
      * @see #updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
      */
-    public static NodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update)
+    public static INodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update)
     {
         return updateLocalOrPeer(endpoint, update, false);
     }
@@ -115,7 +118,7 @@ public class Nodes
     /**
      * @see #updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
      */
-    public static NodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update, boolean blocking)
+    public static INodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update, boolean blocking)
     {
         return updateLocalOrPeer(endpoint, update, blocking, false);
     }
@@ -127,7 +130,7 @@ public class Nodes
      * @see Local#updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
      * @see Peers#updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
      */
-    public static NodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update, boolean blocking, boolean force)
+    public static INodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update, boolean blocking, boolean force)
     {
         if (Objects.equals(endpoint, FBUtilities.getBroadcastAddressAndPort()))
             return local().update(info -> (LocalInfo) update.apply(info), blocking, force);
@@ -141,6 +144,49 @@ public class Nodes
     public static boolean isKnownEndpoint(InetAddressAndPort endpoint)
     {
         return localOrPeerInfo(endpoint) != null;
+    }
+
+
+    public static UUID getHostId(InetAddressAndPort endpoint, UUID defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getHostId() : defaultValue;
+    }
+
+    public static String getDataCenter(InetAddressAndPort endpoint, String defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getDataCenter() : defaultValue;
+    }
+
+    public static String getRack(InetAddressAndPort endpoint, String defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getRack() : defaultValue;
+    }
+
+    public static CassandraVersion getReleaseVersion(InetAddressAndPort endpoint, CassandraVersion defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getReleaseVersion() : defaultValue;
+    }
+
+    public static UUID getSchemaVersion(InetAddressAndPort endpoint, UUID defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getSchemaVersion() : defaultValue;
+    }
+
+    public static Collection<Token> getTokens(InetAddressAndPort endpoint, Collection<Token> defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getTokens() : defaultValue;
+    }
+
+    public static InetAddressAndPort getNativeTransportAddressAndPort(InetAddressAndPort endpoint, InetAddressAndPort defaultValue)
+    {
+        INodeInfo<?> info = localOrPeerInfo(endpoint);
+        return info != null ? info.getNativeTransportAddressAndPort() : defaultValue;
     }
 
     /**
@@ -200,12 +246,12 @@ public class Nodes
     {
         private final LoadingMap<InetAddressAndPort, PeerInfo> internalMap = new LoadingMap<>();
 
-        public PeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update)
+        public IPeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update)
         {
             return update(peer, update, false);
         }
 
-        public PeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update, boolean blocking)
+        public IPeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update, boolean blocking)
         {
             return update(peer, update, blocking, false);
         }
@@ -221,7 +267,7 @@ public class Nodes
          * @param force    the update will be persisted even if no changes are made
          * @return the updated object
          */
-        public PeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update, boolean blocking, boolean force)
+        public IPeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update, boolean blocking, boolean force)
         {
             return internalMap.compute(peer, (key, existingPeerInfo) -> {
                 PeerInfo updated = existingPeerInfo == null
@@ -236,7 +282,7 @@ public class Nodes
                 updated.setRemoved(false);
                 save(existingPeerInfo, updated, blocking, force);
                 return updated;
-            }).duplicate(); // we don't want to return the live object thus we duplicate
+            });
         }
 
         /**
@@ -245,7 +291,7 @@ public class Nodes
          * @param hard remove also the transient state instead of just setting {@link PeerInfo#isRemoved()} state
          * @return the remove
          */
-        public PeerInfo remove(InetAddressAndPort peer, boolean blocking, boolean hard)
+        public IPeerInfo remove(InetAddressAndPort peer, boolean blocking, boolean hard)
         {
             AtomicReference<PeerInfo> removed = new AtomicReference<>();
             internalMap.computeIfPresent(peer, (key, existingPeerInfo) -> {
@@ -254,30 +300,35 @@ public class Nodes
                 removed.set(existingPeerInfo);
                 return hard ? null : existingPeerInfo;
             });
-            return removed.get() != null ? removed.get().duplicate() : null;
+            return removed.get();
         }
 
         /**
          * Returns a peer information for a given address if the peer is known. Otherwise, returns {@code null}.
+         * Note that you should never try to manually cast the returned object to a mutable instnace and modify it.
          */
         @Nullable
-        public PeerInfo get(InetAddressAndPort peer)
+        public IPeerInfo get(InetAddressAndPort peer)
         {
-            PeerInfo info = internalMap.get(peer);
-            return info != null ? info.duplicate() : null;
+            return internalMap.get(peer);
         }
 
-        public Optional<PeerInfo> getOpt(InetAddressAndPort peer)
+        /**
+         * Returns optional of a peer information for a given address.
+         * Note that you should never try to manually cast the returned object to a mutable instnace and modify it.
+         */
+        public Optional<IPeerInfo> getOpt(InetAddressAndPort peer)
         {
             return Optional.ofNullable(get(peer));
         }
 
         /**
          * Returns a stream of all known peers.
+         * Note that you should never try to manually cast the returned objects to a mutable instnaces and modify it.
          */
-        public Stream<PeerInfo> get()
+        public Stream<IPeerInfo> get()
         {
-            return internalMap.valuesStream().map(PeerInfo::duplicate);
+            return internalMap.valuesStream().map(IPeerInfo.class::cast);
         }
 
         private void save(PeerInfo previousInfo, PeerInfo newInfo, boolean blocking, boolean force)
@@ -332,7 +383,7 @@ public class Nodes
         /**
          * @see #update(UnaryOperator, boolean, boolean)
          */
-        public LocalInfo update(UnaryOperator<LocalInfo> update)
+        public ILocalInfo update(UnaryOperator<LocalInfo> update)
         {
             return update(update, false);
         }
@@ -340,7 +391,7 @@ public class Nodes
         /**
          * @see #update(UnaryOperator, boolean, boolean)
          */
-        public LocalInfo update(UnaryOperator<LocalInfo> update, boolean blocking)
+        public ILocalInfo update(UnaryOperator<LocalInfo> update, boolean blocking)
         {
             return update(update, blocking, false);
         }
@@ -355,7 +406,7 @@ public class Nodes
          * @param force    the update will be persisted even if no changes are made
          * @return a copy of updated object
          */
-        public LocalInfo update(UnaryOperator<LocalInfo> update, boolean blocking, boolean force)
+        public ILocalInfo update(UnaryOperator<LocalInfo> update, boolean blocking, boolean force)
         {
             return internalMap.compute(localInfoKey, (key, existingLocalInfo) -> {
                 LocalInfo updated = existingLocalInfo == null
@@ -363,16 +414,16 @@ public class Nodes
                                     : update.apply(existingLocalInfo.duplicate()); // since we operate on mutable objects, we don't want to let the update function to operate on the live object
                 save(existingLocalInfo, updated, blocking, force);
                 return updated;
-            }).duplicate(); // we don't want to return the live object thus we duplicate
+            });
         }
 
         /**
          * Returns information about the local node (if present).
+         * Note that you should never try to manually cast the returned object to a mutable instnace and modify it.
          */
-        public LocalInfo get()
+        public ILocalInfo get()
         {
-            LocalInfo info = internalMap.get(localInfoKey);
-            return info != null ? info.duplicate() : null;
+            return internalMap.get(localInfoKey);
         }
 
         private void save(LocalInfo previousInfo, LocalInfo newInfo, boolean blocking, boolean force)

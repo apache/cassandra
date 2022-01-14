@@ -23,12 +23,13 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public final class PeerInfo extends NodeInfo<PeerInfo>
+public final class PeerInfo extends NodeInfo<PeerInfo> implements IPeerInfo
 {
     private volatile InetAddressAndPort peerAddressAndPort;
     private volatile InetAddressAndPort preferredAddressAndPort;
     private volatile boolean removed;
 
+    @Override
     public InetAddressAndPort getPeerAddressAndPort()
     {
         return peerAddressAndPort;
@@ -40,6 +41,7 @@ public final class PeerInfo extends NodeInfo<PeerInfo>
         return this;
     }
 
+    @Override
     public InetAddressAndPort getPreferredAddressAndPort()
     {
         return preferredAddressAndPort;
@@ -51,11 +53,13 @@ public final class PeerInfo extends NodeInfo<PeerInfo>
         return this;
     }
 
+    @Override
     public boolean isRemoved()
     {
         return removed;
     }
 
+    @Override
     public boolean isExisting()
     {
         return !isRemoved();

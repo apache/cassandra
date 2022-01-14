@@ -1,0 +1,31 @@
+--- a/src/java/org/apache/cassandra/db/SystemKeyspace.java
++++ b/src/java/org/apache/cassandra/db/SystemKeyspace.java
+@@ -787,13 +787,9 @@
+      */
+     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
+     {
+-<<<<<<<
+-        IPeerInfo info = Nodes.peers().get(ep);
+-=======
+         Preconditions.checkState(DatabaseDescriptor.isDaemonInitialized()); // Make sure being used as a daemon, not a tool
+         
+-        PeerInfo info = Nodes.peers().get(ep);
+->>>>>>>
++        IPeerInfo info = Nodes.peers().get(ep);
+         if (info != null && info.getPreferredAddressAndPort() != null && info.isExisting())
+             return info.getPreferredAddressAndPort();
+         else
+--- a/src/java/org/apache/cassandra/locator/Ec2Snitch.java
++++ b/src/java/org/apache/cassandra/locator/Ec2Snitch.java
+@@ -27,11 +27,6 @@
+ 
+ import org.apache.cassandra.db.SystemKeyspace;
+ import org.apache.cassandra.exceptions.ConfigurationException;
+-<<<<<<<
+-import org.apache.cassandra.io.util.FileUtils;
+-=======
+-import org.apache.cassandra.nodes.NodeInfo;
+->>>>>>>
+ import org.apache.cassandra.nodes.Nodes;
+ import org.apache.cassandra.utils.FBUtilities;
+ 

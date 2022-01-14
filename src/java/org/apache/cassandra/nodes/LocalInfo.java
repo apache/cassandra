@@ -21,7 +21,6 @@ import java.net.InetAddress;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.ImmutableMap;
@@ -35,7 +34,7 @@ import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ImmutableUtils;
 
 @NotThreadSafe
-public final class LocalInfo extends NodeInfo<LocalInfo>
+public final class LocalInfo extends NodeInfo<LocalInfo> implements ILocalInfo
 {
     private volatile InetAddressAndPort broadcastAddressAndPort;
     private volatile BootstrapState bootstrapState;
@@ -46,6 +45,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
     private volatile Class<? extends IPartitioner> partitionerClass;
     private volatile ImmutableMap<UUID, TruncationRecord> truncationRecords = ImmutableMap.of();
 
+    @Override
     public InetAddressAndPort getBroadcastAddressAndPort()
     {
         return broadcastAddressAndPort;
@@ -57,6 +57,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public BootstrapState getBootstrapState()
     {
         return bootstrapState;
@@ -68,6 +69,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public String getClusterName()
     {
         return clusterName;
@@ -79,6 +81,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public CassandraVersion getCqlVersion()
     {
         return cqlVersion;
@@ -90,6 +93,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public InetAddressAndPort getListenAddressAndPort()
     {
         return listenAddressAndPort;
@@ -107,6 +111,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public ProtocolVersion getNativeProtocolVersion()
     {
         return nativeProtocolVersion;
@@ -118,6 +123,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public Class<? extends IPartitioner> getPartitionerClass()
     {
         return partitionerClass;
@@ -129,6 +135,7 @@ public final class LocalInfo extends NodeInfo<LocalInfo>
         return this;
     }
 
+    @Override
     public ImmutableMap<UUID, TruncationRecord> getTruncationRecords()
     {
         return truncationRecords;

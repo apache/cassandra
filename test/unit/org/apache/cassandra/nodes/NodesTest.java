@@ -42,7 +42,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -113,7 +112,7 @@ public class NodesTest
         clearInvocations(persistence);
         nodes = new Nodes(persistence, executor);
 
-        LocalInfo r = nodes.getLocal().get();
+        ILocalInfo r = nodes.getLocal().get();
         verify(persistence).loadLocal();
         assertThat(r.getHostId()).isEqualTo(newHostId);
     }
@@ -128,7 +127,7 @@ public class NodesTest
         clearInvocations(persistence);
         nodes = new Nodes(persistence, executor);
 
-        Set<PeerInfo> r = nodes.getPeers().get().collect(Collectors.toSet());
+        Set<IPeerInfo> r = nodes.getPeers().get().collect(Collectors.toSet());
         assertThat(r).containsExactlyInAnyOrderElementsOf(peers);
         verify(persistence).loadPeers();
 
@@ -141,7 +140,7 @@ public class NodesTest
         nodes.getLocal().update(current -> current.setHostId(newHostId), false, false);
         clearInvocations(persistence, executor, promise);
 
-        LocalInfo r = updateLocalInfo(newHostId, false, false);
+        ILocalInfo r = updateLocalInfo(newHostId, false, false);
 
         checkLiveObject(r, () -> nodes.getLocal().get(), newHostId);
     }
@@ -149,7 +148,7 @@ public class NodesTest
     @Test
     public void updateLocalWithSomeChange() throws Exception
     {
-        LocalInfo r = updateLocalInfo(newHostId, false, false);
+        ILocalInfo r = updateLocalInfo(newHostId, false, false);
 
         verify(executor).submit(any(Runnable.class));
 
@@ -162,7 +161,7 @@ public class NodesTest
     @Test
     public void updateLocalWithSomeChangeBlocking() throws Exception
     {
-        LocalInfo r = updateLocalInfo(newHostId, true, false);
+        ILocalInfo r = updateLocalInfo(newHostId, true, false);
 
         verify(executor).submit(any(Runnable.class));
         verify(promise).get();
@@ -180,7 +179,7 @@ public class NodesTest
         nodes.getLocal().update(current -> current.setHostId(newHostId), false, false);
         clearInvocations(persistence, executor, promise);
 
-        LocalInfo r = updateLocalInfo(newHostId, false, true);
+        ILocalInfo r = updateLocalInfo(newHostId, false, true);
 
         verify(executor).submit(any(Runnable.class));
 
@@ -196,7 +195,7 @@ public class NodesTest
         nodes.getPeers().update(addr1, current -> current.setHostId(newHostId), false, false);
         clearInvocations(persistence, executor, promise);
 
-        PeerInfo r = updatePeerInfo(newHostId, false, false);
+        IPeerInfo r = updatePeerInfo(newHostId, false, false);
 
         checkLiveObject(r, () -> nodes.getPeers().get(addr1), newHostId);
     }
@@ -204,7 +203,7 @@ public class NodesTest
     @Test
     public void updatePeersWithSomeChange() throws Exception
     {
-        PeerInfo r = updatePeerInfo(newHostId, false, false);
+        IPeerInfo r = updatePeerInfo(newHostId, false, false);
 
         verify(executor).submit(any(Runnable.class));
 
@@ -217,7 +216,7 @@ public class NodesTest
     @Test
     public void updatePeersWithSomeChangeBlocking() throws Exception
     {
-        PeerInfo r = updatePeerInfo(newHostId, true, false);
+        IPeerInfo r = updatePeerInfo(newHostId, true, false);
 
         verify(executor).submit(any(Runnable.class));
         verify(promise).get();
@@ -235,7 +234,7 @@ public class NodesTest
         nodes.getPeers().update(addr1, current -> current.setHostId(newHostId), false, false);
         clearInvocations(persistence, executor, promise);
 
-        PeerInfo r = updatePeerInfo(newHostId, false, true);
+        IPeerInfo r = updatePeerInfo(newHostId, false, true);
 
         verify(executor).submit(any(Runnable.class));
 
@@ -248,11 +247,11 @@ public class NodesTest
     @Test
     public void getAllPeers()
     {
-        PeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        PeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
-        PeerInfo p3 = nodes.getPeers().update(addr3, current -> current.setHostId(id3));
+        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
+        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
+        IPeerInfo p3 = nodes.getPeers().update(addr3, current -> current.setHostId(id3));
 
-        Set<PeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
+        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
         assertThat(peers).containsExactlyInAnyOrder(p1, p2, p3);
 
         clearInvocations(executor);
@@ -261,32 +260,32 @@ public class NodesTest
     @Test
     public void removePeer() throws Exception
     {
-        PeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        PeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
+        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
+        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
 
         clearInvocations(executor);
 
-        PeerInfo r = nodes.getPeers().remove(addr2, false, true);
-        assertThat(r).isEqualTo(p2.setRemoved(true));
+        IPeerInfo r = nodes.getPeers().remove(addr2, false, true);
+        assertThat(r).isEqualTo(p2.duplicate().setRemoved(true));
         verify(executor).submit(any(Runnable.class));
 
         taskCaptor.getValue().run();
         verify(persistence).deletePeer(addr2);
 
-        Set<PeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
+        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
         assertThat(peers).containsExactlyInAnyOrder(p1);
     }
 
     @Test
     public void removePeerBlocking() throws Exception
     {
-        PeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        PeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
+        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
+        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
 
         clearInvocations(executor);
 
-        PeerInfo r = nodes.getPeers().remove(addr2, true, true);
-        assertThat(r).isEqualTo(p2.setRemoved(true));
+        IPeerInfo r = nodes.getPeers().remove(addr2, true, true);
+        assertThat(r).isEqualTo(p2.duplicate().setRemoved(true));
         verify(executor).submit(any(Runnable.class));
         verify(promise).get();
 
@@ -294,7 +293,7 @@ public class NodesTest
         verify(persistence).deletePeer(addr2);
         verify(persistence).syncPeers();
 
-        Set<PeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
+        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
         assertThat(peers).containsExactlyInAnyOrder(p1);
     }
 
@@ -304,28 +303,28 @@ public class NodesTest
         UUID id1 = UUID.randomUUID();
         UUID id2 = UUID.randomUUID();
 
-        PeerInfo r1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        PeerInfo r2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
+        IPeerInfo r1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
+        IPeerInfo r2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
 
         clearInvocations(executor);
 
-        PeerInfo r = nodes.getPeers().remove(addr3, false, true);
+        IPeerInfo r = nodes.getPeers().remove(addr3, false, true);
         assertThat(r).isNull();
 
-        Set<PeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
+        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
         assertThat(peers).containsExactlyInAnyOrder(r1, r2);
     }
 
     @Test
     public void softRemovePeer()
     {
-        PeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        PeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
+        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
+        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
 
         clearInvocations(executor);
 
-        PeerInfo r = nodes.getPeers().remove(addr2, false, false);
-        p2.setRemoved(true);
+        IPeerInfo r = nodes.getPeers().remove(addr2, false, false);
+        p2 = p2.duplicate().setRemoved(true);
         assertThat(r).isEqualTo(p2);
 
         verify(executor).submit(any(Runnable.class));
@@ -333,19 +332,17 @@ public class NodesTest
         taskCaptor.getValue().run();
         verify(persistence).deletePeer(addr2);
 
-        Set<PeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
+        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
         assertThat(peers).containsExactlyInAnyOrder(p1, p2);
     }
 
-    private void checkLiveObject(NodeInfo<?> r, Callable<NodeInfo<?>> currentSupplier, UUID hostId) throws Exception
+    private void checkLiveObject(INodeInfo<?> r, Callable<INodeInfo<?>> currentSupplier, UUID hostId) throws Exception
     {
         assertThat(r.getHostId()).isEqualTo(hostId);
-        assertThat(infoRef.get()).isNotNull().isNotSameAs(r); // r should be a duplicate while updatedInfo should be a live object
-        assertThat(r.setHostId(UUID.randomUUID())).isNotEqualTo(currentSupplier.call()); // mutation on duplicate should not have effect on live object
         assertThat(currentSupplier.call().getHostId()).isEqualTo(hostId);
     }
 
-    private LocalInfo updateLocalInfo(UUID hostId, boolean blocking, boolean force)
+    private ILocalInfo updateLocalInfo(UUID hostId, boolean blocking, boolean force)
     {
         return nodes.getLocal().update(previous -> {
             infoRef.set(previous);
@@ -354,7 +351,7 @@ public class NodesTest
         }, blocking, force);
     }
 
-    private PeerInfo updatePeerInfo(UUID hostId, boolean blocking, boolean force)
+    private IPeerInfo updatePeerInfo(UUID hostId, boolean blocking, boolean force)
     {
         return nodes.getPeers().update(addr1, previous -> {
             infoRef.set(previous);
