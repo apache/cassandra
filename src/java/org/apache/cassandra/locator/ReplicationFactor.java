@@ -28,8 +28,8 @@ import com.google.common.base.Predicates;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.nodes.IPeerInfo;
 import org.apache.cassandra.nodes.Nodes;
-import org.apache.cassandra.nodes.PeerInfo;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ReplicationFactor
@@ -78,7 +78,7 @@ public class ReplicationFactor
                                                                     .map(endpoint -> Nodes.peers().get(endpoint))
                                                                     .filter(Objects::nonNull)
                                                                     .filter(info -> info.getReleaseVersion() != null && info.getReleaseVersion().major < 4)
-                                                                    .map(PeerInfo::getPeerAddressAndPort)
+                                                                    .map(IPeerInfo::getPeerAddressAndPort)
                                                                     .collect(Collectors.toList());
             if (!badVersionEndpoints.isEmpty())
                 throw new IllegalArgumentException("Transient replication is not supported in mixed version clusters with nodes < 4.0. Bad nodes: " + badVersionEndpoints);

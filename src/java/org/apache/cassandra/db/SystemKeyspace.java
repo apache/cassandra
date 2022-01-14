@@ -79,9 +79,9 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.nodes.NodeInfo;
+import org.apache.cassandra.nodes.INodeInfo;
+import org.apache.cassandra.nodes.IPeerInfo;
 import org.apache.cassandra.nodes.Nodes;
-import org.apache.cassandra.nodes.PeerInfo;
 import org.apache.cassandra.nodes.TruncationRecord;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Functions;
@@ -749,7 +749,7 @@ public final class SystemKeyspace
     public static SetMultimap<InetAddressAndPort, Token> loadTokens()
     {
         SetMultimap<InetAddressAndPort, Token> tokenMap = HashMultimap.create();
-        Nodes.peers().get().filter(PeerInfo::isExisting).forEach(info -> tokenMap.putAll(info.getPeerAddressAndPort(), info.getTokens()));
+        Nodes.peers().get().filter(IPeerInfo::isExisting).forEach(info -> tokenMap.putAll(info.getPeerAddressAndPort(), info.getTokens()));
         return tokenMap;
     }
 
@@ -759,7 +759,7 @@ public final class SystemKeyspace
      */
     public static Map<InetAddressAndPort, UUID> loadHostIds()
     {
-        return Nodes.peers().get().filter(PeerInfo::isExisting).collect(Collectors.toMap(PeerInfo::getPeerAddressAndPort, NodeInfo::getHostId));
+        return Nodes.peers().get().filter(IPeerInfo::isExisting).collect(Collectors.toMap(IPeerInfo::getPeerAddressAndPort, INodeInfo::getHostId));
     }
 
     /**
@@ -770,7 +770,7 @@ public final class SystemKeyspace
      */
     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
     {
-        PeerInfo info = Nodes.peers().get(ep);
+        IPeerInfo info = Nodes.peers().get(ep);
         if (info != null && info.getPreferredAddressAndPort() != null && info.isExisting())
             return info.getPreferredAddressAndPort();
         else
@@ -785,7 +785,7 @@ public final class SystemKeyspace
         return Nodes.peers()
                     .get()
                     .filter(p -> p.getDataCenter() != null && p.getRack() != null && p.isExisting())
-                    .collect(Collectors.toMap(PeerInfo::getPeerAddressAndPort, p -> {
+                    .collect(Collectors.toMap(IPeerInfo::getPeerAddressAndPort, p -> {
                         Map<String, String> dcRack = new HashMap<>();
                         dcRack.put("data_center", p.getDataCenter());
                         dcRack.put("rack", p.getRack());
@@ -805,7 +805,10 @@ public final class SystemKeyspace
         if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
             return CURRENT_VERSION;
         else
-            return Nodes.peers().getOpt(ep).filter(PeerInfo::isExisting).map(NodeInfo::getReleaseVersion).orElse(null);
+        {
+            IPeerInfo peer = Nodes.peers().get(ep);
+            return peer != null && peer.isExisting() ? peer.getReleaseVersion() : null;
+        }
     }
 
     /**

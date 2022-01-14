@@ -32,7 +32,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.CassandraVersion;
 
 @SuppressWarnings("unchecked")
-public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
+public abstract class NodeInfo<T extends NodeInfo<T>> implements INodeInfo<T>
 {
     private volatile UUID hostId;
     private volatile String dataCenter;
@@ -45,6 +45,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
 
     private volatile InetAddressAndPort nativeTransportAddressAndPort;
 
+    @Override
     public UUID getHostId()
     {
         return hostId;
@@ -56,6 +57,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
         return (T) this;
     }
 
+    @Override
     public String getDataCenter()
     {
         return dataCenter;
@@ -67,6 +69,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
         return (T) this;
     }
 
+    @Override
     public String getRack()
     {
         return rack;
@@ -78,6 +81,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
         return (T) this;
     }
 
+    @Override
     public CassandraVersion getReleaseVersion()
     {
         return releaseVersion;
@@ -89,6 +93,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
         return (T) this;
     }
 
+    @Override
     public UUID getSchemaVersion()
     {
         return schemaVersion;
@@ -100,6 +105,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
         return (T) this;
     }
 
+    @Override
     public @Nonnull
     Collection<Token> getTokens()
     {
@@ -113,6 +119,7 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
         return (T) this;
     }
 
+    @Override
     public InetAddressAndPort getNativeTransportAddressAndPort()
     {
         return nativeTransportAddressAndPort;
@@ -142,8 +149,6 @@ public abstract class NodeInfo<T extends NodeInfo<T>> implements Cloneable
             return InetAddressAndPort.getByAddressOverrideDefaults(newAddress, port);
         }
     }
-
-    public abstract T duplicate();
 
     @Override
     public boolean equals(Object o)
