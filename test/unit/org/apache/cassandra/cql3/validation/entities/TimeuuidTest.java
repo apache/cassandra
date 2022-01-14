@@ -64,7 +64,7 @@ public class TimeuuidTest extends CQLTester
                        row(new Date(timestamp), timestamp));
         }
 
-        assertEmpty(execute("SELECT t FROM %s WHERE k = 0 AND t > maxTimeuuid(1564830182000) AND t < minTimeuuid('2012-11-07 18:18:22-0800')"));
+        assertEmpty(execute("SELECT t FROM %s WHERE k = 0 AND t > maxTimeuuid(1234567) AND t < minTimeuuid('2012-11-07 18:18:22-0800')"));
     }
 
     /**
