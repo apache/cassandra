@@ -21,6 +21,7 @@ package org.apache.cassandra.db.virtual;
 import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.BatchMetrics;
@@ -46,7 +47,7 @@ public class BatchMetricsTable extends AbstractVirtualTable
                            .addRegularColumn(P50, DoubleType.instance)
                            .addRegularColumn(P99, DoubleType.instance)
                            .addRegularColumn(P999, DoubleType.instance)
-                           .addRegularColumn(MAX, DoubleType.instance)
+                           .addRegularColumn(MAX, LongType.instance)
                            .build());
     }
 
