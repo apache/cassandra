@@ -27,12 +27,12 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class SetColumnIndexSize extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Arguments(title = "column_index_size_in_kb", usage = "<value_in_kib>", description = "Value in KiB", required = true)
-    private int columnIndexSizeInKB;
+    @Arguments(title = "column_index_size", usage = "<value_in_kb>", description = "Value in KiB", required = true)
+    private int columnIndexSizeInKiB;
 
     @Override
     protected void execute(NodeProbe probe)
     {
-        probe.setColumnIndexSize(columnIndexSizeInKB);
+        probe.setColumnIndexSize(columnIndexSizeInKiB);
     }
 }

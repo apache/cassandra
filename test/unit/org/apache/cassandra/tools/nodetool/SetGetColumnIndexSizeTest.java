@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.StorageService;
 
@@ -42,7 +43,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidColumnIndexSize(null, "Required parameters are missing: column_index_size_in_kb", 1);
+        assertSetInvalidColumnIndexSize(null, "Required parameters are missing: column_index_size", 1);
     }
 
     @Test
@@ -72,14 +73,14 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testInvalidValue()
     {
-        assertSetInvalidColumnIndexSize("2097152", "column_index_size_in_kb must be positive value < 2097152, but was 2097152", 2);
+        assertSetInvalidColumnIndexSize("2097152", "column_index_size must be positive value < 2097151B, but was 2147483648B", 2);
     }
 
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidColumnIndexSize("1.2", "column_index_size_in_kb: can not convert \"1.2\" to a int", 1);
-        assertSetInvalidColumnIndexSize("value", "column_index_size_in_kb: can not convert \"value\" to a int", 1);
+        assertSetInvalidColumnIndexSize("1.2", "column_index_size: can not convert \"1.2\" to a int", 1);
+        assertSetInvalidColumnIndexSize("value", "column_index_size: can not convert \"value\" to a int", 1);
     }
 
     private static void assertSetGetValidColumnIndexSize(int columnIndexSizeInKB)
@@ -97,6 +98,9 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     {
         ToolResult tool = columnIndexSizeInKB == null ? invokeNodetool("setcolumnindexsize")
                                              : invokeNodetool("setcolumnindexsize", columnIndexSizeInKB);
+        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        String m = tool.getStdout();
+        //DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
         assertThat(tool.getExitCode()).isEqualTo(expectedErrorCode);
         assertThat(expectedErrorCode == 1 ? tool.getStdout() : tool.getStderr()).contains(expectedErrorMessage);
     }
@@ -105,6 +109,6 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     {
         ToolResult tool = invokeNodetool("getcolumnindexsize");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Current value for column_index_size_in_kb: " + expected + " KiB");
+        assertThat(tool.getStdout()).contains("Current value for column_index_size: " + expected + " KiB");
     }
 }
