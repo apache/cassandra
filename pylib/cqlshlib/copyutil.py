@@ -541,7 +541,7 @@ class ExportWriter(object):
         self.columns = columns
         self.options = options
         self.header = options.copy['header']
-        self.max_output_size = long(options.copy['maxoutputsize'])
+        self.max_output_size = int(options.copy['maxoutputsize'])
         self.current_dest = None
         self.num_files = 0
 
@@ -632,8 +632,8 @@ class ExportTask(CopyTask):
         CopyTask.__init__(self, shell, ks, table, columns, fname, opts, protocol_version, config_file, 'to')
 
         options = self.options
-        self.begin_token = long(options.copy['begintoken']) if options.copy['begintoken'] else None
-        self.end_token = long(options.copy['endtoken']) if options.copy['endtoken'] else None
+        self.begin_token = int(options.copy['begintoken']) if options.copy['begintoken'] else None
+        self.end_token = int(options.copy['endtoken']) if options.copy['endtoken'] else None
         self.writer = ExportWriter(fname, shell, columns, options)
 
     def run(self):
@@ -702,15 +702,15 @@ class ExportTask(CopyTask):
             """
             ret = (prev, curr)
             if begin_token:
-                if ret[1] < begin_token:
+                if curr < begin_token:
                     return None
-                elif ret[0] < begin_token:
-                    ret = (begin_token, ret[1])
+                elif (prev is None) or (prev < begin_token):
+                    ret = (begin_token, curr)
 
             if end_token:
-                if ret[0] > end_token:
+                if (ret[0] is not None) and (ret[0] > end_token):
                     return None
-                elif ret[1] > end_token:
+                elif (curr is not None) and (curr > end_token):
                     ret = (ret[0], end_token)
 
             return ret
@@ -766,6 +766,9 @@ class ExportTask(CopyTask):
 
             #  For the last ring interval we query the same replicas that hold the first token in the ring
             if previous is not None and (not end_token or previous < end_token):
+                ranges[(previous, end_token)] = first_range_data
+            elif previous is None and (not end_token or previous < end_token):
+                previous = begin_token if begin_token else min_token
                 ranges[(previous, end_token)] = first_range_data
 
         if not ranges:
@@ -1287,7 +1290,7 @@ class FeedingProcess(mp.Process):
     A process that reads from import sources and sends chunks to worker processes.
     """
     def __init__(self, inpipe, outpipe, worker_pipes, fname, options, parent_cluster):
-        mp.Process.__init__(self, target=self.run)
+        super(FeedingProcess, self).__init__(target=self.run)
         self.inpipe = inpipe
         self.outpipe = outpipe
         self.worker_pipes = worker_pipes
@@ -1399,7 +1402,7 @@ class ChildProcess(mp.Process):
     """
 
     def __init__(self, params, target):
-        mp.Process.__init__(self, target=target)
+        super(ChildProcess, self).__init__(target=target)
         self.inpipe = params['inpipe']
         self.outpipe = params['outpipe']
         self.inmsg = None  # must be initialized after fork on Windows
@@ -1698,6 +1701,7 @@ class ExportProcess(ChildProcess):
             writer = csv.writer(output, **self.options.dialect)
 
             for row in rows:
+                print("cqlshlib.copyutil.ExportProcess.write_rows_to_csv(): writing row")
                 writer.writerow(list(map(self.format_value, row, cql_types)))
 
             data = (output.getvalue(), len(rows))
@@ -2088,11 +2092,11 @@ class ImportConversion(object):
             'ascii': convert_text,
             'float': get_convert_decimal_fcn(),
             'double': get_convert_decimal_fcn(),
-            'bigint': get_convert_integer_fcn(adapter=long),
+            'bigint': get_convert_integer_fcn(adapter=int),
             'int': get_convert_integer_fcn(),
             'varint': get_convert_integer_fcn(),
             'inet': convert_text,
-            'counter': get_convert_integer_fcn(adapter=long),
+            'counter': get_convert_integer_fcn(adapter=int),
             'timestamp': convert_datetime,
             'timeuuid': convert_uuid,
             'date': convert_date,
@@ -2184,6 +2188,7 @@ class ImportConversion(object):
                 val = serialize(i, row[i])
                 length = len(val)
                 pk_values.append(struct.pack(">H%dsB" % length, length, val, 0))
+
             return b"".join(pk_values)
 
         if len(partition_key_indexes) == 1:
