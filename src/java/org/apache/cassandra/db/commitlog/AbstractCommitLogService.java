@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +48,9 @@ public abstract class AbstractCommitLogService
 
     // all Allocations written before this time will be synced
     protected volatile long lastSyncedAt;
+
+    // set to true when there is any error sync-ing and set to false upon a successful sync
+    private volatile boolean syncError = false;
 
     // counts of total written, and pending, log messages
     private final AtomicLong written = new AtomicLong(0);
@@ -191,6 +196,8 @@ public abstract class AbstractCommitLogService
                     commitLog.sync(false);
                 }
 
+                syncError = false;
+
                 long now = clock.now();
                 if (flushToDisk)
                     maybeLogFlushLag(pollStarted, now);
@@ -204,6 +211,8 @@ public abstract class AbstractCommitLogService
             }
             catch (Throwable t)
             {
+                syncError = true;
+
                 if (!CommitLog.handleCommitError("Failed to persist commits to disk", t))
                     return false;
 
@@ -332,4 +341,6 @@ public abstract class AbstractCommitLogService
     {
         return pending.get();
     }
+
+    public boolean getSyncError() { return  syncError; }
 }
