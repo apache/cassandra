@@ -56,7 +56,7 @@ public class BootstrapTest extends TestBaseImpl
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
                                         .start())
         {
-            populate(cluster,0, 100);
+            populate(cluster, 0, 100);
 
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
@@ -95,7 +95,7 @@ public class BootstrapTest extends TestBaseImpl
 
             cluster.forEach(statusToBootstrap(newInstance));
 
-            populate(cluster,0, 100);
+            populate(cluster, 0, 100);
 
             Assert.assertEquals(100, newInstance.executeInternal("SELECT *FROM " + KEYSPACE + ".tbl").length);
         }
@@ -113,7 +113,7 @@ public class BootstrapTest extends TestBaseImpl
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
                                         .start())
         {
-            populate(cluster,0, 100);
+            populate(cluster, 0, 100);
             bootstrapAndJoinNode(cluster);
 
             for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
