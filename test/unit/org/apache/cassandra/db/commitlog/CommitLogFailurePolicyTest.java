@@ -138,4 +138,28 @@ public class CommitLogFailurePolicyTest
             JVMStabilityInspector.replaceKiller(originalKiller);
         }
     }
+
+    @Test
+    public void testCommitFailurePolicy_fail_writes()
+    {
+        CassandraDaemon daemon = new CassandraDaemon();
+        daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
+        StorageService.instance.registerDaemon(daemon);
+
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
+        try
+        {
+            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.fail_writes);
+            CommitLog.handleCommitError("Testing fail writes policy", new Throwable());
+            //error policy is set to fail_writes, so JVM must not be killed if error occurs after startup
+            Assert.assertFalse(killerForTests.wasKilled());
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitFailurePolicy(oldPolicy);
+            JVMStabilityInspector.replaceKiller(originalKiller);
+        }
+    }
 }

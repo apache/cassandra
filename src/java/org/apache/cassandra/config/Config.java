@@ -681,9 +681,27 @@ public class Config
 
     public enum CommitFailurePolicy
     {
+        /**
+         * This will stop Gossip and the inter-node transports, and kill the syncing thread.
+         */
         stop,
+        /**
+         * This will kill the syncing thread.
+         */
         stop_commit,
+        /**
+         * This will set a flag that will reject all mutations that require the CL. This flag
+         * will be cleared after a successful sync. This flag is only set for errors when sync-ing
+         * the CL segments, it is identical to ignore for other errors.
+         */
+        fail_writes,
+        /**
+         * This will ignore the error, a new sync will be attempted after a full polling period.
+         */
         ignore,
+        /**
+         * This will kill the process.
+         */
         die,
     }
 
