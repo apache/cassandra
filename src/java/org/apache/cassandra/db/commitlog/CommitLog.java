@@ -20,11 +20,14 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -49,6 +52,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.STARTUP;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -64,6 +68,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 public class CommitLog implements CommitLogMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 10, TimeUnit.SECONDS);
 
     public static final CommitLog instance = CommitLog.construct();
 
@@ -273,6 +278,19 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
+     * If there was an exception when sync-ing, and if the commit log failure policy is
+     * {@link Config.CommitFailurePolicy#fail_writes} then mutations will be rejected until
+     * the sync error is cleared, which happens after a successful sync.
+     * @return
+     */
+    @VisibleForTesting
+    public boolean shouldRejectMutations()
+    {
+        return executor.getSyncError() &&
+                DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.fail_writes;
+    }
+
+    /**
      * Add a Mutation to the commit log. If CDC is enabled, this can fail.
      *
      * @param mutation the Mutation to add to the log
@@ -283,6 +301,13 @@ public class CommitLog implements CommitLogMBean
         assert mutation != null;
 
         mutation.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
+
+        if (shouldRejectMutations())
+        {
+            String errorMsg = "Rejecting mutation due to a failure sync-ing commit log segments";
+            noSpamLogger.error(errorMsg);
+            throw new FSWriteError(new IllegalStateException(errorMsg), segmentManager.allocatingFrom().getPath());
+        }
 
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
@@ -519,6 +544,7 @@ public class CommitLog implements CommitLogMBean
             case stop_commit:
                 logger.error(String.format("%s. Commit disk failure policy is %s; terminating thread", message, DatabaseDescriptor.getCommitFailurePolicy()), t);
                 return false;
+            case fail_writes:
             case ignore:
                 logger.error(message, t);
                 return true;
