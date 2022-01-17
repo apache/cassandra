@@ -21,6 +21,10 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
@@ -54,10 +58,7 @@ public abstract class AbstractReplicationStrategy
     private Keyspace keyspace;
     public final Map<String, String> configOptions;
     private final TokenMetadata tokenMetadata;
-
-    // track when the token range changes, signaling we need to invalidate our endpoint cache
-    private volatile long lastInvalidatedVersion = 0;
-
+    private final ReplicaCache<Token, ArrayList<InetAddress>> replicas = new ReplicaCache<>();
     public IEndpointSnitch snitch;
 
     protected AbstractReplicationStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
@@ -72,26 +73,9 @@ public abstract class AbstractReplicationStrategy
         // lazy-initialize keyspace itself since we don't create them until after the replication strategies
     }
 
-    private final Map<Token, ArrayList<InetAddress>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
-
-    public ArrayList<InetAddress> getCachedEndpoints(Token t)
+    private ArrayList<InetAddress> getCachedEndpoints(long ringVersion, Token t)
     {
-        long lastVersion = tokenMetadata.getRingVersion();
-
-        if (lastVersion > lastInvalidatedVersion)
-        {
-            synchronized (this)
-            {
-                if (lastVersion > lastInvalidatedVersion)
-                {
-                    logger.trace("clearing cached endpoints");
-                    cachedEndpoints.clear();
-                    lastInvalidatedVersion = lastVersion;
-                }
-            }
-        }
-
-        return cachedEndpoints.get(t);
+        return replicas.get(ringVersion, t);
     }
 
     /**
@@ -104,18 +88,19 @@ public abstract class AbstractReplicationStrategy
     public ArrayList<InetAddress> getNaturalEndpoints(RingPosition searchPosition)
     {
         Token searchToken = searchPosition.getToken();
+        long currentRingVersion = tokenMetadata.getRingVersion();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
+        ArrayList<InetAddress> endpoints = getCachedEndpoints(currentRingVersion, keyToken);
         if (endpoints == null)
         {
             TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
             keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tm));
-            cachedEndpoints.put(keyToken, endpoints);
+            replicas.put(tm.getRingVersion(), keyToken, endpoints);
         }
 
-        return new ArrayList<InetAddress>(endpoints);
+        return new ArrayList<>(endpoints);
     }
 
     /**
@@ -330,6 +315,67 @@ public abstract class AbstractReplicationStrategy
         {
             if (!expectedOptions.contains(key))
                 throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), keyspaceName));
+        }
+    }
+
+    @VisibleForTesting
+    public static class ReplicaCache<K, V>
+    {
+        private final AtomicReference<ReplicaHolder<K, V>> cachedReplicas = new AtomicReference<>(new ReplicaHolder<>(0, 4));
+
+        V get(long ringVersion, K keyToken)
+        {
+            ReplicaHolder<K, V> replicaHolder = maybeClearAndGet(ringVersion);
+            if (replicaHolder == null)
+                return null;
+
+            return replicaHolder.replicas.get(keyToken);
+        }
+
+        void put(long ringVersion, K keyToken, V endpoints)
+        {
+            ReplicaHolder<K, V> current = maybeClearAndGet(ringVersion);
+            if (current != null)
+            {
+                // if we have the same ringVersion, but already know about the keyToken the endpoints should be the same
+                current.replicas.putIfAbsent(keyToken, endpoints);
+            }
+        }
+
+        ReplicaHolder<K, V> maybeClearAndGet(long ringVersion)
+        {
+            ReplicaHolder<K, V> current = cachedReplicas.get();
+            if (ringVersion == current.ringVersion)
+                return current;
+            else if (ringVersion < current.ringVersion) // things have already moved on
+                return null;
+
+            // If ring version has changed, create a fresh replica holder and try to replace the current one.
+            // This may race with other threads that have the same new ring version and one will win and the loosers
+            // will be garbage collected
+            ReplicaHolder<K, V> cleaned = new ReplicaHolder<>(ringVersion, current.replicas.size());
+            cachedReplicas.compareAndSet(current, cleaned);
+
+            // A new ring version may have come along while making the new holder, so re-check the
+            // reference and return the ring version if the same, otherwise return null as there is no point
+            // in using it.
+            current = cachedReplicas.get();
+            if (ringVersion == current.ringVersion)
+                return current;
+            else
+                return null;
+        }
+    }
+
+    static class ReplicaHolder<K, V>
+    {
+        private final long ringVersion;
+        private final NonBlockingHashMap<K, V> replicas;
+
+        ReplicaHolder(long ringVersion, int expectedEntries)
+        {
+            this.ringVersion = ringVersion;
+            this.replicas = new NonBlockingHashMap<>(expectedEntries);
         }
     }
 }

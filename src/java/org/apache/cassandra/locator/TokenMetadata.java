@@ -125,11 +125,17 @@ public class TokenMetadata
 
     private TokenMetadata(BiMultiValMap<Token, InetAddress> tokenToEndpointMap, BiMap<InetAddress, UUID> endpointsMap, Topology topology, IPartitioner partitioner)
     {
+        this(tokenToEndpointMap, endpointsMap, topology, partitioner, 0);
+    }
+
+    private TokenMetadata(BiMultiValMap<Token, InetAddress> tokenToEndpointMap, BiMap<InetAddress, UUID> endpointsMap, Topology topology, IPartitioner partitioner, long ringVersion)
+    {
         this.tokenToEndpointMap = tokenToEndpointMap;
         this.topology = topology;
         this.partitioner = partitioner;
         endpointToHostIdMap = endpointsMap;
         sortedTokens = sortTokens();
+        this.ringVersion = ringVersion;
     }
 
     /**
@@ -643,7 +649,8 @@ public class TokenMetadata
             return new TokenMetadata(SortedBiMultiValMap.create(tokenToEndpointMap, null, inetaddressCmp),
                                      HashBiMap.create(endpointToHostIdMap),
                                      topology,
-                                     partitioner);
+                                     partitioner,
+                                     ringVersion);
         }
         finally
         {
