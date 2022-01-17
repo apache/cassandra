@@ -106,6 +106,7 @@ Merged from 3.11:
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
+ * Avoid race in AbstractReplicationStrategy endpoint caching (CASSANDRA-16673)
  * Fix abort when window resizing during cqlsh COPY (CASSANDRA-15230)
  * Fix slow keycache load which blocks startup for tables with many sstables (CASSANDRA-14898)
  * Fix rare NPE caused by batchlog replay / node decomission races (CASSANDRA-17049)
