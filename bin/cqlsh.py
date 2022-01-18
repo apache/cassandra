@@ -118,7 +118,7 @@ if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
-third_parties = ('futures-', 'six-', 'geomet-')
+third_parties = ('futures-', 'six-')
 
 for lib in third_parties:
     lib_zip = find_zip(lib)
