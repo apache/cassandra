@@ -33,10 +33,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
-
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
-
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
