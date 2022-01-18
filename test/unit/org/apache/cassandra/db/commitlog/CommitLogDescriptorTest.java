@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.assertj.core.api.Assertions;
 
 public class CommitLogDescriptorTest
 {
@@ -86,6 +87,21 @@ public class CommitLogDescriptorTest
         Assert.assertEquals(MessagingService.current_version, new CommitLogDescriptor(1340512736956320000L, null, neverEnabledEncryption).getMessagingVersion());
         String newCLName = "CommitLog-" + CommitLogDescriptor.current_version + "-1340512736956320000.log";
         Assert.assertEquals(MessagingService.current_version, CommitLogDescriptor.fromFileName(newCLName).getMessagingVersion());
+    }
+
+    @Test
+    public void testExactIdFromFileName()
+    {
+        Assertions.assertThatThrownBy(() -> CommitLogDescriptor.idFromFileName("CommitLog-1340512736956320000.log"))
+                  .hasMessageContaining("Commitlog segment is too old to open")
+                  .isInstanceOf(UnsupportedOperationException.class);
+
+        Assertions.assertThatThrownBy(() -> CommitLogDescriptor.idFromFileName("CommitLog--1340512736956320000.log"))
+                  .hasMessageContaining("Cannot parse the version of the file")
+                  .isInstanceOf(RuntimeException.class);
+
+        Assertions.assertThat(CommitLogDescriptor.idFromFileName("CommitLog-2-1340512736956320000.log"))
+                  .isEqualTo(1340512736956320000L);
     }
 
     // migrated from CommitLogTest

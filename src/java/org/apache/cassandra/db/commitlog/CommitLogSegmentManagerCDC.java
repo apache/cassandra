@@ -101,18 +101,21 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             return 0;
         }
         List<File> sorted = Arrays.stream(files)
-                                  // commit log file name (contains id) increases monotonically
-                                  .sorted(Comparator.comparing(File::name))
+                                  // sort by the commmit log segment id
+                                  .sorted(Comparator.comparingLong(file -> CommitLogDescriptor.idFromFileName(file.name())))
                                   .collect(Collectors.toList());
         long bytesDeleted = 0;
         long bytesRemaining = 0;
         boolean deletionCompleted = false;
-        // keep deleting from old to new until it reaches to the goal or the current writting segment
+        // keep deleting from old to new until it reaches to the goal or the current writing segment
         for (File linkedCdcFile : sorted)
         {
             // only evaluate/update when deletionCompleted is false
-            deletionCompleted = deletionCompleted
-                                || (bytesDeleted >= bytesToFree || linkedCdcFile.equals(allocatingFrom().getCDCFile()));
+            if (!deletionCompleted)
+            {
+                deletionCompleted = bytesDeleted >= bytesToFree || linkedCdcFile.equals(allocatingFrom().getCDCFile());
+            }
+
             if (deletionCompleted)
             {
                 bytesRemaining += linkedCdcFile.length();
@@ -185,8 +188,8 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         return alloc;
     }
 
-    // Non-blocking mode is just enabled for CDC. The segment is still marked as FORBIDDEN.
-    // The segment should be set to PERMITTED.
+    // Non-blocking mode has just recently been enabled for CDC.
+    // The segment is still marked as FORBIDDEN. It should be set to PERMITTED.
     private void ensureSegmentPermittedIfNotBlockWrites(CommitLogSegment segment)
     {
         if (!DatabaseDescriptor.getCDCBlockWrites() && segment.getCDCState() == CDCState.FORBIDDEN)
@@ -305,13 +308,14 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             long allowance = allowableCDCBytes();
             boolean blocking = DatabaseDescriptor.getCDCBlockWrites();
 
+            // See synchronization in CommitLogSegment.setCDCState
             synchronized (segment.cdcStateLock)
             {
                 segment.setCDCState(blocking && segmentSize + sizeInProgress.get() > allowance
                                     ? CDCState.FORBIDDEN
                                     : CDCState.PERMITTED);
 
-                // Aggresively count in the (estimated) size of new segments.
+                // Aggressively count in the (estimated) size of new segments.
                 if (segment.getCDCState() == CDCState.PERMITTED)
                     addSize(segmentSize);
             }
@@ -320,12 +324,12 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             if (!blocking && sizeInProgress.get() > allowance)
             {
                 long bytesToFree = sizeInProgress.get() - allowance;
-                long remaningSize = segmentManager.deleteOldLinkedCDCCommitLogSegment(bytesToFree);
-                long releasedSize = sizeInProgress.get() - remaningSize;
-                sizeInProgress.getAndSet(remaningSize);
+                long remainingSize = segmentManager.deleteOldLinkedCDCCommitLogSegment(bytesToFree);
+                long releasedSize = sizeInProgress.get() - remainingSize;
+                sizeInProgress.getAndSet(remainingSize);
                 logger.debug("Freed up {} ({}) bytes after deleting the oldest CDC commit log segments in non-blocking mode. " +
                              "Total on-disk CDC size: {}; allowed CDC size: {}",
-                             releasedSize, bytesToFree, sizeInProgress.get(), allowance);
+                             releasedSize, bytesToFree, remainingSize, allowance);
             }
 
             // Take this opportunity to kick off a recalc to pick up any consumer file deletion.
@@ -336,7 +340,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         {
             if (!segment.getCDCFile().exists())
             {
-                logger.debug("Skip updating size. The CDC commit log segement has been deleted already.");
+                logger.debug("Not processing discarded CommitLogSegment {}; this segment appears to have been deleted already.", segment);
                 return;
             }
 
