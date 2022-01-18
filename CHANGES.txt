@@ -1,4 +1,5 @@
 4.0.2
+ * Remove unused 'geomet' package from cqlsh path (CASSANDRA-17271)
  * Removed unused 'cql' dependency (CASSANDRA-17247)
  * Don't block gossip when clearing repair snapshots (CASSANDRA-17168)
  * Deduplicate warnings for deprecated parameters (changed names) (CASSANDRA-17160)
