@@ -32,6 +32,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.crypto.Cipher;
@@ -63,7 +64,7 @@ public final class PEMReader
      * </pre>
      * The first one to be evaluated is RSA, being the most common for private keys.
      */
-    public static final String[] SUPPORTED_PRIVATE_KEY_ALGORITHMS = new String[]{ "RSA", "DSA", "EC" };
+    public static final Set<String> SUPPORTED_PRIVATE_KEY_ALGORITHMS = Set.of("RSA", "DSA", "EC");
     private static final Logger logger = LoggerFactory.getLogger(PEMReader.class);
     private static final Pattern CERT_PATTERN = Pattern.compile("-+BEGIN\\s+.*CERTIFICATE[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*CERTIFICATE[^-]*-+", CASE_INSENSITIVE);
     private static final Pattern KEY_PATTERN = Pattern.compile("-+BEGIN\\s+.*PRIVATE\\s+KEY[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*PRIVATE\\s+KEY[^-]*-+", CASE_INSENSITIVE);
@@ -95,7 +96,7 @@ public final class PEMReader
     {
         PKCS8EncodedKeySpec keySpec;
         String base64EncodedKey = extractBase64EncodedKey(pemKey);
-        byte[] derKeyBytes = Base64.getDecoder().decode(base64EncodedKey);
+        byte[] derKeyBytes = decodeBase64(base64EncodedKey);
 
         if (keyPassword != null)
         {
@@ -133,22 +134,21 @@ public final class PEMReader
          * However in the absence of that, below brute-force approach can work- that is to try out all the supported
          * private key algorithms given that there are only three major algorithms to verify against.
          */
-        for (int i = 0; i < SUPPORTED_PRIVATE_KEY_ALGORITHMS.length; i++)
+        for (String privateKeyAlgorithm : SUPPORTED_PRIVATE_KEY_ALGORITHMS)
         {
             try
             {
-                privateKey = KeyFactory.getInstance(SUPPORTED_PRIVATE_KEY_ALGORITHMS[i]).generatePrivate(keySpec);
+                privateKey = KeyFactory.getInstance(privateKeyAlgorithm).generatePrivate(keySpec);
                 logger.info("Parsing for the private key finished with {} algorithm.",
-                            SUPPORTED_PRIVATE_KEY_ALGORITHMS[i]);
+                            privateKeyAlgorithm);
                 return privateKey;
             }
             catch (Exception e)
             {
                 logger.debug("Failed to parse the private key with {} algorithm. Will try the other supported " +
-                             "algorithms.", SUPPORTED_PRIVATE_KEY_ALGORITHMS[i]);
+                             "algorithms.", privateKeyAlgorithm);
             }
         }
-
         throw new GeneralSecurityException("The given private key could not be parsed with any of the supported " +
                                            "algorithms. Please see PEMReader#SUPPORTED_PRIVATE_KEY_ALGORITHMS.");
     }
@@ -181,7 +181,7 @@ public final class PEMReader
      */
     private static Certificate generateCertificate(String base64Certificate) throws GeneralSecurityException
     {
-        byte[] decodedCertificateBytes = Base64.getDecoder().decode(base64Certificate);
+        byte[] decodedCertificateBytes = decodeBase64(base64Certificate);
         CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
         X509Certificate certificate =
         (X509Certificate) certificateFactory.generateCertificate(new ByteArrayInputStream(decodedCertificateBytes));
@@ -248,5 +248,23 @@ public final class PEMReader
             certificateList.add(certificate);
         }
         return certificateList;
+    }
+
+    /**
+     * Decodes given input in Base64 format.
+     * @param base64Input input to be decoded
+     * @return byte[] containing decoded bytes
+     * @throws GeneralSecurityException in case it fails to decode the given base64 input
+     */
+    private static byte[] decodeBase64(String base64Input) throws GeneralSecurityException
+    {
+        try
+        {
+            return Base64.getDecoder().decode(base64Input);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new GeneralSecurityException("Failed to decode given base64 input. msg=" + e.getMessage(), e);
+        }
     }
 }
