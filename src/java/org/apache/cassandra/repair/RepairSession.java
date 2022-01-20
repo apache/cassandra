@@ -95,6 +95,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public final String keyspace;
     private final String[] cfnames;
     public final RepairParallelism parallelismDegree;
+    public final boolean pushRepair;
     public final boolean pullRepair;
 
     /** Range to repair */
@@ -122,6 +123,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      * @param commonRange ranges to repair
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
+     * @param pushRepair true if the repair should be one way pushing differences to remote host
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
      * @param cfnames names of columnfamilies
      */
@@ -131,6 +133,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          String keyspace,
                          RepairParallelism parallelismDegree,
                          boolean isIncremental,
+                         boolean pushRepair,
                          boolean pullRepair,
                          PreviewKind previewKind,
                          boolean optimiseStreams,
@@ -141,6 +144,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.parentRepairSession = parentRepairSession;
         this.id = id;
         this.parallelismDegree = parallelismDegree;
+        this.pushRepair = pushRepair;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
         this.commonRange = commonRange;
@@ -258,7 +262,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         Tracing.traceRepair("Syncing range {}", commonRange);
         if (!previewKind.isPreview())
         {
-            SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, commonRange);
+            RepairProgressReporter.instance.onRepairsStarted(getId(), parentRepairSession, keyspace, cfnames, commonRange);
         }
 
         if (commonRange.endpoints.isEmpty())
@@ -268,7 +272,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             set(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), commonRange.hasSkippedReplicas));
             if (!previewKind.isPreview())
             {
-                SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
+                RepairProgressReporter.instance.onRepairsFailed(getId(), keyspace, cfnames, new RuntimeException(message));
             }
             return;
         }
@@ -284,7 +288,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 setException(e);
                 if (!previewKind.isPreview())
                 {
-                    SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, e);
+                    RepairProgressReporter.instance.onRepairsFailed(getId(), keyspace, cfnames, e);
                 }
                 return;
             }

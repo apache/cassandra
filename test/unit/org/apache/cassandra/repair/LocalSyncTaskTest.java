@@ -20,13 +20,18 @@ package org.apache.cassandra.repair;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 
 import com.google.common.collect.Iterables;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -48,9 +53,11 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.UUIDGen;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -66,6 +73,8 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     @BeforeClass
     public static void defineSchema()
     {
+        System.setProperty(CassandraRelevantProperties.REPAIR_PARENT_SESSION_LISTENER.getKey(), MockParentRepairSessionListener.class.getName());
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -73,6 +82,12 @@ public class LocalSyncTaskTest extends AbstractRepairTest
 
         TableId tid = SchemaManager.instance.getTableMetadata(KEYSPACE1, CF_STANDARD).id;
         cfs = SchemaManager.instance.getColumnFamilyStoreInstance(tid);
+    }
+
+    @AfterClass
+    public static void cleanup()
+    {
+        System.clearProperty(CassandraRelevantProperties.REPAIR_PARENT_SESSION_LISTENER.getKey());
     }
 
     /**
@@ -113,6 +128,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
                                                                  Arrays.asList(cfs), Arrays.asList(range), false,
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false,
                                                                  PreviewKind.NONE);
+        assertTrue(MockParentRepairSessionListener.registered.containsKey(parentRepairSession));
 
         RepairJobDesc desc = new RepairJobDesc(parentRepairSession, UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
 
@@ -146,6 +162,9 @@ public class LocalSyncTaskTest extends AbstractRepairTest
 
         // ensure that the changed range was recorded
         assertEquals("Wrong differing ranges", interesting.size(), task.stat.numberOfDifferences);
+
+        ActiveRepairService.instance.removeParentRepairSession(parentRepairSession);
+        assertTrue(MockParentRepairSessionListener.removed.containsKey(parentRepairSession));
     }
 
     @Test
@@ -231,6 +250,15 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         assertNumInOut(plan, 0, 1);
     }
 
+    @Test
+    public void testCustomParentRepairSessionListener()
+    {
+        ParentRepairSessionListener listener = ParentRepairSessionListener.make(MockParentRepairSessionListener.class.getName());
+        Assertions.assertThat(listener).isInstanceOf(MockParentRepairSessionListener.class);
+
+        assertThatThrownBy(() -> ParentRepairSessionListener.make("unknown")).hasMessageContaining("Unknown parent repair session listener");
+    }
+
     private MerkleTrees createInitialTree(RepairJobDesc desc, IPartitioner partitioner)
     {
         MerkleTrees tree = new MerkleTrees(partitioner);
@@ -242,6 +270,37 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     private MerkleTrees createInitialTree(RepairJobDesc desc)
     {
         return createInitialTree(desc, partitioner);
+    }
 
+    public static class MockParentRepairSessionListener implements ParentRepairSessionListener
+    {
+        public static Map<UUID, ActiveRepairService.ParentRepairSession> registered = new ConcurrentHashMap<>();
+        public static Map<UUID, ActiveRepairService.ParentRepairSession> removed = new ConcurrentHashMap<>();
+
+        public MockParentRepairSessionListener() {}
+
+        @Override
+        public void onRegistered(UUID sessionId, ActiveRepairService.ParentRepairSession session)
+        {
+            registered.put(sessionId, session);
+        }
+
+        @Override
+        public void onRemoved(UUID sessionId, ActiveRepairService.ParentRepairSession session)
+        {
+            removed.put(sessionId, session);
+        }
+
+        @Override
+        public void onValidation(RepairJobDesc desc, Future validationTask)
+        {
+
+        }
+
+        @Override
+        public void onSync(RepairJobDesc desc, Future syncTask)
+        {
+
+        }
     }
 }

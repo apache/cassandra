@@ -153,7 +153,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 if (!session.previewKind.isPreview())
                 {
                     logger.info("{} {}.{} is fully synced", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
+                    RepairProgressReporter.instance.onRepairSucceeded(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
                 set(new RepairResult(desc, stats));
@@ -167,7 +167,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 if (!session.previewKind.isPreview())
                 {
                     logger.warn("{} {}.{} sync failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
+                    RepairProgressReporter.instance.onRepairFailed(session.getId(), desc.keyspace, desc.columnFamily, t);
                 }
                 cfs.metric.repairsCompleted.inc();
                 setException(t);
@@ -187,6 +187,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                            FBUtilities.getLocalAddressAndPort(),
                                                            this::isTransient,
                                                            session.isIncremental,
+                                                           session.pushRepair,
                                                            session.pullRepair,
                                                            session.previewKind);
         return executeTasks(syncTasks);
@@ -197,6 +198,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                   InetAddressAndPort local,
                                                   Predicate<InetAddressAndPort> isTransient,
                                                   boolean isIncremental,
+                                                  boolean pushRepair,
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
     {
@@ -226,8 +228,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     TreeResponse self = r1.endpoint.equals(local) ? r1 : r2;
                     TreeResponse remote = r2.endpoint.equals(local) ? r1 : r2;
 
-                    // pull only if local is full
-                    boolean requestRanges = !isTransient.test(self.endpoint);
+                    // pull only if local is full; additionally check for push repair
+                    boolean requestRanges = !isTransient.test(self.endpoint) && !pushRepair;
                     // push only if remote is full; additionally check for pull repair
                     boolean transferRanges = !isTransient.test(remote.endpoint) && !pullRepair;
 
@@ -235,11 +237,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     if (!requestRanges && !transferRanges)
                         continue;
 
-                    task = new LocalSyncTask(desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null,
-                                             requestRanges, transferRanges, previewKind);
+                    task = new LocalSyncTask(desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null, requestRanges, transferRanges, previewKind);
                 }
                 else if (isTransient.test(r1.endpoint) || isTransient.test(r2.endpoint))
                 {
+                    Preconditions.checkArgument(!pushRepair, "Push Repair doesn't support transient replica");
+
                     // Stream only from transient replica
                     TreeResponse streamFrom = isTransient.test(r1.endpoint) ? r1 : r2;
                     TreeResponse streamTo = isTransient.test(r1.endpoint) ? r2 : r1;
@@ -255,12 +258,13 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
         trees.get(trees.size() - 1).trees.release();
         logger.info("Created {} sync tasks based on {} merkle tree responses for {} (took: {}ms)",
-                    syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
+                    syncTasks.size(), trees.size(), desc.parentSessionId,System.currentTimeMillis() - startedAt);
         return syncTasks;
     }
 
     private ListenableFuture<List<SyncStat>> optimisedSyncing(List<TreeResponse> trees)
     {
+        Preconditions.checkArgument(!session.pushRepair, "Push Repair doesn't support optimized sync");
         List<SyncTask> syncTasks = createOptimisedSyncingSyncTasks(desc,
                                                                    trees,
                                                                    FBUtilities.getLocalAddressAndPort(),

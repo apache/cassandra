@@ -67,6 +67,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.ParentRepairSessionListener;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
@@ -85,6 +86,7 @@ import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -328,6 +330,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
+                                             boolean pushRepair,
                                              boolean pullRepair,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
@@ -341,7 +344,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return null;
 
         final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
-                                                        parallelismDegree, isIncremental, pullRepair,
+                                                        parallelismDegree, isIncremental, pushRepair, pullRepair,
                                                         previewKind, optimiseStreams, cfnames);
 
         sessions.put(session.getId(), session);
@@ -405,7 +408,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         {
             session.forceShutdown(cause);
         }
+        Collection<Map.Entry<UUID, ParentRepairSession>> sessions = new ArrayList<>(parentRepairSessions.entrySet());
         parentRepairSessions.clear();
+
+        for (Map.Entry<UUID, ParentRepairSession> e : sessions)
+            ParentRepairSessionListener.instance.onRemoved(e.getKey(), e.getValue());
     }
 
     public void recordRepairStatus(int cmd, ParentRepairStatus parentRepairStatus, List<String> messages)
@@ -595,7 +602,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
         try
         {
-            if (!prepareLatch.await(DatabaseDescriptor.getRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+            if (!prepareLatch.await(DatabaseDescriptor.getRepairPrepareMessageTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
                 failRepair(parentRepairSession, "Did not get replies from all endpoints.");
         }
         catch (InterruptedException e)
@@ -671,7 +678,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (!parentRepairSessions.containsKey(parentRepairSession))
         {
-            parentRepairSessions.put(parentRepairSession, new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, repairedAt, isGlobal, previewKind));
+            ParentRepairSession session = new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, repairedAt, isGlobal, previewKind);
+            parentRepairSessions.put(parentRepairSession, session);
+            ParentRepairSessionListener.instance.onRegistered(parentRepairSession, session);
         }
     }
 
@@ -700,6 +709,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         ParentRepairSession session = parentRepairSessions.remove(parentSessionId);
         if (session == null)
             return null;
+
+        ParentRepairSessionListener.instance.onRemoved(parentSessionId, session);
+
         for (ColumnFamilyStore cfs : session.columnFamilyStores.values())
         {
             if (cfs.snapshotExists(snapshotName))

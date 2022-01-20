@@ -573,6 +573,7 @@ public class SSTableReaderTest
         store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
+        assertTrue(SSTableReader.hasGlobalReference(sstable.descriptor));
         Descriptor desc = sstable.descriptor;
         boolean hasSummary = desc.getFormat().supportedComponents().contains(Component.SUMMARY);
 

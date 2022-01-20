@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,12 +29,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -47,6 +50,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,6 +91,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -112,6 +117,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private final List<ProgressListener> listeners = new ArrayList<>();
 
+    private final SettableFuture<?> result = SettableFuture.create();
     private static final AtomicInteger threadCounter = new AtomicInteger(1);
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
 
@@ -164,6 +170,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private void success(String msg)
     {
+        result.set(null);
+
         fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress, msg));
         ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.COMPLETED,
                                                         ImmutableList.of(msg));
@@ -193,6 +201,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             Throwable error = firstError.get();
             reason = error != null ? error.getMessage() : "Some repair failed";
         }
+        result.setException(new RuntimeException(reason));
+
         String completionMessage = String.format("Repair command #%d finished with error", cmd);
 
         // Note we rely on the first message being the reason for the failure
@@ -232,6 +242,11 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
 
         Keyspace.open(keyspace).metric.repairTime.update(durationMillis, TimeUnit.MILLISECONDS);
+    }
+
+    public Future<?> getResult()
+    {
+        return result;
     }
 
     public void run()
@@ -314,6 +329,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private NeighborsAndRanges getNeighborsAndRanges()
     {
+        // if it's offline service, don't check token metadata and storage service.
+        if (options.isOfflineService())
+            return createNeighbordAndRangesForOfflineService(options);
+
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
 
@@ -363,11 +382,41 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         return new NeighborsAndRanges(shouldExcludeDeadParticipants, allNeighbors, commonRanges);
     }
 
+    @VisibleForTesting
+    public static NeighborsAndRanges createNeighbordAndRangesForOfflineService(RepairOption options)
+    {
+        Preconditions.checkArgument(!options.getHosts().isEmpty(), "There should be at least 1 host when repairing via offline service");
+        Preconditions.checkArgument(!options.getRanges().isEmpty(), "Token ranges must be specified when repairing via offline service. " +
+                                                                    "Please specify at least one token range which all hosts have in common.");
+
+        Set<InetAddressAndPort> allNeighbors = new HashSet<>();
+        List<CommonRange> commonRanges = new ArrayList<>();
+
+        for (String host : options.getHosts())
+        {
+            try
+            {
+                InetAddressAndPort endpoint = InetAddressAndPort.getByName(host.trim());
+                if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                    allNeighbors.add(endpoint);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new IllegalArgumentException("Unknown host specified " + host, e);
+            }
+        }
+
+        Preconditions.checkArgument(!allNeighbors.isEmpty(), "There should be at least 1 neighbor when repairing via offline service");
+
+        commonRanges.add(new CommonRange(allNeighbors, Collections.emptySet(), options.getRanges()));
+        return new NeighborsAndRanges(false, allNeighbors, commonRanges);
+    }
+
     private void maybeStoreParentRepairStart(String[] cfnames)
     {
         if (!options.isPreview())
         {
-            SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options);
+            RepairProgressReporter.instance.onParentRepairStarted(parentSession, keyspace, cfnames, options);
         }
     }
 
@@ -375,7 +424,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         if (!options.isPreview())
         {
-            SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
+            RepairProgressReporter.instance.onParentRepairSucceeded(parentSession, successfulRanges);
         }
     }
 
@@ -383,7 +432,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         if (!options.isPreview())
         {
-            SystemDistributedKeyspace.failParentRepair(parentSession, error);
+            RepairProgressReporter.instance.onParentRepairFailed(parentSession, error);
         }
     }
 
@@ -393,6 +442,12 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             ActiveRepairService.instance.prepareForRepair(parentSession, FBUtilities.getBroadcastAddressAndPort(), allNeighbors, options, force, columnFamilies);
             progressCounter.incrementAndGet();
+        }
+        catch (Throwable t)
+        {
+            // clear peers' parent repair session if there are registered
+            t = Throwables.perform(t, () -> ActiveRepairService.instance.cleanUp(parentSession, allNeighbors));
+            throw Throwables.cleaned(t);
         }
     }
 
@@ -649,6 +704,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                                                                      keyspace,
                                                                                      options.getParallelism(),
                                                                                      isIncremental,
+                                                                                     options.isPushRepair(),
                                                                                      options.isPullRepair(),
                                                                                      options.getPreviewKind(),
                                                                                      options.optimiseStreams(),
@@ -727,6 +783,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             this.executor = executor;
         }
 
+        @Override
         public void onSuccess(Object result)
         {
             maybeStoreParentRepairSuccess(successfulRanges);
@@ -742,6 +799,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             executor.shutdownNow();
         }
 
+        @Override
         public void onFailure(Throwable t)
         {
             notifyError(t);
@@ -852,11 +910,12 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
+    @VisibleForTesting
     static final class NeighborsAndRanges
     {
-        private final boolean shouldExcludeDeadParticipants;
-        private final Set<InetAddressAndPort> participants;
-        private final List<CommonRange> commonRanges;
+        final boolean shouldExcludeDeadParticipants;
+        final Set<InetAddressAndPort> participants;
+        final List<CommonRange> commonRanges;
 
         NeighborsAndRanges(boolean shouldExcludeDeadParticipants, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
         {
