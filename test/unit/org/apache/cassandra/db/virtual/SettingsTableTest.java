@@ -20,6 +20,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,6 +45,17 @@ public class SettingsTableTest extends CQLTester
 
     private Config config;
     private SettingsTable table;
+
+    // CASSANDRA-15234 - a few configuration parameters kept their names but added unit to their value, only the
+    // new value format is displayed for them
+    private final List<String> excluded_config = new ArrayList<String>()
+    {
+        {
+            add("key_cache_save_period");
+            add("row_cache_save_period");
+            add("counter_cache_save_period");
+        }
+    };
 
     @BeforeClass
     public static void setUpClass()
@@ -89,7 +101,8 @@ public class SettingsTableTest extends CQLTester
             String name = r.getString("name");
             Field f = SettingsTable.FIELDS.get(name);
             if (f != null) // skip overrides
-                Assert.assertEquals(getValue(f), r.getString("value"));
+                if(!excluded_config.contains(f.getName()))
+                    Assert.assertEquals(getValue(f), r.getString("value"));
         }
         Assert.assertTrue(SettingsTable.FIELDS.size() <= i);
     }
@@ -103,6 +116,9 @@ public class SettingsTableTest extends CQLTester
         for (Field f : fields)
         {
             if (table.overrides.containsKey(f.getName()))
+                continue;
+
+            if (excluded_config.contains(f.getName()))
                 continue;
 
             String q = "SELECT * FROM vts.settings WHERE name = '"+f.getName()+'\'';
