@@ -125,7 +125,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected void maybeSwitchWriter(DecoratedKey key)
     {
         if (!isInitialized)
-            switchCompactionLocation(getDirectories().getWriteableLocation(cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType())));
+            switchCompactionLocation(getDirectories().getWriteableLocation(getExpectedWriteSize()));
         isInitialized = true;
     }
 
@@ -155,5 +155,10 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
             throw new RuntimeException("Insufficient disk space to write " + expectedWriteSize + " bytes");
 
         return directory;
+    }
+
+    protected long getExpectedWriteSize()
+    {
+        return cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
     }
 }
