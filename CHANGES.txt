@@ -77,6 +77,7 @@
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 
 Merged from 4.0:
+ * Removed unused 'cql' dependency (CASSANDRA-17247)
  * Don't block gossip when clearing repair snapshots (CASSANDRA-17168)
  * Deduplicate warnings for deprecated parameters (changed names) (CASSANDRA-17160)
  * Update ant-junit to version 1.10.12 (CASSANDRA-17218)
