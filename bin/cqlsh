@@ -62,8 +62,8 @@ is_supported_version() {
     version=$1
     major_version="${version%.*}"
     minor_version="${version#*.}"
-    # python3.6+ is supported. python2.7 is deprecated but still compatible.
-    if [ "$major_version" = 3 ] && [ "$minor_version" -ge 6 ] || [ "$version" = "2.7" ]; then
+    # python3.6+ is supported
+    if [ "$major_version" = 3 ] && [ "$minor_version" -ge 6 ]; then
         echo "supported"
     else
         echo "unsupported"
@@ -88,7 +88,7 @@ if [ "$USER_SPECIFIED_PYTHON" != "" ]; then
     # run a user specified Python interpreter
     run_if_supported_version "$USER_SPECIFIED_PYTHON" "$@"
 else
-    for interpreter in python3 python python2.7; do
+    for interpreter in python3 python; do
         run_if_supported_version "$interpreter" "$@"
     done
 fi
