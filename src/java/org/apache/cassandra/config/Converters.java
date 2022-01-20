@@ -54,7 +54,7 @@ public enum Converters
      * This converter is used to support backward compatibility for Duration parameters where we added the opportunity
      * for the users to add a unit in the parameters' values but we didn't change the names. (key_cache_save_period,
      * row_cache_save_period, counter_cache_save_period)
-     * Example: row_cache_save_period = 0 and row_cache_save_period = 0h (quantity of 0h) are equal.
+     * Example: row_cache_save_period = 0 and row_cache_save_period = 0s (quantity of 0s) are equal.
      */
     SECONDS_CUSTOM_DURATION(String.class,
                            o -> DurationSpec.inSecondsString((String) o),

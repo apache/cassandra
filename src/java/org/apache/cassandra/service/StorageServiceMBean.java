@@ -618,10 +618,20 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setTruncateRpcTimeout(long value);
     public long getTruncateRpcTimeout();
 
+    public void setStreamThroughputMbitPerSec(int value);
+    public int getStreamThroughputMbitPerSec();
+
+    @Deprecated
     public void setStreamThroughputMbPerSec(int value);
+    @Deprecated
     public int getStreamThroughputMbPerSec();
 
+    public void setInterDCStreamThroughputMbitPerSec(int value);
+    public int getInterDCStreamThroughputMbitPerSec();
+
+    @Deprecated
     public void setInterDCStreamThroughputMbPerSec(int value);
+    @Deprecated
     public int getInterDCStreamThroughputMbPerSec();
 
     public void setEntireSSTableStreamThroughputMebibytesPerSec(int value);

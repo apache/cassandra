@@ -62,15 +62,15 @@ public class StreamManagerTest
         assertEquals(defaultStreamThroughputMebibytesPerSec * BYTES_PER_MEBIBYTE, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
 
         // Positive value check
-        StorageService.instance.setStreamThroughputMbPerSec(500); //60MiB/s
+        StorageService.instance.setStreamThroughputMbitPerSec(500); //60MiB/s
         assertEquals(60d * BYTES_PER_MEBIBYTE, Math.round(StreamRateLimiter.getRateLimiterRateInBytes()), 0);
 
         // Max positive value check
-        StorageService.instance.setStreamThroughputMbPerSec(Integer.MAX_VALUE);
+        StorageService.instance.setStreamThroughputMbitPerSec(Integer.MAX_VALUE);
         assertEquals(INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * BYTES_PER_MEBIBYTE, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
 
         // Zero value check
-        StorageService.instance.setStreamThroughputMbPerSec(0);
+        StorageService.instance.setStreamThroughputMbitPerSec(0);
         assertEquals(Double.MAX_VALUE, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
     }
 
@@ -100,15 +100,15 @@ public class StreamManagerTest
         assertEquals(defaultInterDCStreamThroughputMebibytesPerSec * BYTES_PER_MEBIBYTE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
 
         // Positive value check
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(200); //approximately 24MiB/s
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(200); //approximately 24MiB/s
         assertEquals(24.0d * BYTES_PER_MEBIBYTE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
 
         // Max positive value check
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(Integer.MAX_VALUE);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(Integer.MAX_VALUE);
         assertEquals(INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * BYTES_PER_MEBIBYTE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
 
         // Zero value check
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(0);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(0);
         assertEquals(Double.MAX_VALUE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
     }
 

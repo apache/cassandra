@@ -73,7 +73,7 @@ public final class DurationSpec
     DurationSpec(long quantity, TimeUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("DurationSpec must be positive");
+            throw new ConfigurationException("Invalid duration: value must be positive");
 
         this.quantity = quantity;
         this.unit = unit;
@@ -147,8 +147,8 @@ public final class DurationSpec
         Matcher matcher = VALUES_PATTERN.matcher(value);
 
         long seconds;
-        //if the provided string value is just a number, then we create a Duration Spec value in hours
-        if(matcher.find())
+        //if the provided string value is just a number, then we create a Duration Spec value in seconds
+        if (matcher.find())
         {
             seconds = Long.parseLong(matcher.group(1));
             return new DurationSpec(seconds, TimeUnit.SECONDS);

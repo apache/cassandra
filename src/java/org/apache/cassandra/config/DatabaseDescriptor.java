@@ -2831,7 +2831,7 @@ public class DatabaseDescriptor
 
     public static void setKeyCacheSavePeriod(int keyCacheSavePeriod)
     {
-        conf.key_cache_save_period = DurationSpec.inHours(keyCacheSavePeriod);
+        conf.key_cache_save_period = DurationSpec.inSeconds(keyCacheSavePeriod);
     }
 
     public static int getKeyCacheKeysToSave()

@@ -67,7 +67,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testNegative()
     {
-        assertSetInvalidColumnIndexSize("-7", "DataStorage value must be positive, but was -7", 2);
+        assertSetInvalidColumnIndexSize("-7", "Invalid data storage: value must be positive, but was -7", 2);
     }
 
     @Test
@@ -98,9 +98,6 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     {
         ToolResult tool = columnIndexSizeInKB == null ? invokeNodetool("setcolumnindexsize")
                                              : invokeNodetool("setcolumnindexsize", columnIndexSizeInKB);
-        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        String m = tool.getStdout();
-        //DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
         assertThat(tool.getExitCode()).isEqualTo(expectedErrorCode);
         assertThat(expectedErrorCode == 1 ? tool.getStdout() : tool.getStderr()).contains(expectedErrorMessage);
     }

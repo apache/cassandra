@@ -1504,7 +1504,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS);
     }
 
+    @Deprecated
     public void setStreamThroughputMbPerSec(int value)
+    {
+        setStreamThroughputMbitPerSec(value);
+    }
+
+    public void setStreamThroughputMbitPerSec(int value)
     {
         int oldValue = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
@@ -1513,7 +1519,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
+    @Deprecated
     public int getStreamThroughputMbPerSec()
+    {
+        return getStreamThroughputMbitPerSec();
+    }
+
+    public int getStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
     }
@@ -1532,7 +1544,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
     }
 
+    @Deprecated
     public void setInterDCStreamThroughputMbPerSec(int value)
+    {
+        setInterDCStreamThroughputMbitPerSec(value);
+    }
+
+    public void setInterDCStreamThroughputMbitPerSec(int value)
     {
         int oldValue = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(value);
@@ -1540,7 +1558,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("setinterdcstreamthroughput: throttle set to {}{} megabits per second (was {} megabits per second)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
+    @Deprecated
     public int getInterDCStreamThroughputMbPerSec()
+    {
+        return getInterDCStreamThroughputMbitPerSec();
+    }
+
+    public int getInterDCStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
     }

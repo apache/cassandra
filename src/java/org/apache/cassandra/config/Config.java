@@ -285,8 +285,8 @@ public class Config
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec inter_dc_stream_throughput_outbound = new DataRateSpec("24MiB/s");
 
-    public DataRateSpec entire_sstable_stream_throughput_outbound = new DataRateSpec("25MiB/s");
-    public DataRateSpec entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec("25MiB/s");
+    public volatile DataRateSpec entire_sstable_stream_throughput_outbound = new DataRateSpec("25MiB/s");
+    public volatile DataRateSpec entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec("25MiB/s");
 
     public String[] data_file_directories = new String[0];
 
@@ -378,7 +378,7 @@ public class Config
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public DataStorageSpec key_cache_size = null;
     @Replaces(oldName = "key_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
-    public volatile DurationSpec key_cache_save_period = new DurationSpec("14400s");
+    public volatile DurationSpec key_cache_save_period = new DurationSpec("4h");
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";

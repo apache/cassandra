@@ -47,8 +47,8 @@ public class StreamRateLimiterTest
     public void testIsRateLimited()
     {
         // Enable rate limiting for local traffic and inter-DC traffic
-        StorageService.instance.setStreamThroughputMbPerSec(200);
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(200);
+        StorageService.instance.setStreamThroughputMbitPerSec(200);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(200);
 
         // Rate-limiter enabled for a local peer
         assertTrue(StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort()).isRateLimited());
@@ -57,8 +57,8 @@ public class StreamRateLimiterTest
         assertTrue(StreamManager.getRateLimiter(REMOTE_PEER_ADDRESS).isRateLimited());
 
         // Disable rate limiting for local traffic, but enable it for inter-DC traffic
-        StorageService.instance.setStreamThroughputMbPerSec(0);
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(200);
+        StorageService.instance.setStreamThroughputMbitPerSec(0);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(200);
 
         // Rate-limiter disabled for a local peer
         assertFalse(StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort()).isRateLimited());
@@ -67,8 +67,8 @@ public class StreamRateLimiterTest
         assertTrue(StreamManager.getRateLimiter(REMOTE_PEER_ADDRESS).isRateLimited());
 
         // Enable rate limiting for local traffic, but disable it for inter-DC traffic
-        StorageService.instance.setStreamThroughputMbPerSec(200);
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(0);
+        StorageService.instance.setStreamThroughputMbitPerSec(200);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(0);
 
         // Rate-limiter enabled for a local peer
         assertTrue(StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort()).isRateLimited());
@@ -77,8 +77,8 @@ public class StreamRateLimiterTest
         assertTrue(StreamManager.getRateLimiter(REMOTE_PEER_ADDRESS).isRateLimited());
 
         // Disable rate liming for local and inter-DC traffic
-        StorageService.instance.setStreamThroughputMbPerSec(0);
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(0);
+        StorageService.instance.setStreamThroughputMbitPerSec(0);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(0);
 
         // Rate-limiter enabled for a local and remote peers
         assertFalse(StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort()).isRateLimited());

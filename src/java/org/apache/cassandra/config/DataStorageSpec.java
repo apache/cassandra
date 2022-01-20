@@ -68,7 +68,7 @@ public final class DataStorageSpec
     DataStorageSpec(long quantity, DataStorageUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("DataStorage value must be positive, but was " + quantity);
+            throw new ConfigurationException("Invalid data storage: value must be positive, but was " + quantity);
 
         this.quantity = quantity;
         this.unit = unit;
