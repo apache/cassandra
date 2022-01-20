@@ -68,6 +68,11 @@ public abstract class AbstractReplicationStrategy
         this.keyspaceName = keyspaceName;
     }
 
+    public TokenMetadata getTokenMetadata()
+    {
+        return tokenMetadata;
+    }
+
     public EndpointsForRange getCachedReplicas(long ringVersion, Token t)
     {
         return replicas.get(ringVersion, t);

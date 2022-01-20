@@ -1504,7 +1504,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         ShardBoundaries shardBoundaries = cachedShardBoundaries;
         if (shardBoundaries == null ||
             shardBoundaries.shardCount() != shardCount ||
-            shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion())
+            shardBoundaries.ringVersion != keyspace.getReplicationStrategy().getTokenMetadata().getRingVersion())
         {
             SortedLocalRanges localRanges = getLocalRanges();
             List<PartitionPosition> positions = localRanges.split(shardCount);

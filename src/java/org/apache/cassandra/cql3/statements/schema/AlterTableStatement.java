@@ -497,7 +497,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             Set<InetAddressAndPort> preC15897nodes = new HashSet<>();
             Set<InetAddressAndPort> with2xSStables = new HashSet<>();
             Splitter onComma = Splitter.on(',').omitEmptyStrings().trimResults();
-            for (InetAddressAndPort node : StorageService.instance.getTokenMetadata().getAllEndpoints())
+            for (InetAddressAndPort node : StorageService.instance.getTokenMetadataForKeyspace(keyspaceName).getAllEndpoints())
             {
                 if (MessagingService.instance().versions.knows(node) &&
                     MessagingService.instance().versions.getRaw(node) < MessagingService.VERSION_40)
