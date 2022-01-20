@@ -75,7 +75,7 @@ public class RepairSessionTest
         RepairSession session = new RepairSession(parentSessionId, sessionId,
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
-                                                  false, false,
+                                                  false, false, false,
                                                   PreviewKind.NONE, false, "Standard1");
 
         // perform convict
@@ -195,7 +195,7 @@ public class RepairSessionTest
         RepairSession session = new RepairSession(parentSessionId, sessionId,
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
-                                                  false, false,
+                                                  false, false, false,
                                                   PreviewKind.NONE, false, "Standard1");
 
         NoopExecutorService executor = new NoopExecutorService();

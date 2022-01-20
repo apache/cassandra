@@ -202,6 +202,16 @@ public enum CassandraRelevantProperties
      */
     CUSTOM_NATIVE_LIBRARY("cassandra.custom_native_library"),
 
+    /**
+     * Repair progress reporter, default using system distributed keyspace
+     */
+    REPAIR_PROGRESS_REPORTER("cassandra.repair_progress_reporter_class"),
+
+    /**
+     * Listen to repair parent session lifecycle
+     */
+    REPAIR_PARENT_SESSION_LISTENER("cassandra.custom_parent_repair_session_listener_class"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

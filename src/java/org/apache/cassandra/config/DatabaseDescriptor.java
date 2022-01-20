@@ -1728,6 +1728,16 @@ public class DatabaseDescriptor
         conf.truncate_request_timeout_in_ms = timeOutInMillis;
     }
 
+    public static long getRepairPrepareMessageTimeout(TimeUnit unit)
+    {
+        return unit.convert(conf.repair_prepare_message_timeout_in_ms, MILLISECONDS);
+    }
+
+    public static void setRepairPrepareMessageTimeout(long timeOutInMillis)
+    {
+        conf.repair_prepare_message_timeout_in_ms = timeOutInMillis;
+    }
+
     public static boolean hasCrossNodeTimeout()
     {
         return conf.cross_node_timeout;
@@ -2908,6 +2918,11 @@ public class DatabaseDescriptor
     public static boolean supportsHardlinksForEntireSSTableStreaming()
     {
         return conf.storage_flags.supports_hardlinks_for_entire_sstable_streaming;
+    }
+
+    public static boolean supportsFlushBeforeStreaming()
+    {
+        return conf.storage_flags.supports_flush_before_streaming;
     }
 
     public static boolean nettyZerocopyEnabled()

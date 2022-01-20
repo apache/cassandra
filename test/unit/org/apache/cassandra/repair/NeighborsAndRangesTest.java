@@ -19,7 +19,9 @@
 package org.apache.cassandra.repair;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Lists;
@@ -27,12 +29,51 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.repair.RepairRunnable.NeighborsAndRanges;
+import static org.apache.cassandra.repair.RepairRunnable.createNeighbordAndRangesForOfflineService;
+import static org.apache.cassandra.repair.messages.RepairOption.parse;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class NeighborsAndRangesTest extends AbstractRepairTest
 {
+    @Test
+    public void testCreateNeighbordAndRangesForOfflineService()
+    {
+        Map<String, String> options = new HashMap<>();
+
+        // no hosts
+        assertThatThrownBy(() -> create(options)).hasMessageContaining("There should be at least 1 host");
+        options.put(RepairOption.HOSTS_KEY, FBUtilities.getJustBroadcastAddress().getHostAddress());
+
+        // no ranges
+        assertThatThrownBy(() -> create(options)).hasMessageContaining("Token ranges must be specified");
+        options.put(RepairOption.RANGES_KEY, "0:10,11:20,21:30");
+
+        // no neighor, because the only host is local
+        assertThatThrownBy(() -> create(options)).hasMessageContaining("There should be at least 1 neighbor");
+
+        // with proper neighbors
+        options.put(RepairOption.HOSTS_KEY, "127.0.99.1,127.0.99.2," + FBUtilities.getJustBroadcastAddress().getHostAddress());
+        RepairRunnable.NeighborsAndRanges neighborsAndRanges = create(options);
+
+        assertThat(neighborsAndRanges.shouldExcludeDeadParticipants).isFalse();
+        assertThat(neighborsAndRanges.participants).hasSize(2); // excluded local host
+        assertThat(neighborsAndRanges.commonRanges).hasSize(1); // all in one common range
+        assertThat(neighborsAndRanges.filterCommonRanges("ks", new String[] { "cf"})).isSameAs(neighborsAndRanges.commonRanges);
+    }
+
+    private static RepairRunnable.NeighborsAndRanges create(Map<String, String> options)
+    {
+        RepairOption option = parse(options, Murmur3Partitioner.instance);
+        return createNeighbordAndRangesForOfflineService(option);
+    }
+
     /**
      * For non-forced repairs, common ranges should be passed through as-is
      */

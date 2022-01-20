@@ -511,7 +511,8 @@ public class ActiveRepairServiceTest
         Util.markNodeAsDead(REMOTE);
         endpoints.add(REMOTE);
 
-        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, true, false, 1, ranges, false, false, false,  PreviewKind.ALL, false, false);
+        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, true, false, 1, ranges,
+                                                false, false, false, false, PreviewKind.ALL, false, false, false);
         try
         {
             ActiveRepairService.instance.prepareForRepair(parentRepairSession, LOCAL, endpoints, options, isForcedRepair, columnFamilyStores);

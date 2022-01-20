@@ -2158,6 +2158,15 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     /**
+     * @return true if global reference exists for the physical sstable corresponding to the provided descriptor.
+     */
+    @VisibleForTesting
+    public static boolean hasGlobalReference(Descriptor descriptor)
+    {
+        return GlobalTidy.exists(descriptor);
+    }
+
+    /**
      * One instance per SSTableReader we create.
      *
      * We can create many InstanceTidiers (one for every time we reopen an sstable with MOVED_START for example),
@@ -2349,14 +2358,20 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         public void tidy()
         {
-            lookup.remove(desc);
+            try
+            {
+                if (obsoletion != null)
+                    obsoletion.commit();
 
-            if (obsoletion != null)
-                obsoletion.commit();
-
-            // don't ideally want to dropPageCache for the file until all instances have been released
-            INativeLibrary.instance.trySkipCache(desc.fileFor(Component.DATA), 0, 0);
-            INativeLibrary.instance.trySkipCache(desc.fileFor(Component.PRIMARY_INDEX), 0, 0);
+                // don't ideally want to dropPageCache for the file until all instances have been released
+                INativeLibrary.instance.trySkipCache(desc.fileFor(Component.DATA), 0, 0);
+                INativeLibrary.instance.trySkipCache(desc.fileFor(Component.PRIMARY_INDEX), 0, 0);
+            }
+            finally
+            {
+                // remove reference after deleting local files, to avoid racing with {@link GlobalTidy#exists}
+                lookup.remove(desc);
+            }
         }
 
         public String name()
@@ -2381,6 +2396,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 throw new AssertionError();
             }
             return refc;
+        }
+
+        public static boolean exists(Descriptor descriptor)
+        {
+            return lookup.containsKey(descriptor);
         }
     }
 
