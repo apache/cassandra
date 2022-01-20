@@ -814,6 +814,8 @@ public class Config
     /** The configuration of startup checks. */
     public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();
 
+    public volatile DurationSpec repair_state_expires = DurationSpec.inDays(3);
+
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
      */

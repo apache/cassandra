@@ -28,6 +28,9 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.repair.state.State;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -66,12 +69,19 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
             switch (message.verb())
             {
                 case PREPARE_MSG:
+                {
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
                     logger.debug("Preparing, {}", prepareMessage);
-
+                    ParticipateState state = new ParticipateState(prepareMessage);
+                    if (!ActiveRepairService.instance.register(state))
+                    {
+                        logger.debug("Duplicate prepare message found for {}", state.id);
+                        return;
+                    }
                     if (!ActiveRepairService.verifyCompactionsPendingThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
                     {
                         // error is logged in verifyCompactionsPendingThreshold
+                        state.phase.fail("Too many pending compactions");
                         sendFailureResponse(message);
                         return;
                     }
@@ -82,8 +92,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         ColumnFamilyStore columnFamilyStore = ColumnFamilyStore.getIfExists(tableId);
                         if (columnFamilyStore == null)
                         {
-                            logErrorAndSendFailureResponse(String.format("Table with id %s was dropped during prepare phase of repair",
-                                                                         tableId), message);
+                            String reason = String.format("Table with id %s was dropped during prepare phase of repair",
+                                                          tableId);
+                            state.phase.fail(reason);
+                            logErrorAndSendFailureResponse(reason, message);
                             return;
                         }
                         columnFamilyStores.add(columnFamilyStore);
@@ -97,15 +109,25 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                              prepareMessage.isGlobal,
                                                                              prepareMessage.previewKind);
                     MessagingService.instance().send(message.emptyResponse(), message.from());
+                }
                     break;
 
                 case SNAPSHOT_MSG:
+                {
                     logger.debug("Snapshotting {}", desc);
+                    ParticipateState state = ActiveRepairService.instance.participate(desc.parentSessionId);
+                    if (state == null)
+                    {
+                        logErrorAndSendFailureResponse("Unknown repair " + desc.parentSessionId, message);
+                        return;
+                    }
                     final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
                     if (cfs == null)
                     {
-                        logErrorAndSendFailureResponse(String.format("Table %s.%s was dropped during snapshot phase of repair %s",
-                                                                     desc.keyspace, desc.columnFamily, desc.parentSessionId), message);
+                        String reason = String.format("Table %s.%s was dropped during snapshot phase of repair %s",
+                                                      desc.keyspace, desc.columnFamily, desc.parentSessionId);
+                        state.phase.fail(reason);
+                        logErrorAndSendFailureResponse(reason, message);
                         return;
                     }
 
@@ -122,40 +144,68 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from());
                     MessagingService.instance().send(message.emptyResponse(), message.from());
+                }
                     break;
 
                 case VALIDATION_REQ:
+                {
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
-                    // trigger read-only compaction
-                    ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
-                    if (store == null)
+
+                    ParticipateState participate = ActiveRepairService.instance.participate(desc.parentSessionId);
+                    if (participate == null)
                     {
-                        logger.error("Table {}.{} was dropped during snapshot phase of repair {}",
-                                     desc.keyspace, desc.columnFamily, desc.parentSessionId);
-                        MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
+                        logErrorAndSendFailureResponse("Unknown repair " + desc.parentSessionId, message);
                         return;
                     }
 
-                    ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
-                    PreviewKind previewKind;
-                    try
+                    ValidationState vState = new ValidationState(desc, message.from());
+                    if (!participate.register(vState))
                     {
-                        previewKind = previewKind(desc.parentSessionId);
-                    }
-                    catch (NoSuchRepairSessionException e)
-                    {
-                        logger.warn("Parent repair session {} has been removed, failing repair", desc.parentSessionId);
-                        MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
+                        logger.debug("Duplicate validation message found for parent={}, validation={}", participate.id, vState.id);
                         return;
                     }
-                    
-                    Validator validator = new Validator(desc, message.from(), validationRequest.nowInSec,
-                                                        isIncremental(desc.parentSessionId), previewKind);
-                    ValidationManager.instance.submitValidation(store, validator);
+                    try
+                    {
+                        // trigger read-only compaction
+                        ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
+                        if (store == null)
+                        {
+                            logger.error("Table {}.{} was dropped during validation phase of repair {}",
+                                         desc.keyspace, desc.columnFamily, desc.parentSessionId);
+                            vState.phase.fail(String.format("Table %s.%s was dropped", desc.keyspace, desc.columnFamily));
+                            MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
+                            return;
+                        }
+
+                        ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
+                        PreviewKind previewKind;
+                        try
+                        {
+                            previewKind = previewKind(desc.parentSessionId);
+                        }
+                        catch (NoSuchRepairSessionException e)
+                        {
+                            logger.warn("Parent repair session {} has been removed, failing repair", desc.parentSessionId);
+                            vState.phase.fail(e);
+                            MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
+                            return;
+                        }
+
+                        Validator validator = new Validator(vState, validationRequest.nowInSec,
+                                                            isIncremental(desc.parentSessionId), previewKind);
+                        ValidationManager.instance.submitValidation(store, validator);
+                    }
+                    catch (Throwable t)
+                    {
+                        vState.phase.fail(t);
+                        throw t;
+                    }
+                }
                     break;
 
                 case SYNC_REQ:
+                {
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);
@@ -168,13 +218,16 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                        request.previewKind,
                                                                        request.asymmetric);
                     task.run();
+                }
                     break;
 
                 case CLEANUP_MSG:
+                {
                     logger.debug("cleaning up repair");
                     CleanupMessage cleanup = (CleanupMessage) message.payload;
                     ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
                     MessagingService.instance().send(message.emptyResponse(), message.from());
+                }
                     break;
 
                 case PREPARE_CONSISTENT_REQ:
@@ -220,7 +273,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         {
             logger.error("Got error, removing parent repair session");
             if (desc != null && desc.parentSessionId != null)
+            {
+                ParticipateState parcipate = ActiveRepairService.instance.participate(desc.parentSessionId);
+                if (parcipate != null)
+                    parcipate.phase.fail(e);
                 ActiveRepairService.instance.removeParentRepairSession(desc.parentSessionId);
+            }
             throw new RuntimeException(e);
         }
     }

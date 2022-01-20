@@ -22,6 +22,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -43,11 +44,15 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.schema.Schema;
@@ -109,6 +114,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
@@ -142,7 +148,6 @@ import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownL
 @Simulate(with = MONITORS)
 public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
-
     public enum ParentRepairStatus
     {
         IN_PROGRESS, COMPLETED, FAILED
@@ -171,6 +176,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     private final ConcurrentMap<TimeUUID, RepairSession> sessions = new ConcurrentHashMap<>();
 
     private final ConcurrentMap<TimeUUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
+    private final Cache<TimeUUID, CoordinatorState> repairs;
+    private final Cache<TimeUUID, ParticipateState> participates;
+
+    private volatile ScheduledFuture<?> irCleanup;
 
     static
     {
@@ -186,13 +195,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     static ExecutorPlus initializeExecutor(int maxPoolSize, Config.RepairCommandPoolFullStrategy strategy)
     {
         return executorFactory()
-                .localAware()       // we do trace repair sessions, and seem to rely on local aware propagation (though could do with refactoring)
-                .withJmxInternal()
-                .configurePooled("Repair-Task", maxPoolSize)
-                .withKeepAlive(1, TimeUnit.HOURS)
-                .withQueueLimit(strategy == reject ? 0 : Integer.MAX_VALUE)
-                .withRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy())
-                .build();
+               .localAware()       // we do trace repair sessions, and seem to rely on local aware propagation (though could do with refactoring)
+               .withJmxInternal()
+               .configurePooled("Repair-Task", maxPoolSize)
+               .withKeepAlive(1, TimeUnit.HOURS)
+               .withQueueLimit(strategy == reject ? 0 : Integer.MAX_VALUE)
+               .withRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy())
+               .build();
     }
 
     public static ExecutorPlus repairCommandExecutor()
@@ -222,19 +231,39 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              .maximumSize(Long.getLong("cassandra.parent_repair_status_cache_size", 100_000))
                                              .build();
 
+        DurationSpec duration = getRepairStateExpires();
+        logger.info("Storing repair state for {}", duration);
+        repairs = CacheBuilder.newBuilder()
+                              .expireAfterWrite(duration.quantity(), duration.unit())
+                              .build();
+        participates = CacheBuilder.newBuilder()
+                                   .expireAfterWrite(duration.quantity(), duration.unit())
+                                   .build();
+
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     public void start()
     {
         consistent.local.start();
-        ScheduledExecutors.optionalTasks.scheduleAtFixedRate(consistent.local::cleanup, 0,
-                                                             LocalSessions.CLEANUP_INTERVAL,
-                                                             TimeUnit.SECONDS);
+        this.irCleanup = ScheduledExecutors.optionalTasks.scheduleAtFixedRate(consistent.local::cleanup, 0,
+                                                                              LocalSessions.CLEANUP_INTERVAL,
+                                                                              TimeUnit.SECONDS);
+    }
+
+    @VisibleForTesting
+    public void clearLocalRepairState()
+    {
+        // .cleanUp() doesn't clear, it looks to only run gc on things that could be removed... this method should remove all state
+        repairs.asMap().clear();
+        participates.asMap().clear();
     }
 
     public void stop()
     {
+        ScheduledFuture<?> irCleanup = this.irCleanup;
+        if (irCleanup != null)
+            irCleanup.cancel(false);
         consistent.local.stop();
     }
 
@@ -368,9 +397,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, nextTimeUUID(), range, keyspace,
+        final RepairSession session = new RepairSession(parentRepairSession, range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+        repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
         // register listeners
@@ -444,16 +474,15 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     /**
      * Return all of the neighbors with whom we share the provided range.
      *
-     * @param keyspaceName keyspace to repair
+     * @param keyspaceName        keyspace to repair
      * @param keyspaceLocalRanges local-range for given keyspaceName
-     * @param toRepair token to repair
-     * @param dataCenters the data centers to involve in the repair
-     *
+     * @param toRepair            token to repair
+     * @param dataCenters         the data centers to involve in the repair
      * @return neighbors with whom we share the provided range
      */
     public static EndpointsForRange getNeighbors(String keyspaceName, Iterable<Range<Token>> keyspaceLocalRanges,
-                                          Range<Token> toRepair, Collection<String> dataCenters,
-                                          Collection<String> hosts)
+                                                 Range<Token> toRepair, Collection<String> dataCenters,
+                                                 Collection<String> hosts)
     {
         StorageService ss = StorageService.instance;
         EndpointsByRange replicaSets = ss.getRangeToAddressMap(keyspaceName);
@@ -530,13 +559,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // we only want to set repairedAt for incremental repairs including all replicas for a token range. For non-global incremental repairs, full repairs, the UNREPAIRED_SSTABLE value will prevent
         // sstables from being promoted to repaired or preserve the repairedAt/pendingRepair values, respectively. For forced repairs, repairedAt time is only set to UNREPAIRED_SSTABLE if we actually
         // end up skipping replicas
-        if (options.isIncremental() && options.isGlobal() && ! force)
+        if (options.isIncremental() && options.isGlobal() && !force)
         {
             return currentTimeMillis();
         }
         else
         {
-            return  ActiveRepairService.UNREPAIRED_SSTABLE;
+            return ActiveRepairService.UNREPAIRED_SSTABLE;
         }
     }
 
@@ -548,7 +577,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (pendingCompactions > pendingThreshold)
         {
             logger.error("[{}] Rejecting incoming repair, pending compactions ({}) above threshold ({})",
-                          previewKind.logPrefix(parentRepairSession), pendingCompactions, pendingThreshold);
+                         previewKind.logPrefix(parentRepairSession), pendingCompactions, pendingThreshold);
             return false;
         }
         return true;
@@ -615,7 +644,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     // bailout early to avoid potentially waiting for a long time.
                     failRepair(parentRepairSession, "Endpoint not alive: " + neighbour);
                 }
-
             }
         }
         try
@@ -664,8 +692,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
                         {
                             logger.debug("Failed to clean up parent repair session {} on {}. The uncleaned sessions will " +
-                                    "be removed on a node restart. This should not be a problem unless you see thousands " +
-                                    "of messages like this.", parentRepairSession, endpoint);
+                                         "be removed on a node restart. This should not be a problem unless you see thousands " +
+                                         "of messages like this.", parentRepairSession, endpoint);
                         }
                     };
 
@@ -679,7 +707,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-    private void failRepair(TimeUUID parentRepairSession, String errorMsg) {
+    private void failRepair(TimeUUID parentRepairSession, String errorMsg)
+    {
         removeParentRepairSession(parentRepairSession);
         throw new RuntimeException(errorMsg);
     }
@@ -701,14 +730,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     /**
-     * We assume when calling this method that a parent session for the provided identifier 
-     * exists, and that session is still in progress. When it doesn't, that should mean either 
+     * We assume when calling this method that a parent session for the provided identifier
+     * exists, and that session is still in progress. When it doesn't, that should mean either
      * {@link #abort(Predicate, String)} or {@link #failRepair(UUID, String)} have removed it.
-     * 
+     *
      * @param parentSessionId an identifier for an active parent repair session
-     * 
      * @return the {@link ParentRepairSession} associated with the provided identifier
-     * 
      * @throws NoSuchRepairSessionException if the provided identifier does not map to an active parent session
      */
     public ParentRepairSession getParentRepairSession(TimeUUID parentSessionId) throws NoSuchRepairSessionException
@@ -722,11 +749,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     /**
      * called when the repair session is done - either failed or anticompaction has completed
-     *
+     * <p>
      * clears out any snapshots created by this repair
      *
      * @param parentSessionId an identifier for an active parent repair session
-     *                        
      * @return the {@link ParentRepairSession} associated with the provided identifier
      */
     public synchronized ParentRepairSession removeParentRepairSession(TimeUUID parentSessionId)
@@ -768,7 +794,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 // The trees may be off-heap, and will therefore need to be released.
                 ValidationResponse validation = (ValidationResponse) payload;
                 MerkleTrees trees = validation.trees;
-                
+
                 // The response from a failed validation won't have any trees.
                 if (trees != null)
                     trees.release();
@@ -859,10 +885,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public String toString()
         {
             return "ParentRepairSession{" +
-                    "columnFamilyStores=" + columnFamilyStores +
-                    ", ranges=" + ranges +
-                    ", repairedAt=" + repairedAt +
-                    '}';
+                   "columnFamilyStores=" + columnFamilyStores +
+                   ", ranges=" + ranges +
+                   ", repairedAt=" + repairedAt +
+                   '}';
         }
 
         public void setHasSnapshots()
@@ -875,11 +901,25 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     If the coordinator node dies we should remove the parent repair session from the other nodes.
     This uses the same notifications as we get in RepairSession
      */
-    public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
-    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-    public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
-    public void onAlive(InetAddressAndPort endpoint, EndpointState state) {}
-    public void onDead(InetAddressAndPort endpoint, EndpointState state) {}
+    public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
+    {
+    }
+
+    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue)
+    {
+    }
+
+    public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
+    {
+    }
+
+    public void onAlive(InetAddressAndPort endpoint, EndpointState state)
+    {
+    }
+
+    public void onDead(InetAddressAndPort endpoint, EndpointState state)
+    {
+    }
 
     public void onRemove(InetAddressAndPort endpoint)
     {
@@ -893,7 +933,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     /**
      * Something has happened to a remote node - if that node is a coordinator, we mark the parent repair session id as failed.
-     *
+     * <p>
      * The fail marker is kept in the map for 24h to make sure that if the coordinator does not agree
      * that the repair failed, we need to fail the entire repair session
      *
@@ -1017,5 +1057,52 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownNowAndWait(timeout, unit, clearSnapshotExecutor);
+    }
+
+    public Collection<CoordinatorState> coordinators()
+    {
+        return repairs.asMap().values();
+    }
+
+    public CoordinatorState coordinator(UUID id)
+    {
+        return repairs.getIfPresent(id);
+    }
+
+    public void register(CoordinatorState state)
+    {
+        repairs.put(state.id, state);
+    }
+
+    public boolean register(ParticipateState state)
+    {
+        synchronized (participates)
+        {
+            ParticipateState current = participates.getIfPresent(state.id);
+            if (current != null)
+                return false;
+            participates.put(state.id, state);
+        }
+        return true;
+    }
+
+    public ParticipateState participate(TimeUUID id)
+    {
+        return participates.getIfPresent(id);
+    }
+
+    public Collection<ValidationState> validations()
+    {
+        return participates.asMap().values().stream().flatMap(p -> p.validations().stream()).collect(Collectors.toList());
+    }
+
+    public ValidationState validation(UUID id)
+    {
+        for (ValidationState state : validations())
+        {
+            if (state.id.equals(id))
+                return state;
+        }
+        return null;
     }
 }

@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -41,6 +43,7 @@ import org.apache.cassandra.service.StorageService;
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
@@ -87,7 +90,7 @@ public class RepairTest extends TestBaseImpl
         configModifier = configModifier.andThen(
         config -> config.set("hinted_handoff_enabled", false)
                         .set("commitlog_sync_batch_window_in_ms", 5)
-                        .with(NETWORK)
+                        .with(NETWORK, NATIVE_PROTOCOL)
                         .with(GOSSIP)
         );
 
@@ -141,7 +144,7 @@ public class RepairTest extends TestBaseImpl
     void shutDownNodesAndForceRepair(ICluster<IInvokableInstance> cluster, String keyspace, int downNode) throws Exception
     {
         populate(cluster, keyspace, "{'enabled': false}");
-        cluster.get(downNode).shutdown().get(5, TimeUnit.SECONDS);
+        ClusterUtils.stopUnchecked(cluster.get(downNode));
         repair(cluster, keyspace, ImmutableMap.of("forceRepair", "true"));
     }
 

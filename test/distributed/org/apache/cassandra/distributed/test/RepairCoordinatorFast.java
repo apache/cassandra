@@ -29,12 +29,15 @@ import org.junit.Test;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.LongTokenRange;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.NodeToolResult.ProgressEventType;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 
@@ -81,8 +84,22 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
                 assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
             }
 
+            //TODO this is only for debuging while writing... remove
+            StringBuilder sb = new StringBuilder();
+            log(sb, CLUSTER.get(2), "SELECT * FROM system_views.repairs");
+            log(sb, CLUSTER.get(2), "SELECT * FROM system_views.repair_sessions");
+            log(sb, CLUSTER.get(2), "SELECT * FROM system_views.repair_jobs");
+            CLUSTER.forEach(i -> log(sb, i, "SELECT * FROM system_views.repair_validations"));
+            System.err.println(sb);
+
             Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
         });
+    }
+
+    private static void log(StringBuilder sb, IInvokableInstance inst, String query)
+    {
+        sb.append("node").append(inst.config().num()).append(": ").append(query).append("\n");
+        sb.append(QueryResultUtil.expand(inst.executeInternalWithResult(query))).append("\n");
     }
 
     @Test

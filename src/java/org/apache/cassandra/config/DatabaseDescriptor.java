@@ -4096,4 +4096,18 @@ public class DatabaseDescriptor
     {
         return conf.enable_uuid_sstable_identifiers;
     }
+
+    public static DurationSpec getRepairStateExpires()
+    {
+        return conf.repair_state_expires;
+    }
+
+    public static void setRepairStateExpires(DurationSpec duration)
+    {
+        if (!conf.repair_state_expires.equals(Objects.requireNonNull(duration, "duration")))
+        {
+            logger.info("Setting repair_state_expires to {}", duration);
+            conf.repair_state_expires = duration;
+        }
+    }
 }
