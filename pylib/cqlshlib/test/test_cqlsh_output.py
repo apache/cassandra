@@ -781,23 +781,6 @@ class TestCqlshOutput(BaseTestCase):
             self.assertRegex(output, '^Connected to .* at %s:%d$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
 
-    @unittest.skipIf(six.PY3, 'Will not emit warning when running Python 3')
-    def test_warn_py2(self):
-        # has the warning
-        with testrun_cqlsh(tty=True, env=self.default_env) as c:
-            self.assertIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
-
-        # can suppress
-        env = self.default_env.copy()
-        env['CQLSH_NO_WARN_PY2'] = '1'
-        with testrun_cqlsh(tty=True, env=env) as c:
-            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
-
-    @unittest.skipIf(six.PY2, 'Warning will be emitted when running Python 2.7')
-    def test_no_warn_py3(self):
-        with testrun_cqlsh(tty=True, env=self.default_env) as c:
-            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
-
     @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:

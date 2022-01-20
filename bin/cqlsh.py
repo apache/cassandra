@@ -37,7 +37,7 @@ from glob import glob
 from uuid import UUID
 
 if sys.version_info < (3, 6) and sys.version_info[0:2] != (2, 7):
-    sys.exit("\ncqlsh requires Python 3.6+ or Python 2.7 (deprecated)\n")
+    sys.exit("\ncqlsh requires Python 3.6+\n")
 
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
@@ -522,7 +522,6 @@ class Shell(cmd.Cmd):
 
         if tty:
             self.reset_prompt()
-            self.maybe_warn_py2()
             self.report_connection()
             print('Use HELP for help.')
         else:
@@ -608,12 +607,6 @@ class Shell(cmd.Cmd):
         # set_cql_version.
         vers['cql'] = self.cql_version
         print("[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers)
-
-    def maybe_warn_py2(self):
-        py2_suppress_warn = 'CQLSH_NO_WARN_PY2'
-        if sys.version_info[0:2] == (2, 7) and not os.environ.get(py2_suppress_warn):
-            print("Python 2.7 support is deprecated. "
-                  "Install Python 3.6+ or set %s to suppress this message.\n" % (py2_suppress_warn,))
 
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
