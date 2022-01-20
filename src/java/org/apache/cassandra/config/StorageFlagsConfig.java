@@ -35,4 +35,6 @@ public class StorageFlagsConfig
     public boolean supports_sstable_read_meter = true;
 
     public boolean supports_hardlinks_for_entire_sstable_streaming = true;
+
+    public boolean supports_flush_before_streaming = true;
 }

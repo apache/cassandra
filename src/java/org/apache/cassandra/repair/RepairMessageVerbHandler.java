@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair;
 
 import java.util.*;
+import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -153,7 +154,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
                 Validator validator = new Validator(desc, message.from(), validationRequest.nowInSec,
                                                     isIncremental(desc.parentSessionId), previewKind(desc.parentSessionId));
-                ValidationManager.instance.submitValidation(store, validator);
+                Future<?> validationFuture = ValidationManager.instance.submitValidation(store, validator);
+                ParentRepairSessionListener.instance.onValidation(desc, validationFuture);
             }
             else if (message.verb() == SYNC_REQ)
             {
@@ -170,7 +172,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                    isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
                                                                    request.previewKind,
                                                                    request.asymmetric);
-                task.run();
+                Future<?> syncFuture = task.execute();
+                ParentRepairSessionListener.instance.onSync(desc, syncFuture);
             }
             else if (message.verb() == CLEANUP_MSG)
             {
@@ -220,7 +223,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         }
         catch (Exception e)
         {
-            logger.error("Got error, removing parent repair session");
+            logger.error("Got error processing {}, removing parent repair session", message.verb());
             if (desc != null && desc.parentSessionId != null)
                 ActiveRepairService.instance.removeParentRepairSession(desc.parentSessionId);
             throw new RuntimeException(e);

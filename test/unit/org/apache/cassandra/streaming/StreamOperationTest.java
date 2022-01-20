@@ -19,6 +19,8 @@ package org.apache.cassandra.streaming;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.compaction.OperationType;
+
 import static org.junit.Assert.assertEquals;
 
 public class StreamOperationTest
@@ -36,6 +38,8 @@ public class StreamOperationTest
         assertEquals(StreamOperation.REBUILD, StreamOperation.fromString("Rebuild"));
         assertEquals(StreamOperation.BULK_LOAD, StreamOperation.fromString("Bulk Load"));
         assertEquals(StreamOperation.REPAIR, StreamOperation.fromString("Repair"));
+        assertEquals(StreamOperation.REGION_DECOMMISSION, StreamOperation.fromString("Region Decommission"));
+        assertEquals(StreamOperation.REGION_REPAIR, StreamOperation.fromString("Region Repair"));
         // Test case insensivity
         assertEquals(StreamOperation.REPAIR, StreamOperation.fromString("rEpair"));
 
@@ -43,5 +47,17 @@ public class StreamOperationTest
         assertEquals("Repair", StreamOperation.REPAIR.getDescription());
         assertEquals("Restore replica count", StreamOperation.RESTORE_REPLICA_COUNT.getDescription());
 
+    }
+
+    @Test
+    public void testOpType()
+    {
+        assertEquals(StreamOperation.OTHER.opType(), OperationType.STREAM);
+        assertEquals(StreamOperation.RESTORE_REPLICA_COUNT.opType(), OperationType.STREAM);
+        assertEquals(StreamOperation.RELOCATION.opType(), OperationType.STREAM);
+        assertEquals(StreamOperation.REBUILD.opType(), OperationType.STREAM);
+        assertEquals(StreamOperation.REPAIR.opType(), OperationType.STREAM);
+        assertEquals(StreamOperation.REGION_REPAIR.opType(), OperationType.REGION_REPAIR);
+        assertEquals(StreamOperation.REGION_DECOMMISSION.opType(), OperationType.REGION_DECOMMISSION);
     }
 }

@@ -30,7 +30,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
