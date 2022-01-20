@@ -31,5 +31,7 @@ public interface TokenMetadataProvider
 
     TokenMetadata getTokenMetadata();
 
+    TokenMetadata getTokenMetadataForKeyspace(String keyspace);
+
     void replaceTokenMetadata(TokenMetadata newTokenMetadata);
 }

@@ -33,6 +33,7 @@ import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.SplitterTest;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -43,6 +44,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 public class SortedLocalRangesTest
@@ -51,6 +53,9 @@ public class SortedLocalRangesTest
 
     @Mock
     ColumnFamilyStore cfs;
+
+    @Mock
+    Keyspace keyspace;
 
     @Mock
     StorageService storageService;
@@ -68,7 +73,7 @@ public class SortedLocalRangesTest
     }
 
     @Before
-    public void setUp()
+    public void setUp() throws IllegalAccessException
     {
         MockitoAnnotations.initMocks(this);
 
@@ -78,7 +83,9 @@ public class SortedLocalRangesTest
         when(cfs.getKeyspaceName()).thenReturn("keyspace");
         when(cfs.getTableName()).thenReturn("table");
 
-        when(storageService.getTokenMetadata()).thenReturn(tmd);
+        FBUtilities.getProtectedField(ColumnFamilyStore.class, "keyspace").set(cfs, keyspace);
+
+        when(storageService.getTokenMetadataForKeyspace(eq("keyspace"))).thenReturn(tmd);
     }
 
     SortedLocalRanges makeRanges(long ringVersion, List<Splitter.WeightedRange> ranges)

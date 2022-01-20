@@ -91,7 +91,7 @@ public class SortedLocalRanges
 
         do
         {
-            tmd = storageService.getTokenMetadata();
+            tmd = cfs.keyspace.getReplicationStrategy().getTokenMetadata();
             ringVersion = tmd.getRingVersion();
             localRanges = getLocalRanges(cfs, tmd);
 
@@ -141,7 +141,7 @@ public class SortedLocalRanges
      */
     public boolean isOutOfDate()
     {
-        return !valid || ringVersion != storageService.getTokenMetadata().getRingVersion();
+        return !valid || ringVersion != storageService.getTokenMetadataForKeyspace(realm.getKeyspaceName()).getRingVersion();
     }
 
     public void invalidate()

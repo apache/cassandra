@@ -333,7 +333,7 @@ public final class KeyspaceMetadata implements SchemaElement
     {
         return AbstractReplicationStrategy.createReplicationStrategy(name,
                                                                      params.replication.klass,
-                                                                     StorageService.instance.getTokenMetadata(),
+                                                                     StorageService.instance.getTokenMetadataForKeyspace(name),
                                                                      DatabaseDescriptor.getEndpointSnitch(),
                                                                      params.replication.options);
     }

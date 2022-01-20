@@ -35,6 +35,12 @@ public class CustomTokenMetadataProviderTest extends TestCase
         }
 
         @Override
+        public TokenMetadata getTokenMetadataForKeyspace(String keyspace)
+        {
+            return null;
+        }
+
+        @Override
         public void replaceTokenMetadata(TokenMetadata newTokenMetadata)
         {
         }
