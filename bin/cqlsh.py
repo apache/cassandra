@@ -36,7 +36,7 @@ from contextlib import contextmanager
 from glob import glob
 from uuid import UUID
 
-if sys.version_info < (3, 6) and sys.version_info[0:2] != (2, 7):
+if sys.version_info < (3, 6):
     sys.exit("\ncqlsh requires Python 3.6+\n")
 
 # see CASSANDRA-10428
