@@ -85,7 +85,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.TransparentDataEncryptionOptions",
     "org.apache.cassandra.dht.IPartitioner",
-    "org.apache.cassandra.distributed.impl.InstanceClassLoader",
+    "org.apache.cassandra.distributed.shared.InstanceClassLoader",
     "org.apache.cassandra.distributed.impl.InstanceConfig",
     "org.apache.cassandra.distributed.impl.InvokableInstance",
     "org.apache.cassandra.distributed.impl.InvokableInstance$CallableNoExcept",
