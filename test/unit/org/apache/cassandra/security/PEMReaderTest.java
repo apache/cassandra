@@ -352,8 +352,22 @@ public class PEMReaderTest
     @Test
     public void readEncryptedDSAKey() throws IOException, GeneralSecurityException
     {
-        PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_encrypted_dsa_key, "mytest1");
+        PrivateKey privateKey = PEMReader.extractPrivateKey(encoded_encrypted_dsa_key, "mytest");
         Assert.assertNotNull(privateKey);
+    }
+
+    @Test(expected = GeneralSecurityException.class)
+    public void readEncryptedDSAKeyWithBadPassword() throws IOException, GeneralSecurityException
+    {
+        try
+        {
+            PEMReader.extractPrivateKey(encoded_encrypted_dsa_key, "bad-password");
+        } catch(GeneralSecurityException e) {
+            Assert.assertTrue(e.getMessage().startsWith("Failed to decrypt the private key data. Either the password " +
+                                                        "provided for the key is wrong or the private key data is " +
+                                                        "corrupted. msg="));
+            throw e;
+        }
     }
 
     @Test(expected = GeneralSecurityException.class)

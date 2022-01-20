@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
 import javax.crypto.SecretKeyFactory;
@@ -115,7 +116,17 @@ public final class PEMReader
 
             Cipher cipher = Cipher.getInstance(epki.getAlgName());
             cipher.init(Cipher.DECRYPT_MODE, encryptionKey, params);
-            byte[] rawKeyBytes = cipher.doFinal(epki.getEncryptedData());
+            byte[] rawKeyBytes = null;
+            try
+            {
+                rawKeyBytes = cipher.doFinal(epki.getEncryptedData());
+            }
+            catch (BadPaddingException e)
+            {
+                throw new GeneralSecurityException("Failed to decrypt the private key data. Either the password " +
+                                                   "provided for the key is wrong or the private key data is " +
+                                                   "corrupted. msg="+e.getMessage(), e);
+            }
             logger.debug("Decrypted private key's length: {}", rawKeyBytes.length);
 
             keySpec = new PKCS8EncodedKeySpec(rawKeyBytes);
@@ -252,6 +263,7 @@ public final class PEMReader
 
     /**
      * Decodes given input in Base64 format.
+     *
      * @param base64Input input to be decoded
      * @return byte[] containing decoded bytes
      * @throws GeneralSecurityException in case it fails to decode the given base64 input
