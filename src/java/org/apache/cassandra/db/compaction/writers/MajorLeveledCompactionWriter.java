@@ -88,7 +88,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
             }
 
             averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
-            switchCompactionLocation(getWriteDirectory(expectedWriteSize));
+            switchCompactionLocation(getWriteDirectory(getExpectedWriteSize()));
             partitionsWritten = 0;
             sstablesWritten++;
         }
@@ -108,5 +108,11 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                     txn);
         sstableWriter.switchWriter(writer);
+    }
+
+    @Override
+    protected long getExpectedWriteSize()
+    {
+        return expectedWriteSize;
     }
 }

@@ -17,31 +17,40 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
-import junit.framework.Assert;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -55,9 +64,12 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -366,5 +378,148 @@ public class LeveledCompactionStrategyTest
         strategy.handleNotification(new SSTableAddedNotification(Collections.singleton(sstable2)), this);
         assertTrue(unrepaired.manifest.getLevel(1).contains(sstable2));
         assertFalse(repaired.manifest.getLevel(1).contains(sstable2));
+    }
+
+    @Test
+    public void testReduceScopeL0L1() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        Map<String, String> localOptions = new HashMap<>();
+        localOptions.put("class", "LeveledCompactionStrategy");
+        localOptions.put("sstable_size_in_mb", "1");
+        cfs.setCompactionParameters(localOptions);
+        List<SSTableReader> l1sstables = new ArrayList<>();
+        for (int i = 0; i < 10; i++)
+        {
+            SSTableReader l1sstable = MockSchema.sstable(i, 1 * 1024 * 1024, cfs);
+            l1sstable.descriptor.getMetadataSerializer().mutateLevel(l1sstable.descriptor, 1);
+            l1sstable.reloadSSTableMetadata();
+            l1sstables.add(l1sstable);
+        }
+        List<SSTableReader> l0sstables = new ArrayList<>();
+        for (int i = 10; i < 20; i++)
+            l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
+
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, Iterables.concat(l0sstables, l1sstables)))
+        {
+            CompactionTask task = new LeveledCompactionTask(cfs, txn, 1, 0, 1024*1024, false);
+            SSTableReader lastRemoved = null;
+            boolean removed = true;
+            for (int i = 0; i < l0sstables.size(); i++)
+            {
+                Set<SSTableReader> before = new HashSet<>(txn.originals());
+                removed = task.reduceScopeForLimitedSpace(0);
+                SSTableReader removedSSTable = Sets.difference(before, txn.originals()).stream().findFirst().orElse(null);
+                if (removed)
+                {
+                    assertNotNull(removedSSTable);
+                    assertTrue(lastRemoved == null || removedSSTable.onDiskLength() < lastRemoved.onDiskLength());
+                    assertEquals(0, removedSSTable.getSSTableLevel());
+                    Pair<Set<SSTableReader>, Set<SSTableReader>> sstables = groupByLevel(txn.originals());
+                    Set<SSTableReader> l1after = sstables.right;
+
+                    assertEquals(l1after, new HashSet<>(l1sstables)); // we don't touch L1
+                    assertEquals(before.size() - 1, txn.originals().size());
+                    lastRemoved = removedSSTable;
+                }
+                else
+                {
+                    assertNull(removedSSTable);
+                    Pair<Set<SSTableReader>, Set<SSTableReader>> sstables = groupByLevel(txn.originals());
+                    Set<SSTableReader> l0after = sstables.left;
+                    Set<SSTableReader> l1after = sstables.right;
+                    assertEquals(l1after, new HashSet<>(l1sstables)); // we don't touch L1
+                    assertEquals(1, l0after.size()); // and we stop reducing once there is a single sstable left
+                }
+            }
+            assertFalse(removed);
+        }
+    }
+
+    @Test
+    public void testReduceScopeL0()
+    {
+
+        List<SSTableReader> l0sstables = new ArrayList<>();
+        for (int i = 10; i < 20; i++)
+            l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
+
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, l0sstables))
+        {
+            CompactionTask task = new LeveledCompactionTask(cfs, txn, 0, 0, 1024*1024, false);
+
+            SSTableReader lastRemoved = null;
+            boolean removed = true;
+            for (int i = 0; i < l0sstables.size(); i++)
+            {
+                Set<SSTableReader> before = new HashSet<>(txn.originals());
+                removed = task.reduceScopeForLimitedSpace(0);
+                SSTableReader removedSSTable = Sets.difference(before, txn.originals()).stream().findFirst().orElse(null);
+                if (removed)
+                {
+                    assertNotNull(removedSSTable);
+                    assertTrue(lastRemoved == null || removedSSTable.onDiskLength() < lastRemoved.onDiskLength());
+                    assertEquals(0, removedSSTable.getSSTableLevel());
+                    assertEquals(before.size() - 1, txn.originals().size());
+                    lastRemoved = removedSSTable;
+                }
+                else
+                {
+                    assertNull(removedSSTable);
+                    Pair<Set<SSTableReader>, Set<SSTableReader>> sstables = groupByLevel(txn.originals());
+                    Set<SSTableReader> l0after = sstables.left;
+                    assertEquals(1, l0after.size()); // and we stop reducing once there is a single sstable left
+                }
+            }
+            assertFalse(removed);
+        }
+    }
+
+    @Test
+    public void testNoHighLevelReduction() throws IOException
+    {
+        List<SSTableReader> sstables = new ArrayList<>();
+        int i = 1;
+        for (; i < 5; i++)
+        {
+            SSTableReader sstable = MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
+            sstable.reloadSSTableMetadata();
+            sstables.add(sstable);
+        }
+        for (; i < 10; i++)
+        {
+            SSTableReader sstable = MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 2);
+            sstable.reloadSSTableMetadata();
+            sstables.add(sstable);
+        }
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables))
+        {
+            CompactionTask task = new LeveledCompactionTask(cfs, txn, 0, 0, 1024 * 1024, false);
+            assertFalse(task.reduceScopeForLimitedSpace(0));
+            assertEquals(new HashSet<>(sstables), txn.originals());
+        }
+    }
+
+    private Pair<Set<SSTableReader>, Set<SSTableReader>> groupByLevel(Iterable<SSTableReader> sstables)
+    {
+        Set<SSTableReader> l1after = new HashSet<>();
+        Set<SSTableReader> l0after = new HashSet<>();
+        for (SSTableReader kept : sstables)
+        {
+            switch (kept.getSSTableLevel())
+            {
+                case 0:
+                    l0after.add(kept);
+                    break;
+                case 1:
+                    l1after.add(kept);
+                    break;
+                default:
+                    throw new RuntimeException("only l0 & l1 sstables");
+            }
+        }
+        return Pair.create(l0after, l1after);
     }
 }
