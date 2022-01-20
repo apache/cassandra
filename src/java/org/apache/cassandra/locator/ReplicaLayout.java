@@ -207,7 +207,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         // TODO: race condition to fetch these. implications??
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         EndpointsForToken natural = replicationStrategy.getNaturalReplicasForToken(token);
-        EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspace.getName());
+        EndpointsForToken pending = replicationStrategy.getTokenMetadata().pendingEndpointsForToken(token, keyspace.getName());
         return forTokenWrite(replicationStrategy, natural, pending);
     }
 

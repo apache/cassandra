@@ -73,7 +73,7 @@ public final class ReplicationParams
     public void validate(String name)
     {
         // Attempt to instantiate the ARS, which will throw a ConfigurationException if the options aren't valid.
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        TokenMetadata tmd = StorageService.instance.getTokenMetadataForKeyspace(name);
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         AbstractReplicationStrategy.validateReplicationStrategy(name, klass, tmd, eps, options);
     }

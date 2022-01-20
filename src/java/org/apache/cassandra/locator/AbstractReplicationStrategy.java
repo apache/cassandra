@@ -70,6 +70,11 @@ public abstract class AbstractReplicationStrategy
         this.keyspaceName = keyspaceName;
     }
 
+    public TokenMetadata getTokenMetadata()
+    {
+        return tokenMetadata;
+    }
+
     private final Map<Token, EndpointsForRange> cachedReplicas = new NonBlockingHashMap<>();
 
     public EndpointsForRange getCachedReplicas(Token t)

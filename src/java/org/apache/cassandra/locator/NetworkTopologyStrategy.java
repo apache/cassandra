@@ -320,7 +320,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         if (!SchemaConstants.isSystemKeyspace(keyspaceName))
         {
-            ImmutableMultimap<String, InetAddressAndPort> dcsNodes = StorageService.instance.getTokenMetadata()
+            ImmutableMultimap<String, InetAddressAndPort> dcsNodes = StorageService.instance.getTokenMetadataForKeyspace(keyspaceName)
                                                                                             .getDC2AllEndpoints(snitch);
             for (Entry<String, String> e : this.configOptions.entrySet())
             {
