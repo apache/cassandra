@@ -87,7 +87,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     {
         RowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getOnDiskFilePointer() > maxSSTableSize)
-            switchCompactionLocation(getWriteDirectory(expectedWriteSize));
+            switchCompactionLocation(getWriteDirectory(getExpectedWriteSize()));
         return rie != null;
     }
 
@@ -104,5 +104,11 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 
         sstableWriter.switchWriter(writer);
 
+    }
+
+    @Override
+    protected long getExpectedWriteSize()
+    {
+        return expectedWriteSize;
     }
 }
