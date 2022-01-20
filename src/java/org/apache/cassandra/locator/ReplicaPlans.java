@@ -214,12 +214,12 @@ public class ReplicaPlans
      *
      * @param isAny if batch consistency level is ANY, in which case a local node will be picked
      */
-    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(boolean isAny) throws UnavailableException
+    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(boolean isAny, String keyspaceName) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
 
-        TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cachedOnlyTokenMap().getTopology();
+        TokenMetadata.Topology topology = StorageService.instance.getTokenMetadataForKeyspace(keyspaceName).cachedOnlyTokenMap().getTopology();
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         Multimap<String, InetAddressAndPort> localEndpoints = HashMultimap.create(topology.getDatacenterRacks()
                                                                                           .get(snitch.getLocalDatacenter()));

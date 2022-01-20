@@ -972,7 +972,8 @@ public class StorageProxy implements StorageProxyMBean
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
 
         long startTime = System.nanoTime();
-        ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(mutations.iterator().next().getKeyspaceName());
+        String ks = mutations.iterator().next().getKeyspaceName();
+        ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(ks);
 
         try
         {
@@ -989,7 +990,7 @@ public class StorageProxy implements StorageProxyMBean
                 List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
                 //non-local mutations rely on the base mutation commit-log entry for eventual consistency
                 Set<Mutation> nonLocalMutations = new HashSet<>(mutations);
-                Token baseToken = StorageService.instance.getTokenMetadata().partitioner.getToken(dataKey);
+                Token baseToken = StorageService.instance.getTokenMetadataForKeyspace(ks).partitioner.getToken(dataKey);
 
                 ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
 
@@ -1005,7 +1006,7 @@ public class StorageProxy implements StorageProxyMBean
                     Token tk = mutation.key().getToken();
                     AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
                     Optional<Replica> pairedEndpoint = ViewUtils.getViewNaturalEndpoint(replicationStrategy, baseToken, tk);
-                    EndpointsForToken pendingReplicas = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(tk, keyspaceName);
+                    EndpointsForToken pendingReplicas = StorageService.instance.getTokenMetadataForKeyspace(keyspaceName).pendingEndpointsForToken(tk, keyspaceName);
 
                     // if there are no paired endpoints there are probably range movements going on, so we write to the local batchlog to replay later
                     if (!pairedEndpoint.isPresent())
@@ -1147,7 +1148,8 @@ public class StorageProxy implements StorageProxyMBean
                     batchConsistencyLevel = consistencyLevel;
             }
 
-            ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY);
+            ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY,
+                    mutations.iterator().next().getKeyspaceName());
 
             final UUID batchUUID = UUIDGen.getTimeUUID();
             BatchlogCleanup cleanup = new BatchlogCleanup(mutations.size(),
