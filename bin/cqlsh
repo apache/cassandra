@@ -79,6 +79,8 @@ run_if_supported_version() {
         if [ "$(is_supported_version "$version")" = "supported" ]; then
             exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" "$@"
             exit
+        else
+            echo "Warning: unsupported version of Python:" $version >&2
         fi
     fi
 }
