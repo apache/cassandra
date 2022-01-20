@@ -108,6 +108,8 @@ public class Config
 
     public volatile long truncate_request_timeout_in_ms = 60000L;
 
+    public volatile long repair_prepare_message_timeout_in_ms = 10000L;
+
     public Integer streaming_connections_per_host = 1;
     public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
 

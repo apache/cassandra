@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.streaming;
 
+import org.apache.cassandra.db.compaction.OperationType;
+
 public enum StreamOperation
 {
     OTHER("Other"), // Fallback to avoid null types when deserializing from string
@@ -26,7 +28,9 @@ public enum StreamOperation
     BOOTSTRAP("Bootstrap", false),
     REBUILD("Rebuild", false),
     BULK_LOAD("Bulk Load"),
-    REPAIR("Repair");
+    REPAIR("Repair"),
+    REGION_DECOMMISSION("Region Decommission"),
+    REGION_REPAIR("Region Repair");
 
     private final String description;
     private final boolean requiresViewBuild;
@@ -65,5 +69,18 @@ public enum StreamOperation
     public boolean requiresViewBuild()
     {
         return this.requiresViewBuild;
+    }
+
+    /**
+     * @return the corresponding compaction operation type
+     */
+    public OperationType opType()
+    {
+        switch (this)
+        {
+            case REGION_DECOMMISSION: return OperationType.REGION_DECOMMISSION;
+            case REGION_REPAIR:       return OperationType.REGION_REPAIR;
+            default:                  return OperationType.STREAM;
+        }
     }
 }
