@@ -117,4 +117,10 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         sstablesWritten = 0;
 
     }
+
+    @Override
+    protected long getExpectedWriteSize()
+    {
+        return Math.min(maxSSTableSize, super.getExpectedWriteSize());
+    }
 }
