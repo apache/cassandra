@@ -1,4 +1,5 @@
 4.0.4
+ * Reject snapshot names with special character (CASSANDRA-15297)
  * Fix ObjectSizes implementation and usages (CASSANDRA-17402)
  * Fix race condition bug during local session repair (CASSANDRA-17335)
  * Fix ignored streaming encryption settings in sstableloader (CASSANDRA-17367)
