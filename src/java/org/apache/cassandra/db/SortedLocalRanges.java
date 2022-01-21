@@ -141,7 +141,7 @@ public class SortedLocalRanges
      */
     public boolean isOutOfDate()
     {
-        return !valid || ringVersion != storageService.getTokenMetadataForKeyspace(realm.metadata().keyspace).getRingVersion();
+        return !valid || ringVersion != storageService.getTokenMetadataForKeyspace(realm.getKeyspaceName()).getRingVersion();
     }
 
     public void invalidate()

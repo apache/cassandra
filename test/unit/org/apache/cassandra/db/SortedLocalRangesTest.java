@@ -31,7 +31,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.SplitterTest;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -45,6 +44,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 public class SortedLocalRangesTest
@@ -56,9 +56,6 @@ public class SortedLocalRangesTest
 
     @Mock
     Keyspace keyspace;
-
-    @Mock
-    AbstractReplicationStrategy replicationStrategy;
 
     @Mock
     StorageService storageService;
@@ -88,8 +85,7 @@ public class SortedLocalRangesTest
 
         FBUtilities.getProtectedField(ColumnFamilyStore.class, "keyspace").set(cfs, keyspace);
 
-        when(keyspace.getReplicationStrategy()).thenReturn(replicationStrategy);
-        when(replicationStrategy.getTokenMetadata()).thenReturn(tmd);
+        when(storageService.getTokenMetadataForKeyspace(eq("keyspace"))).thenReturn(tmd);
     }
 
     SortedLocalRanges makeRanges(long ringVersion, List<Splitter.WeightedRange> ranges)
