@@ -48,6 +48,10 @@ Upgrading
       internode_socket_receive_buffer_size_in_bytes. To support upgrades pre-4.0, we add backward compatibility and
       currently both old and new names should work. Cassandra 4.0.0 and Cassandra 4.0.1 work ONLY with the new names
       (They weren't updated in cassandra.yaml though).
+
+New Features
+------------
+    - Full support for Java 11, it is not experimental anymore.
       
 4.0
 ===
