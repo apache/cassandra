@@ -24,6 +24,7 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
+import java.io.File; // checkstyle: permit this import
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -73,6 +74,10 @@ public class Snapshot extends NodeToolCmd
                 options.put("ttl", d.toString());
             }
 
+            if (!snapshotName.isEmpty() && snapshotName.contains(File.separator))
+            {
+                throw new IOException("Snapshot name cannot contain " + File.separator);
+            }
             // Create a separate path for kclist to avoid breaking of already existing scripts
             if (null != ktList && !ktList.isEmpty())
             {
