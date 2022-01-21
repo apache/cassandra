@@ -98,4 +98,4 @@ written.
 
 Apache Cassandra {40_version} has added several new features including virtual
 tables, transient replication ({exper}), audit logging, full query logging, and
-support for Java 11 ({exper}). 
+support for Java 11 (full support since 4.0.2 version).
