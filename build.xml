@@ -286,7 +286,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009-2021 The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2022 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
         maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
