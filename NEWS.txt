@@ -100,6 +100,7 @@ Deprecation
 
 New features
 ------------
+    - Full support for Java 11, it is not experimental anymore.
     - The data of the system keyspaces using a local strategy (at the exception of the system.batches,
       system.paxos, system.compaction_history, system.prepared_statements and system.repair tables)
       is now stored by default in the first data directory, instead of being distributed among all
