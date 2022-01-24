@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -60,10 +61,12 @@ public class PendingRangeCalculatorService
     private static class PendingRangeTask implements Runnable
     {
         private final AtomicInteger updateJobs;
+        private final Predicate<String> filter;
 
-        PendingRangeTask(AtomicInteger updateJobs)
+        PendingRangeTask(AtomicInteger updateJobs, Predicate<String> filter)
         {
             this.updateJobs = updateJobs;
+            this.filter = filter;
         }
 
         public void run()
@@ -73,10 +76,11 @@ public class PendingRangeCalculatorService
                 PendingRangeCalculatorServiceDiagnostics.taskStarted(instance, updateJobs);
                 long start = System.currentTimeMillis();
                 Collection<String> keyspaces = SchemaManager.instance.getNonLocalStrategyKeyspaces().names();
-                for (String keyspaceName : keyspaces)
-                    calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
+                long updated = keyspaces.stream().filter(filter)
+                        .peek(keyspaceName -> calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName))
+                        .count();
                 if (logger.isTraceEnabled())
-                    logger.trace("Finished PendingRangeTask for {} keyspaces in {}ms", keyspaces.size(), System.currentTimeMillis() - start);
+                    logger.trace("Finished PendingRangeTask for {} keyspaces in {}ms", updated, System.currentTimeMillis() - start);
                 PendingRangeCalculatorServiceDiagnostics.taskFinished(instance, updateJobs);
             }
             finally
@@ -94,9 +98,14 @@ public class PendingRangeCalculatorService
 
     public void update()
     {
+        update(t -> true);
+    }
+
+    public void update(Predicate<String> filter)
+    {
         int jobs = updateJobs.incrementAndGet();
         PendingRangeCalculatorServiceDiagnostics.taskCountChanged(instance, jobs);
-        executor.execute(new PendingRangeTask(updateJobs));
+        executor.execute(new PendingRangeTask(updateJobs, filter));
     }
 
     public void blockUntilFinished()
