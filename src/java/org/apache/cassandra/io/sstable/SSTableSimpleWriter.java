@@ -48,7 +48,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         super(directory, metadata, columns);
     }
 
-    private SSTableTxnWriter getOrCreateWriter()
+    private SSTableTxnWriter getOrCreateWriter() throws IOException
     {
         if (writer == null)
             writer = createWriter();

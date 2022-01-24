@@ -19,6 +19,8 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -56,7 +58,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -141,14 +142,10 @@ public class LegacySSTableTest
     /**
      * Get a descriptor for the legacy sstable at the given version.
      */
-    protected Descriptor getDescriptor(String legacyVersion, String table)
+    protected Descriptor getDescriptor(String legacyVersion, String table) throws IOException
     {
-        return new Descriptor(SSTableFormat.Type.BIG.info.getVersion(legacyVersion),
-                              getTableDir(legacyVersion, table),
-                              "legacy_tables",
-                              table,
-                              1,
-                              SSTableFormat.Type.BIG);
+        Path file = Files.list(getTableDir(legacyVersion, table).toPath()).findFirst().orElseThrow(() -> new RuntimeException(String.format("No files for version=%s and table=%s", legacyVersion, table)));
+        return Descriptor.fromFilename(new File(file));
     }
 
     @Test

@@ -114,7 +114,7 @@ public class SSTableLoader implements StreamEventHandler
                                                   Descriptor newDesc = new Descriptor(desc.directory,
                                                                                       desc.ksname,
                                                                                       Directories.BACKUPS_SUBDIR,
-                                                                                      desc.generation,
+                                                                                      desc.id,
                                                                                       desc.formatType);
                                                   metadata = client.getTableMetadata(newDesc.cfname);
                                                   if (metadata != null)

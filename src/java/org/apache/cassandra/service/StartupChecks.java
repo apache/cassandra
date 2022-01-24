@@ -21,9 +21,23 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
-import java.nio.file.*;
+import java.nio.file.FileStore;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -32,34 +46,32 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.StringUtils;
-
-
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.StartupChecksOptions;
-import org.apache.cassandra.io.util.File;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.jpountz.lz4.LZ4Factory;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.io.util.PathUtils;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.io.util.PathUtils;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
@@ -514,6 +526,7 @@ public class StartupChecks
                 return;
             final Set<String> invalid = new HashSet<>();
             final Set<String> nonSSTablePaths = new HashSet<>();
+            final List<String> withIllegalGenId = new ArrayList<>();
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getCommitLogLocation()));
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation()));
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getHintsDirectory()));
@@ -528,8 +541,12 @@ public class StartupChecks
 
                     try
                     {
-                        if (!Descriptor.fromFilename(file).isCompatible())
+                        Descriptor desc = Descriptor.fromFilename(file);
+                        if (!desc.isCompatible())
                             invalid.add(file.toString());
+
+                        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && desc.id instanceof UUIDBasedSSTableId)
+                            withIllegalGenId.add(file.toString());
                     }
                     catch (Exception e)
                     {
@@ -569,6 +586,15 @@ public class StartupChecks
                                                          "upgradesstables",
                                                          Joiner.on(",").join(invalid)));
 
+            if (!withIllegalGenId.isEmpty())
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                           "UUID sstable identifiers are disabled but some sstables have been " +
+                                           "created with UUID identifiers. You have to either delete those " +
+                                           "sstables or enable UUID based sstable identifers in cassandra.yaml " +
+                                           "(enable_uuid_sstable_identifiers). The list of affected sstables is: " +
+                                           Joiner.on(", ").join(withIllegalGenId) + ". If you decide to delete sstables, " +
+                                           "and have that data replicated over other healthy nodes, those will be brought" +
+                                           "back during repair");
         }
     };
 

@@ -84,7 +84,7 @@ public class CassandraEntireSSTableStreamWriter
             logger.debug("[Stream #{}] Streaming {}.{} gen {} component {} size {}", session.planId(),
                          sstable.getKeyspaceName(),
                          sstable.getColumnFamilyName(),
-                         sstable.descriptor.generation,
+                         sstable.descriptor.id,
                          component,
                          prettyPrintMemory(length));
 
@@ -99,7 +99,7 @@ public class CassandraEntireSSTableStreamWriter
                          session.planId(),
                          sstable.getKeyspaceName(),
                          sstable.getColumnFamilyName(),
-                         sstable.descriptor.generation,
+                         sstable.descriptor.id,
                          component,
                          session.peer,
                          prettyPrintMemory(bytesWritten),
