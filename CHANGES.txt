@@ -175,6 +175,7 @@ Merged from 3.11:
 Merged from 3.0:
 
 4.0-rc2
+ * Improved password obfuscation (CASSANDRA-16801)
  * Avoid memoizing the wrong min cluster version during upgrades (CASSANDRA-16759)
  * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
  * Fix queries on empty partitions with static data (CASSANDRA-16686)

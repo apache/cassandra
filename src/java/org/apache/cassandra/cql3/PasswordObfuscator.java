@@ -18,15 +18,26 @@
 
 package org.apache.cassandra.cql3;
 
+import com.google.common.base.Optional;
+
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.auth.RoleOptions;
+
 /**
  * Obfuscates passwords in a given string
  */
 public class PasswordObfuscator
 {
-    public static final String OBFUSCATION_TOKEN = " *******";
-    private static final String PASSWORD_TOKEN = "password";
+    public static final String OBFUSCATION_TOKEN = "*******";
+    public static final String PASSWORD_TOKEN = PasswordAuthenticator.PASSWORD_KEY.toLowerCase();
 
-    public String obfuscate(String sourceString)
+    /**
+     * Obfuscates everything after the first appearance password token
+     * 
+     * @param sourceString The query to obfuscate
+     * @return The obfuscated query
+     */
+    public static String obfuscate(String sourceString)
     {
         if (null == sourceString)
             return null;
@@ -35,6 +46,26 @@ public class PasswordObfuscator
         if (passwordTokenStartIndex < 0)
             return sourceString;
 
-        return sourceString.substring(0, passwordTokenStartIndex + PASSWORD_TOKEN.length()) + OBFUSCATION_TOKEN;
+        return sourceString.substring(0, passwordTokenStartIndex + PASSWORD_TOKEN.length()) + " " + OBFUSCATION_TOKEN;
+    }
+
+    /**
+     * Obfuscates the password in a query
+     * 
+     * @param query The query whose password to obfuscate
+     * @param opts The options containing the password to obfuscate
+     * @return The query with obfuscated password
+     */
+    public static String obfuscate(String query, RoleOptions opts)
+    {
+        if (opts == null || query == null || query.isEmpty())
+            return query;
+
+        Optional<String> pass = opts.getPassword();
+        if (!pass.isPresent() || pass.get().isEmpty())
+            return query;
+
+        // match new line, case insensitive (?si), and PASSWORD_TOKEN up to the actual password greedy. Group that and replace the password
+        return query.replaceAll("((?si)"+ PASSWORD_TOKEN + ".+?)" + pass.get(), "$1" + PasswordObfuscator.OBFUSCATION_TOKEN);
     }
 }

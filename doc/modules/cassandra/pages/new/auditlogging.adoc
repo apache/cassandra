@@ -32,6 +32,9 @@ The audit log does not contain:
 
 * configuration changes made in `cassandra.yaml` file
 * `nodetool` commands
+* Passwords mentioned as part of DCL statements: Passwords will be obfuscated as \*\*\*\*\*\*\*.
+ ** Statements that fail to parse will have everything after the appearance of the word password obfuscated as \*\*\*\*\*\*\*.
+ ** Statements with a mistyped word 'password' will be logged without obfuscation. Please make sure to use a different password on retries.
 
 The audit log is a series of log entries. 
 An audit log entry contains:
@@ -455,7 +458,15 @@ WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};
 Type: AuditLog
 LogMessage:
 user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564714870678|type :USE_KEYSPACE|category:OTHER|ks:auditlogkeyspace|operation:USE auditlogkeyspace;
-[ec2-user@ip-10-0-2-238 hourly]$
+
+Password obfuscation examples:
+LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630496708|type:CREATE_ROLE|category:DCL|operation:CREATE ROLE role1 WITH PASSWORD = '*******';
+Type: audit
+LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630634552|type:ALTER_ROLE|category:DCL|operation:ATLER ROLE role1 WITH PASSWORD = '*******';
+Type: audit
+LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630698686|type:CREATE_ROLE|category:DCL|operation:CREATE USER user1 WITH PASSWORD '*******';
+Type: audit
+LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630747344|type:ALTER_ROLE|category:DCL|operation:ALTER USER user1 WITH PASSWORD '*******';
 ----
 
 == Diagnostic events for user audit logging
