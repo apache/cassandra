@@ -947,6 +947,13 @@ compaction_throughput: 64MiB/s
 # between the sstables, reducing page cache churn and keeping hot rows hot
 sstable_preemptive_open_interval: 50MiB
 
+# Starting from 4.1 sstables support UUID based generation identifiers. They are disabled by default
+# because once enabled, there is no easy way to downgrade. When the node is restarted with this option
+# set to true, each newly created sstable will have a UUID based generation identifier and such files are
+# not readable by previous Cassandra versions. At some point, this option will become true by default
+# and eventually get removed from the configuration.
+enable_uuid_sstable_identifiers: false
+
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
 # This speeds up the network transfer significantly subject to
@@ -1628,7 +1635,7 @@ drop_compact_storage_enabled: false
 # removing list elements by either index or value. Defaults to true.
 # read_before_write_list_operations_enabled: true
 # Guardrail to warn or fail when querying with an IN restriction selecting more partition keys than threshold.
-# The two thresholds default to -1 to disable. 
+# The two thresholds default to -1 to disable.
 # partition_keys_in_select_warn_threshold: -1
 # partition_keys_in_select_fail_threshold: -1
 # Guardrail to warn or fail when an IN query creates a cartesian product with a size exceeding threshold,
@@ -1672,3 +1679,4 @@ drop_compact_storage_enabled: false
 #    enabled: true # (overriden by cassandra.ignore_dc system property)
 #  rack:
 #    enabled: true # (overriden by cassandra.ignore_rack system property)
+

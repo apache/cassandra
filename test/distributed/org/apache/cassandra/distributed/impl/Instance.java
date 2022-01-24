@@ -63,7 +63,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.SystemKeyspaceMigrator40;
+import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionLogger;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -566,7 +566,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // We need to persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
                 SystemKeyspace.persistLocalMetadata();
-                SystemKeyspaceMigrator40.migrate();
+                SystemKeyspaceMigrator41.migrate();
 
                 // Same order to populate tokenMetadata for the first time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup

@@ -41,7 +41,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -2359,7 +2358,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public boolean isUpgradingFromVersionLowerThan(CassandraVersion referenceVersion)
     {
         CassandraVersion v = upgradeFromVersionMemoized.get();
-        if (SystemKeyspace.NULL_VERSION.equals(v) && scheduledGossipTask == null)
+        if (CassandraVersion.NULL_VERSION.equals(v) && scheduledGossipTask == null)
             return false;
 
         return v != null && v.compareTo(referenceVersion) < 0;
