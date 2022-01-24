@@ -105,7 +105,7 @@ public class SerializationHeader
             return sstables;
 
         List<SSTableReader> readers = new ArrayList<>(sstables);
-        readers.sort(SSTableReader.generationReverseComparator);
+        readers.sort(SSTableReader.idReverseComparator);
         return readers;
     }
 

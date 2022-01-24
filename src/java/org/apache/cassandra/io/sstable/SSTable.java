@@ -23,9 +23,11 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import org.slf4j.Logger;
@@ -93,6 +95,12 @@ public abstract class SSTable
         this.components = new CopyOnWriteArraySet<>(dataComponents);
         this.metadata = metadata;
         this.optimizationStrategy = Objects.requireNonNull(optimizationStrategy);
+    }
+
+    @VisibleForTesting
+    public Set<Component> getComponents()
+    {
+        return ImmutableSet.copyOf(components);
     }
 
     /**

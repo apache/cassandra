@@ -69,6 +69,7 @@
                  <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-4.0-cc-jmx.yaml"/>
                  <exclude name="**/tools/cqlstress-counter-example.yaml"/>
                  <exclude name="**/tools/cqlstress-example.yaml"/>
                  <exclude name="**/tools/cqlstress-insanity-example.yaml"/>

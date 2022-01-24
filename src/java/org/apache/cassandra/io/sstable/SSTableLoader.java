@@ -97,7 +97,6 @@ public class SSTableLoader implements StreamEventHandler
                                           }
 
                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
-
                                           if (metadata == null)
                                           {
                                               outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));

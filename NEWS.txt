@@ -117,6 +117,12 @@ New features
 ------------
     - Full support for Java 11, it is not experimental anymore.
     - DCL statements in audit logs will now obscure only the password if they don't fail to parse.
+    - Starting from 4.1 sstables support UUID based generation identifiers. They are globally unique and thus they let
+      the node to create sstables without any prior knowledge about the existing sstables in the data directory.
+      The feature is disabled by default in cassandra.yaml because once enabled, there is no easy way to downgrade.
+      When the node is restarted with UUID based generation identifiers enabled, each newly created sstable will have
+      a UUID based generation identifier and such files are not readable by previous Cassandra versions. In the future
+      those new identifiers will become enabled by default.
 
 Upgrading
 ---------

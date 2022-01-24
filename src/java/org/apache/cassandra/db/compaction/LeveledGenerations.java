@@ -33,12 +33,12 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
-import com.google.common.primitives.Ints;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -75,7 +75,7 @@ class LeveledGenerations
     private static final Comparator<SSTableReader> nonL0Comparator = (o1, o2) -> {
         int cmp = SSTableReader.sstableComparator.compare(o1, o2);
         if (cmp == 0)
-            cmp = Ints.compare(o1.descriptor.generation, o2.descriptor.generation);
+            cmp = SSTableIdFactory.COMPARATOR.compare(o1.descriptor.id, o2.descriptor.id);
         return cmp;
     };
 

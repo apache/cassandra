@@ -72,9 +72,7 @@ public class SASIIndex implements Index, INotificationConsumer
                                                        Set<Index> indexes,
                                                        Collection<SSTableReader> sstablesToRebuild)
         {
-            NavigableMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables = new TreeMap<>((a, b) -> {
-                return Integer.compare(a.descriptor.generation, b.descriptor.generation);
-            });
+            NavigableMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables = new TreeMap<>(SSTableReader.idComparator);
 
             indexes.stream()
                    .filter((i) -> i instanceof SASIIndex)
@@ -113,8 +111,7 @@ public class SASIIndex implements Index, INotificationConsumer
         Tracker tracker = baseCfs.getTracker();
         tracker.subscribe(this);
 
-        SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> toRebuild = new TreeMap<>((a, b)
-                                                -> Integer.compare(a.descriptor.generation, b.descriptor.generation));
+        SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> toRebuild = new TreeMap<>(SSTableReader.idComparator);
 
         for (SSTableReader sstable : index.init(tracker.getView().liveSSTables()))
         {

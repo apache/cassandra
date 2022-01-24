@@ -76,6 +76,8 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.RebufferingInputStream;
@@ -111,6 +113,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
+import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
+import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
 
 public final class SystemKeyspace
 {
@@ -119,15 +123,6 @@ public final class SystemKeyspace
     }
 
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspace.class);
-
-    // Used to indicate that there was a previous version written to the legacy (pre 1.2)
-    // system.Versions table, but that we cannot read it. Suffice to say, any upgrade should
-    // proceed through 1.2.x before upgrading to the current version.
-    public static final CassandraVersion UNREADABLE_VERSION = new CassandraVersion("0.0.0-unknown");
-
-    // Used to indicate that no previous version information was found. When encountered, we assume that
-    // Cassandra was not previously installed and we're in the process of starting a fresh node.
-    public static final CassandraVersion NULL_VERSION = new CassandraVersion("0.0.0-absent");
 
     public static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
 
@@ -138,7 +133,7 @@ public final class SystemKeyspace
     public static final String PEERS_V2 = "peers_v2";
     public static final String PEER_EVENTS_V2 = "peer_events_v2";
     public static final String COMPACTION_HISTORY = "compaction_history";
-    public static final String SSTABLE_ACTIVITY = "sstable_activity";
+    public static final String SSTABLE_ACTIVITY_V2 = "sstable_activity_v2"; // v2 has modified generation column type (v1 - int, v2 - blob), see CASSANDRA-17048
     public static final String TABLE_ESTIMATES = "table_estimates";
     public static final String TABLE_ESTIMATES_TYPE_PRIMARY = "primary";
     public static final String TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY = "local_primary";
@@ -165,6 +160,7 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_TRANSFERRED_RANGES = "transferred_ranges";
     @Deprecated public static final String LEGACY_AVAILABLE_RANGES = "available_ranges";
     @Deprecated public static final String LEGACY_SIZE_ESTIMATES = "size_estimates";
+    @Deprecated public static final String LEGACY_SSTABLE_ACTIVITY = "sstable_activity";
 
 
     public static final TableMetadata Batches =
@@ -278,8 +274,8 @@ public final class SystemKeyspace
                 .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
                 .build();
 
-    private static final TableMetadata SSTableActivity =
-        parse(SSTABLE_ACTIVITY,
+    private static final TableMetadata LegacySSTableActivity =
+        parse(LEGACY_SSTABLE_ACTIVITY,
                 "historic sstable read rates",
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
@@ -288,6 +284,18 @@ public final class SystemKeyspace
                 + "rate_120m double,"
                 + "rate_15m double,"
                 + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation)))")
+                .build();
+
+    private static final TableMetadata SSTableActivity =
+        parse(SSTABLE_ACTIVITY_V2,
+                "historic sstable read rates",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "table_name text,"
+                + "id blob,"
+                + "rate_120m double,"
+                + "rate_15m double,"
+                + "PRIMARY KEY ((keyspace_name, table_name, id)))")
                 .build();
 
     @Deprecated
@@ -464,6 +472,7 @@ public final class SystemKeyspace
                          PeerEventsV2,
                          LegacyPeerEvents,
                          CompactionHistory,
+                         LegacySSTableActivity,
                          SSTableActivity,
                          LegacySizeEstimates,
                          TableEstimates,
@@ -1314,12 +1323,12 @@ public final class SystemKeyspace
      * from values in system.sstable_activity if present.
      * @param keyspace the keyspace the sstable belongs to
      * @param table the table the sstable belongs to
-     * @param generation the generation number for the sstable
+     * @param id the generation id for the sstable
      */
-    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, int generation)
+    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
-        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and columnfamily_name=? and generation=?";
-        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY), keyspace, table, generation);
+        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
+        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.asBytes());
 
         if (results.isEmpty())
             return new RestorableMeter();
@@ -1333,25 +1342,45 @@ public final class SystemKeyspace
     /**
      * Writes the current read rates for a given SSTable to system.sstable_activity
      */
-    public static void persistSSTableReadMeter(String keyspace, String table, int generation, RestorableMeter meter)
+    public static void persistSSTableReadMeter(String keyspace, String table, SSTableId id, RestorableMeter meter)
     {
         // Store values with a one-day TTL to handle corner cases where cleanup might not occur
-        String cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
-        executeInternal(format(cql, SSTABLE_ACTIVITY),
+        String cql = "INSERT INTO system.%s (keyspace_name, table_name, id, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
+        executeInternal(format(cql, SSTABLE_ACTIVITY_V2),
                         keyspace,
                         table,
-                        generation,
+                        id.asBytes(),
                         meter.fifteenMinuteRate(),
                         meter.twoHourRate());
+
+        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && id instanceof SequenceBasedSSTableId)
+        {
+            // we do this in order to make it possible to downgrade until we switch in cassandra.yaml to UUID based ids
+            // see the discussion on CASSANDRA-17048
+            cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
+            executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY),
+                            keyspace,
+                            table,
+                            ((SequenceBasedSSTableId) id).generation,
+                            meter.fifteenMinuteRate(),
+                            meter.twoHourRate());
+        }
     }
 
     /**
      * Clears persisted read rates from system.sstable_activity for SSTables that have been deleted.
      */
-    public static void clearSSTableReadMeter(String keyspace, String table, int generation)
+    public static void clearSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
-        String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
-        executeInternal(format(cql, SSTABLE_ACTIVITY), keyspace, table, generation);
+        String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND table_name=? and id=?";
+        executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.asBytes());
+        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && id instanceof SequenceBasedSSTableId)
+        {
+            // we do this in order to make it possible to downgrade until we switch in cassandra.yaml to UUID based ids
+            // see the discussion on CASSANDRA-17048
+            cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
+            executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY), keyspace, table, ((SequenceBasedSSTableId) id).generation);
+        }
     }
 
     /**
