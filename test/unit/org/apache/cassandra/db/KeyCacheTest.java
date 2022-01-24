@@ -202,7 +202,7 @@ public class KeyCacheTest
     {
         return ColumnFamilyStore.getIfExists(k.desc.ksname, k.desc.cfname).getLiveSSTables()
                                 .stream()
-                                .filter(sstreader -> sstreader.descriptor.generation == k.desc.generation)
+                                .filter(sstreader -> sstreader.descriptor.id == k.desc.id)
                                 .findFirst().get();
     }
 

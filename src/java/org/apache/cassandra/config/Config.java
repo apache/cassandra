@@ -566,6 +566,9 @@ public class Config
     public volatile boolean auto_optimise_full_repair_streams = false;
     public volatile boolean auto_optimise_preview_repair_streams = false;
 
+    // see CASSANDRA-17048 and the comment in cassandra.yaml
+    public boolean enable_uuid_sstable_identifiers = false;
+
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.

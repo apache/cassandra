@@ -49,7 +49,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class SSTableWriterTestBase extends SchemaLoader
 {
@@ -135,13 +134,13 @@ public class SSTableWriterTestBase extends SchemaLoader
      */
     public static void validateCFS(ColumnFamilyStore cfs)
     {
-        Set<Integer> liveDescriptors = new HashSet<>();
+        Set<SSTableId> liveDescriptors = new HashSet<>();
         long spaceUsed = 0;
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertFalse(sstable.isMarkedCompacted());
             assertEquals(1, sstable.selfRef().globalCount());
-            liveDescriptors.add(sstable.descriptor.generation);
+            liveDescriptors.add(sstable.descriptor.id);
             spaceUsed += sstable.bytesOnDisk();
         }
         for (File dir : cfs.getDirectories().getCFDirectories())
@@ -151,7 +150,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                 if (f.getName().contains("Data"))
                 {
                     Descriptor d = Descriptor.fromFilename(f.getAbsolutePath());
-                    assertTrue(d.toString(), liveDescriptors.contains(d.generation));
+                    assertTrue(d.toString(), liveDescriptors.contains(d.id));
                 }
             }
         }

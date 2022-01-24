@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -53,10 +54,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SigarLibrary;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
@@ -368,6 +367,7 @@ public class StartupChecks
         {
             final Set<String> invalid = new HashSet<>();
             final Set<String> nonSSTablePaths = new HashSet<>();
+            final List<String> withIllegalGenId = new ArrayList<>();
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getCommitLogLocation()));
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation()));
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getHintsDirectory()));
@@ -382,8 +382,12 @@ public class StartupChecks
 
                     try
                     {
-                        if (!Descriptor.fromFilename(file).isCompatible())
+                        Descriptor desc = Descriptor.fromFilename(file);
+                        if (!desc.isCompatible())
                             invalid.add(file.toString());
+
+                        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && desc.id instanceof UUIDBasedSSTableId)
+                            withIllegalGenId.add(file.toString());
                     }
                     catch (Exception e)
                     {
@@ -423,6 +427,15 @@ public class StartupChecks
                                                          "upgradesstables",
                                                          Joiner.on(",").join(invalid)));
 
+            if (!withIllegalGenId.isEmpty())
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                           "UUID sstable identifiers are disabled but some sstables have been " +
+                                           "created with UUID identifiers. You have to either delete those " +
+                                           "sstables or enable UUID based sstable identifers in cassandra.yaml " +
+                                           "(enable_uuid_sstable_identifiers). The list of affected sstables is: " +
+                                           Joiner.on(", ").join(withIllegalGenId) + ". If you decide to delete sstables, " +
+                                           "and have that data replicated over other healthy nodes, those will be brought" +
+                                           "back during repair");
         }
     };
 

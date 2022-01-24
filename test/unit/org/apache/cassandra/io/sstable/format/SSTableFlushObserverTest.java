@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -92,12 +93,14 @@ public class SSTableFlushObserverTest
             throw new FSWriteError(new IOException("failed to create tmp directory"), directory.getAbsolutePath());
 
         SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
+        Descriptor descriptor = new Descriptor(sstableFormat.info.getLatestVersion(),
+                                               directory,
+                                               cfm.keyspace,
+                                               cfm.name,
+                                               new SequenceBasedSSTableId(0),
+                                               sstableFormat);
 
-        BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion(),
-                                                                  directory,
-                                                                  KS_NAME, CF_NAME,
-                                                                  0,
-                                                                  sstableFormat),
+        BigTableWriter writer = new BigTableWriter(descriptor,
                                                    10L, 0L, null, false, TableMetadataRef.forOfflineTools(cfm),
                                                    new MetadataCollector(cfm.comparator).sstableLevel(0),
                                                    new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS),

@@ -3461,4 +3461,9 @@ public class DatabaseDescriptor
             conf.force_new_prepared_statement_behaviour = value;
         }
     }
+
+    public static boolean isUUIDSSTableIdentifiersEnabled()
+    {
+        return conf.enable_uuid_sstable_identifiers;
+    }
 }

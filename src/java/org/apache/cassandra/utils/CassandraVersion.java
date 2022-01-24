@@ -50,9 +50,23 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     private static final Pattern PATTERN = Pattern.compile(VERSION_REGEXP);
 
+    public static final CassandraVersion CASSANDRA_4_1 = new CassandraVersion("4.1").familyLowerBound.get();
     public static final CassandraVersion CASSANDRA_4_0 = new CassandraVersion("4.0").familyLowerBound.get();
     public static final CassandraVersion CASSANDRA_4_0_RC2 = new CassandraVersion(4, 0, 0, NO_HOTFIX, new String[] {"rc2"}, null);
     public static final CassandraVersion CASSANDRA_3_4 = new CassandraVersion("3.4").familyLowerBound.get();
+
+    /**
+     * Used to indicate that there was a previous version written to the legacy (pre 1.2)
+     * system.Versions table, but that we cannot read it. Suffice to say, any upgrade should
+     * proceed through 1.2.x before upgrading to the current version.
+     */
+    public static final CassandraVersion UNREADABLE_VERSION = new CassandraVersion("0.0.0-unknown");
+
+    /**
+     * Used to indicate that no previous version information was found. When encountered, we assume that
+     * Cassandra was not previously installed and we're in the process of starting a fresh node.
+     */
+    public static final CassandraVersion NULL_VERSION = new CassandraVersion("0.0.0-absent");
 
     public final int major;
     public final int minor;

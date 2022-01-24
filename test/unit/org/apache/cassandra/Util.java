@@ -23,8 +23,10 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOError;
+import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -33,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
@@ -47,10 +51,16 @@ import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -75,14 +85,19 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
 
 import static org.junit.Assert.assertEquals;
@@ -788,7 +803,9 @@ public class Util
     {
         LifecycleTransaction.waitForDeletions();
         assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
-        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        Set<SSTableId> liveIdentifiers = cfs.getLiveSSTables().stream()
+                                            .map(sstable -> sstable.descriptor.id)
+                                            .collect(Collectors.toSet());
         int fileCount = 0;
         for (File f : cfs.getDirectories().getCFDirectories())
         {
@@ -797,7 +814,7 @@ public class Util
                 if (sst.getName().contains("Data"))
                 {
                     Descriptor d = Descriptor.fromFilename(sst.getAbsolutePath());
-                    assertTrue(liveGenerations.contains(d.generation));
+                    assertTrue(liveIdentifiers.contains(d.id));
                     fileCount++;
                 }
             }
@@ -850,4 +867,85 @@ public class Util
         }
         Gossiper.instance.expireUpgradeFromVersion();
     }
+
+    public static Supplier<SequenceBasedSSTableId> newSeqGen(int ... existing)
+    {
+        return SequenceBasedSSTableId.Builder.instance.generator(IntStream.of(existing).mapToObj(SequenceBasedSSTableId::new));
+    }
+
+    public static Supplier<UUIDBasedSSTableId> newUUIDGen()
+    {
+        return UUIDBasedSSTableId.Builder.instance.generator(Stream.empty());
+    }
+
+    public static Set<Descriptor> getSSTables(String ks, String tableName)
+    {
+        return Keyspace.open(ks)
+                       .getColumnFamilyStore(tableName)
+                       .getLiveSSTables()
+                       .stream()
+                       .map(sstr -> sstr.descriptor)
+                       .collect(Collectors.toSet());
+    }
+
+    public static Set<Descriptor> getSnapshots(String ks, String tableName, String snapshotTag)
+    {
+        try
+        {
+            return Keyspace.open(ks)
+                           .getColumnFamilyStore(tableName)
+                           .getSnapshotSSTableReaders(snapshotTag)
+                           .stream()
+                           .map(sstr -> sstr.descriptor)
+                           .collect(Collectors.toSet());
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }
+
+    public static Set<Descriptor> getBackups(String ks, String tableName)
+    {
+        return Keyspace.open(ks)
+                       .getColumnFamilyStore(tableName)
+                       .getDirectories()
+                       .sstableLister(Directories.OnTxnErr.THROW)
+                       .onlyBackups(true)
+                       .list()
+                       .keySet();
+    }
+
+    public static StreamState bulkLoadSSTables(File dir, String targetKeyspace)
+    {
+        SSTableLoader.Client client = new SSTableLoader.Client()
+        {
+            private String keyspace;
+
+            public void init(String keyspace)
+            {
+                this.keyspace = keyspace;
+                for (Replica replica : StorageService.instance.getLocalReplicas(keyspace))
+                    addRangeForEndpoint(replica.range(), FBUtilities.getBroadcastAddressAndPort());
+            }
+
+            public TableMetadataRef getTableMetadata(String tableName)
+            {
+                return Schema.instance.getTableMetadataRef(keyspace, tableName);
+            }
+        };
+
+        SSTableLoader loader = new SSTableLoader(dir, client, new OutputHandler.LogOutput(), 1, targetKeyspace);
+        StreamResultFuture result = loader.stream();
+        return FBUtilities.waitOnFuture(result);
+    }
+
+    public static File relativizePath(File targetBasePath, File path, int components)
+    {
+        Preconditions.checkArgument(components > 0);
+        Preconditions.checkArgument(path.toPath().getNameCount() >= components);
+        Path relative = path.toPath().subpath(path.toPath().getNameCount() - components, path.toPath().getNameCount());
+        return targetBasePath.toPath().resolve(relative).toFile();
+    }
+
 }

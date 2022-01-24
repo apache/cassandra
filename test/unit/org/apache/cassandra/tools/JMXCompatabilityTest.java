@@ -160,6 +160,16 @@ public class JMXCompatabilityTest extends CQLTester
         diff(excludeObjects, excludeAttributes, excludeOperations, "test/data/jmxdump/cassandra-4.0-jmx.yaml");
     }
 
+    @Test
+    public void diff41() throws Throwable
+    {
+        List<String> excludeObjects = Arrays.asList();
+        List<String> excludeAttributes = Arrays.asList();
+        List<String> excludeOperations = Arrays.asList();
+
+        diff(excludeObjects, excludeAttributes, excludeOperations, "test/data/jmxdump/cassandra-4.0-cc-jmx.yaml");
+    }
+
     private void diff(List<String> excludeObjects, List<String> excludeAttributes, List<String> excludeOperations, String original) throws Throwable
     {
         setupStandardTables();

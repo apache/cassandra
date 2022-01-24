@@ -410,7 +410,7 @@ commitlog_sync_period_in_ms: 10000
 
 # When in periodic commitlog mode, the number of milliseconds to block writes
 # while waiting for a slow disk flush to complete.
-# periodic_commitlog_sync_lag_block_in_ms: 
+# periodic_commitlog_sync_lag_block_in_ms:
 
 # The size of the individual commitlog file segments.  A commitlog
 # segment may be archived, deleted, or recycled once all the data
@@ -456,7 +456,7 @@ commitlog_segment_size_in_mb: 32
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
 seed_provider:
-    # Addresses of hosts that are deemed contact points. 
+    # Addresses of hosts that are deemed contact points.
     # Cassandra nodes use this list of hosts to find each other and learn
     # the topology of the ring.  You must change this if you are running
     # multiple nodes!
@@ -874,6 +874,14 @@ compaction_throughput_mb_per_sec: 64
 # between the sstables, reducing page cache churn and keeping hot rows hot
 sstable_preemptive_open_interval_in_mb: 50
 
+# Starting from 4.1 sstables support UUID based generation identifiers. They are disabled by default
+# because once enabled, there is no easy way to downgrade. When the node is restarted with this option
+# set to true, each newly created sstable will have a UUID based generation identifier and such files are
+# not readable by previous Cassandra versions. At some point, this option will become true by default
+# and eventually get removed from the configuration.
+# In Converged Cassandra, we enable this option by default
+enable_uuid_sstable_identifiers: true
+
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
 # This speeds up the network transfer significantly subject to
@@ -905,10 +913,10 @@ sstable_preemptive_open_interval_in_mb: 50
 #      failures.
 #   2) operations that use too much CPU/read too much data (leading to memory build
 #      up) by putting a limit to how long an operation will execute.
-# For this reason, you should avoid putting these settings too high. In other words, 
-# if you are timing out requests because of underlying resource constraints then 
-# increasing the timeout will just cause more problems. Of course putting them too 
-# low is equally ill-advised since clients could get timeouts even for successful 
+# For this reason, you should avoid putting these settings too high. In other words,
+# if you are timing out requests because of underlying resource constraints then
+# increasing the timeout will just cause more problems. Of course putting them too
+# low is equally ill-advised since clients could get timeouts even for successful
 # operations just because the timeout setting is too tight.
 
 # How long the coordinator should wait for read operations to complete.
@@ -1075,7 +1083,7 @@ endpoint_snitch: SimpleSnitch
 
 # controls how often to perform the more expensive part of host score
 # calculation
-dynamic_snitch_update_interval_in_ms: 100 
+dynamic_snitch_update_interval_in_ms: 100
 # controls how often to reset all host scores, allowing a bad host to
 # possibly recover
 dynamic_snitch_reset_interval_in_ms: 600000
