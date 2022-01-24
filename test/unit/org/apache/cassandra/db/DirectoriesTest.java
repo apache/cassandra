@@ -26,6 +26,9 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
@@ -34,9 +37,16 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.TableMetadata;
@@ -57,12 +67,15 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.schema.MockSchema.sstableId;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@RunWith(Parameterized.class)
 public class DirectoriesTest
 {
     private static File tempDataDir;
@@ -70,6 +83,19 @@ public class DirectoriesTest
     private static String[] TABLES;
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> files;
+
+    @Parameterized.Parameter(0)
+    public SSTableId.Builder<? extends SSTableId> idBuilder;
+
+    @Parameterized.Parameter(1)
+    public Supplier<? extends SSTableId> idGenerator;
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> idBuilders()
+    {
+        return Arrays.asList(new Object[]{ SequenceBasedSSTableId.Builder.instance, Util.newSeqGen() },
+                             new Object[]{ UUIDBasedSSTableId.Builder.instance, Util.newUUIDGen() });
+    }
 
     @BeforeClass
     public static void beforeClass()
@@ -81,6 +107,9 @@ public class DirectoriesTest
     @Before
     public void beforeTest() throws IOException
     {
+        MockSchema.sstableIds.clear();
+        MockSchema.sstableIdGenerator = idGenerator;
+
         TABLES = new String[] { "cf1", "ks" };
         CFM = new HashSet<>(TABLES.length);
         files = new HashMap<>();
@@ -112,7 +141,7 @@ public class DirectoriesTest
         return new DataDirectory[] { new DataDirectory(location) };
     }
 
-    private static void createTestFiles() throws IOException
+    private void createTestFiles() throws IOException
     {
         for (TableMetadata cfm : CFM)
         {
@@ -134,15 +163,33 @@ public class DirectoriesTest
         }
     }
 
-    private static void createFakeSSTable(File dir, String cf, int gen, List<File> addTo) throws IOException
+    private void createFakeSSTable(File dir, String cf, int gen, List<File> addTo) throws IOException
     {
-        Descriptor desc = new Descriptor(dir, KS, cf, gen, SSTableFormat.Type.BIG);
+        Descriptor desc = new Descriptor(dir, KS, cf, sstableId(gen), SSTableFormat.Type.BIG);
+        for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER })
+        {
+            File f = desc.fileFor(c);
+            assert f.createNewFile();
+            addTo.add(f);
+        }
+    }
+
+    private List<File> createFakeSSTable(File dir, String cf, int gen) throws IOException
+    {
+        Descriptor desc = new Descriptor(dir, KS, cf, sstableId(gen), SSTableFormat.Type.BIG);
+        return createFakeSSTable(desc);
+    }
+
+    private List<File> createFakeSSTable(Descriptor desc) throws IOException
+    {
+        List<File> components = new ArrayList<>(3);
         for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER })
         {
             File f = new File(desc.filenameFor(c));
-            f.createNewFile();
-            addTo.add(f);
+            assert f.createNewFile();
+            components.add(f);
         }
+        return components;
     }
 
     private static File cfDir(TableMetadata metadata)
@@ -171,12 +218,15 @@ public class DirectoriesTest
             Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
 
-            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);
+            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
             File snapshotDir = new File(cfDir(cfm),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
             assertEquals(snapshotDir.getCanonicalFile(), Directories.getSnapshotDirectory(desc, "42"));
 
-            File backupsDir = new File(cfDir(cfm),  File.separator + Directories.BACKUPS_SUBDIR);
+            File backupsDir = new File(cfDir(cfm), File.separator + Directories.BACKUPS_SUBDIR);
             assertEquals(backupsDir.getCanonicalFile(), Directories.getBackupsDirectory(desc));
+
+            Supplier<? extends SSTableId> uidGen = directories.getUIDGenerator(idBuilder);
+            assertThat(Stream.generate(uidGen).limit(100).filter(MockSchema.sstableIds::containsValue).collect(Collectors.toList())).isEmpty();
         }
     }
 
@@ -206,8 +256,8 @@ public class DirectoriesTest
         {
             assertEquals(cfDir(INDEX_CFM), dir);
         }
-        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.name, 0, SSTableFormat.Type.BIG);
-        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.name, 0, SSTableFormat.Type.BIG);
+        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
+        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
 
         // snapshot dir should be created under its parent's
         File parentSnapshotDirectory = Directories.getSnapshotDirectory(parentDesc, "test");
@@ -219,9 +269,9 @@ public class DirectoriesTest
         assertTrue(indexDirectories.snapshotExists("test"));
 
         // check true snapshot size
-        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, 0, SSTableFormat.Type.BIG);
+        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
         createFile(parentSnapshot.filenameFor(Component.DATA), 30);
-        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, 0, SSTableFormat.Type.BIG);
+        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
         createFile(indexSnapshot.filenameFor(Component.DATA), 40);
 
         assertEquals(30, parentDirectories.trueSnapshotsSize());
@@ -354,7 +404,7 @@ public class DirectoriesTest
             File file = new File(first.location, new File(KS, "bad").getPath());
             assertTrue(DisallowedDirectories.isUnwritable(file));
 
-        } 
+        }
         finally 
         {
             DatabaseDescriptor.setDiskFailurePolicy(origPolicy);
@@ -371,7 +421,7 @@ public class DirectoriesTest
             final String n = Long.toString(System.nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {
-                    Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);
+                    Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
                     return Directories.getSnapshotDirectory(desc, n);
                 }
             };

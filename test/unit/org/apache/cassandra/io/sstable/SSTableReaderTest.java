@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
@@ -751,7 +752,7 @@ public class SSTableReaderTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD);
         SSTableReader sstable = getNewSSTable(cfs);
-        Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", 0);
+        Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
         SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
     }
 
@@ -761,7 +762,7 @@ public class SSTableReaderTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD);
         SSTableReader sstable = getNewSSTable(cfs);
-        Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", 0);
+        Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
         SSTableReader.moveAndOpenSSTable(cfs, notLiveDesc, sstable.descriptor, sstable.components, false);
     }
 
@@ -775,7 +776,8 @@ public class SSTableReaderTest
         sstable.selfRef().release();
         File tmpdir = Files.createTempDirectory("testMoveAndOpen").toFile();
         tmpdir.deleteOnExit();
-        Descriptor notLiveDesc = new Descriptor(tmpdir, sstable.descriptor.ksname, sstable.descriptor.cfname, 100);
+        SSTableId id = SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get();
+        Descriptor notLiveDesc = new Descriptor(tmpdir, sstable.descriptor.ksname, sstable.descriptor.cfname, id);
         // make sure the new directory is empty and that the old files exist:
         for (Component c : sstable.components)
         {
@@ -789,7 +791,7 @@ public class SSTableReaderTest
         {
             File f = new File(notLiveDesc.filenameFor(c));
             assertTrue(f.exists());
-            assertTrue(f.toString().contains("-100-"));
+            assertTrue(f.toString().contains(String.format("-%s-", id.asString())));
             f.deleteOnExit();
             assertFalse(new File(sstable.descriptor.filenameFor(c)).exists());
         }

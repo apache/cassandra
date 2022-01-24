@@ -152,7 +152,7 @@ public class BigTableReader extends SSTableReader
             if (!bf.isPresent((DecoratedKey)key))
             {
                 listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
-                Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.generation);
+                Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id.asString());
                 bloomFilterTracker.addTrueNegative();
                 return null;
             }
@@ -168,7 +168,7 @@ public class BigTableReader extends SSTableReader
                 // we do not need to track "true positive" for Bloom Filter here because it has been already tracked
                 // inside getCachedPosition method
                 listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
-                Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
+                Tracing.trace("Key cache hit for sstable {}", descriptor.id.asString());
                 return cachedPosition;
             }
         }
@@ -197,7 +197,7 @@ public class BigTableReader extends SSTableReader
             if (op == Operator.EQ && updateCacheAndStats)
                 bloomFilterTracker.addFalsePositive();
             listener.onSSTableSkipped(this, SkippingReason.MIN_MAX_KEYS);
-            Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.generation);
+            Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.id.asString());
             return null;
         }
 
@@ -244,7 +244,7 @@ public class BigTableReader extends SSTableReader
                         if (op == SSTableReader.Operator.EQ && updateCacheAndStats)
                             bloomFilterTracker.addFalsePositive();
                         listener.onSSTableSkipped(this, SkippingReason.PARTITION_INDEX_LOOKUP);
-                        Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
+                        Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.id.asString());
                         return null;
                     }
                 }
@@ -275,7 +275,7 @@ public class BigTableReader extends SSTableReader
                     if (op == Operator.EQ && updateCacheAndStats)
                         bloomFilterTracker.addTruePositive();
                     listener.onSSTableSelected(this, indexEntry, SelectionReason.INDEX_ENTRY_FOUND);
-                    Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndexCount(), descriptor.generation);
+                    Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndexCount(), descriptor.id.asString());
                     return indexEntry;
                 }
 
@@ -291,7 +291,7 @@ public class BigTableReader extends SSTableReader
         if (op == SSTableReader.Operator.EQ && updateCacheAndStats)
             bloomFilterTracker.addFalsePositive();
         listener.onSSTableSkipped(this, SkippingReason.INDEX_ENTRY_NOT_FOUND);
-        Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.generation);
+        Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.id.asString());
         return null;
     }
 

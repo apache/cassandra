@@ -161,7 +161,7 @@ public class LeveledManifest
         {
             builder.append(sstable.descriptor.cfname)
                    .append('-')
-                   .append(sstable.descriptor.generation)
+                   .append(sstable.descriptor.id)
                    .append("(L")
                    .append(sstable.getSSTableLevel())
                    .append("), ");
