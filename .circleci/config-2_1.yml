@@ -284,19 +284,11 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     # Java 8 cqlsh dtests
     - start_j8_cqlsh_tests:
         type: approval
-    - j8_cqlsh-dtests-py2-with-vnodes:
-        requires:
-        - start_j8_cqlsh_tests
-        - j8_build
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh-dtests-py38-with-vnodes:
-        requires:
-        - start_j8_cqlsh_tests
-        - j8_build
-    - j8_cqlsh-dtests-py2-no-vnodes:
         requires:
         - start_j8_cqlsh_tests
         - j8_build
@@ -311,19 +303,11 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     # Java 11 cqlsh dtests
     - start_j11_cqlsh_tests:
         type: approval
-    - j11_cqlsh-dtests-py2-with-vnodes:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j11_cqlsh_tests
         - j8_build
     - j11_cqlsh-dtests-py38-with-vnodes:
-        requires:
-          - start_j11_cqlsh_tests
-          - j8_build
-    - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - start_j11_cqlsh_tests
           - j8_build
@@ -464,16 +448,10 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - j8_build
           - start_upgrade_tests
     # Java 8 cqlsh dtests
-    - j8_cqlsh-dtests-py2-with-vnodes:
-        requires:
-          - j8_build
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
           - j8_build
     - j8_cqlsh-dtests-py38-with-vnodes:
-        requires:
-          - j8_build
-    - j8_cqlsh-dtests-py2-no-vnodes:
         requires:
           - j8_build
     - j8_cqlsh-dtests-py3-no-vnodes:
@@ -483,16 +461,10 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - j8_build
     # Java 11 cqlsh dtests
-    - j11_cqlsh-dtests-py2-with-vnodes:
-        requires:
-          - j8_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
           - j8_build
     - j11_cqlsh-dtests-py38-with-vnodes:
-        requires:
-          - j8_build
-    - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - j8_build
     - j11_cqlsh-dtests-py3-no-vnodes:
@@ -583,19 +555,11 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
           - j11_build
     - start_j11_cqlsh_tests:
         type: approval
-    - j11_cqlsh-dtests-py2-with-vnodes:
-        requires:
-          - start_j11_cqlsh_tests
-          - j11_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
           - start_j11_cqlsh_tests
           - j11_build
     - j11_cqlsh-dtests-py38-with-vnodes:
-        requires:
-          - start_j11_cqlsh_tests
-          - j11_build
-    - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - start_j11_cqlsh_tests
           - j11_build
@@ -650,16 +614,10 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_dtests-no-vnodes:
         requires:
           - j11_build
-    - j11_cqlsh-dtests-py2-with-vnodes:
-        requires:
-          - j11_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
           - j11_build
     - j11_cqlsh-dtests-py38-with-vnodes:
-        requires:
-          - j11_build
-    - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - j11_build
     - j11_cqlsh-dtests-py3-no-vnodes:
@@ -943,21 +901,6 @@ jobs:
           file_tag: j8_upgradetests_without_vnodes
           pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
 
-  j8_cqlsh-dtests-py2-with-vnodes:
-    <<: *j8_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j8_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python2.7'
-
   j8_cqlsh-dtests-py3-with-vnodes:
     <<: *j8_par_executor
     steps:
@@ -990,21 +933,6 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
-
-  j8_cqlsh-dtests-py2-no-vnodes:
-    <<: *j8_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j8_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j8_without_vnodes
-          pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python2.7'
 
   j8_cqlsh-dtests-py3-no-vnodes:
     <<: *j8_par_executor
@@ -1039,21 +967,6 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
-  j11_cqlsh-dtests-py2-with-vnodes:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python2.7'
-
   j11_cqlsh-dtests-py3-with-vnodes:
     <<: *j11_par_executor
     steps:
@@ -1086,21 +999,6 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
-
-  j11_cqlsh-dtests-py2-no-vnodes:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_without_vnodes
-          pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python2.7'
 
   j11_cqlsh-dtests-py3-no-vnodes:
     <<: *j11_par_executor
