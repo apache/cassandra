@@ -55,6 +55,7 @@
     <property name="test.classlistprefix" value="unit"/>
     <property name="benchmark.name" value=""/>
     <property name="test.methods" value=""/>
+    <property name="test.anttasks.src" value="${test.dir}/anttasks"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.burn.src" value="${test.dir}/burn"/>
@@ -149,15 +150,13 @@
          If it's an individual test print the output from the test under the assumption someone is debugging the test
          and wants to know what is going on without having to context switch to the log file that is generated.
          Debug level output still needs to be retrieved from the log file.  -->
-    <script language="javascript">
-        if (project.getProperty("cassandra.keepBriefBrief") == null)
-        {
-            if (project.getProperty("test.name").equals("*Test"))
-                project.setProperty("cassandra.keepBriefBrief", "true");
-            else
-                project.setProperty("cassandra.keepBriefBrief", "false");
-        }
-    </script>
+    <macrodef name="keepbrief">
+        <sequential>
+                <javac srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true"/>
+                <taskdef name="KeepBriefBrief" classname="org.apache.cassandra.anttasks.KeepBriefBrief" classpath="${test.classes}"/>
+                <KeepBriefBrief property="cassandra.keepBriefBrief"/>
+        </sequential>
+    </macrodef>
 
     <condition property="java.version.8">
         <equals arg1="${ant.java.version}" arg2="1.8"/>
@@ -289,7 +288,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009-2021 The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2022 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
         maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
@@ -508,7 +507,7 @@
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
-          <dependency groupId="commons-io" artifactId="commons-io" version="2.6" scope="test"/>
+          <dependency groupId="commons-io" artifactId="commons-io" version="2.6"/>
           <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
           <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2" scope="provided">
@@ -521,8 +520,8 @@
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
           <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
           <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
-          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.3"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.3"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.9"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.9"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.12.5"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.12.5"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.12.5"/>
@@ -743,6 +742,7 @@
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" scope="test"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" scope="test"/>
+
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
@@ -1386,6 +1386,7 @@
         <pathelement location="${fqltool.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
+     <src path="${test.anttasks.src}"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
      <src path="${test.burn.src}"/>
@@ -1407,7 +1408,8 @@
   <macrodef name="testhelper">
     <attribute name="testdelegate"/>
     <sequential>
-      <testhelper_ testdelegate="@{testdelegate}"/>
+        <taskdef name="testhelper_" classname="org.apache.cassandra.anttasks.TestHelper" classpath="${test.classes}"/>
+        <testhelper_ property="@{testdelegate}"/>
       <fail message="Some test(s) failed.">
         <condition>
             <and>
@@ -1424,21 +1426,6 @@
   <!-- Run a list of junit tasks but don't track errors or generate a report after
        If a test fails the testfailed property will be set. All the tests are run using the testdelegate
        macro that is specified as an attribute and they will be run sequentially in this ant process -->
-  <scriptdef name="testhelper_" language="javascript">
-    <attribute name="testdelegate"/>
-    <![CDATA[
-        sep = project.getProperty("path.separator");
-        all = project.getProperty("all-test-classes").split(sep);
-        var p = project.createTask('sequential');
-        for (i = 0; i < all.length; i++) {
-            if (all[i] == undefined) continue;
-            task = project.createTask( attributes.get("testdelegate") );
-            task.setDynamicAttribute( "test.file.list", "" + all[i]);
-            p.addTask(task);
-        }
-        p.perform();
-    ]]>
-  </scriptdef>
 
   <!-- Defines how to run a set of tests. If you change the defaults for attributes
        you should also update them in testmacro.,
@@ -2158,37 +2145,12 @@
      </fileset>
   	</path>
   	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
-       <script language="javascript">
+      <taskdef name="echoeclipseprojectslibs" classname="org.apache.cassandra.anttasks.EchoEclipseProjectLibs" classpath="${test.classes}">
         <classpath>
             <path refid="cassandra.classpath"/>
             <path refid="cassandra.classpath.test"/>
         </classpath>
-        <![CDATA[
-        var File = java.io.File;
-  		var FilenameUtils = Packages.org.apache.commons.io.FilenameUtils;
-  		jars = project.getProperty("eclipse-project-libs").split(project.getProperty("path.separator"));
-
-  		cp = "";
-  	    for (i=0; i< jars.length; i++) {
-  	       srcjar = FilenameUtils.getBaseName(jars[i]) + '-sources.jar';
-           srcdir = FilenameUtils.concat(project.getProperty("build.test.dir"), 'sources');
-  		   srcfile = new File(FilenameUtils.concat(srcdir, srcjar));
-
-  		   cp += ' <classpathentry kind="lib" path="' + jars[i] + '"';
-  		   if (srcfile.exists()) {
-  		      cp += ' sourcepath="' + srcfile.getAbsolutePath() + '"';
-  		   }
-  		   cp += '/>\n';
-  		}
-
-  		cp += '</classpath>';
-
-  		echo = project.createTask("echo");
-  	    echo.setMessage(cp);
-  		echo.setFile(new File(".classpath"));
-  		echo.setAppend(true);
-  	    echo.perform();
-  	]]> </script>
+        </taskdef>
     <mkdir dir=".settings" />
   </target>
 

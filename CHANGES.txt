@@ -77,6 +77,11 @@
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 
 Merged from 4.0:
+=======
+4.0.2
+ * Full Java 11 support (CASSANDRA-16894)
+ * Remove unused 'geomet' package from cqlsh path (CASSANDRA-17271)
+ * Removed unused 'cql' dependency (CASSANDRA-17247)
  * Don't block gossip when clearing repair snapshots (CASSANDRA-17168)
  * Deduplicate warnings for deprecated parameters (changed names) (CASSANDRA-17160)
  * Update ant-junit to version 1.10.12 (CASSANDRA-17218)
@@ -106,6 +111,7 @@ Merged from 3.11:
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
 Merged from 3.0:
+ * Upgrade logback to 1.2.9 (CASSANDRA-17204)
  * Avoid race in AbstractReplicationStrategy endpoint caching (CASSANDRA-16673)
  * Fix abort when window resizing during cqlsh COPY (CASSANDRA-15230)
  * Fix slow keycache load which blocks startup for tables with many sstables (CASSANDRA-14898)
