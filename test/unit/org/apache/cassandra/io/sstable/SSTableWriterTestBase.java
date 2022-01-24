@@ -124,7 +124,7 @@ public class SSTableWriterTestBase extends SchemaLoader
      */
     public static void validateCFS(ColumnFamilyStore cfs)
     {
-        Set<Integer> liveDescriptors = new HashSet<>();
+        Set<SSTableId> liveDescriptors = new HashSet<>();
         long spaceUsed = 0;
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {

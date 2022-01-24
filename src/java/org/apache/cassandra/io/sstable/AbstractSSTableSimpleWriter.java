@@ -21,10 +21,11 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -43,7 +44,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final TableMetadataRef metadata;
     protected final RegularAndStaticColumns columns;
     protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
-    protected static AtomicInteger generation = new AtomicInteger(0);
+    protected static final AtomicReference<SSTableId> generation = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
@@ -63,8 +64,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         this.makeRangeAware = makeRangeAware;
     }
 
-
-    protected SSTableTxnWriter createWriter()
+    protected SSTableTxnWriter createWriter() throws IOException
     {
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
@@ -82,34 +82,29 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        Collections.emptySet());
     }
 
-    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
+    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt) throws IOException
     {
-        int maxGen = getNextGeneration(directory, columnFamily);
-        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, fmt);
+        SSTableId nextGen = getNextGeneration(directory, columnFamily);
+        return new Descriptor(directory, keyspace, columnFamily, nextGen, fmt);
     }
 
-    private static int getNextGeneration(File directory, final String columnFamily)
+    private static SSTableId getNextGeneration(File directory, final String columnFamily) throws IOException
     {
-        final Set<Descriptor> existing = new HashSet<>();
-        directory.tryList(file -> {
-            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-            if (desc == null)
-                return false;
-
-            if (desc.cfname.equals(columnFamily))
-                existing.add(desc);
-
-            return false;
-        });
-        int maxGen = generation.getAndIncrement();
-        for (Descriptor desc : existing)
+        while (true)
         {
-            while (desc.generation > maxGen)
+            try (Stream<Path> existingPaths = Files.list(directory.toPath()))
             {
-                maxGen = generation.getAndIncrement();
+                Stream<SSTableId> existingIds = existingPaths.map(File::new)
+                                                             .map(SSTable::tryDescriptorFromFilename)
+                                                             .filter(d -> d != null && d.cfname.equals(columnFamily))
+                                                             .map(d -> d.generation);
+
+                SSTableId lastId = generation.get();
+                SSTableId newId = SSTableIdFactory.instance.defaultBuilder().generator(Stream.concat(existingIds, Stream.of(lastId))).get();
+                if (generation.compareAndSet(lastId, newId))
+                    return newId;
             }
         }
-        return maxGen;
     }
 
     PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException

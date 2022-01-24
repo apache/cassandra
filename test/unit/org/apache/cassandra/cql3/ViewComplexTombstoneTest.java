@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -101,7 +102,7 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
             ColumnFamilyStore cfs = ks.getColumnFamilyStore(currentView());
             List<String> sstables = cfs.getLiveSSTables()
                                        .stream()
-                                       .sorted(Comparator.comparingInt(s -> s.descriptor.generation))
+                                       .sorted(Comparator.comparing(s -> s.descriptor.generation, SSTableIdFactory.COMPARATOR))
                                        .map(SSTableReader::getFilename)
                                        .collect(Collectors.toList());
             String dataFiles = String.join(",", Arrays.asList(sstables.get(1), sstables.get(2)));
