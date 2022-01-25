@@ -124,7 +124,6 @@ hinted_handoff_disabled_datacenters:
   - DC1
   - DC2
 ----
-
 |`unset`
 
 |`max_hint_window_in_ms` |Defines the maximum amount of time (ms) a node
