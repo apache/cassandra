@@ -465,7 +465,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * that from disk, then filter the result and either cache that or return it.
      */
     @SuppressWarnings("resource")
-    protected UnfilteredRowIterator getThroughCache(ColumnFamilyStore cfs, ReadExecutionController executionController)
+    private UnfilteredRowIterator getThroughCache(ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         assert !cfs.isIndex(); // CASSANDRA-5732
         assert cfs.isRowCacheEnabled() : String.format("Row cache is not enabled on table [%s]", cfs.name);
