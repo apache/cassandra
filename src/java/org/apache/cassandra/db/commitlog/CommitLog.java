@@ -307,7 +307,6 @@ public class CommitLog implements CommitLogMBean
      * Add a Mutation to the commit log. If CDC is enabled, this can fail.
      *
      * @param mutation the Mutation to add to the log
-     * @throws CDCWriteException
      */
     public CommitLogPosition add(Mutation mutation) throws CDCWriteException
     {

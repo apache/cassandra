@@ -49,6 +49,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WriteOptions;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -134,10 +135,14 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public static void store(Batch batch)
     {
-        store(batch, true);
+        /**
+         * by default writes are durable, see
+         * {@link org.apache.cassandra.schema.KeyspaceParams#DEFAULT_DURABLE_WRITES}
+         */
+        store(batch, WriteOptions.DEFAULT);
     }
 
-    public static void store(Batch batch, boolean durableWrites)
+    public static void store(Batch batch, WriteOptions writeOptions)
     {
         List<ByteBuffer> mutations = new ArrayList<>(batch.encodedMutations.size() + batch.decodedMutations.size());
         mutations.addAll(batch.encodedMutations);
@@ -162,7 +167,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                .add("version", MessagingService.current_version)
                .appendAll("mutations", mutations);
 
-        builder.buildAsMutation().apply(durableWrites);
+        builder.buildAsMutation().apply(writeOptions);
     }
 
     @VisibleForTesting
@@ -484,7 +489,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             Replica selfReplica = liveAndDown.all().selfIfPresent();
             if (selfReplica != null)
-                mutation.apply();
+                mutation.apply(WriteOptions.FOR_BATCH_REPLAY);
 
             ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(
                     r -> IFailureDetector.isReplicaAlive.test(r) && r != selfReplica);
