@@ -36,6 +36,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -52,7 +53,9 @@ public abstract class AbstractVirtualTable implements VirtualTable
         if (!metadata.isVirtual())
             throw new IllegalArgumentException("Cannot instantiate a non-virtual table");
 
-        this.metadata = metadata;
+        this.metadata = metadata.unbuild()
+                                .id(TableId.forSystemTable(metadata.keyspace, metadata.name))
+                                .build();
     }
 
     public TableMetadata metadata()

@@ -81,7 +81,7 @@ public final class SchemaConstants
      */
     public static boolean isLocalSystemKeyspace(String keyspaceName)
     {
-        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
+        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase()) || isVirtualSystemKeyspace(keyspaceName);
     }
 
     /**
