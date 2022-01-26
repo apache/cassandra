@@ -145,31 +145,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     ClusteringIndexFilter clusteringIndexFilter,
                                                     IndexMetadata indexMetadata)
     {
-        if (metadata.isVirtual())
-            return new VirtualTableSinglePartitionReadCommand(false,
-                                                              0,
-                                                              false,
-                                                              metadata,
-                                                              nowInSec,
-                                                              columnFilter,
-                                                              rowFilter,
-                                                              limits,
-                                                              partitionKey,
-                                                              clusteringIndexFilter,
-                                                              indexMetadata,
-                                                              false);
-        return new SinglePartitionReadCommand(false,
-                                              0,
-                                              false,
-                                              metadata,
-                                              nowInSec,
-                                              columnFilter,
-                                              rowFilter,
-                                              limits,
-                                              partitionKey,
-                                              clusteringIndexFilter,
-                                              indexMetadata,
-                                              false);
+        return create(false,
+                      0,
+                      false,
+                      metadata,
+                      nowInSec,
+                      columnFilter,
+                      rowFilter,
+                      limits,
+                      partitionKey,
+                      clusteringIndexFilter,
+                      indexMetadata,
+                      false);
     }
 
     /**
