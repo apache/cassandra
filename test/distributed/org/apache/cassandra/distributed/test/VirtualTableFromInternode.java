@@ -30,10 +30,12 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
+import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class VirtualTableFromInternode extends TestBaseImpl implements Serializable
@@ -53,6 +55,23 @@ public class VirtualTableFromInternode extends TestBaseImpl implements Serializa
     {
         if (CLUSTER != null)
             CLUSTER.close();
+    }
+
+    @Test
+    public void normal()
+    {
+        assertThat(CLUSTER.coordinator(1).executeWithResult("SELECT * FROM system_views.settings", ConsistencyLevel.ONE))
+        .hasSizeGreaterThan(2)
+        .contains("rpc_address", "127.0.0.1")
+        .contains("broadcast_address", "127.0.0.1");
+
+        assertThat(CLUSTER.coordinator(1).executeWithResult("SELECT * FROM system_views.settings WHERE name=?", ConsistencyLevel.ONE, "rpc_address"))
+        .isEqualTo("rpc_address", "127.0.0.1");
+
+        assertThat(CLUSTER.coordinator(1).executeWithResult("SELECT * FROM system_views.settings WHERE name IN (?, ?)", ConsistencyLevel.ONE, "rpc_address", "broadcast_address"))
+        .contains("rpc_address", "127.0.0.1")
+        .contains("broadcast_address", "127.0.0.1")
+        .hasSize(2);
     }
 
     @Test

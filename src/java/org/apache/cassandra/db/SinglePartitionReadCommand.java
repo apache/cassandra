@@ -1199,9 +1199,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                                clusteringIndexFilter));
             }
 
-            return metadata.isVirtual() ?
-                   new VirtualTableGroup(commands, limits) :
-                   new Group(commands, limits);
+            return create(commands, limits);
         }
 
         private Group(List<SinglePartitionReadCommand> commands, DataLimits limits)
@@ -1211,9 +1209,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         public static Group one(SinglePartitionReadCommand command)
         {
-            return command.metadata().isVirtual() ?
-                   new VirtualTableGroup(Collections.singletonList(command), command.limits()) :
-                   new Group(Collections.singletonList(command), command.limits());
+            return create(Collections.singletonList(command), command.limits());
+        }
+
+        public static Group create(List<SinglePartitionReadCommand> commands, DataLimits limits)
+        {
+            return commands.get(0).metadata().isVirtual() ?
+                   new VirtualTableGroup(commands, limits) :
+                   new Group(commands, limits);
         }
 
         public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
