@@ -63,7 +63,7 @@ public class StreamManager implements StreamManagerMBean
 
     public static class StreamRateLimiter
     {
-        public static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
+        public static final double BYTES_PER_MEGABIT = (1000 * 1000) / 8.0;
         private static final RateLimiter limiter = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter interDCLimiter = RateLimiter.create(calculateInterDCRateInBytes());
         private final boolean isLocalDC;
