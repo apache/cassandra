@@ -435,12 +435,14 @@ public class QueryProcessor implements QueryHandler
                 for (Message<ReadResponse> m : list)
                 {
                     ReadResponse rsp = m.payload;
-                    PartitionIterator it = UnfilteredPartitionIterators.filter(rsp.makeIterator(commands.get(i++)), nowInSec);
-                    while (it.hasNext())
+                    try (PartitionIterator it = UnfilteredPartitionIterators.filter(rsp.makeIterator(commands.get(i++)), nowInSec))
                     {
-                        try (RowIterator partition = it.next())
+                        while (it.hasNext())
                         {
-                            select.processPartition(partition, options, result, nowInSec);
+                            try (RowIterator partition = it.next())
+                            {
+                                select.processPartition(partition, options, result, nowInSec);
+                            }
                         }
                     }
                 }
