@@ -2111,7 +2111,24 @@
   </natures>
 </projectDescription>]]>
     </echo>
-	<echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+    <path id="eclipse-project-libs-path">
+        <fileset dir="lib">
+            <include name="**/*.jar" />
+        </fileset>
+        <fileset dir="build/lib/jars">
+            <include name="**/*.jar" />
+        </fileset>
+        <fileset dir="build/test/lib/jars">
+            <include name="**/*.jar" />
+        </fileset>
+    </path>
+    <pathconvert property="eclipse-libs-list" refid="eclipse-project-libs-path" pathsep="${line.separator}">
+        <mapper>
+            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1\" \/&gt;'/>
+        </mapper>
+    </pathconvert>
+    <property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
+    <echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <classpath>
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/resources"/>
@@ -2131,26 +2148,16 @@
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>
   <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
+  ${eclipse-libs-list}
+</classpath>
 ]]>
 	</echo>
-  	<path id="eclipse-project-libs-path">
-  	 <fileset dir="lib">
-  	    <include name="**/*.jar" />
-     </fileset>
- 	 <fileset dir="build/lib/jars">
-  	    <include name="**/*.jar" />
-  	 </fileset>
-     <fileset dir="build/test/lib/jars">
-        <include name="**/*.jar" />
-     </fileset>
-  	</path>
-  	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
-      <taskdef name="echoeclipseprojectslibs" classname="org.apache.cassandra.anttasks.EchoEclipseProjectLibs" classpath="${test.classes}">
+    <taskdef name="echoeclipseprojectslibs" classname="org.apache.cassandra.anttasks.EchoEclipseProjectLibs" classpath="${test.classes}">
         <classpath>
             <path refid="cassandra.classpath"/>
             <path refid="cassandra.classpath.test"/>
         </classpath>
-        </taskdef>
+    </taskdef>
     <mkdir dir=".settings" />
   </target>
 
