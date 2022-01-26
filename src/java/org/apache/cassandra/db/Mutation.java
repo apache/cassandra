@@ -18,7 +18,13 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,11 +45,11 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.net.MessagingService.VERSION_SG_10;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_41;
+import static org.apache.cassandra.net.MessagingService.VERSION_SG_10;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class Mutation implements IMutation
@@ -206,20 +212,15 @@ public class Mutation implements IMutation
         return new Mutation(ks, key, modifications.build(), approxTime.now());
     }
 
-    public CompletableFuture<?> applyFuture()
+    public CompletableFuture<?> applyFuture(WriteOptions writeOptions)
     {
         Keyspace ks = Keyspace.open(keyspaceName);
-        return ks.applyFuture(this, Keyspace.open(keyspaceName).getMetadata().params.durableWrites, true);
+        return ks.applyFuture(this, writeOptions, true);
     }
 
-    public void apply(boolean durableWrites, boolean isDroppable)
+    public void apply(WriteOptions writeOptions)
     {
-        Keyspace.open(keyspaceName).apply(this, durableWrites, true, isDroppable);
-    }
-
-    public void apply(boolean durableWrites)
-    {
-        apply(durableWrites, true);
+        Keyspace.open(keyspaceName).apply(this, writeOptions);
     }
 
     /*
@@ -228,12 +229,12 @@ public class Mutation implements IMutation
      */
     public void apply()
     {
-        apply(Keyspace.open(keyspaceName).getMetadata().params.durableWrites);
+        apply(WriteOptions.DEFAULT);
     }
 
     public void applyUnsafe()
     {
-        apply(false);
+        apply(WriteOptions.DEFAULT_WITHOUT_COMMITLOG);
     }
 
     public long getTimeout(TimeUnit unit)

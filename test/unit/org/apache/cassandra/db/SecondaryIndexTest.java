@@ -20,7 +20,10 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -28,16 +31,20 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
@@ -304,8 +311,7 @@ public class SecondaryIndexTest
 
         // now apply another update, but force the index update to be skipped
         keyspace.apply(new RowUpdateBuilder(cfs.metadata(), 2, "k1").noRowMarker().add("birthdate", 2L).build(),
-                       true,
-                       false);
+                WriteOptions.SKIP_INDEXES_AND_COMMITLOG);
 
         // Now searching the index for either the old or new value should return 0 rows
         // because the new value was not indexed and the old value should be ignored
@@ -317,8 +323,7 @@ public class SecondaryIndexTest
         // now, reset back to the original value, still skipping the index update, to
         // make sure the value was expunged from the index when it was discovered to be inconsistent
         keyspace.apply(new RowUpdateBuilder(cfs.metadata(), 3, "k1").noRowMarker().add("birthdate", 1L).build(),
-                       true,
-                       false);
+                WriteOptions.SKIP_INDEXES_AND_COMMITLOG);
         assertIndexedNone(cfs, col, 1L);
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
         assertIndexCfsIsEmpty(indexCfs);
@@ -364,7 +369,7 @@ public class SecondaryIndexTest
         if (!isStatic)
             builder = builder.clustering("c");
         builder.add(colName, 20l);
-        keyspace.apply(builder.build(), true, false);
+        keyspace.apply(builder.build(), WriteOptions.SKIP_INDEXES_AND_COMMITLOG);
 
         // Now searching the index for either the old or new value should return 0 rows
         // because the new value was not indexed and the old value should be ignored
@@ -380,7 +385,7 @@ public class SecondaryIndexTest
         if (!isStatic)
             builder = builder.clustering("c");
         builder.add(colName, 10L);
-        keyspace.apply(builder.build(), true, false);
+        keyspace.apply(builder.build(), WriteOptions.SKIP_INDEXES_AND_COMMITLOG);
         assertIndexedNone(cfs, col, 20l);
 
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
