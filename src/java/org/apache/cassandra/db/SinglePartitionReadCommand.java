@@ -35,6 +35,8 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
@@ -57,8 +59,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 {
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
-    private final DecoratedKey partitionKey;
-    private final ClusteringIndexFilter clusteringIndexFilter;
+    protected final DecoratedKey partitionKey;
+    protected final ClusteringIndexFilter clusteringIndexFilter;
 
     @VisibleForTesting
     protected SinglePartitionReadCommand(boolean isDigest,
@@ -78,6 +80,46 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
+    }
+
+    private static SinglePartitionReadCommand create(boolean isDigest,
+                                                    int digestVersion,
+                                                    boolean acceptsTransient,
+                                                    TableMetadata metadata,
+                                                    int nowInSec,
+                                                    ColumnFilter columnFilter,
+                                                    RowFilter rowFilter,
+                                                    DataLimits limits,
+                                                    DecoratedKey partitionKey,
+                                                    ClusteringIndexFilter clusteringIndexFilter,
+                                                    IndexMetadata index,
+                                                    boolean trackWarnings)
+    {
+        if (metadata.isVirtual())
+            return new VirtualTableSinglePartitionReadCommand(isDigest,
+                                                              digestVersion,
+                                                              acceptsTransient,
+                                                              metadata,
+                                                              nowInSec,
+                                                              columnFilter,
+                                                              rowFilter,
+                                                              limits,
+                                                              partitionKey,
+                                                              clusteringIndexFilter,
+                                                              index,
+                                                              trackWarnings);
+        return new SinglePartitionReadCommand(isDigest,
+                                              digestVersion,
+                                              acceptsTransient,
+                                              metadata,
+                                              nowInSec,
+                                              columnFilter,
+                                              rowFilter,
+                                              limits,
+                                              partitionKey,
+                                              clusteringIndexFilter,
+                                              index,
+                                              trackWarnings);
     }
 
     /**
@@ -103,6 +145,19 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     ClusteringIndexFilter clusteringIndexFilter,
                                                     IndexMetadata indexMetadata)
     {
+        if (metadata.isVirtual())
+            return new VirtualTableSinglePartitionReadCommand(false,
+                                                              0,
+                                                              false,
+                                                              metadata,
+                                                              nowInSec,
+                                                              columnFilter,
+                                                              rowFilter,
+                                                              limits,
+                                                              partitionKey,
+                                                              clusteringIndexFilter,
+                                                              indexMetadata,
+                                                              false);
         return new SinglePartitionReadCommand(false,
                                               0,
                                               false,
@@ -280,69 +335,69 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public SinglePartitionReadCommand copy()
     {
-        return new SinglePartitionReadCommand(isDigestQuery(),
-                                              digestVersion(),
-                                              acceptsTransient(),
-                                              metadata(),
-                                              nowInSec(),
-                                              columnFilter(),
-                                              rowFilter(),
-                                              limits(),
-                                              partitionKey(),
-                                              clusteringIndexFilter(),
-                                              indexMetadata(),
-                                              isTrackingWarnings());
+        return create(isDigestQuery(),
+                      digestVersion(),
+                      acceptsTransient(),
+                      metadata(),
+                      nowInSec(),
+                      columnFilter(),
+                      rowFilter(),
+                      limits(),
+                      partitionKey(),
+                      clusteringIndexFilter(),
+                      indexMetadata(),
+                      isTrackingWarnings());
     }
 
     @Override
     protected SinglePartitionReadCommand copyAsDigestQuery()
     {
-        return new SinglePartitionReadCommand(true,
-                                              digestVersion(),
-                                              acceptsTransient(),
-                                              metadata(),
-                                              nowInSec(),
-                                              columnFilter(),
-                                              rowFilter(),
-                                              limits(),
-                                              partitionKey(),
-                                              clusteringIndexFilter(),
-                                              indexMetadata(),
-                                              isTrackingWarnings());
+        return create(true,
+                      digestVersion(),
+                      acceptsTransient(),
+                      metadata(),
+                      nowInSec(),
+                      columnFilter(),
+                      rowFilter(),
+                      limits(),
+                      partitionKey(),
+                      clusteringIndexFilter(),
+                      indexMetadata(),
+                      isTrackingWarnings());
     }
 
     @Override
     protected SinglePartitionReadCommand copyAsTransientQuery()
     {
-        return new SinglePartitionReadCommand(false,
-                                              0,
-                                              true,
-                                              metadata(),
-                                              nowInSec(),
-                                              columnFilter(),
-                                              rowFilter(),
-                                              limits(),
-                                              partitionKey(),
-                                              clusteringIndexFilter(),
-                                              indexMetadata(),
-                                              isTrackingWarnings());
+        return create(false,
+                      0,
+                      true,
+                      metadata(),
+                      nowInSec(),
+                      columnFilter(),
+                      rowFilter(),
+                      limits(),
+                      partitionKey(),
+                      clusteringIndexFilter(),
+                      indexMetadata(),
+                      isTrackingWarnings());
     }
 
     @Override
     public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
     {
-        return new SinglePartitionReadCommand(isDigestQuery(),
-                                              digestVersion(),
-                                              acceptsTransient(),
-                                              metadata(),
-                                              nowInSec(),
-                                              columnFilter(),
-                                              rowFilter(),
-                                              newLimits,
-                                              partitionKey(),
-                                              clusteringIndexFilter(),
-                                              indexMetadata(),
-                                              isTrackingWarnings());
+        return create(isDigestQuery(),
+                      digestVersion(),
+                      acceptsTransient(),
+                      metadata(),
+                      nowInSec(),
+                      columnFilter(),
+                      rowFilter(),
+                      newLimits,
+                      partitionKey(),
+                      clusteringIndexFilter(),
+                      indexMetadata(),
+                      isTrackingWarnings());
     }
 
     @Override
@@ -423,7 +478,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * that from disk, then filter the result and either cache that or return it.
      */
     @SuppressWarnings("resource")
-    private UnfilteredRowIterator getThroughCache(ColumnFamilyStore cfs, ReadExecutionController executionController)
+    protected UnfilteredRowIterator getThroughCache(ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         assert !cfs.isIndex(); // CASSANDRA-5732
         assert cfs.isRowCacheEnabled() : String.format("Row cache is not enabled on table [%s]", cfs.name);
@@ -1192,7 +1247,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return new SinglePartitionReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index, false);
+            return SinglePartitionReadCommand.create(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index, false);
         }
     }
 
@@ -1221,6 +1276,33 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         public int getMergedSSTables()
         {
             return mergedSSTables;
+        }
+    }
+
+    public static class VirtualTableSinglePartitionReadCommand extends SinglePartitionReadCommand
+    {
+        protected VirtualTableSinglePartitionReadCommand(boolean isDigest, int digestVersion, boolean acceptsTransient, TableMetadata metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, IndexMetadata index, boolean trackWarnings)
+        {
+            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, index, trackWarnings);
+        }
+
+        @Override
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
+        {
+            return executeInternal(executionController());
+        }
+
+        @Override
+        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+        {
+            VirtualTable view = VirtualKeyspaceRegistry.instance.getTableNullable(metadata().id);
+            return view.select(partitionKey, clusteringIndexFilter, columnFilter());
+        }
+
+        @Override
+        public ReadExecutionController executionController()
+        {
+            return ReadExecutionController.empty();
         }
     }
 }

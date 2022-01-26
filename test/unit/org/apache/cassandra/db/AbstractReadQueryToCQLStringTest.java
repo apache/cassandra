@@ -670,7 +670,7 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
     public void testVirtualTable() throws Throwable
     {
         TableMetadata metadata =
-        TableMetadata.builder("vk", "vt")
+        TableMetadata.builder("system_views", "vt") // currently we require keyspace to be a system keyspace
                      .kind(TableMetadata.Kind.VIRTUAL)
                      .addPartitionKeyColumn("k", Int32Type.instance)
                      .addClusteringColumn("c", Int32Type.instance)
@@ -685,82 +685,82 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
                 return data;
             }
         };
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("vk", ImmutableList.of(table)));
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("system_views", ImmutableList.of(table)));
 
         // column selection on unrestricted partition range query
-        test("SELECT * FROM vk.vt");
-        test("SELECT k FROM vk.vt",
-             "SELECT * FROM vk.vt");
-        test("SELECT c FROM vk.vt",
-             "SELECT * FROM vk.vt");
-        test("SELECT s FROM vk.vt");
-        test("SELECT v FROM vk.vt");
-        test("SELECT k, c, s, v FROM vk.vt",
-             "SELECT s, v FROM vk.vt");
+        test("SELECT * FROM system_views.vt");
+        test("SELECT k FROM system_views.vt",
+             "SELECT * FROM system_views.vt");
+        test("SELECT c FROM system_views.vt",
+             "SELECT * FROM system_views.vt");
+        test("SELECT s FROM system_views.vt");
+        test("SELECT v FROM system_views.vt");
+        test("SELECT k, c, s, v FROM system_views.vt",
+             "SELECT s, v FROM system_views.vt");
 
         // column selection on partition directed query
-        test("SELECT * FROM vk.vt WHERE k = 1");
-        test("SELECT k FROM vk.vt WHERE k = 1",
-             "SELECT * FROM vk.vt WHERE k = 1");
-        test("SELECT c FROM vk.vt WHERE k = 1",
-             "SELECT * FROM vk.vt WHERE k = 1");
-        test("SELECT v FROM vk.vt WHERE k = 1");
-        test("SELECT s FROM vk.vt WHERE k = 1");
-        test("SELECT k, c, s, v FROM vk.vt WHERE k = 1",
-             "SELECT s, v FROM vk.vt WHERE k = 1");
+        test("SELECT * FROM system_views.vt WHERE k = 1");
+        test("SELECT k FROM system_views.vt WHERE k = 1",
+             "SELECT * FROM system_views.vt WHERE k = 1");
+        test("SELECT c FROM system_views.vt WHERE k = 1",
+             "SELECT * FROM system_views.vt WHERE k = 1");
+        test("SELECT v FROM system_views.vt WHERE k = 1");
+        test("SELECT s FROM system_views.vt WHERE k = 1");
+        test("SELECT k, c, s, v FROM system_views.vt WHERE k = 1",
+             "SELECT s, v FROM system_views.vt WHERE k = 1");
 
         // clustering filters
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c = 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c < 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c > 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c <= 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c >= 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c > 1 AND c <= 2");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c >= 1 AND c < 2");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c = 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c < 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c > 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c <= 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c >= 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c > 1 AND c <= 2");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c >= 1 AND c < 2");
 
         // token restrictions
-        test("SELECT * FROM vk.vt WHERE token(k) > 0");
-        test("SELECT * FROM vk.vt WHERE token(k) < 0");
-        test("SELECT * FROM vk.vt WHERE token(k) >= 0");
-        test("SELECT * FROM vk.vt WHERE token(k) <= 0");
-        test("SELECT * FROM vk.vt WHERE token(k) = 0",
-             "SELECT * FROM vk.vt WHERE token(k) >= 0 AND token(k) <= 0");
+        test("SELECT * FROM system_views.vt WHERE token(k) > 0");
+        test("SELECT * FROM system_views.vt WHERE token(k) < 0");
+        test("SELECT * FROM system_views.vt WHERE token(k) >= 0");
+        test("SELECT * FROM system_views.vt WHERE token(k) <= 0");
+        test("SELECT * FROM system_views.vt WHERE token(k) = 0",
+             "SELECT * FROM system_views.vt WHERE token(k) >= 0 AND token(k) <= 0");
 
         // row filters
-        test("SELECT * FROM vk.vt WHERE c = 1 ALLOW FILTERING");
-        test("SELECT * FROM vk.vt WHERE s = 1 ALLOW FILTERING");
-        test("SELECT * FROM vk.vt WHERE v = 1 ALLOW FILTERING");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND v = 1 ALLOW FILTERING");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c = 1 AND v = 1 ALLOW FILTERING");
-        test("SELECT * FROM vk.vt WHERE token(k) > 0 AND v = 1 ALLOW FILTERING");
-        test("SELECT * FROM vk.vt WHERE token(k) > 0 AND c = 1 AND v = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE c = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE s = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE v = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND v = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c = 1 AND v = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE token(k) > 0 AND v = 1 ALLOW FILTERING");
+        test("SELECT * FROM system_views.vt WHERE token(k) > 0 AND c = 1 AND v = 1 ALLOW FILTERING");
 
         // grouped partition-directed queries, maybe producing multiple queries
-        test("SELECT * FROM vk.vt WHERE k IN (0)",
-             "SELECT * FROM vk.vt WHERE k = 0");
-        test("SELECT * FROM vk.vt WHERE k IN (0, 1)",
-             "SELECT * FROM vk.vt WHERE k = 0",
-             "SELECT * FROM vk.vt WHERE k = 1");
-        test("SELECT * FROM vk.vt WHERE k IN (0, 1) AND c = 0",
-             "SELECT * FROM vk.vt WHERE k = 0 AND c = 0",
-             "SELECT * FROM vk.vt WHERE k = 1 AND c = 0");
-        test("SELECT * FROM vk.vt WHERE k IN (0, 1) AND c > 0",
-             "SELECT * FROM vk.vt WHERE k = 0 AND c > 0",
-             "SELECT * FROM vk.vt WHERE k = 1 AND c > 0");
+        test("SELECT * FROM system_views.vt WHERE k IN (0)",
+             "SELECT * FROM system_views.vt WHERE k = 0");
+        test("SELECT * FROM system_views.vt WHERE k IN (0, 1)",
+             "SELECT * FROM system_views.vt WHERE k = 0",
+             "SELECT * FROM system_views.vt WHERE k = 1");
+        test("SELECT * FROM system_views.vt WHERE k IN (0, 1) AND c = 0",
+             "SELECT * FROM system_views.vt WHERE k = 0 AND c = 0",
+             "SELECT * FROM system_views.vt WHERE k = 1 AND c = 0");
+        test("SELECT * FROM system_views.vt WHERE k IN (0, 1) AND c > 0",
+             "SELECT * FROM system_views.vt WHERE k = 0 AND c > 0",
+             "SELECT * FROM system_views.vt WHERE k = 1 AND c > 0");
 
         // order by
-        test("SELECT * FROM vk.vt WHERE k = 0 ORDER BY c",
-             "SELECT * FROM vk.vt WHERE k = 0");
-        test("SELECT * FROM vk.vt WHERE k = 0 ORDER BY c ASC",
-             "SELECT * FROM vk.vt WHERE k = 0");
-        test("SELECT * FROM vk.vt WHERE k = 0 ORDER BY c DESC");
+        test("SELECT * FROM system_views.vt WHERE k = 0 ORDER BY c",
+             "SELECT * FROM system_views.vt WHERE k = 0");
+        test("SELECT * FROM system_views.vt WHERE k = 0 ORDER BY c ASC",
+             "SELECT * FROM system_views.vt WHERE k = 0");
+        test("SELECT * FROM system_views.vt WHERE k = 0 ORDER BY c DESC");
 
         // order by clustering filter
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c = 1 ORDER BY c",
-             "SELECT * FROM vk.vt WHERE k = 0 AND c = 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c = 1 ORDER BY c ASC",
-             "SELECT * FROM vk.vt WHERE k = 0 AND c = 1");
-        test("SELECT * FROM vk.vt WHERE k = 0 AND c = 1 ORDER BY c DESC");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c = 1 ORDER BY c",
+             "SELECT * FROM system_views.vt WHERE k = 0 AND c = 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c = 1 ORDER BY c ASC",
+             "SELECT * FROM system_views.vt WHERE k = 0 AND c = 1");
+        test("SELECT * FROM system_views.vt WHERE k = 0 AND c = 1 ORDER BY c DESC");
     }
 
     private List<String> toCQLString(String query)
@@ -778,11 +778,6 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         if (readQuery instanceof SinglePartitionReadCommand.Group)
         {
             SinglePartitionReadCommand.Group group = (SinglePartitionReadCommand.Group) readQuery;
-            return group.queries.stream().map(AbstractReadQuery::toCQLString).collect(Collectors.toList());
-        }
-        else if (readQuery instanceof VirtualTableSinglePartitionReadQuery.Group)
-        {
-            VirtualTableSinglePartitionReadQuery.Group group = (VirtualTableSinglePartitionReadQuery.Group) readQuery;
             return group.queries.stream().map(AbstractReadQuery::toCQLString).collect(Collectors.toList());
         }
         else
