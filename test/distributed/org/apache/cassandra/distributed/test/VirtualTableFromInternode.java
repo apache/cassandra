@@ -19,7 +19,10 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.HashSet;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -65,8 +68,14 @@ public class VirtualTableFromInternode extends TestBaseImpl implements Serializa
                 assertThat(rs.isEmpty()).isFalse();
                 for (UntypedResultSet.Row row : rs)
                 {
-                    if ("rpc_address".equals(row.getString("name")))
-                        assertThat(row.getString("value")).isEqualTo(address.getAddress().getHostAddress());
+                    String name = row.getString("name");
+                    switch (name)
+                    {
+                        case "broadcast_address":
+                        case "rpc_address":
+                            assertThat(row.getString("value")).isEqualTo(address.getAddress().getHostAddress());
+                            break;
+                    }
                 }
             }
             assertThat(didWork).isTrue();
@@ -85,6 +94,29 @@ public class VirtualTableFromInternode extends TestBaseImpl implements Serializa
                                                     .syncUninterruptibly().getNow();
                 assertThat(rs.isEmpty()).isFalse();
                 assertThat(rs.one().getString("value")).isEqualTo(address.getAddress().getHostAddress());
+            }
+            assertThat(didWork).isTrue();
+        });
+    }
+
+    @Test
+    public void readCommandAccessVirtualTableMultiplePartition()
+    {
+        CLUSTER.get(1).runOnInstance(() -> {
+            boolean didWork = false;
+            for (InetAddressAndPort address : Gossiper.instance.getLiveMembers())
+            {
+                didWork = true;
+                UntypedResultSet rs = QueryProcessor.execute(address, "SELECT * FROM system_views.settings WHERE name IN (?, ?)", "rpc_address", "broadcast_address")
+                                                    .syncUninterruptibly().getNow();
+                assertThat(rs.isEmpty()).isFalse();
+                Set<String> columns = new HashSet<>();
+                for (UntypedResultSet.Row row : rs)
+                {
+                    columns.add(row.getString("name"));
+                    assertThat(row.getString("value")).isEqualTo(address.getAddress().getHostAddress());
+                }
+                assertThat(columns).isEqualTo(ImmutableSet.of("rpc_address", "broadcast_address"));
             }
             assertThat(didWork).isTrue();
         });
