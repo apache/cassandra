@@ -39,7 +39,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
 
     @Override
     @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed
-    public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
+    public WriteContext beginWrite(Mutation mutation, WriteOptions writeOptions) throws RequestExecutionException
     {
         OpOrder.Group group = null;
         try
@@ -48,7 +48,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
 
             // write the mutation to the commitlog and memtables
             CommitLogPosition position = null;
-            if (makeDurable)
+            if (writeOptions.shouldWriteCommitLog(mutation.getKeyspaceName()))
             {
                 position = addToCommitLog(mutation);
             }
