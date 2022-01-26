@@ -82,7 +82,7 @@ public class VirtualTableFromInternode extends TestBaseImpl implements Serializa
             for (InetAddressAndPort address : Gossiper.instance.getLiveMembers())
             {
                 didWork = true;
-                UntypedResultSet rs = QueryProcessor.execute(address, "SELECT * FROM system_views.settings")
+                UntypedResultSet rs = QueryProcessor.executeAsync(address, "SELECT * FROM system_views.settings")
                                                     .syncUninterruptibly().getNow();
                 assertThat(rs.isEmpty()).isFalse();
                 for (UntypedResultSet.Row row : rs)
@@ -109,7 +109,7 @@ public class VirtualTableFromInternode extends TestBaseImpl implements Serializa
             for (InetAddressAndPort address : Gossiper.instance.getLiveMembers())
             {
                 didWork = true;
-                UntypedResultSet rs = QueryProcessor.execute(address, "SELECT * FROM system_views.settings WHERE name=?", "rpc_address")
+                UntypedResultSet rs = QueryProcessor.executeAsync(address, "SELECT * FROM system_views.settings WHERE name=?", "rpc_address")
                                                     .syncUninterruptibly().getNow();
                 assertThat(rs.isEmpty()).isFalse();
                 assertThat(rs.one().getString("value")).isEqualTo(address.getAddress().getHostAddress());
@@ -126,7 +126,7 @@ public class VirtualTableFromInternode extends TestBaseImpl implements Serializa
             for (InetAddressAndPort address : Gossiper.instance.getLiveMembers())
             {
                 didWork = true;
-                UntypedResultSet rs = QueryProcessor.execute(address, "SELECT * FROM system_views.settings WHERE name IN (?, ?)", "rpc_address", "broadcast_address")
+                UntypedResultSet rs = QueryProcessor.executeAsync(address, "SELECT * FROM system_views.settings WHERE name IN (?, ?)", "rpc_address", "broadcast_address")
                                                     .syncUninterruptibly().getNow();
                 assertThat(rs.isEmpty()).isFalse();
                 Set<String> columns = new HashSet<>();

@@ -397,7 +397,7 @@ public class QueryProcessor implements QueryHandler
             return null;
     }
 
-    public static Future<UntypedResultSet> execute(InetAddressAndPort address, String query, Object... values)
+    public static Future<UntypedResultSet> executeAsync(InetAddressAndPort address, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         QueryOptions options = makeInternalOptions(prepared.statement, values);
