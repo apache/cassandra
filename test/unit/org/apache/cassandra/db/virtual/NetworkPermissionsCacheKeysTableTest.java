@@ -70,6 +70,10 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthenticatedUser.networkPermissionsCache.invalidate();
+
+        // prepared statements cache the metadata, but this class changes it for each test
+        // need to disable as LocalPartitioner doesn't allow tokens from other LocalPartitioners (object equality)
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
