@@ -5465,6 +5465,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getDynamicUpdateInterval();
     }
 
+    public void setDynamicBadnessThreshold(double dynamicBadnessThreshold)
+    {
+        if (DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitch)
+        {
+
+            try
+            {
+                updateSnitch(null, true, null, null, dynamicBadnessThreshold);
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public void getDynamicBadnessThreshold()
+    {
+        DatabaseDescriptor.getDynamicBadnessThreshold();
+    }
+
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
         // apply dynamic snitch configuration
