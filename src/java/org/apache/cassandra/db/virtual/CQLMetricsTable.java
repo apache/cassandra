@@ -21,14 +21,16 @@ package org.apache.cassandra.db.virtual;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryProcessor;
 
-// Virtual table for CQL metrics
-public class CQLMetricsTable extends AbstractVirtualTable
+
+final class CQLMetricsTable extends AbstractVirtualTable
 {
     public static final String TABLE_NAME = "cql_metrics";
     public static final String PREPARED_STATEMENTS_COUNT_COL = "prepared_statements_count";
@@ -41,7 +43,6 @@ public class CQLMetricsTable extends AbstractVirtualTable
 
     private final CQLMetrics cqlMetrics;
 
-    // Default constructor references query processor metrics
     CQLMetricsTable(String keyspace)
     {
         this(keyspace, QueryProcessor.metrics);
@@ -51,16 +52,15 @@ public class CQLMetricsTable extends AbstractVirtualTable
     @VisibleForTesting
     CQLMetricsTable(String keyspace, CQLMetrics cqlMetrics)
     {
-        // create virtual table with this name
         super(TableMetadata.builder(keyspace, TABLE_NAME)
                            .kind(TableMetadata.Kind.VIRTUAL)
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(NAME_COL, UTF8Type.instance)
-                           .addRegularColumn(PREPARED_STATEMENTS_COUNT_COL, DoubleType.instance)
-                           .addRegularColumn(PREPARED_STATEMENTS_EVICTED_COL, DoubleType.instance)
-                           .addRegularColumn(PREPARED_STATEMENTS_EXECUTED_COL, DoubleType.instance)
+                           .addRegularColumn(PREPARED_STATEMENTS_COUNT_COL, Int32Type.instance)
+                           .addRegularColumn(PREPARED_STATEMENTS_EVICTED_COL, LongType.instance)
+                           .addRegularColumn(PREPARED_STATEMENTS_EXECUTED_COL, LongType.instance)
                            .addRegularColumn(PREPARED_STATEMENTS_RATIO_COL, DoubleType.instance)
-                           .addRegularColumn(REGULAR_STATEMENTS_EXECUTED_COL, DoubleType.instance)
+                           .addRegularColumn(REGULAR_STATEMENTS_EXECUTED_COL, LongType.instance)
                            .build());
         this.cqlMetrics = cqlMetrics;
     }
@@ -68,7 +68,6 @@ public class CQLMetricsTable extends AbstractVirtualTable
     @Override
     public DataSet data()
     {
-        // populate metrics in the virtual table
         SimpleDataSet result = new SimpleDataSet(metadata());
         addRow(result, VALUE_ROW, cqlMetrics);
 
@@ -78,10 +77,10 @@ public class CQLMetricsTable extends AbstractVirtualTable
     private void addRow(SimpleDataSet dataSet, String name, CQLMetrics cqlMetrics)
     {
         dataSet.row(name)
-               .column(PREPARED_STATEMENTS_COUNT_COL, Double.valueOf(cqlMetrics.preparedStatementsCount.getValue()))
-               .column(PREPARED_STATEMENTS_EVICTED_COL, Double.valueOf(cqlMetrics.preparedStatementsEvicted.getCount()))
-               .column(PREPARED_STATEMENTS_EXECUTED_COL, Double.valueOf(cqlMetrics.preparedStatementsExecuted.getCount()))
+               .column(PREPARED_STATEMENTS_COUNT_COL, cqlMetrics.preparedStatementsCount.getValue())
+               .column(PREPARED_STATEMENTS_EVICTED_COL, cqlMetrics.preparedStatementsEvicted.getCount())
+               .column(PREPARED_STATEMENTS_EXECUTED_COL, cqlMetrics.preparedStatementsExecuted.getCount())
                .column(PREPARED_STATEMENTS_RATIO_COL, cqlMetrics.preparedStatementsRatio.getValue())
-               .column(REGULAR_STATEMENTS_EXECUTED_COL, Double.valueOf(cqlMetrics.regularStatementsExecuted.getCount()));
+               .column(REGULAR_STATEMENTS_EXECUTED_COL, cqlMetrics.regularStatementsExecuted.getCount());
     }
 }

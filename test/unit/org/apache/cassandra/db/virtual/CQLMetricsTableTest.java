@@ -50,7 +50,6 @@ public class CQLMetricsTableTest extends CQLTester
         String getMetricsQuery = "SELECT * FROM " + KS_NAME + "." + CQLMetricsTable.TABLE_NAME;
         ResultSet vtsRows = executeNet(getMetricsQuery);
 
-        // validate - number of columns
         assertEquals(6, vtsRows.getColumnDefinitions().size());
 
         AtomicInteger rowCount = new AtomicInteger(0);
@@ -63,7 +62,6 @@ public class CQLMetricsTableTest extends CQLTester
             rowCount.getAndIncrement();
         });
 
-        // validate - number of rows
         assertEquals(1, rowCount.get());
     }
 
@@ -77,7 +75,6 @@ public class CQLMetricsTableTest extends CQLTester
         String tbl = createTable(ks, "CREATE TABLE %s (id int PRIMARY KEY, cid int, val text)");
         Session session = sessionNet();
 
-        // prepare statements
         String insertCQL = "INSERT INTO " + ks + "." + tbl + " (id, cid, val) VALUES (?, ?, ?)";
         PreparedStatement preparedInsert = session.prepare(insertCQL);
 
@@ -86,7 +83,6 @@ public class CQLMetricsTableTest extends CQLTester
 
         for (int i = 0; i < 10; i++)
         {
-            // execute prepared statements
             session.execute(preparedInsert.bind(i, i, "value" + i));
             session.execute(preparedSelect.bind(i));
         }
