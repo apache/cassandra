@@ -85,7 +85,7 @@ public class StreamManager implements StreamManagerMBean
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
-        public static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
+        public static final double BYTES_PER_MEGABIT = (1000 * 1000) / 8.0;
         private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
