@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
@@ -1198,22 +1199,45 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                                clusteringIndexFilter));
             }
 
-            return new Group(commands, limits);
+            return metadata.isVirtual() ?
+                   new VirtualTableGroup(commands, limits) :
+                   new Group(commands, limits);
         }
 
-        public Group(List<SinglePartitionReadCommand> commands, DataLimits limits)
+        private Group(List<SinglePartitionReadCommand> commands, DataLimits limits)
         {
             super(commands, limits);
         }
 
         public static Group one(SinglePartitionReadCommand command)
         {
-            return new Group(Collections.singletonList(command), command.limits());
+            return command.metadata().isVirtual() ?
+                   new VirtualTableGroup(Collections.singletonList(command), command.limits()) :
+                   new Group(Collections.singletonList(command), command.limits());
         }
 
         public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
         {
             return StorageProxy.read(this, consistency, clientState, queryStartNanoTime);
+        }
+    }
+
+    public static class VirtualTableGroup extends Group
+    {
+        public VirtualTableGroup(List<SinglePartitionReadCommand> commands, DataLimits limits)
+        {
+            super(commands, limits);
+        }
+
+        @Override
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
+        {
+            if (queries.size() == 1)
+                return queries.get(0).execute(consistency, clientState, queryStartNanoTime);
+
+            return PartitionIterators.concat(queries.stream()
+                                                    .map(q -> q.execute(consistency, clientState, queryStartNanoTime))
+                                                    .collect(Collectors.toList()));
         }
     }
 
