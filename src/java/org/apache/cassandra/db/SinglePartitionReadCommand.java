@@ -1291,5 +1291,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             return ReadExecutionController.empty();
         }
+
+        @Override
+        public ReadExecutionController executionController(boolean trackRepairedStatus)
+        {
+            return executionController();
+        }
     }
 }

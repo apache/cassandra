@@ -517,5 +517,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         {
             return ReadExecutionController.empty();
         }
+
+        @Override
+        public ReadExecutionController executionController(boolean trackRepairedStatus)
+        {
+            return executionController();
+        }
     }
 }

@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -30,7 +31,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import com.google.common.primitives.Ints;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,8 +38,13 @@ import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.selection.ResultSetBuilder;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -60,6 +65,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ENABLE_NODELOCAL_QUERIES;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -355,7 +362,6 @@ public class QueryProcessor implements QueryHandler
     {
         if (prepared.getBindVariables().size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.getBindVariables().size(), values.length));
-
         List<ByteBuffer> boundValues = new ArrayList<>(values.length);
         for (int i = 0; i < values.length; i++)
         {
@@ -389,6 +395,59 @@ public class QueryProcessor implements QueryHandler
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
             return null;
+    }
+
+    public static Future<UntypedResultSet> execute(InetAddressAndPort address, String query, Object... values)
+    {
+        Prepared prepared = prepareInternal(query);
+        QueryOptions options = makeInternalOptions(prepared.statement, values);
+        if (prepared.statement instanceof SelectStatement)
+        {
+            SelectStatement select = (SelectStatement) prepared.statement;
+            int nowInSec = FBUtilities.nowInSeconds();
+            ReadQuery readQuery = select.getQuery(options, nowInSec);
+            List<ReadCommand> commands;
+            if (readQuery instanceof ReadCommand)
+            {
+                commands = Collections.singletonList((ReadCommand) readQuery);
+            }
+            else if (readQuery instanceof SinglePartitionReadQuery.Group)
+            {
+                List<? extends SinglePartitionReadQuery> queries = ((SinglePartitionReadQuery.Group<? extends SinglePartitionReadQuery>) readQuery).queries;
+                queries.forEach(a -> {
+                    if (!(a instanceof ReadCommand))
+                        throw new IllegalArgumentException("Queries found which are not ReadCommand: " + a.getClass());
+                });
+                commands = (List<ReadCommand>) (List<?>) queries;
+            }
+            else
+            {
+                throw new IllegalArgumentException("Unable to handle; only expected ReadCommands but given " + readQuery.getClass());
+            }
+            Future<List<Message<ReadResponse>>> future = FutureCombiner.allOf(commands.stream()
+                                                                                      .map(rc -> Message.out(rc.verb(), rc))
+                                                                                      .map(m -> MessagingService.instance().<ReadResponse>sendWithResult(m, address))
+                                                                                      .collect(Collectors.toList()));
+
+            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), null);
+            return future.map(list -> {
+                int i = 0;
+                for (Message<ReadResponse> m : list)
+                {
+                    ReadResponse rsp = m.payload;
+                    PartitionIterator it = UnfilteredPartitionIterators.filter(rsp.makeIterator(commands.get(i++)), nowInSec);
+                    while (it.hasNext())
+                    {
+                        try (RowIterator partition = it.next())
+                        {
+                            select.processPartition(partition, options, result, nowInSec);
+                        }
+                    }
+                }
+                return result.build();
+            }).map(UntypedResultSet::create);
+        }
+        throw new IllegalArgumentException("Unable to execute query; only SELECT supported but given: " + query);
     }
 
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, Object... values)

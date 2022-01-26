@@ -869,7 +869,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     // Used by ModificationStatement for CAS operations
-    void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
+    public void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
     throws InvalidRequestException
     {
         maybeFail(result, options);
