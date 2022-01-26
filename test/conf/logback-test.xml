@@ -38,7 +38,7 @@
     </triggeringPolicy>
 
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
     <immediateFlush>false</immediateFlush>
   </appender>

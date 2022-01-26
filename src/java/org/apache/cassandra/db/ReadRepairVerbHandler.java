@@ -27,7 +27,7 @@ public class ReadRepairVerbHandler implements IVerbHandler<Mutation>
 
     public void doVerb(Message<Mutation> message)
     {
-        message.payload.apply();
+        message.payload.apply(WriteOptions.FOR_READ_REPAIR);
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }
 }
