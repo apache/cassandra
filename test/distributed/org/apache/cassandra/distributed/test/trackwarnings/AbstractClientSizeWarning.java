@@ -38,6 +38,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -296,7 +297,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
 
     protected static void enable(boolean value)
     {
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setTrackWarningsEnabled(value)));
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> Guardrails.instance.setEnabled(value)));
     }
 
     protected static ByteBuffer bytes(int size)

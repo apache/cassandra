@@ -1558,30 +1558,6 @@ enable_drop_compact_storage: false
 #    - 127.0.0.1
 #    - 127.0.0.0/31
 
-# Enables tracking warnings/aborts across all replicas for reporting back to client.
-# See: CASSANDRA-16850
-# track_warnings:
-# Scheduled to enable in 4.2
-#     enabled: true
-# When track_warnings.enabled: true, this tracks the materialized size of a query on the
-# coordinator. If coordinator_large_read.warn_threshold_kb is greater than 0, this will emit a warning
-# to clients with details on what query triggered this as well as the size of the result set; if
-# coordinator_large_read.abort_threshold_kb is greater than 0, this will abort the query after it
-# has exceeded this threshold, returning a read error to the user.
-#     coordinator_read_size:
-#         warn_threshold_kb: 0
-#         abort_threshold_kb: 0
-# When track_warnings.enabled: true, this tracks the size of the local read (as defined by
-# heap size), and will warn/abort based off these thresholds; 0 disables these checks.
-#     local_read_size:
-#         warn_threshold_kb: 0
-#         abort_threshold_kb: 0
-# When track_warnings.enabled: true, this tracks the expected memory size of the RowIndexEntry
-# and will warn/abort based off these thresholds; 0 disables these checks.
-#     row_index_size:
-#         warn_threshold_kb: 0
-#         abort_threshold_kb: 0
-
 # Guardrails settings.
 # guardrails:
 # Whether guardrails are enabled or not. Guardrails are disabled by default.
@@ -1625,3 +1601,18 @@ enable_drop_compact_storage: false
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.
 #     read_before_write_list_operations_enabled: true
+# Guardrail to track the materialized size of a query on the coordinator, and warn or abort based off these thresholds.
+# The two thresholds default to -1 to disable.
+#     coordinator_read_size:
+#         warn_threshold_in_kb: -1
+#         abort_threshold_in_kb: -1
+# Guardrail to track the size of the local read (as defined by heap size), and warn or abort based off these thresholds.
+# The two thresholds default to 0 to disable.
+#     local_read_size:
+#         warn_threshold_in_kb: -1
+#         abort_threshold_in_kb: -1
+# Guardrail to track the expected memory size of the RowIndexEntry and will warn or abort based off these thresholds.
+# The two thresholds default to -1 to disable.
+#     row_index_size:
+#         warn_threshold_in_kb: -1
+#         abort_threshold_in_kb: -1

@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -252,11 +253,10 @@ public abstract class QueryOptions
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
             if (!DatabaseDescriptor.isDaemonInitialized())
                 return DisabledTrackWarnings.INSTANCE;
-            boolean enabled = DatabaseDescriptor.getTrackWarningsEnabled();
-            if (!enabled)
+            if (!Guardrails.enabled(null))
                 return DisabledTrackWarnings.INSTANCE;
-            long warnThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
-            long abortThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
+            long warnThresholdKB = Math.max(0, Guardrails.instance.getCoordinatorReadSizeWarnThresholdInKB());
+            long abortThresholdKB = Math.max(0, Guardrails.instance.getCoordinatorReadSizeAbortThresholdInKB());
             return new DefaultTrackWarnings(warnThresholdKB, abortThresholdKB);
         }
     }
