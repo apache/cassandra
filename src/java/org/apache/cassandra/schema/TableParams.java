@@ -255,7 +255,7 @@ public final class TableParams
                           .toString();
     }
 
-    public void appendCqlTo(CqlBuilder builder)
+    public void appendCqlTo(CqlBuilder builder, boolean isView)
     {
         // option names should be in alphabetical order
         builder.append("additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString())
@@ -273,26 +273,31 @@ public final class TableParams
                .append("AND compression = ").append(compression.asMap())
                .newLine()
                .append("AND crc_check_chance = ").append(crcCheckChance)
-               .newLine()
+               .newLine();
+
+        if (!isView) {
+            builder
                .append("AND default_time_to_live = ").append(defaultTimeToLive)
-               .newLine()
-               .append("AND extensions = ").append(extensions.entrySet()
-                                                             .stream()
-                                                             .collect(toMap(Entry::getKey,
-                                                                             e -> "0x" + ByteBufferUtil.bytesToHex(e.getValue()))),
-                                                   false)
-               .newLine()
-               .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
-               .newLine()
-               .append("AND max_index_interval = ").append(maxIndexInterval)
-               .newLine()
-               .append("AND memtable_flush_period_in_ms = ").append(memtableFlushPeriodInMs)
-               .newLine()
-               .append("AND min_index_interval = ").append(minIndexInterval)
-               .newLine()
-               .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
-               .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .newLine();
+        }
+
+        builder.append("AND extensions = ").append(extensions.entrySet()
+                .stream()
+                .collect(toMap(Entry::getKey,
+                        e -> "0x" + ByteBufferUtil.bytesToHex(e.getValue()))),
+                false)
+            .newLine()
+            .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
+            .newLine()
+            .append("AND max_index_interval = ").append(maxIndexInterval)
+            .newLine()
+            .append("AND memtable_flush_period_in_ms = ").append(memtableFlushPeriodInMs)
+            .newLine()
+            .append("AND min_index_interval = ").append(minIndexInterval)
+            .newLine()
+            .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
+            .newLine()
+            .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
 
     }
 
