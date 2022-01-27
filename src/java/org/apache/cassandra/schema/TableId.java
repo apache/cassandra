@@ -20,11 +20,13 @@ package org.apache.cassandra.schema;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -57,6 +59,27 @@ public class TableId
     public static TableId fromString(String idString)
     {
         return new TableId(UUID.fromString(idString));
+    }
+
+    private static TableId fromHexString(String nonDashUUID)
+    {
+        ByteBuffer bytes = ByteBufferUtil.hexToBytes(nonDashUUID);
+        long msb = bytes.getLong(0);
+        long lsb = bytes.getLong(8);
+        return fromUUID(new UUID(msb, lsb));
+    }
+
+    public static Pair<String, TableId> tableNameAndIdFromFilename(String filename)
+    {
+        int dash = filename.lastIndexOf('-');
+        int size = filename.length() - 32 - 1;
+        if (dash <= 0 || dash != size)
+            return null;
+
+        TableId id = fromHexString(filename.substring(dash + 1));
+        String tableName = filename.substring(0, dash);
+
+        return Pair.create(tableName, id);
     }
 
     /**
