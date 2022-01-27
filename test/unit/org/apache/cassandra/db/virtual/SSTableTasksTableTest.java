@@ -39,7 +39,7 @@ import org.apache.cassandra.schema.MockSchema;
 
 public class SSTableTasksTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
+    private static final String KS_NAME = "system_views";
 
     @SuppressWarnings("FieldCanBeLocal")
     private SSTableTasksTable table;
@@ -56,6 +56,7 @@ public class SSTableTasksTableTest extends CQLTester
     {
         table = new SSTableTasksTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+        disablePreparedReuseForTest();
     }
 
     @Test
@@ -84,13 +85,13 @@ public class SSTableTasksTableTest extends CQLTester
         };
 
         CompactionManager.instance.active.beginCompaction(compactionHolder);
-        UntypedResultSet result = execute("SELECT * FROM vts.sstable_tasks");
+        UntypedResultSet result = execute("SELECT * FROM system_views.sstable_tasks");
         assertRows(result, row(CQLTester.KEYSPACE, currentTable(), compactionId, 1.0 * bytesCompacted / bytesTotal,
                 OperationType.COMPACTION.toString().toLowerCase(), bytesCompacted, sstables.size(),
                 bytesTotal, CompactionInfo.Unit.BYTES.toString()));
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
-        result = execute("SELECT * FROM vts.sstable_tasks");
+        result = execute("SELECT * FROM system_views.sstable_tasks");
         assertEmpty(result);
     }
 }
