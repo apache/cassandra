@@ -318,7 +318,7 @@ public class ClientResourceLimitsTest extends CQLTester
 
             // reusing table name for keyspace name since cannot reuse KEYSPACE and want it to be unique
             TableMetadata tableMetadata =
-            TableMetadata.builder(table, table)
+            TableMetadata.builder("system_views", table)
                          .kind(TableMetadata.Kind.VIRTUAL)
                          .addPartitionKeyColumn("pk", UTF8Type.instance)
                          .addRegularColumn("v", Int32Type.instance)
@@ -338,9 +338,9 @@ public class ClientResourceLimitsTest extends CQLTester
                 }
                 return new SimpleDataSet(tableMetadata);
             });
-            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(table, ImmutableList.of(vt1)));
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("system_views", ImmutableList.of(vt1)));
 
-            final QueryMessage queryMessage = new QueryMessage(String.format("SELECT * FROM %s.%s", table, table),
+            final QueryMessage queryMessage = new QueryMessage(String.format("SELECT * FROM system_views.%s", table),
                                                                V5_DEFAULT_OPTIONS);
             try
             {
