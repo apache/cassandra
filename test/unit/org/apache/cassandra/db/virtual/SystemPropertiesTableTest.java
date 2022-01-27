@@ -39,7 +39,7 @@ import com.google.common.collect.Maps;
 
 public class SystemPropertiesTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
+    private static final String KS_NAME = "system_views";
     private static final Map<String, String> ORIGINAL_ENV_MAP = System.getenv();
     private static final String TEST_PROP = "org.apache.cassandra.db.virtual.SystemPropertiesTableTest";
 
@@ -61,7 +61,7 @@ public class SystemPropertiesTableTest extends CQLTester
     @Test
     public void testSelectAll() throws Throwable
     {
-        ResultSet result = executeNet("SELECT * FROM vts.system_properties");
+        ResultSet result = executeNet("SELECT * FROM system_views.system_properties");
 
         for (Row r : result)
             Assert.assertEquals(System.getProperty(r.getString("name"), System.getenv(r.getString("name"))), r.getString("value"));
@@ -77,7 +77,7 @@ public class SystemPropertiesTableTest extends CQLTester
 
         for (String property : properties)
         {
-            String q = "SELECT * FROM vts.system_properties WHERE name = '" + property + '\'';
+            String q = "SELECT * FROM system_views.system_properties WHERE name = '" + property + '\'';
             assertRowsNet(executeNet(q), new Object[] {property, System.getProperty(property, System.getenv(property))});
         }
     }
@@ -85,7 +85,7 @@ public class SystemPropertiesTableTest extends CQLTester
     @Test
     public void testSelectEmpty() throws Throwable
     {
-        String q = "SELECT * FROM vts.system_properties WHERE name = 'EMPTY'";
+        String q = "SELECT * FROM system_views.system_properties WHERE name = 'EMPTY'";
         assertRowsNet(executeNet(q));
     }
 
@@ -96,7 +96,7 @@ public class SystemPropertiesTableTest extends CQLTester
         {
             String value = "test_value";
             System.setProperty(TEST_PROP, value);
-            String q = String.format("SELECT * FROM vts.system_properties WHERE name = '%s'", TEST_PROP);
+            String q = String.format("SELECT * FROM system_views.system_properties WHERE name = '%s'", TEST_PROP);
             assertRowsNet(executeNet(q), new Object[] {TEST_PROP, value});
         }
         finally
@@ -112,7 +112,7 @@ public class SystemPropertiesTableTest extends CQLTester
         {
             String value = "test_value";
             addEnv(TEST_PROP, value);
-            String q = String.format("SELECT * FROM vts.system_properties WHERE name = '%s'", TEST_PROP);
+            String q = String.format("SELECT * FROM system_views.system_properties WHERE name = '%s'", TEST_PROP);
             assertRowsNet(executeNet(q), new Object[] {TEST_PROP, value});
         }
         finally
@@ -129,7 +129,7 @@ public class SystemPropertiesTableTest extends CQLTester
             String value = "test_value";
             System.setProperty(TEST_PROP, value);
             addEnv(TEST_PROP, "wrong_value");
-            String q = String.format("SELECT * FROM vts.system_properties WHERE name = '%s'", TEST_PROP);
+            String q = String.format("SELECT * FROM system_views.system_properties WHERE name = '%s'", TEST_PROP);
             assertRowsNet(executeNet(q), new Object[] {TEST_PROP, value});
         }
         finally
