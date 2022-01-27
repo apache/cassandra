@@ -57,13 +57,17 @@ public class CommitLogDescriptor
     static final String COMPRESSION_PARAMETERS_KEY = "compressionParameters";
     static final String COMPRESSION_CLASS_KEY = "compressionClass";
 
+    /**
+     * the versions below ARE NOT the same thing as MessagingService versions
+     * see {@link #getMessagingVersion()}
+     */
     // We don't support anything pre-3.0
-    public static final int VERSION_30 = 6;
-    public static final int VERSION_40 = 7;
+    private static final int VERSION_30 = 6;
+    private static final int VERSION_40 = 7;
     // For compatibility with CNDB
-    public static final int VERSION_DSE_68 = 680;
+    private static final int VERSION_DSE_68 = 680;
     // Stargazer 1.0 messaging
-    public static final int VERSION_SG_10 = 100;
+    private static final int VERSION_SG_10 = 100;
 
     /**
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
