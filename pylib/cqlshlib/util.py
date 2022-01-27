@@ -19,7 +19,6 @@ import cProfile
 import codecs
 import pstats
 
-
 from datetime import timedelta, tzinfo
 from six import StringIO
 
@@ -43,7 +42,6 @@ class UTC(tzinfo):
 
     def dst(self, dt):
         return ZERO
-
 
 def split_list(items, pred):
     """
@@ -106,6 +104,7 @@ def identity(x):
     return x
 
 
+# unused but imported in cqlsh.py
 def trim_if_present(s, prefix):
     if s.startswith(prefix):
         return s[len(prefix):]
@@ -146,7 +145,6 @@ def profile_on(fcn_names=None):
     pr = cProfile.Profile()
     pr.enable()
     return pr
-
 
 def profile_off(pr, file_name):
     pr.disable()
