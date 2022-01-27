@@ -35,10 +35,6 @@ if [ "${PYTHON_VERSION}" = "" ]; then
     PYTHON_VERSION=python3
 fi
 
-if [ "${PYTHON_VERSION}" != "python3" -a "${PYTHON_VERSION}" != "python2" ]; then
-    echo "Specify Python version python3 or python2"
-    exit
-fi
 
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
