@@ -17,3 +17,4 @@ nose-test-select
 parse
 pycodestyle
 psutil
+wcwidth
