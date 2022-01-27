@@ -40,7 +40,7 @@ import org.apache.cassandra.security.SSLFactory;
 
 public class SettingsTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
+    private static final String KS_NAME = "system_views";
 
     private Config config;
     private SettingsTable table;
@@ -59,6 +59,7 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options.applyConfig();
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+        disablePreparedReuseForTest();
     }
 
     private String getValue(Field f)
@@ -81,7 +82,7 @@ public class SettingsTableTest extends CQLTester
     public void testSelectAll() throws Throwable
     {
         int paging = (int) (Math.random() * 100 + 1);
-        ResultSet result = executeNetWithPaging("SELECT * FROM vts.settings", paging);
+        ResultSet result = executeNetWithPaging("SELECT * FROM system_views.settings", paging);
         int i = 0;
         for (Row r : result)
         {
@@ -105,7 +106,7 @@ public class SettingsTableTest extends CQLTester
             if (table.overrides.containsKey(f.getName()))
                 continue;
 
-            String q = "SELECT * FROM vts.settings WHERE name = '"+f.getName()+'\'';
+            String q = "SELECT * FROM system_views.settings WHERE name = '"+f.getName()+'\'';
             assertRowsNet(executeNet(q), new Object[] {f.getName(), getValue(f)});
         }
     }
@@ -113,22 +114,22 @@ public class SettingsTableTest extends CQLTester
     @Test
     public void testSelectEmpty() throws Throwable
     {
-        String q = "SELECT * FROM vts.settings WHERE name = 'EMPTY'";
+        String q = "SELECT * FROM system_views.settings WHERE name = 'EMPTY'";
         assertRowsNet(executeNet(q));
     }
 
     @Test
     public void testSelectOverride() throws Throwable
     {
-        String q = "SELECT * FROM vts.settings WHERE name = 'server_encryption_options_enabled'";
+        String q = "SELECT * FROM system_views.settings WHERE name = 'server_encryption_options_enabled'";
         assertRowsNet(executeNet(q), new Object[] {"server_encryption_options_enabled", "false"});
-        q = "SELECT * FROM vts.settings WHERE name = 'server_encryption_options_XYZ'";
+        q = "SELECT * FROM system_views.settings WHERE name = 'server_encryption_options_XYZ'";
         assertRowsNet(executeNet(q));
     }
 
     private void check(String setting, String expected) throws Throwable
     {
-        String q = "SELECT * FROM vts.settings WHERE name = '"+setting+'\'';
+        String q = "SELECT * FROM system_views.settings WHERE name = '"+setting+'\'';
         assertRowsNet(executeNet(q), new Object[] {setting, expected});
     }
 
@@ -137,7 +138,7 @@ public class SettingsTableTest extends CQLTester
     {
         String pre = "server_encryption_options_";
         check(pre + "enabled", "false");
-        String all = "SELECT * FROM vts.settings WHERE " +
+        String all = "SELECT * FROM system_views.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
         Assert.assertEquals(9, executeNet(all).all().size());
@@ -192,7 +193,7 @@ public class SettingsTableTest extends CQLTester
     {
         String pre = "audit_logging_options_";
         check(pre + "enabled", "false");
-        String all = "SELECT * FROM vts.settings WHERE " +
+        String all = "SELECT * FROM system_views.settings WHERE " +
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
         config.audit_logging_options.enabled = true;
@@ -236,7 +237,7 @@ public class SettingsTableTest extends CQLTester
     {
         String pre = "transparent_data_encryption_options_";
         check(pre + "enabled", "false");
-        String all = "SELECT * FROM vts.settings WHERE " +
+        String all = "SELECT * FROM system_views.settings WHERE " +
                      "name > 'transparent_data_encryption_options' AND " +
                      "name < 'transparent_data_encryption_optionsz' ALLOW FILTERING";
 
