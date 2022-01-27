@@ -50,19 +50,33 @@ public class CQLMetricsTableTest extends CQLTester
         String getMetricsQuery = "SELECT * FROM " + KS_NAME + "." + CQLMetricsTable.TABLE_NAME;
         ResultSet vtsRows = executeNet(getMetricsQuery);
 
-        assertEquals(6, vtsRows.getColumnDefinitions().size());
+        assertEquals(2, vtsRows.getColumnDefinitions().size());
 
         AtomicInteger rowCount = new AtomicInteger(0);
         vtsRows.forEach(r -> {
-            assertEquals(expectedMetrics.preparedStatementsCount.getValue(), r.getDouble(CQLMetricsTable.PREPARED_STATEMENTS_COUNT_COL), 0);
-            assertEquals(expectedMetrics.preparedStatementsEvicted.getCount(), r.getDouble(CQLMetricsTable.PREPARED_STATEMENTS_EVICTED_COL), 0);
-            assertEquals(expectedMetrics.preparedStatementsExecuted.getCount(), r.getDouble(CQLMetricsTable.PREPARED_STATEMENTS_EXECUTED_COL), 0);
-            assertEquals(expectedMetrics.preparedStatementsRatio.getValue(), r.getDouble(CQLMetricsTable.PREPARED_STATEMENTS_RATIO_COL), 0.01);
-            assertEquals(expectedMetrics.regularStatementsExecuted.getCount(), r.getDouble(CQLMetricsTable.REGULAR_STATEMENTS_EXECUTED_COL), 0);
+            final double metricValue = r.getDouble(CQLMetricsTable.VALUE_COL);
+            switch (r.getString(CQLMetricsTable.NAME_COL))
+            {
+                case CQLMetricsTable.PREPARED_STATEMENTS_COUNT:
+                    assertEquals(expectedMetrics.preparedStatementsCount.getValue(), metricValue, 0);
+                    break;
+                case CQLMetricsTable.PREPARED_STATEMENTS_EVICTED:
+                    assertEquals(expectedMetrics.preparedStatementsEvicted.getCount(), metricValue, 0);
+                    break;
+                case CQLMetricsTable.PREPARED_STATEMENTS_EXECUTED:
+                    assertEquals(expectedMetrics.preparedStatementsExecuted.getCount(), metricValue, 0);
+                    break;
+                case CQLMetricsTable.PREPARED_STATEMENTS_RATIO:
+                    assertEquals(expectedMetrics.preparedStatementsRatio.getValue(), metricValue, 0.01);
+                    break;
+                case CQLMetricsTable.REGULAR_STATEMENTS_EXECUTED:
+                    assertEquals(expectedMetrics.regularStatementsExecuted.getCount(), metricValue, 0);
+                    break;
+            }
             rowCount.getAndIncrement();
         });
 
-        assertEquals(1, rowCount.get());
+        assertEquals(5, rowCount.get());
     }
 
     @Test
