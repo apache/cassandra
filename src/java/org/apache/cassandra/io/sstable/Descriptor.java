@@ -144,6 +144,11 @@ public class Descriptor
         return baseFileURI;
     }
 
+    public String filenamePart()
+    {
+        return filenamePart;
+    }
+
     public String relativeFilenameFor(Component component)
     {
         final StringBuilder buff = new StringBuilder();

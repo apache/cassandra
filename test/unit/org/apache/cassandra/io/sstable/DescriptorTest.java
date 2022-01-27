@@ -133,7 +133,9 @@ public class DescriptorTest
 
         for (String name : names)
         {
-            assertNotNull(Descriptor.fromFilename(name));
+            Descriptor descriptor = Descriptor.fromFilename(name);
+            assertNotNull(descriptor);
+            assertNotNull(name, descriptor.filenamePart());
             assertNotNull(name, Descriptor.validFilenameWithComponent(new File(name).name()));
         }
     }
