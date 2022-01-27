@@ -44,7 +44,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 
 public class PermissionsCacheKeysTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
+    private static final String KS_NAME = "system_views";
 
     @SuppressWarnings("FieldCanBeLocal")
     private PermissionsCacheKeysTable table;
@@ -84,6 +84,8 @@ public class PermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthenticatedUser.permissionsCache.invalidate();
+
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
@@ -95,7 +97,7 @@ public class PermissionsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectAllWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM vts.permissions_cache_keys"));
+        assertEmpty(execute("SELECT * FROM system_views.permissions_cache_keys"));
     }
 
     @Test
@@ -105,7 +107,7 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         cachePermissionsForResource(ROLE_A, DataResource.keyspace(KEYSPACE));
         cachePermissionsForResource(ROLE_B, DataResource.table(KEYSPACE, "t1"));
 
-        assertRows(execute("SELECT * FROM vts.permissions_cache_keys"),
+        assertRows(execute("SELECT * FROM system_views.permissions_cache_keys"),
                 row("role_a", "data"),
                 row("role_a", "data/cql_test_keyspace"),
                 row("role_b", "data/cql_test_keyspace/t1"));
@@ -114,7 +116,7 @@ public class PermissionsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectPartitionWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM vts.permissions_cache_keys WHERE role='role_a' AND resource='data'"));
+        assertEmpty(execute("SELECT * FROM system_views.permissions_cache_keys WHERE role='role_a' AND resource='data'"));
     }
 
     @Test
@@ -124,7 +126,7 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         cachePermissionsForResource(ROLE_A, DataResource.keyspace(KEYSPACE));
         cachePermissionsForResource(ROLE_B, DataResource.table(KEYSPACE, "t1"));
 
-        assertRows(execute("SELECT * FROM vts.permissions_cache_keys WHERE role='role_a' AND resource='data'"),
+        assertRows(execute("SELECT * FROM system_views.permissions_cache_keys WHERE role='role_a' AND resource='data'"),
                 row("role_a", "data"));
     }
 
@@ -134,9 +136,9 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         cachePermissionsForResource(ROLE_A, DataResource.root());
         cachePermissionsForResource(ROLE_A, DataResource.keyspace(KEYSPACE));
 
-        execute("DELETE FROM vts.permissions_cache_keys WHERE role='role_a' AND resource='data'");
+        execute("DELETE FROM system_views.permissions_cache_keys WHERE role='role_a' AND resource='data'");
 
-        assertRows(execute("SELECT * FROM vts.permissions_cache_keys"),
+        assertRows(execute("SELECT * FROM system_views.permissions_cache_keys"),
                 row("role_a", "data/cql_test_keyspace"));
     }
 
@@ -145,10 +147,10 @@ public class PermissionsCacheKeysTableTest extends CQLTester
     {
         cachePermissionsForResource(ROLE_A, DataResource.root());
 
-        execute("DELETE FROM vts.permissions_cache_keys WHERE role='invalid_role' AND resource='data'");
-        execute("DELETE FROM vts.permissions_cache_keys WHERE role='role_a' AND resource='invalid_resource'");
+        execute("DELETE FROM system_views.permissions_cache_keys WHERE role='invalid_role' AND resource='data'");
+        execute("DELETE FROM system_views.permissions_cache_keys WHERE role='role_a' AND resource='invalid_resource'");
 
-        assertRows(execute("SELECT * FROM vts.permissions_cache_keys WHERE role='role_a' AND resource='data'"),
+        assertRows(execute("SELECT * FROM system_views.permissions_cache_keys WHERE role='role_a' AND resource='data'"),
                 row("role_a", "data"));
     }
 
@@ -158,9 +160,9 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         cachePermissionsForResource(ROLE_A, DataResource.root());
         cachePermissionsForResource(ROLE_B, DataResource.table(KEYSPACE, "t1"));
 
-        execute("TRUNCATE vts.permissions_cache_keys");
+        execute("TRUNCATE system_views.permissions_cache_keys");
 
-        assertEmpty(execute("SELECT * FROM vts.permissions_cache_keys"));
+        assertEmpty(execute("SELECT * FROM system_views.permissions_cache_keys"));
     }
 
     @Test
@@ -171,8 +173,8 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         // column deletion is not supported, however, this table has no regular columns, so it is not covered by tests
 
         // insert is not supported
-        assertInvalidMessage("Column modification is not supported by table vts.permissions_cache_keys",
-                "INSERT INTO vts.permissions_cache_keys (role, resource) VALUES ('role_e', 'data')");
+        assertInvalidMessage("Column modification is not supported by table system_views.permissions_cache_keys",
+                "INSERT INTO system_views.permissions_cache_keys (role, resource) VALUES ('role_e', 'data')");
 
         // update is not supported, however, this table has no regular columns, so it is not covered by tests
     }
