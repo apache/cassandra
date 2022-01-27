@@ -506,6 +506,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         }
 
         @Override
+        @SuppressWarnings("resource")
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
         {
             VirtualTable view = VirtualKeyspaceRegistry.instance.getTableNullable(metadata().id);

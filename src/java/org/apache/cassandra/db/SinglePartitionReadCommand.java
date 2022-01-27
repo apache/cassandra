@@ -1307,6 +1307,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         @Override
+        @SuppressWarnings("resource")
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
         {
             VirtualTable view = VirtualKeyspaceRegistry.instance.getTableNullable(metadata().id);
