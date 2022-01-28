@@ -74,6 +74,8 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator writes.
 
+|cql_metrcs |Lists metrics for CQL prepared statements.
+
 |disk_usage |Records disk usage including disk_space, keyspace_name, and table_name, sorted by system keyspaces.
 
 |internode_inbound |Lists information about the inbound internode messaging.
@@ -99,8 +101,6 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 |thread_pools |Lists metrics for each thread pool.
 
 |tombstones_per_read |Records counts, keyspace_name, tablek_name, max, and median for tombstones.
-
-|cql_metrcs |Lists metrics for CQL prepared statements.
 
 |===
 
@@ -171,6 +171,22 @@ counters |       26214400 |           0 |         0 |       NaN |               
     rows |              0 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
 
 (4 rows)
+....
+
+=== CQL metrics Virtual Table
+
+Lists CQL prepared statements metrics. A query on CQL metrics virtual table lists below metrics.
+
+....
+cqlsh> select * from system_views.cql_metrics ;
+
+ name                         | value
+------------------------------+-------
+    prepared_statements_count |     0
+  prepared_statements_evicted |     0
+ prepared_statements_executed |     0
+    prepared_statements_ratio |     0
+  regular_statements_executed |    17
 ....
 
 === Settings Virtual Table
@@ -291,22 +307,6 @@ tasks, use the following query:
 ....
 SELECT total - progress AS remaining
 FROM system_views.sstable_tasks;
-....
-
-=== CQL metrics Virtual Table
-
-Lists CQL prepared statements metrics. A query on CQL metrics virtual table lists below metrics.
-
-....
-cqlsh> select * from system_views.cql_metrics ;
-
- name                         | value
-------------------------------+-------
-    prepared_statements_count |     0
-  prepared_statements_evicted |     0
- prepared_statements_executed |     0
-    prepared_statements_ratio |     0
-  regular_statements_executed |    17
 ....
 
 === Other Virtual Tables
