@@ -34,6 +34,7 @@ import io.netty.handler.ssl.OpenSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.ParameterizedClass;
 
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_CERTIFICATES;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_KEY;
@@ -204,16 +205,17 @@ public class PEMBasedSslContextFactoryTest
         config.put("keystore", "test/conf/cassandra_ssl_test.unencrypted_keystore.pem");
     }
 
-    //TODO
-    //@Test
+    @Test
     public void getSslContextOpenSSL() throws IOException
     {
-        EncryptionOptions options = new EncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                                                           .withTrustStorePassword("cassandra")
-                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore")
+        ParameterizedClass sslContextFactory = new ParameterizedClass(PEMBasedSslContextFactory.class.getSimpleName()
+        , new HashMap<>());
+        EncryptionOptions options = new EncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore.pem")
+                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
                                                            .withKeyStorePassword("cassandra")
                                                            .withRequireClientAuth(false)
-                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                                                           .withSslContextFactory(sslContextFactory);
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
@@ -233,18 +235,6 @@ public class PEMBasedSslContextFactoryTest
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
         defaultSslContextFactoryImpl.checkedExpiry = false;
         defaultSslContextFactoryImpl.buildTrustManagerFactory();
-    }
-
-    @Test
-    public void buildTrustManagerFactoryWithBadPassword() throws IOException
-    {
-        Map<String, Object> config = new HashMap<>();
-        config.putAll(commonConfig);
-        config.put("truststore_password", "HomeOfBadPasswords");
-
-        PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
-        sslContextFactory.checkedExpiry = false;
-        sslContextFactory.buildTrustManagerFactory();
     }
 
     @Test
@@ -352,7 +342,7 @@ public class PEMBasedSslContextFactoryTest
         config.putAll(commonConfig);
 
         PEMBasedSslContextFactory sslContextFactory1 = new PEMBasedSslContextFactory(config);
-        // Make sure the exiry check didn't happen so far for the private key
+        // Make sure the expiry check didn't happen so far for the private key
         Assert.assertFalse(sslContextFactory1.checkedExpiry);
 
         addFileBaseKeyStoreOptions(config);
@@ -397,7 +387,7 @@ public class PEMBasedSslContextFactoryTest
         sslContextFactory.buildKeyManagerFactory();
     }
 
-    //@Test
+    @Test
     public void testDisableOpenSslForInJvmDtests()
     {
         // The configuration name below is hard-coded intentionally to make sure we don't break the contract without
@@ -406,8 +396,8 @@ public class PEMBasedSslContextFactoryTest
         Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
-        DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        Assert.assertEquals(SslProvider.JDK, defaultSslContextFactoryImpl.getSslProvider());
+        PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
+        Assert.assertEquals(SslProvider.JDK, sslContextFactory.getSslProvider());
         System.clearProperty("cassandra.disable_tcactive_openssl");
     }
 
