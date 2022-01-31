@@ -51,6 +51,7 @@ final class CQLMetricsTable extends AbstractVirtualTable
     CQLMetricsTable(String keyspace, CQLMetrics cqlMetrics)
     {
         super(TableMetadata.builder(keyspace, TABLE_NAME)
+                           .comment("Metrics specific to CQL prepared statement caching")
                            .kind(TableMetadata.Kind.VIRTUAL)
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(NAME_COL, UTF8Type.instance)
