@@ -81,10 +81,10 @@ public class DefaultFSErrorHandler implements FSErrorHandler
                 }
 
                 // for both read and write errors mark the path as unwritable.
-                DisallowedDirectories.maybeMarkUnwritable(new File(e.path));
+                DisallowedDirectories.maybeMarkUnwritable(e.file);
                 if (e instanceof FSReadError)
                 {
-                    File directory = DisallowedDirectories.maybeMarkUnreadable(new File(e.path));
+                    File directory = DisallowedDirectories.maybeMarkUnreadable(e.file);
                     if (directory != null)
                         Keyspace.removeUnreadableSSTables(directory);
                 }
