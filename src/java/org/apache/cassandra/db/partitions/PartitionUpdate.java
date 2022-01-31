@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaManager;
 import org.apache.cassandra.schema.TableId;
@@ -624,6 +626,8 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         public void serialize(PartitionUpdate update, DataOutputPlus out, int version) throws IOException
         {
+            Preconditions.checkArgument(version != MessagingService.VERSION_DSE_68,
+                                        "Can't serialize to version " + version);
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 assert !iter.isReverseOrder();
@@ -636,6 +640,12 @@ public class PartitionUpdate extends AbstractBTreePartition
         public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             TableMetadata metadata = SchemaManager.instance.getExistingTableMetadata(TableId.deserialize(in));
+            if (version == MessagingService.VERSION_DSE_68)
+            {
+                // ignore maxTimestamp
+                in.readLong();
+            }
+
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, flag);
             if (header.isEmpty)
                 return emptyUpdate(metadata, header.key);
@@ -672,7 +682,8 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 return update.metadata.id.serializedSize()
-                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
+                       + (version == MessagingService.VERSION_DSE_68 ? TypeSizes.LONG_SIZE : 0)
+                       + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }
         }
     }
