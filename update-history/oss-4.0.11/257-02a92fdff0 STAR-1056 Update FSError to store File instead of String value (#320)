@@ -1,0 +1,16 @@
+--- a/src/java/org/apache/cassandra/service/DefaultFSErrorHandler.java
++++ b/src/java/org/apache/cassandra/service/DefaultFSErrorHandler.java
+@@ -87,13 +87,8 @@
+                 }
+ 
+                 // for both read and write errors mark the path as unwritable.
+-<<<<<<<
+                 DisallowedDirectories.maybeMarkUnwritable(e.file);
+-                if (e instanceof FSReadError)
+-=======
+-                DisallowedDirectories.maybeMarkUnwritable(new File(e.path));
+                 if (e instanceof FSReadError && shouldMaybeRemoveData(e))
+->>>>>>>
+                 {
+                     File directory = DisallowedDirectories.maybeMarkUnreadable(e.file);
+                     if (directory != null)
