@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 
@@ -29,7 +29,8 @@ public interface SchemaUpdateHandlerFactory
      * different run modes (client, tool, daemon).
      *
      * @param online               whether schema update handler should work online and be aware of the other nodes (when in daemon mode)
-     * @param updateSchemaCallback callback which will be called right after the shared schema is updated
+     * @param updateSchemaCallback callback which will be called right after the shared schema is updated, the args represent
+     *                             the schema transformation result and a flag whether the data should be actually removed for the dropped tables
      */
-    SchemaUpdateHandler getSchemaUpdateHandler(boolean online, Consumer<SchemaTransformationResult> updateSchemaCallback);
+    SchemaUpdateHandler getSchemaUpdateHandler(boolean online, BiConsumer<SchemaTransformationResult, Boolean> updateSchemaCallback);
 }

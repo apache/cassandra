@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 
@@ -27,7 +27,7 @@ public class DefaultSchemaUpdateHandlerFactory implements SchemaUpdateHandlerFac
     public static final SchemaUpdateHandlerFactory instance = new DefaultSchemaUpdateHandlerFactory();
 
     @Override
-    public SchemaUpdateHandler getSchemaUpdateHandler(boolean online, Consumer<SchemaTransformationResult> updateSchemaCallback)
+    public SchemaUpdateHandler getSchemaUpdateHandler(boolean online, BiConsumer<SchemaTransformationResult, Boolean> updateSchemaCallback)
     {
         return online
                ? new DefaultSchemaUpdateHandler(updateSchemaCallback)

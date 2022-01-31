@@ -365,7 +365,7 @@ public class Keyspace
     }
 
     // best invoked on the compaction manager.
-    public void dropCf(TableId tableId)
+    public void dropCf(TableId tableId, boolean dropData)
     {
         ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
         if (cfs == null)
@@ -377,23 +377,23 @@ public class Keyspace
         writeOrder.awaitNewBarrier();
         cfs.readOrdering.awaitNewBarrier();
 
-        unloadCf(cfs);
+        unloadCf(cfs, dropData);
     }
 
     // disassociate a cfs from this keyspace instance.
-    private void unloadCf(ColumnFamilyStore cfs)
+    private void unloadCf(ColumnFamilyStore cfs, boolean dropData)
     {
         cfs.unloadCf();
-        cfs.invalidate();
+        cfs.invalidate(true, dropData);
     }
 
     /**
      * Unloads all column family stores and releases metrics.
      */
-    public void unload()
+    public void unload(boolean dropData)
     {
         for (ColumnFamilyStore cfs : getColumnFamilyStores())
-            unloadCf(cfs);
+            unloadCf(cfs, dropData);
         metric.release();
     }
 

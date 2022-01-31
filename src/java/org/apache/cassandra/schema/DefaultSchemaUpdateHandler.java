@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -61,7 +61,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     final MigrationCoordinator migrationCoordinator;
 
     private final boolean requireSchemas;
-    private final Consumer<SchemaTransformationResult> updateCallback;
+    private final BiConsumer<SchemaTransformationResult, Boolean> updateCallback;
     private volatile SharedSchema schema = SharedSchema.EMPTY;
 
     private MigrationCoordinator createMigrationCoordinator(MessagingService messagingService)
@@ -76,7 +76,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
                                         (from, mutations) -> applyMutations(mutations));
     }
 
-    public DefaultSchemaUpdateHandler(Consumer<SchemaTransformationResult> updateCallback)
+    public DefaultSchemaUpdateHandler(BiConsumer<SchemaTransformationResult, Boolean> updateCallback)
     {
         this(null, MessagingService.instance(), !CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK.getBoolean(), updateCallback);
     }
@@ -84,7 +84,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     public DefaultSchemaUpdateHandler(MigrationCoordinator migrationCoordinator,
                                       MessagingService messagingService,
                                       boolean requireSchemas,
-                                      Consumer<SchemaTransformationResult> updateCallback)
+                                      BiConsumer<SchemaTransformationResult, Boolean> updateCallback)
     {
         this.requireSchemas = requireSchemas;
         this.updateCallback = updateCallback;
@@ -235,7 +235,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     {
         this.schema = update.after;
         logger.debug("Schema updated: {}", update);
-        updateCallback.accept(update);
+        updateCallback.accept(update, true);
         if (!local)
         {
             migrationCoordinator.announce(update.after.getVersion());
