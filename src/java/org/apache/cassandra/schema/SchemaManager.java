@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -49,6 +50,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -225,7 +227,7 @@ public final class SchemaManager implements SchemaProvider
     }
 
     @Override
-    public Keyspace getOrCreateKeyspaceInstance(String keyspaceName, Supplier<Keyspace> loadFunction)
+    public Keyspace getOrCreateKeyspaceInstance(String keyspaceName, Supplier<Keyspace> loadFunction) throws UnknownKeyspaceException
     {
         CompletableFuture<Keyspace> future = keyspaceInstances.get(keyspaceName);
         if (future == null)
@@ -242,7 +244,7 @@ public final class SchemaManager implements SchemaProvider
                 }
                 catch (Throwable t)
                 {
-                    empty.completeExceptionally(new Throwable(t));
+                    empty.completeExceptionally(t);
                     // Remove future so that construction can be retried later
                     keyspaceInstances.remove(keyspaceName, future);
                 }
@@ -250,9 +252,20 @@ public final class SchemaManager implements SchemaProvider
             // Else some other thread beat us to it, but we now have the reference to the future which we can wait for.
         }
 
-        // Most of the time the keyspace will be ready and this will complete immediately. If it is being created
-        // concurrently, wait for that process to complete.
-        return future.join();
+        try
+        {
+            // Most of the time the keyspace will be ready and this will complete immediately. If it is being created
+            // concurrently, wait for that process to complete.
+            return future.join();
+        }
+        catch (CompletionException ex)
+        {
+            if (ex.getCause() instanceof UnknownKeyspaceException)
+            {
+                throw (UnknownKeyspaceException) ex.getCause();
+            }
+            throw ex;
+        }
     }
 
     /**

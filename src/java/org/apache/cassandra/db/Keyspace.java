@@ -48,6 +48,7 @@ import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UncheckedInternalRequestExecutionException;
+import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -133,13 +134,13 @@ public class Keyspace
     }
 
     // to only be used by org.apache.cassandra.tools.Standalone* classes
-    public static Keyspace openWithoutSSTables(String keyspaceName)
+    public static Keyspace openWithoutSSTables(String keyspaceName) throws UnknownKeyspaceException
     {
         return open(keyspaceName, SchemaManager.instance, false);
     }
 
     @VisibleForTesting
-    static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
+    static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables) throws UnknownKeyspaceException
     {
         return schema.getOrCreateKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
     }
@@ -308,12 +309,13 @@ public class Keyspace
         return list;
     }
 
-    private Keyspace(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
+    private Keyspace(String keyspaceName, SchemaProvider schema, boolean loadSSTables) throws UnknownKeyspaceException
     {
         this.schema = schema;
         metadata = schema.getKeyspaceMetadata(keyspaceName);
-        assert metadata != null : "Unknown keyspace " + keyspaceName;
-        
+        if (metadata == null)
+            throw new UnknownKeyspaceException(keyspaceName);
+
         if (metadata.isVirtual())
             throw new IllegalStateException("Cannot initialize Keyspace with virtual metadata " + keyspaceName);
         createReplicationStrategy(metadata);
