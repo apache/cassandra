@@ -46,6 +46,6 @@ public class FSWriteError extends FSError
     @Override
     public String toString()
     {
-        return "FSWriteError in " + path;
+        return "FSWriteError in " + file;
     }
 }
