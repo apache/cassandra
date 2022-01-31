@@ -74,7 +74,7 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator writes.
 
-|cql_metrcs |Lists metrics for CQL prepared statements.
+|cql_metrcs |Metrics specific to CQL prepared statement caching.
 
 |disk_usage |Records disk usage including disk_space, keyspace_name, and table_name, sorted by system keyspaces.
 
@@ -174,8 +174,7 @@ counters |       26214400 |           0 |         0 |       NaN |               
 ....
 
 === CQL metrics Virtual Table
-
-Lists CQL prepared statements metrics. A query on CQL metrics virtual table lists below metrics.
+The `cql_metrics` virtual table lists metrics specific to CQL prepared statement caching. A query on `cql_metrics` virtual table lists below metrics.
 
 ....
 cqlsh> select * from system_views.cql_metrics ;
