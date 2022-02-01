@@ -114,9 +114,8 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
     {
         if (queue.isEmpty())
             channel.read();
-
-        if (currentBuf != null)
-            currentBuf.release();
+        
+        currentBuf.release();
         currentBuf = null;
         buffer = null;
 
