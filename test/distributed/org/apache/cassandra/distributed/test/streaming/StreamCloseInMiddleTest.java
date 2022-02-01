@@ -84,7 +84,7 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
             assertNoNodeShutdown(cluster);
 
             // now bootstrap a new node; streaming will fail
-            IInvokableInstance node3 = ClusterUtils.addInstance(cluster, c -> c.set("auto_bootstrap", true));
+            IInvokableInstance node3 = ClusterUtils.addInstance(cluster, cluster.get(1).config(), c -> c.set("auto_bootstrap", true));
             node3.startup();
             for (String line : Arrays.asList("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted", // bootstrap failed
                                              "Some data streaming failed. Use nodetool to check bootstrap state and resume")) // didn't join ring because bootstrap failed

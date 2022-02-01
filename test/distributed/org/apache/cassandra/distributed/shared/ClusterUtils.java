@@ -141,22 +141,6 @@ public class ClusterUtils
      * Create a new instance and add it to the cluster, without starting it.
      *
      * @param cluster to add to
-     * @param fn function to add to the config before starting
-     * @param <I> instance type
-     * @return the instance added
-     */
-    public static <I extends IInstance> I addInstance(AbstractCluster<I> cluster, Consumer<IInstanceConfig> fn)
-    {
-        if (cluster.size() == 0)
-            throw new AssertionError("Unable to add instance to empty cluster");
-        IInstanceConfig other = cluster.get(1).config();
-        return addInstance(cluster, other.localDatacenter(), other.localRack(), fn);
-    }
-
-    /**
-     * Create a new instance and add it to the cluster, without starting it.
-     *
-     * @param cluster to add to
      * @param other config to copy from
      * @param fn function to add to the config before starting
      * @param <I> instance type
