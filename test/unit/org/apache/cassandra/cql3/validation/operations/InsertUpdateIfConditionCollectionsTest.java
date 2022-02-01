@@ -507,7 +507,7 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
         }
     }
 
-    void   check_applies_list(String condition) throws Throwable
+    void check_applies_list(String condition) throws Throwable
     {
         assertRows(execute("UPDATE %s SET l = ['foo', 'bar', 'foobar'] WHERE k=0 IF " + condition), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
@@ -773,17 +773,17 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
     @Test
     public void testFrozenWithNullValues() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<list<text>>"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<list<text>>)");
         execute("INSERT INTO %s (k, m) VALUES (0, null)");
 
         assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", list("test"), list("comparison")), row(false, null));
 
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<map<text,int>>"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<text,int>>)");
         execute("INSERT INTO %s (k, m) VALUES (0, null)");
 
         assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", map("test", 3), map("comparison", 2)), row(false, null));
 
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<set<text>>"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<set<text>>)");
         execute("INSERT INTO %s (k, m) VALUES (0, null)");
 
         assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", set("test"), set("comparison")), row(false, null));
@@ -926,7 +926,7 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
     @Test
     public void testNonFrozenEmptyCollection() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, l %s)", "list<text>"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<text>)");
         execute("INSERT INTO %s (k, l) VALUES (0, null)");
 
         // Does apply
@@ -958,7 +958,7 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
         assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
                              "UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", (ByteBuffer) null);
 
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, s %s)", "set<text>"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<text>)");
         execute("INSERT INTO %s (k, s) VALUES (0, null)");
 
         // Does apply
@@ -990,7 +990,7 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
         assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
                              "UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", (ByteBuffer) null);
 
-        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "map<text, text>"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, text>) ");
         execute("INSERT INTO %s (k, m) VALUES (0, null)");
 
         // Does apply
