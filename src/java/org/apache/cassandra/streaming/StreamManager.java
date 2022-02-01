@@ -41,7 +41,7 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
  *
- * All stream operation should be created through this class to track streaming status and progress.
+ * All stream operations should be created through this class to track streaming status and progress.
  */
 public class StreamManager implements StreamManagerMBean
 {
@@ -49,7 +49,7 @@ public class StreamManager implements StreamManagerMBean
 
     /**
      * Gets streaming rate limiter.
-     * When stream_throughput_outbound_megabits_per_sec is 0, this returns rate limiter
+     * When stream_throughput_outbound is 0, this returns rate limiter
      * with the rate of Double.MAX_VALUE bytes per second.
      * Rate unit is bytes per sec.
      *
@@ -60,13 +60,13 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.LIMITER,
                                      StreamRateLimiter.INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec(),
-                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec());
+                                     DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec(),
+                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec());
     }
 
     /**
      * Get streaming rate limiter for entire SSTable operations.
-     * When {@code entire_sstable_stream_throughput_outbound_megabits_per_sec}
+     * When {@code entire_sstable_stream_throughput_outbound}
      * is less than or equal ot {@code 0}, this returns rate limiter with the
      * rate of {@link Double.MAX_VALUE} bytes per second.
      * Rate unit is bytes per sec.
@@ -79,13 +79,13 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.ENTIRE_SSTABLE_LIMITER,
                                      StreamRateLimiter.ENTIRE_SSTABLE_INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec(),
-                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec());
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(),
+                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec());
     }
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
-        public static final double BYTES_PER_MEGABIT = (1000 * 1000) / 8.0;
+        public static final double BYTES_PER_MEBIBYTE = 1024.0 * 1024.0;
         private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
@@ -94,10 +94,10 @@ public class StreamManager implements StreamManagerMBean
         private final RateLimiter limiter;
         private final RateLimiter interDCLimiter;
         private final boolean isLocalDC;
-        private final int throughput;
-        private final int interDCThroughput;
+        private final double throughput;
+        private final double interDCThroughput;
 
-        private StreamRateLimiter(InetAddressAndPort peer, RateLimiter limiter, RateLimiter interDCLimiter, int throughput, int interDCThroughput)
+        private StreamRateLimiter(InetAddressAndPort peer, RateLimiter limiter, RateLimiter interDCLimiter, double throughput, double interDCThroughput)
         {
             this.limiter = limiter;
             this.interDCLimiter = interDCLimiter;
@@ -148,25 +148,25 @@ public class StreamManager implements StreamManagerMBean
 
         private static double calculateRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateInterDCRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableInterDCRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
@@ -194,11 +194,11 @@ public class StreamManager implements StreamManagerMBean
             return ENTIRE_SSTABLE_INTER_DC_LIMITER.getRate();
         }
 
-        private static double calculateEffectiveRateInBytes(int throughput)
+        private static double calculateEffectiveRateInBytes(double throughput)
         {
-            // if throughput is set to 0 or negative value, throttling is disabled
+            // if throughput is set to 0, throttling is disabled
             return throughput > 0
-                   ? throughput * BYTES_PER_MEGABIT
+                   ? throughput * BYTES_PER_MEBIBYTE
                    : Double.MAX_VALUE;
         }
     }

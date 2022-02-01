@@ -37,6 +37,6 @@ public class NetstatsBootstrapWithEntireSSTablesCompressionStreamingTest extends
     @Test
     public void testWithStreamingEntireSSTablesWithoutCompressionWithoutThrottling() throws Exception
     {
-        executeTest(true, false, -1);
+        executeTest(true, false, 0);
     }
 }

@@ -47,7 +47,7 @@ enable_scripted_user_defined_functions: true
 prepared_statements_cache_size_mb: 1
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
-stream_throughput_outbound_megabits_per_sec: 200000000
+stream_throughput_outbound: 23841858MiB/s
 
 client_encryption_options:
   enabled: true

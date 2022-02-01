@@ -65,14 +65,14 @@ public enum Converters
                       o -> ((DataStorageSpec)o).toBytes()),
     MEBIBYTES_PER_SECOND_DATA_RATE(Long.class,
                                    o -> DataRateSpec.inMebibytesPerSecond((Long) o),
-                                   o -> ((DataRateSpec)o).toMebibytesPerSecond()),
+                                   o -> ((DataRateSpec)o).toMebibytesPerSecondAsInt()),
     /**
      * This converter is a custom one to support backward compatibility for stream_throughput_outbound and
      * inter_dc_stream_throughput_outbound which were provided in megatibs per second prior CASSANDRA-15234.
      */
     MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Long.class,
                                                o -> DataRateSpec.megabitsPerSecondInMebibytesPerSecond((Long)o),
-                                               o -> ((DataRateSpec)o).toMegabitsPerSecond());
+                                               o -> ((DataRateSpec)o).toMegabitsPerSecondAsInt());
 
     private final Class<?> inputType;
     private final Function<Object, Object> convert;

@@ -54,8 +54,8 @@ public class NetstatsRepairStreamingTest extends AbstractNetstatsStreaming
         try (final Cluster cluster = Cluster.build()
                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
                                             .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
-                                                                        .set("stream_throughput_outbound_megabits_per_sec", 1)
-                                                                        .set("compaction_throughput_mb_per_sec", 1)
+                                                                        .set("stream_throughput_outbound", "122KiB/s")
+                                                                        .set("compaction_throughput", "1MiB/s")
                                                                         .set("stream_entire_sstables", false)).start())
         {
             final IInvokableInstance node1 = cluster.get(1);

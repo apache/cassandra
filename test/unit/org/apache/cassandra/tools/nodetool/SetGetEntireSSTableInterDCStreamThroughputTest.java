@@ -49,25 +49,19 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testPositive()
     {
-        assertSetGetValidThroughput(7, 7 * StreamRateLimiter.BYTES_PER_MEGABIT);
+        assertSetGetValidThroughput(7, 7 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE, Integer.MAX_VALUE * StreamRateLimiter.BYTES_PER_MEGABIT);
+        assertSetGetValidThroughput(Integer.MAX_VALUE, Integer.MAX_VALUE * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
     public void testZero()
     {
         assertSetGetValidThroughput(0, Double.MAX_VALUE);
-    }
-
-    @Test
-    public void testNegative()
-    {
-        assertSetGetValidThroughput(-7, Double.MAX_VALUE);
     }
 
     @Test
@@ -102,7 +96,7 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current entire SSTable inter-datacenter stream throughput: " + expected + " Mb/s");
+            assertThat(tool.getStdout()).contains("Current entire SSTable inter-datacenter stream throughput: " + expected + " MiB/s");
         else
             assertThat(tool.getStdout()).contains("Current entire SSTable inter-datacenter stream throughput: unlimited");
     }
