@@ -68,7 +68,7 @@ server_encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 concurrent_compactors: 4
-compaction_throughput_mb_per_sec: 0
+compaction_throughput: 0MiB/s
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size_in_mb: 16
 enable_user_defined_functions: true
@@ -76,7 +76,7 @@ enable_scripted_user_defined_functions: true
 prepared_statements_cache_size_mb: 1
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
-stream_throughput_outbound_megabits_per_sec: 200000000
+stream_throughput_outbound: 23841823841858MiB/s
 enable_sasi_indexes: true
 enable_materialized_views: true
 file_cache_enabled: true

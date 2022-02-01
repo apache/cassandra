@@ -229,7 +229,8 @@ public class Config
     public volatile int batch_size_fail_threshold_in_kb = 50;
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
-    public volatile int compaction_throughput_mb_per_sec = 16;
+    @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
+    public volatile DataRateSpec compaction_throughput = new DataRateSpec("16MiB/s");
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
     public int min_free_space_per_drive_in_mb = 50;
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
@@ -243,11 +244,13 @@ public class Config
     @Deprecated
     public int max_streaming_retries = 3;
 
-    public volatile int stream_throughput_outbound_megabits_per_sec = 200;
-    public volatile int inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
+    @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
+    public volatile DataRateSpec stream_throughput_outbound = new DataRateSpec("24MiB/s");
+    @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
+    public volatile DataRateSpec inter_dc_stream_throughput_outbound = new DataRateSpec("24MiB/s");
 
-    public volatile int entire_sstable_stream_throughput_outbound_megabits_per_sec = 200;
-    public volatile int entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
+    public volatile DataRateSpec entire_sstable_stream_throughput_outbound = new DataRateSpec("24MiB/s");
+    public volatile DataRateSpec entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec("24MiB/s");
 
     public String[] data_file_directories = new String[0];
 

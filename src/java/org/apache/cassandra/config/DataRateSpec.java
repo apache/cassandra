@@ -300,6 +300,8 @@ public final class DataRateSpec
 
             public double toMegabitsPerSecond(double d)
             {
+
+
                 if (d > MAX / (MEGABITS_PER_MEBIBYTE))
                     return MAX;
                 return Math.round(d * MEGABITS_PER_MEBIBYTE);
