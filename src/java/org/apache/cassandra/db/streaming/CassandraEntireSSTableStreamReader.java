@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.function.UnaryOperator;
 
-import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +84,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
      */
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
-    public SSTableMultiWriter read(DataInputPlus in) throws Exception
+    public SSTableMultiWriter read(DataInputPlus in) throws Throwable
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (cfs == null)
@@ -147,9 +146,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
             logger.error("[Stream {}] Error while reading sstable from stream for table = {}", session.planId(), cfs.metadata(), e);
             if (writer != null)
                 e = writer.abort(e);
-            Throwables.throwIfUnchecked(e);
-            Throwables.throwIfInstanceOf(e, Exception.class);
-            throw new RuntimeException(e); // not possible; just here to compile
+            throw e;
         }
     }
 

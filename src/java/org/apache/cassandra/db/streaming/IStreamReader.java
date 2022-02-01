@@ -26,5 +26,5 @@ import org.apache.cassandra.io.util.DataInputPlus;
  */
 public interface IStreamReader
 {
-    SSTableMultiWriter read(DataInputPlus inputPlus) throws Exception;
+    SSTableMultiWriter read(DataInputPlus inputPlus) throws Throwable;
 }

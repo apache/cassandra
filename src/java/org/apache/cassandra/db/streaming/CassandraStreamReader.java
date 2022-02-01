@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.UUID;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
 import com.google.common.collect.UnmodifiableIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,7 +106,7 @@ public class CassandraStreamReader implements IStreamReader
      */
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
-    public SSTableMultiWriter read(DataInputPlus inputPlus) throws Exception
+    public SSTableMultiWriter read(DataInputPlus inputPlus) throws Throwable
     {
         long totalSize = totalSize();
 
@@ -144,9 +143,7 @@ public class CassandraStreamReader implements IStreamReader
                         session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName(), e);
             if (writer != null)
                 e = writer.abort(e);
-            Throwables.throwIfUnchecked(e);
-            Throwables.throwIfInstanceOf(e, Exception.class);
-            throw new RuntimeException(e); // not possible; just here to compile
+            throw e;
         }
     }
 

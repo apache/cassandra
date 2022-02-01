@@ -35,7 +35,7 @@ public interface IncomingStream
     /**
      * Read in the stream data.
      */
-    void read(DataInputPlus inputPlus, int version) throws Exception;
+    void read(DataInputPlus inputPlus, int version) throws Throwable;
 
     String getName();
     long getSize();

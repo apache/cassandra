@@ -63,7 +63,7 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
-    public synchronized void read(DataInputPlus in, int version) throws Exception
+    public synchronized void read(DataInputPlus in, int version) throws Throwable
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
         // this log is used by tests to validate entireSSTable=true

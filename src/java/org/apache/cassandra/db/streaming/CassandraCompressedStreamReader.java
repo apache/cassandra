@@ -19,7 +19,6 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
 
-import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +54,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
      */
     @Override
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
-    public SSTableMultiWriter read(DataInputPlus inputPlus) throws Exception
+    public SSTableMultiWriter read(DataInputPlus inputPlus) throws Throwable
     {
         long totalSize = totalSize();
 
@@ -109,9 +108,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                         session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName());
             if (writer != null)
                 e = writer.abort(e);
-            Throwables.throwIfUnchecked(e);
-            Throwables.throwIfInstanceOf(e, Exception.class);
-            throw new RuntimeException(e); // not possible; just here to compile
+            throw e;
         }
     }
 
