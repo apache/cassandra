@@ -50,7 +50,7 @@ public class IncomingStreamMessage extends StreamMessage
 
                 return new IncomingStreamMessage(incomingData, header);
             }
-            catch (Exception | Error e)
+            catch (Throwable e)
             {
                 if (e instanceof StreamReceiveException)
                     throw (StreamReceiveException) e;
