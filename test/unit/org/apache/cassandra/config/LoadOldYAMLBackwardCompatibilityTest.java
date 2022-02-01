@@ -22,6 +22,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 public class LoadOldYAMLBackwardCompatibilityTest
 {
@@ -41,6 +43,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         /*assertEquals(5, config.internode_socket_send_buffer_size_in_bytes);
         assertEquals(5, config.internode_socket_receive_buffer_size_in_bytes);
         assertEquals(DurationSpec.inMilliseconds(10800000), config.max_hint_window);
+        assertEquals(DurationSpec.inHours(0), config.max_hint_window);
         assertEquals(DurationSpec.inMilliseconds(0), config.native_transport_idle_timeout);
         assertEquals(DurationSpec.inMilliseconds(10000), config.request_timeout);
         assertEquals(DurationSpec.inMilliseconds(5000), config.read_request_timeout);
@@ -99,15 +102,15 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DurationSpec.inMilliseconds(1000), config.gc_warn_threshold);
         assertEquals(DurationSpec.inSeconds(86400), config.trace_type_query_ttl);
         assertEquals(DurationSpec.inSeconds(604800), config.trace_type_repair_ttl);
-        assertNull(config.prepared_statements_cache_size);
-        assertFalse(config.user_defined_functions_enabled);
-        assertFalse(config.scripted_user_defined_functions_enabled);
-        assertFalse(config.materialized_views_enabled);
+        assertNull(config.prepared_statements_cache_size);*/
+        assertTrue(config.user_defined_functions_enabled);
+        assertTrue(config.scripted_user_defined_functions_enabled);
+        assertTrue(config.materialized_views_enabled);
         assertFalse(config.transient_replication_enabled);
-        assertFalse(config.sasi_indexes_enabled);
-        assertFalse(config.drop_compact_storage_enabled);
+        assertTrue(config.sasi_indexes_enabled);
+        assertTrue(config.drop_compact_storage_enabled);
         assertTrue(config.user_defined_functions_threads_enabled);
-        assertEquals(DurationSpec.inMilliseconds(2000), config.permissions_validity);
+        /*assertEquals(DurationSpec.inMilliseconds(2000), config.permissions_validity);
         assertEquals(DurationSpec.inMilliseconds(0), config.permissions_update_interval);
         assertEquals(DurationSpec.inMilliseconds(2000), config.roles_validity);
         assertEquals(DurationSpec.inMilliseconds(0), config.roles_update_interval);

@@ -42,7 +42,7 @@ public class GroupByTest extends TestBaseImpl
     @Test
     public void groupByWithDeletesAndSrpOnPartitions() throws Throwable
     {
-        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("enable_user_defined_functions", "true")).start()))
+        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("user_defined_functions_enabled", "true")).start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, PRIMARY KEY (pk, ck))"));
             initFunctions(cluster);
@@ -69,7 +69,7 @@ public class GroupByTest extends TestBaseImpl
     @Test
     public void groupByWithDeletesAndSrpOnRows() throws Throwable
     {
-        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("enable_user_defined_functions", "true")).start()))
+        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("user_defined_functions_enabled", "true")).start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, PRIMARY KEY (pk, ck))"));
             initFunctions(cluster);
@@ -96,7 +96,7 @@ public class GroupByTest extends TestBaseImpl
     @Test
     public void testGroupByWithAggregatesAndPaging() throws Throwable
     {
-        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("enable_user_defined_functions", "true")).start()))
+        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("user_defined_functions_enabled", "true")).start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v1 text, v2 text, v3 text, primary key (pk, ck))"));
             initFunctions(cluster);

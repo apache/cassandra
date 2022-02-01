@@ -146,7 +146,7 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(1, 2)
         .upgradesFrom(v30)
-        .withConfig(config -> config.with(GOSSIP, NETWORK).set("enable_drop_compact_storage", true))
+        .withConfig(config -> config.with(GOSSIP, NETWORK).set("drop_compact_storage_enabled", true))
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck) VALUES (1,1)", ConsistencyLevel.ALL);

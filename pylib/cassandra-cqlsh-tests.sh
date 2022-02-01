@@ -101,8 +101,8 @@ fi
 
 ccm remove test || true # in case an old ccm cluster is left behind
 ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
-ccm updateconf "enable_user_defined_functions: true"
-ccm updateconf "enable_scripted_user_defined_functions: true"
+ccm updateconf "user_defined_functions_enabled: true"
+ccm updateconf "scripted_user_defined_functions_enabled: true"
 
 version_from_build=$(ccm node1 versionfrombuild)
 export pre_or_post_cdc=$(python -c """from distutils.version import LooseVersion

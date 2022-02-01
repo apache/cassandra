@@ -217,7 +217,7 @@ class InboundSockets
         InboundConnectionSettings       settings = template.withDefaults();
         InboundConnectionSettings legacySettings = template.withLegacySslStoragePortDefaults();
 
-        if (settings.encryption.enable_legacy_ssl_storage_port)
+        if (settings.encryption.legacy_ssl_storage_port_enabled)
         {
             out.add(new InboundSocket(legacySettings));
 

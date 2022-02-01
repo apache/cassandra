@@ -508,10 +508,10 @@ public class ViewTest extends ViewAbstractTest
 
         executeNet("USE " + keyspace());
 
-        boolean enableMaterializedViews = DatabaseDescriptor.getEnableMaterializedViews();
+        boolean enableMaterializedViews = DatabaseDescriptor.getMaterializedViewsEnabled();
         try
         {
-            DatabaseDescriptor.setEnableMaterializedViews(false);
+            DatabaseDescriptor.setMaterializedViewsEnabled(false);
             createView("CREATE MATERIALIZED VIEW %s AS SELECT v FROM %s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
             Assert.fail("Should not be able to create a materialized view if they are disabled");
         }
@@ -523,7 +523,7 @@ public class ViewTest extends ViewAbstractTest
         }
         finally
         {
-            DatabaseDescriptor.setEnableMaterializedViews(enableMaterializedViews);
+            DatabaseDescriptor.setMaterializedViewsEnabled(enableMaterializedViews);
         }
     }
 
