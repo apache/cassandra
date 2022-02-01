@@ -1,4 +1,5 @@
 4.1
+ * Add a virtual table for exposing prepared statements metrics (CASSANDRA-17224)
  * Remove python 2.x support from cqlsh (CASSANDRA-17242)
  * Prewarm role and credential caches to avoid timeouts at startup (CASSANDRA-16958)
  * Make capacity/validity/updateinterval/activeupdate for Auth Caches configurable via nodetool (CASSANDRA-17063)
