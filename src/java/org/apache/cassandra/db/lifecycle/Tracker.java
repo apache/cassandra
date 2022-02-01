@@ -520,9 +520,9 @@ public class Tracker
             subscriber.handleNotification(notification, this);
     }
 
-    public void notifyTruncated(long truncatedAt)
+    public void notifyTruncated(CommitLogPosition replayAfter, long truncatedAt)
     {
-        INotification notification = new TruncationNotification(truncatedAt);
+        INotification notification = new TruncationNotification(replayAfter, truncatedAt);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
     }
