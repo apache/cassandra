@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.notifications;
 
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+
 /**
  * Fired during truncate, after the memtable has been flushed but before any
  * snapshot is taken and SSTables are discarded
  */
 public class TruncationNotification implements INotification
 {
+    public final CommitLogPosition replayAfter;
     public final long truncatedAt;
 
-    public TruncationNotification(long truncatedAt)
+    public TruncationNotification(CommitLogPosition replayAfter, long truncatedAt)
     {
+        this.replayAfter = replayAfter;
         this.truncatedAt = truncatedAt;
     }
 }
