@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -56,6 +57,7 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -200,6 +202,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         {
             this.shutdownExecutor = shutdownExecutor;
             return (B) this;
+        }
+
+        @Override
+        public C createWithoutStarting() throws IOException
+        {
+            Assume.assumeFalse("vnode is not supported", !isAllowVnodes() && getTokenCount() > 1);
+            return super.createWithoutStarting();
         }
     }
 
@@ -519,9 +528,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private InstanceConfig createInstanceConfig(int nodeNum)
     {
         INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet);
-        long token = tokenSupplier.token(nodeNum);
+        Collection<String> tokens = tokenSupplier.tokens(nodeNum);
         NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
-        InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, Long.toString(token), datadirCount);
+        InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, tokens, datadirCount);
         config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
         if (configUpdater != null)
             configUpdater.accept(config);
