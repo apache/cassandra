@@ -114,7 +114,8 @@ public class Config
     public Integer streaming_connections_per_host = 1;
     public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
 
-    public boolean cross_node_timeout = true;
+    @Replaces(oldName = "cross_node_timeout", converter = Converters.IDENTITY, deprecated = true)
+    public boolean internode_timeout = true;
 
     public volatile long slow_query_log_timeout_in_ms = 500L;
 
@@ -401,16 +402,22 @@ public class Config
      */
     public Long prepared_statements_cache_size_mb = null;
 
-    public boolean enable_user_defined_functions = false;
-    public boolean enable_scripted_user_defined_functions = false;
+    @Replaces(oldName = "enable_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
+    public boolean user_defined_functions_enabled = false;
+    @Replaces(oldName = "enable_scripted_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
+    public boolean scripted_user_defined_functions_enabled = false;
 
-    public boolean enable_materialized_views = false;
+    @Replaces(oldName = "enable_materialized_views", converter = Converters.IDENTITY, deprecated = true)
+    public boolean materialized_views_enabled = false;
 
-    public boolean enable_transient_replication = false;
+    @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
+    public boolean transient_replication_enabled = false;
 
-    public boolean enable_sasi_indexes = false;
+    @Replaces(oldName = "enable_sasi_indexes", converter = Converters.IDENTITY, deprecated = true)
+    public boolean sasi_indexes_enabled = false;
 
-    public volatile boolean enable_drop_compact_storage = false;
+    @Replaces(oldName = "enable_drop_compact_storage", converter = Converters.IDENTITY, deprecated = true)
+    public volatile boolean drop_compact_storage_enabled = false;
 
     public volatile boolean use_statements_enabled = true;
 
@@ -423,17 +430,21 @@ public class Config
      * When you disable async UDF execution, users MUST pay attention to read-timeouts since these may indicate
      * UDFs that run too long or forever - and this can destabilize the cluster.
      */
-    public boolean enable_user_defined_functions_threads = true;
+    // Below parameter is not presented in cassandra.yaml but to be on the safe side that no one was directly using it
+    // I still added backward compatibility (CASSANDRA-15234)
+    @Replaces(oldName = "enable_user_defined_functions_threads", converter = Converters.IDENTITY, deprecated = true)
+    public boolean user_defined_functions_threads_enabled = true;
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
     public long user_defined_function_warn_timeout = 500;
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
      * user_function_timeout_policy will take place.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
+    //No need of unit conversion as this parameter is not exposed in the yaml file
     public long user_defined_function_fail_timeout = 1500;
     /**
      * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout.
@@ -441,7 +452,7 @@ public class Config
      * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
      * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).
      * - 'ignore' - just log - the most dangerous option.
-     * (Only valid, if enable_user_defined_functions_threads==true)
+     * (Only valid, if user_defined_functions_threads_enabled==true)
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 

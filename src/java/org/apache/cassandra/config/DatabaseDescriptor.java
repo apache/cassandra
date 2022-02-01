@@ -790,10 +790,10 @@ public class DatabaseDescriptor
         {
             conf.server_encryption_options.applyConfig();
 
-            if (conf.server_encryption_options.enable_legacy_ssl_storage_port &&
+            if (conf.server_encryption_options.legacy_ssl_storage_port_enabled &&
                 conf.server_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
             {
-                throw new ConfigurationException("enable_legacy_ssl_storage_port is true (enabled) with internode encryption disabled (none). Enable encryption or disable the legacy ssl storage port.");
+                throw new ConfigurationException("legacy_ssl_storage_port_enabled is true (enabled) with internode encryption disabled (none). Enable encryption or disable the legacy ssl storage port.");
             }
         }
         Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
@@ -1724,12 +1724,12 @@ public class DatabaseDescriptor
 
     public static boolean hasCrossNodeTimeout()
     {
-        return conf.cross_node_timeout;
+        return conf.internode_timeout;
     }
 
     public static void setCrossNodeTimeout(boolean crossNodeTimeout)
     {
-        conf.cross_node_timeout = crossNodeTimeout;
+        conf.internode_timeout = crossNodeTimeout;
     }
 
     public static long getSlowQueryTimeout(TimeUnit units)
@@ -3074,22 +3074,22 @@ public class DatabaseDescriptor
 
     public static boolean enableUserDefinedFunctions()
     {
-        return conf.enable_user_defined_functions;
+        return conf.user_defined_functions_enabled;
     }
 
     public static boolean enableScriptedUserDefinedFunctions()
     {
-        return conf.enable_scripted_user_defined_functions;
+        return conf.scripted_user_defined_functions_enabled;
     }
 
     public static void enableScriptedUserDefinedFunctions(boolean enableScriptedUserDefinedFunctions)
     {
-        conf.enable_scripted_user_defined_functions = enableScriptedUserDefinedFunctions;
+        conf.scripted_user_defined_functions_enabled = enableScriptedUserDefinedFunctions;
     }
 
     public static boolean enableUserDefinedFunctionsThreads()
     {
-        return conf.enable_user_defined_functions_threads;
+        return conf.user_defined_functions_threads_enabled;
     }
 
     public static long getUserDefinedFunctionWarnTimeout()
@@ -3102,45 +3102,45 @@ public class DatabaseDescriptor
         conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
     }
 
-    public static boolean getEnableMaterializedViews()
+    public static boolean getMaterializedViewsEnabled()
     {
-        return conf.enable_materialized_views;
+        return conf.materialized_views_enabled;
     }
 
-    public static void setEnableMaterializedViews(boolean enableMaterializedViews)
+    public static void setMaterializedViewsEnabled(boolean enableMaterializedViews)
     {
-        conf.enable_materialized_views = enableMaterializedViews;
+        conf.materialized_views_enabled = enableMaterializedViews;
     }
 
-    public static boolean getEnableSASIIndexes()
+    public static boolean getSASIIndexesEnabled()
     {
-        return conf.enable_sasi_indexes;
+        return conf.sasi_indexes_enabled;
     }
 
-    public static void setEnableSASIIndexes(boolean enableSASIIndexes)
+    public static void setSASIIndexesEnabled(boolean enableSASIIndexes)
     {
-        conf.enable_sasi_indexes = enableSASIIndexes;
+        conf.sasi_indexes_enabled = enableSASIIndexes;
     }
 
     public static boolean isTransientReplicationEnabled()
     {
-        return conf.enable_transient_replication;
+        return conf.transient_replication_enabled;
     }
 
     public static void setTransientReplicationEnabledUnsafe(boolean enabled)
     {
-        conf.enable_transient_replication = enabled;
+        conf.transient_replication_enabled = enabled;
     }
 
     public static boolean enableDropCompactStorage()
     {
-        return conf.enable_drop_compact_storage;
+        return conf.drop_compact_storage_enabled;
     }
 
     @VisibleForTesting
     public static void setEnableDropCompactStorage(boolean enableDropCompactStorage)
     {
-        conf.enable_drop_compact_storage = enableDropCompactStorage;
+        conf.drop_compact_storage_enabled = enableDropCompactStorage;
     }
 
     public static long getUserDefinedFunctionFailTimeout()

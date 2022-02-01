@@ -74,12 +74,12 @@ concurrent_compactors: 4
 compaction_throughput: 0MiB/s
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size_in_mb: 16
-enable_user_defined_functions: true
-enable_scripted_user_defined_functions: true
+user_defined_functions_enabled: true
+scripted_user_defined_functions_enabled: true
 prepared_statements_cache_size_mb: 1
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
 stream_throughput_outbound: 23841858MiB/s
-enable_sasi_indexes: true
-enable_materialized_views: true
+sasi_indexes_enabled: true
+materialized_views_enabled: true
 file_cache_enabled: true

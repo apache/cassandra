@@ -1059,7 +1059,7 @@ slow_query_log_timeout_in_ms: 500
 #
 # Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync, 
 # since this is a requirement for general correctness of last write wins.
-#cross_node_timeout: true
+# internode_timeout: true
 
 # Set keep-alive period for streaming
 # This node will send a keep-alive message periodically with this period.
@@ -1225,7 +1225,7 @@ server_encryption_options:
     # optional: true
     # If enabled, will open up an encrypted listening socket on ssl_storage_port. Should only be used
     # during upgrade to 4.0; otherwise, set to false.
-    enable_legacy_ssl_storage_port: false
+    legacy_ssl_storage_port_enabled: false
     # Set to a valid keystore if internode_encryption is dc, rack or all
     keystore: conf/.keystore
     keystore_password: cassandra
@@ -1311,13 +1311,13 @@ tracetype_repair_ttl: 604800
 # INFO level
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
-enable_user_defined_functions: false
+user_defined_functions_enabled: false
 
 # Enables scripted UDFs (JavaScript UDFs).
-# Java UDFs are always enabled, if enable_user_defined_functions is true.
+# Java UDFs are always enabled, if user_defined_functions_enabled is true.
 # Enable this option to be able to use UDFs with "language javascript" or any custom JSR-223 provider.
-# This option has no effect, if enable_user_defined_functions is false.
-enable_scripted_user_defined_functions: false
+# This option has no effect, if user_defined_functions_enabled is false.
+scripted_user_defined_functions_enabled: false
 
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
@@ -1528,19 +1528,19 @@ report_unconfirmed_repaired_data_mismatches: false
 
 # Enables materialized view creation on this node.
 # Materialized views are considered experimental and are not recommended for production use.
-enable_materialized_views: false
+materialized_views_enabled: false
 
 # Enables SASI index creation on this node.
 # SASI indexes are considered experimental and are not recommended for production use.
-enable_sasi_indexes: false
+sasi_indexes_enabled: false
 
 # Enables creation of transiently replicated keyspaces on this node.
 # Transient replication is experimental and is not recommended for production use.
-enable_transient_replication: false
+transient_replication_enabled: false
 
 # Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
-enable_drop_compact_storage: false
+drop_compact_storage_enabled: false
 
 # Whether or not USE <keyspace> is allowed. This is enabled by default to avoid failure on upgrade.
 #use_statements_enabled: true
