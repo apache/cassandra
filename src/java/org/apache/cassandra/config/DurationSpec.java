@@ -25,24 +25,40 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Represents a positive time duration. Wrapper class for Cassandra duration configuration parameters, providing to the
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
  * options. (CASSANDRA-15234)
  */
-public final class DurationSpec
+public class DurationSpec
 {
+    /**
+     * Immutable map that matches supported time units according to a provided smallest supported time unit
+     */
+    private static final ImmutableMap<TimeUnit, ImmutableSet<TimeUnit>> MAP_UNITS_PER_MIN_UNIT =
+    ImmutableMap.of(MILLISECONDS, ImmutableSet.of(MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS),
+                    SECONDS, ImmutableSet.of(SECONDS, MINUTES, HOURS, DAYS),
+                    MINUTES, ImmutableSet.of(MINUTES, HOURS, DAYS));
     /**
      * The Regexp used to parse the duration provided as String.
      */
-    private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)"));
+    private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)$"));
+
     private static final Pattern VALUES_PATTERN = Pattern.compile(("\\d+"));
 
-    public final long quantity;
+    private final long quantity;
 
     private final TimeUnit unit;
 
@@ -51,7 +67,7 @@ public final class DurationSpec
         if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan"))
         {
             quantity = 0;
-            unit = TimeUnit.MILLISECONDS;
+            unit = MILLISECONDS;
             return;
         }
 
@@ -84,6 +100,35 @@ public final class DurationSpec
         this(Math.round(quantity), unit);
     }
 
+    public DurationSpec(String value, TimeUnit minUnit)
+    {
+        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan"))
+        {
+            quantity = 0;
+            unit = minUnit;
+            return;
+        }
+
+        if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
+            throw new ConfigurationException("Invalid smallest unit set for " + value);
+
+        Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
+
+        if(matcher.find())
+        {
+            quantity = Long.parseLong(matcher.group(1));
+            unit = fromSymbol(matcher.group(2));
+
+            if (!MAP_UNITS_PER_MIN_UNIT.get(minUnit).contains(unit))
+                throw new ConfigurationException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit));
+        }
+        else
+        {
+            throw new ConfigurationException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
+                                             " where case matters and only non-negative values.");
+        }
+    }
+
     /**
      * Creates a {@code DurationSpec} of the specified amount of milliseconds.
      *
@@ -92,12 +137,12 @@ public final class DurationSpec
      */
     public static DurationSpec inMilliseconds(long milliseconds)
     {
-        return new DurationSpec(milliseconds, TimeUnit.MILLISECONDS);
+        return new DurationSpec(milliseconds, MILLISECONDS);
     }
 
     public static DurationSpec inDoubleMilliseconds(double milliseconds)
     {
-        return new DurationSpec(milliseconds, TimeUnit.MILLISECONDS);
+        return new DurationSpec(milliseconds, MILLISECONDS);
     }
 
     /**
@@ -108,7 +153,7 @@ public final class DurationSpec
      */
     public static DurationSpec inSeconds(long seconds)
     {
-        return new DurationSpec(seconds, TimeUnit.SECONDS);
+        return new DurationSpec(seconds, SECONDS);
     }
 
     /**
@@ -119,7 +164,7 @@ public final class DurationSpec
      */
     public static DurationSpec inMinutes(long minutes)
     {
-        return new DurationSpec(minutes, TimeUnit.MINUTES);
+        return new DurationSpec(minutes, MINUTES);
     }
 
     /**
@@ -130,7 +175,7 @@ public final class DurationSpec
      */
     public static DurationSpec inHours(long hours)
     {
-        return new DurationSpec(hours, TimeUnit.HOURS);
+        return new DurationSpec(hours, HOURS);
     }
 
     /**
@@ -151,7 +196,7 @@ public final class DurationSpec
         if (matcher.matches())
         {
             seconds = Long.parseLong(value);
-            return new DurationSpec(seconds, TimeUnit.SECONDS);
+            return new DurationSpec(seconds, SECONDS);
         }
 
         //otherwise we just use the standard constructors
@@ -166,11 +211,11 @@ public final class DurationSpec
     {
         switch (symbol.toLowerCase())
         {
-            case "d": return TimeUnit.DAYS;
-            case "h": return TimeUnit.HOURS;
-            case "m": return TimeUnit.MINUTES;
-            case "s": return TimeUnit.SECONDS;
-            case "ms": return TimeUnit.MILLISECONDS;
+            case "d": return DAYS;
+            case "h": return HOURS;
+            case "m": return MINUTES;
+            case "s": return SECONDS;
+            case "ms": return MILLISECONDS;
             case "us":
             case "µs": return TimeUnit.MICROSECONDS;
             case "ns": return TimeUnit.NANOSECONDS;

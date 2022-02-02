@@ -23,17 +23,29 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.GIBIBYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 
 /**
  * Represents an amount of data storage. Wrapper class for Cassandra configuration parameters, providing to the
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
  * options. (CASSANDRA-15234)
  */
-public final class DataStorageSpec
+public class DataStorageSpec
 {
+    /**
+     * Immutable map that matches supported time units according to a provided smallest supported time unit
+     */
+    private static final ImmutableMap<DataStorageUnit, ImmutableSet<DataStorageUnit>> MAP_UNITS_PER_MIN_UNIT =
+    ImmutableMap.of(KIBIBYTES, ImmutableSet.of(KIBIBYTES, MEBIBYTES, GIBIBYTES),
+                    MEBIBYTES, ImmutableSet.of(MEBIBYTES, GIBIBYTES));
     /**
      * The Regexp used to parse the storage provided as String.
      */
@@ -48,7 +60,7 @@ public final class DataStorageSpec
         if (value == null || value.equals("null"))
         {
             quantity = 0;
-            unit = DataStorageUnit.MEBIBYTES; // the unit doesn't really matter as 0 is 0 in all units
+            unit = MEBIBYTES; // the unit doesn't really matter as 0 is 0 in all units
             return;
         }
 
@@ -74,6 +86,35 @@ public final class DataStorageSpec
         this.unit = unit;
     }
 
+    public DataStorageSpec (String value, DataStorageUnit minUnit)
+    {
+        if (value == null || value.equals("null"))
+        {
+            quantity = 0;
+            unit = minUnit;
+            return;
+        }
+
+        if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
+            throw new ConfigurationException("Invalid smallest unit set for " + value);
+
+        //parse the string field value
+        Matcher matcher = STORAGE_UNITS_PATTERN.matcher(value);
+
+        if (matcher.find())
+        {
+            quantity = Long.parseLong(matcher.group(1));
+            unit = DataStorageUnit.fromSymbol(matcher.group(2));
+
+            if (!MAP_UNITS_PER_MIN_UNIT.get(minUnit).contains(unit))
+                throw new ConfigurationException("Invalid data storage: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT);
+        }
+        else
+        {
+            throw new ConfigurationException("Invalid data storage: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
+                                             " where case matters and only non-negative values are accepted");
+        }
+    }
     /**
      * Creates a {@code DataStorageSpec} of the specified amount of bytes.
      *
@@ -93,7 +134,7 @@ public final class DataStorageSpec
      */
     public static DataStorageSpec inKibibytes(long kibibytes)
     {
-        return new DataStorageSpec(kibibytes, DataStorageUnit.KIBIBYTES);
+        return new DataStorageSpec(kibibytes, KIBIBYTES);
     }
 
     /**
@@ -104,7 +145,7 @@ public final class DataStorageSpec
      */
     public static DataStorageSpec inMebibytes(long mebibytes)
     {
-        return new DataStorageSpec(mebibytes, DataStorageUnit.MEBIBYTES);
+        return new DataStorageSpec(mebibytes, MEBIBYTES);
     }
 
     /**

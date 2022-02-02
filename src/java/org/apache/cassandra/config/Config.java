@@ -546,17 +546,17 @@ public class Config
     /** This feature allows denying access to operations on certain key partitions, intended for use by operators to
      * provide another tool to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
      */
-    public volatile boolean enable_partition_denylist = false;
+    public volatile boolean partition_denylist_enabled = false;
 
-    public volatile boolean enable_denylist_writes = true;
+    public volatile boolean denylist_writes_enabled = true;
 
-    public volatile boolean enable_denylist_reads = true;
+    public volatile boolean denylist_reads_enabled = true;
 
-    public volatile boolean enable_denylist_range_reads = true;
+    public volatile boolean denylist_range_reads_enabled = true;
 
-    public int denylist_refresh_seconds = 600;
+    public SmallestDurationSeconds denylist_refresh = new SmallestDurationSeconds("600s");
 
-    public int denylist_initial_load_retry_seconds = 5;
+    public SmallestDurationSeconds denylist_initial_load_retry = new SmallestDurationSeconds("5s");
 
     /** We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Operators will
      * receive warnings and only denylist_max_keys_per_table in natural query ordering will be processed on overflow.

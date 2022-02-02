@@ -841,7 +841,7 @@ rpc_keepalive: true
 # Uncomment to set socket buffer size for internode communication
 # Note that when setting this, the buffer size is limited by net.core.wmem_max
 # and when not setting it it is defined by net.ipv4.tcp_wmem
-# internode_socket_receive_buffer_size_in_bytes:
+# internode_socket_receive_buffer_size:
 
 # Set to true to have Cassandra create a hard link to each sstable
 # flushed or streamed locally in a backups/ subdirectory of the
@@ -1076,19 +1076,19 @@ slow_query_log_timeout_in_ms: 500
 
 # Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
 # operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
-# enable_partition_denylist: false
+# partition_denylist_enabled: false
 
-# enable_denylist_writes: true
-# enable_denylist_reads: true
-# enable_denylist_range_reads: true
+# denylist_writes_enabled: true
+# denylist_reads_enabled: true
+# denylist_range_reads_enabled: true
 
 # The interval at which keys in the cache for denylisting will "expire" and async refresh from the backing DB.
 # Note: this serves only as a fail-safe, as the usage pattern is expected to be "mutate state, refresh cache" on any
 # changes to the underlying denylist entries. See documentation for details.
-# denylist_refresh_seconds: 600
+# denylist_refresh: 600s
 
 # In the event of errors on attempting to load the denylist cache, retry on this interval.
-# denylist_initial_load_retry_seconds: 5
+# denylist_initial_load_retry: 5s
 
 # We cap the number of denylisted keys allowed per table to keep things from growing unbounded. Nodes will warn above
 # this limit while allowing new denylisted keys to be inserted. Denied keys are loaded in natural query / clustering

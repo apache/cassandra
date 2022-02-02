@@ -210,7 +210,12 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.DataRateSpec$DataRateUnit",
     "org.apache.cassandra.config.DataRateSpec$DataRateUnit$1",
     "org.apache.cassandra.config.DataRateSpec$DataRateUnit$2",
-    "org.apache.cassandra.config.DataRateSpec$DataRateUnit$3"
+    "org.apache.cassandra.config.DataRateSpec$DataRateUnit$3",
+    "org.apache.cassandra.config.SmallestDurationMinutes",
+    "org.apache.cassandra.config.SmallestDurationSeconds",
+    "org.apache.cassandra.config.SmallestDurationMilliseconds",
+    "org.apache.cassandra.config.SmallestDataStorageKibibytes",
+    "org.apache.cassandra.config.SmallestDataStorageMebibytes"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));
