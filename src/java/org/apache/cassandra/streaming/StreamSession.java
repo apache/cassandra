@@ -704,6 +704,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         });
     }
 
+    public void countStreamedIn(boolean isEntireSSTable)
+    {
+        metrics.countStreamedIn(isEntireSSTable);
+    }
+
     /**
      * Finish preparing the session. This method is blocking (memtables are flushed in {@link #addTransferRanges}),
      * so the logic should not execute on the main IO thread (read: netty event loop).

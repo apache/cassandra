@@ -20,10 +20,7 @@ package org.apache.cassandra.distributed.test.streaming;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
@@ -37,7 +34,6 @@ import org.apache.cassandra.db.streaming.CassandraIncomingFile;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -119,38 +115,34 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
 
     private static void triggerStreaming(Cluster cluster, boolean expectedEntireSSTable)
     {
-        // preemptive log search to make sure classes load... seems there is a bug where a downed instance can't return access to logs
-        cluster.forEach(n -> n.logs().grep("testing"));
-
         IInvokableInstance node1 = cluster.get(1);
         IInvokableInstance node2 = cluster.get(2);
 
         // repair will do streaming IFF there is a mismatch; so cause one
         for (int i = 0; i < 10; i++)
-            node1.executeInternal(withKeyspace("INSERT INTO %s.tbl (pk) VALUES (?)"), i);
-
-        // we do not have metrics for streaming impl; this is only done in debug level logging... so enable debug logging if not on
-        cluster.forEach(n -> n.nodetoolResult("setlogginglevel", "streaming", "DEBUG").asserts().success());
+            node1.executeInternal(withKeyspace("INSERT INTO %s.tbl (pk) VALUES (?)"), i); // timestamp won't match, causing a mismatch
 
         // trigger streaming; expected to fail as streaming socket closed in the middle (currently this is an unrecoverable event)
-        long mark = node2.logs().mark();
         node2.nodetoolResult("repair", "-full", KEYSPACE, "tbl").asserts().failure();
 
-        assertStreamingFailed(node2, expectedEntireSSTable, mark);
+        assertStreamingType(node2, expectedEntireSSTable);
     }
 
-    private static void assertStreamingFailed(IInvokableInstance node, boolean expectedEntireSSTable, long mark)
+    private static void assertStreamingType(IInvokableInstance node, boolean expectedEntireSSTable)
     {
-        // make sure zero-copy streaming was done; only way to know is by checking debug logs on the receiving end
-        LogResult<List<String>> logs = node.logs().grep(mark, "Incoming stream entireSSTable=");
-        Assertions.assertThat(logs.getResult()).isNotEmpty();
-        Pattern pattern = Pattern.compile("entireSSTable=(.*?)\\s");
-        logs.getResult().forEach(line -> {
-            Matcher match = pattern.matcher(logs.getResult().get(0));
-            Assertions.assertThat(match.find()).isTrue();
-            boolean entireSSTable = Boolean.parseBoolean(match.group(1));
-            Assertions.assertThat(entireSSTable).isEqualTo(expectedEntireSSTable);
-        });
+        String key = "org.apache.cassandra.metrics.Streaming.%s./127.0.0.1.7012";
+        long entire = node.metrics().getCounter(String.format(key, "EntireSSTablesStreamedIn"));
+        long partial = node.metrics().getCounter(String.format(key, "PartialSSTablesStreamedIn"));
+        if (expectedEntireSSTable)
+        {
+            Assertions.assertThat(partial).isEqualTo(0);
+            Assertions.assertThat(entire).isGreaterThan(0);
+        }
+        else
+        {
+            Assertions.assertThat(partial).isGreaterThan(0);
+            Assertions.assertThat(entire).isEqualTo(0);
+        }
     }
 
     public static class BBHelper
