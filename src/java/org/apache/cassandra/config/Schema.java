@@ -122,7 +122,7 @@ public class Schema
      */
     public static boolean isSchemaKeyspace(String keyspaceName)
     {
-        return keyspaceName.toLowerCase().equals(SchemaKeyspace.NAME);
+        return keyspaceName.equalsIgnoreCase(SchemaKeyspace.NAME);
     }
 
     /**
