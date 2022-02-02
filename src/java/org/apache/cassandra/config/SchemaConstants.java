@@ -85,6 +85,6 @@ public final class SchemaConstants
      */
     public static boolean isSchemaKeyspace(String keyspaceName)
     {
-        return keyspaceName.toLowerCase().equals(SCHEMA_KEYSPACE_NAME);
+        return keyspaceName.equalsIgnoreCase(SCHEMA_KEYSPACE_NAME);
     }
 }
