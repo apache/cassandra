@@ -221,16 +221,18 @@ public class AutoRepairUtils
                 String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node);
                 if (AutoRepairService.instance.getIgnoreDCs().contains(nodeDC))
                 {
-                    logger.debug("Ignore node {} because its datacenter is {}", node, nodeDC);
+                    logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
                     continue;
                 }
                 /** Check if endpoint state exists in gossip or not. If it
                  * does not then this maybe a ghost node so ignore it
                  */
-                if (Gossiper.instance.getEndpointStateForEndpoint(node) !=  null)
+                if (Gossiper.instance.isAlive(node))
                 {
                     UUID hostId = Gossiper.instance.getHostId(node);
                     hostIdsInCurrentRing.add(hostId);
+                } else {
+                    logger.info("Node is not present in Gossipe cache node {}", node, nodeDC);
                 }
             }
             logger.info("Total nodes qualified for repair {}", hostIdsInCurrentRing.size());
