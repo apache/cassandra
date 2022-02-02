@@ -1,0 +1,6 @@
+// This file gets added to test jvms while running tests, can add new properties here without needing to change the ant build.xml
+# This property can be used to use vnodes while running jvm-dtests
+#-Dcassandra.dtest.num_tokens=4
+# Enable defensive checks
+-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true
+-Dcassandra.strict.runtime.checks=true
