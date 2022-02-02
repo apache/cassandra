@@ -62,11 +62,13 @@ public class JVMStabilityInspectorTest
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
         try
         {
+            CassandraDaemon daemon = new CassandraDaemon();
+            daemon.completeSetup();
             for (boolean daemonSetupCompleted : Arrays.asList(false, true))
             {
                 // disk policy acts differently depending on if setup is complete or not; which is defined by
                 // the daemon thread not being null
-                StorageService.instance.registerDaemon(daemonSetupCompleted ? new CassandraDaemon() : null);
+                StorageService.instance.registerDaemon(daemonSetupCompleted ? daemon : null);
 
                 try
                 {
