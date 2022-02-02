@@ -78,6 +78,7 @@
     <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
     <property name="test.driver.connection_timeout_ms" value="5000"/>
     <property name="test.driver.read_timeout_ms" value="12000"/>
+    <property name="test.jvm.args" value="" />
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 
@@ -157,23 +158,6 @@
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
     </condition>
-
-    <target name="importTestJvmOptions">
-      <loadfile property="test.jvm.args" srcFile="${test.conf}/test-jvm.options">
-        <filterchain>
-          <striplinecomments>
-            <comment value="#"/>
-            <comment value="//"/>
-          </striplinecomments>
-          <prefixlines prefix=" " />
-          <striplinebreaks />
-          <trim />
-        </filterchain>
-      </loadfile>
-      <!-- for cases where the file has no options, define default to be empty -->
-      <property name="test.jvm.args" value="" />
-      <echo>Test JVM args: ${test.jvm.args}</echo>
-    </target>
 
     <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
@@ -1397,7 +1381,7 @@
       </jar>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test,importTestJvmOptions" unless="no-build-test"
+  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test" unless="no-build-test"
           description="Compile test classes">
     <antcall target="_build-test"/>
   </target>
@@ -1515,6 +1499,8 @@
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
+        <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+        <jvmarg value="-Dcassandra.track_warnings.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg line="${java11-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
