@@ -66,7 +66,6 @@ public class CassandraIncomingFile implements IncomingStream
     public synchronized void read(DataInputPlus in, int version) throws Throwable
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
-        // this log is used by tests to validate entireSSTable=true
         logger.debug("Incoming stream entireSSTable={} components={}", streamHeader.isEntireSSTable, streamHeader.componentManifest);
         session.countStreamedIn(streamHeader.isEntireSSTable);
 
