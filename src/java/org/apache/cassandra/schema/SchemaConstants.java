@@ -103,7 +103,7 @@ public final class SchemaConstants
      */
     public static boolean isVirtualSystemKeyspace(String keyspaceName)
     {
-        return VIRTUAL_SCHEMA.equals(keyspaceName.toLowerCase()) || VIRTUAL_VIEWS.equals(keyspaceName.toLowerCase());
+        return VIRTUAL_SCHEMA.equalsIgnoreCase(keyspaceName) || VIRTUAL_VIEWS.equalsIgnoreCase(keyspaceName);
     }
 
     /**
