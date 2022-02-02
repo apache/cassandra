@@ -51,6 +51,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.apache.cassandra.utils.JVMKiller;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -75,7 +76,7 @@ public class CommitLogUpgradeTest
     static final String KEYSPACE = "Keyspace1";
     static final String CELLNAME = "name";
 
-    private JVMStabilityInspector.Killer originalKiller;
+    private JVMKiller originalKiller;
     private KillerForTests killerForTests;
     private boolean shouldBeKilled = false;
 
