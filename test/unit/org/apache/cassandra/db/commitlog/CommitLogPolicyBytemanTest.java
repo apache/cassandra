@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMKiller;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 import org.jboss.byteman.contrib.bmunit.BMRule;
@@ -68,7 +69,7 @@ public class CommitLogPolicyBytemanTest
     protected static final String STANDARD = "Standard";
     private static final String CUSTOM = "Custom";
 
-    private static JVMStabilityInspector.Killer oldKiller;
+    private static JVMKiller oldKiller;
     private static KillerForTests testKiller;
     private static Config.CommitFailurePolicy oldPolicy;
 

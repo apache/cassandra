@@ -36,6 +36,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.JVMKiller;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -50,7 +51,7 @@ public class OutOfSpaceTest extends CQLTester
         makeTable();
 
         KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        JVMKiller originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
