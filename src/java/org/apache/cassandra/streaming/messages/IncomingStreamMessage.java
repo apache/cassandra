@@ -50,12 +50,12 @@ public class IncomingStreamMessage extends StreamMessage
 
                 return new IncomingStreamMessage(incomingData, header);
             }
-            catch (Throwable e)
+            catch (Throwable t)
             {
-                if (e instanceof StreamReceiveException)
-                    throw (StreamReceiveException) e;
+                if (t instanceof StreamReceiveException)
+                    throw (StreamReceiveException) t;
                 // make sure to wrap so the caller always has access to the session to call onError
-                throw new StreamReceiveException(session, e);
+                throw new StreamReceiveException(session, t);
             }
         }
 
