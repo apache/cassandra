@@ -21,6 +21,8 @@ package org.apache.cassandra.auth;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -42,34 +44,36 @@ public class StubAuthorizer implements IAuthorizer
         return perms != null ? perms : Collections.emptySet();
     }
 
-    public void grant(AuthenticatedUser performer,
-                      Set<Permission> permissions,
-                      IResource resource,
-                      RoleResource grantee) throws RequestValidationException, RequestExecutionException
+    public Set<Permission> grant(AuthenticatedUser performer,
+                                 Set<Permission> permissions,
+                                 IResource resource,
+                                 RoleResource grantee) throws RequestValidationException, RequestExecutionException
     {
         Pair<String, IResource> key = Pair.create(grantee.getRoleName(), resource);
-        Set<Permission> perms = userPermissions.get(key);
-        if (null == perms)
-        {
-            perms = new HashSet<>();
-            userPermissions.put(key, perms);
-        }
-        perms.addAll(permissions);
+        Set<Permission> oldPermissions = userPermissions.computeIfAbsent(key, k -> Collections.emptySet());
+        Set<Permission> nonExisting = Sets.difference(permissions, oldPermissions);
+
+        if (!nonExisting.isEmpty())
+            userPermissions.put(key, Sets.union(oldPermissions, nonExisting));
+
+        return nonExisting;
     }
 
-    public void revoke(AuthenticatedUser performer,
-                       Set<Permission> permissions,
-                       IResource resource,
-                       RoleResource revokee) throws RequestValidationException, RequestExecutionException
+    public Set<Permission> revoke(AuthenticatedUser performer,
+                                  Set<Permission> permissions,
+                                  IResource resource,
+                                  RoleResource revokee) throws RequestValidationException, RequestExecutionException
     {
         Pair<String, IResource> key = Pair.create(revokee.getRoleName(), resource);
-        Set<Permission> perms = userPermissions.get(key);
-        if (null != perms)
-        {
-            perms.removeAll(permissions);
-            if (perms.isEmpty())
-                userPermissions.remove(key);
-        }
+        Set<Permission> oldPermissions = userPermissions.computeIfAbsent(key, k -> Collections.emptySet());
+        Set<Permission> existing = Sets.intersection(permissions, oldPermissions);
+
+        if (existing.isEmpty())
+            userPermissions.remove(key);
+        else
+            userPermissions.put(key, Sets.difference(oldPermissions, existing));
+
+        return existing;
     }
 
     public Set<PermissionDetails> list(AuthenticatedUser performer,

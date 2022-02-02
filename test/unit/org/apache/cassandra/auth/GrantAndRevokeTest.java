@@ -21,9 +21,12 @@ import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+
+import static org.junit.Assert.assertTrue;
 
 public class GrantAndRevokeTest extends CQLTester
 {
@@ -356,5 +359,30 @@ public class GrantAndRevokeTest extends CQLTester
                                 "DROP MATERIALIZED VIEW " + mv);
         assertUnauthorizedQuery("User user has no ALTER permission on <table " + table + "> or any of its parents",
                                 "DROP INDEX " + index);
+    }
+
+    @Test
+    public void testWarnings() throws Throwable
+    {
+        useSuperUser();
+
+        executeNet("CREATE KEYSPACE revoke_yeah WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE revoke_yeah.t1 (id int PRIMARY KEY, val text)");
+        executeNet("CREATE USER '" + user + "' WITH PASSWORD '" + pass + "'");
+
+        ResultSet res = executeNet("REVOKE CREATE ON KEYSPACE revoke_yeah FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace revoke_yeah>");
+
+        res = executeNet("GRANT SELECT ON KEYSPACE revoke_yeah TO " + user);
+        assertTrue(res.getExecutionInfo().getWarnings().isEmpty());
+
+        res = executeNet("GRANT SELECT ON KEYSPACE revoke_yeah TO " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was already granted SELECT on <keyspace revoke_yeah>");
+
+        res = executeNet("REVOKE SELECT ON TABLE revoke_yeah.t1 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted SELECT on <table revoke_yeah.t1>");
+
+        res = executeNet("REVOKE SELECT, MODIFY ON KEYSPACE revoke_yeah FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted MODIFY on <keyspace revoke_yeah>");
     }
 }

@@ -18,9 +18,11 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -28,6 +30,7 @@ import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -41,7 +44,25 @@ public class RevokePermissionsStatement extends PermissionsManagementStatement
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        DatabaseDescriptor.getAuthorizer().revoke(state.getUser(), permissions, resource, grantee);
+        IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
+        Set<Permission> revoked = authorizer.revoke(state.getUser(), permissions, resource, grantee);
+
+        // We want to warn the client if all the specified permissions have not been revoked and the client did
+        // not specify ALL in the query.
+        if (!revoked.equals(permissions) && !permissions.equals(Permission.ALL))
+        {
+            String permissionsStr = permissions.stream()
+                                               .filter(permission -> !revoked.contains(permission))
+                                               .sorted(Permission::compareTo) // guarantee the order for testing
+                                               .map(Permission::name)
+                                               .collect(Collectors.joining(", "));
+
+            ClientWarn.instance.warn(String.format("Role '%s' was not granted %s on %s",
+                                                   grantee.getRoleName(),
+                                                   permissionsStr,
+                                                   resource));
+        }
+
         return null;
     }
     
