@@ -3609,68 +3609,70 @@ public class DatabaseDescriptor
         conf.consecutive_message_errors_threshold = value;
     }
 
-    public static boolean getEnablePartitionDenylist()
+    public static boolean getPartitionDenylistEnabled()
     {
-        return conf.enable_partition_denylist;
+        return conf.partition_denylist_enabled;
     }
 
-    public static void setEnablePartitionDenylist(boolean enabled)
+    public static void setPartitionDenylistEnabled(boolean enabled)
     {
-        conf.enable_partition_denylist = enabled;
+        conf.partition_denylist_enabled = enabled;
     }
 
-    public static boolean getEnableDenylistWrites()
+    public static boolean getDenylistWritesEnabled()
     {
-        return conf.enable_denylist_writes;
+        return conf.denylist_writes_enabled;
     }
 
-    public static void setEnableDenylistWrites(boolean enabled)
+    public static void setDenylistWritesEnabled(boolean enabled)
     {
-        conf.enable_denylist_writes = enabled;
+        conf.denylist_writes_enabled = enabled;
     }
 
-    public static boolean getEnableDenylistReads()
+    public static boolean getDenylistReadsEnabled()
     {
-        return conf.enable_denylist_reads;
+        return conf.denylist_reads_enabled;
     }
 
-    public static void setEnableDenylistReads(boolean enabled)
+    public static void setDenylistReadsEnabled(boolean enabled)
     {
-        conf.enable_denylist_reads = enabled;
+        conf.denylist_reads_enabled = enabled;
     }
 
-    public static boolean getEnableDenylistRangeReads()
+    public static boolean getDenylistRangeReadsEnabled()
     {
-        return conf.enable_denylist_range_reads;
+        return conf.denylist_range_reads_enabled;
     }
 
-    public static void setEnableDenylistRangeReads(boolean enabled)
+    public static void setDenylistRangeReadsEnabled(boolean enabled)
     {
-        conf.enable_denylist_range_reads = enabled;
+        conf.denylist_range_reads_enabled = enabled;
     }
 
     public static int getDenylistRefreshSeconds()
     {
-        return conf.denylist_refresh_seconds;
+        return conf.denylist_refresh.toSecondsAsInt();
     }
 
     public static void setDenylistRefreshSeconds(int seconds)
     {
         if (seconds <= 0)
-            throw new IllegalArgumentException("denylist_refresh_seconds must be a positive integer.");
-        conf.denylist_refresh_seconds = seconds;
+            throw new IllegalArgumentException("denylist_refresh must be a positive integer.");
+
+        conf.denylist_refresh = SmallestDurationSeconds.inSeconds(seconds);
     }
 
     public static int getDenylistInitialLoadRetrySeconds()
     {
-        return conf.denylist_initial_load_retry_seconds;
+        return conf.denylist_initial_load_retry.toSecondsAsInt();
     }
 
     public static void setDenylistInitialLoadRetrySeconds(int seconds)
     {
         if (seconds <= 0)
-            throw new IllegalArgumentException("denylist_initial_load_retry_seconds must be a positive integer.");
-        conf.denylist_initial_load_retry_seconds = seconds;
+            throw new IllegalArgumentException("denylist_initial_load_retry must be a positive integer.");
+
+        conf.denylist_initial_load_retry = SmallestDurationSeconds.inSeconds(seconds);
     }
 
     public static ConsistencyLevel getDenylistConsistencyLevel()

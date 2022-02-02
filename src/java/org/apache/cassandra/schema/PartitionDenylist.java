@@ -131,7 +131,7 @@ public class PartitionDenylist
      */
     public void initialLoad()
     {
-        if (!DatabaseDescriptor.getEnablePartitionDenylist())
+        if (!DatabaseDescriptor.getPartitionDenylistEnabled())
             return;
 
         synchronized (this)
@@ -309,7 +309,7 @@ public class PartitionDenylist
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
 
         // We have a few quick state checks to get out of the way first; this is hot path so we want to do these first if possible.
-        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || tmd == null || !canDenylistKeyspace(tmd.keyspace))
+        if (!DatabaseDescriptor.getPartitionDenylistEnabled() || tid == null || tmd == null || !canDenylistKeyspace(tmd.keyspace))
             return true;
 
         try
@@ -351,7 +351,7 @@ public class PartitionDenylist
     public int getDeniedKeysInRangeCount(final TableId tid, final AbstractBounds<PartitionPosition> range)
     {
         final TableMetadata tmd = Schema.instance.getTableMetadata(tid);
-        if (!DatabaseDescriptor.getEnablePartitionDenylist() || tid == null || tmd == null || !canDenylistKeyspace(tmd.keyspace))
+        if (!DatabaseDescriptor.getPartitionDenylistEnabled() || tid == null || tmd == null || !canDenylistKeyspace(tmd.keyspace))
             return 0;
 
         try
