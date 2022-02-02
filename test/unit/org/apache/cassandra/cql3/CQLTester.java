@@ -1160,15 +1160,33 @@ public abstract class CQLTester
 
     protected static void assertWarningsContain(Message.Response response, String message)
     {
-        List<String> warnings = response.getWarnings();
+        assertWarningsContain(response.getWarnings(), message);
+    }
+
+    protected static void assertWarningsContain(List<String> warnings, String message)
+    {
         Assert.assertNotNull(warnings);
         assertTrue(warnings.stream().anyMatch(s -> s.contains(message)));
+    }
+    
+    protected static void assertWarningsEquals(ResultSet rs, String... messages)
+    {
+        assertWarningsEquals(rs.getExecutionInfo().getWarnings(), messages);
+    }
+
+    protected static void assertWarningsEquals(List<String> warnings, String... messages)
+    {
+        Assert.assertNotNull(warnings);
+        Assertions.assertThat(messages).hasSameElementsAs(warnings);
     }
 
     protected static void assertNoWarningContains(Message.Response response, String message)
     {
-        List<String> warnings = response.getWarnings();
-        
+        assertNoWarningContains(response.getWarnings(), message);
+    }
+
+    protected static void assertNoWarningContains(List<String> warnings, String message)
+    {
         if (warnings != null) 
         {
             assertFalse(warnings.stream().anyMatch(s -> s.contains(message)));
