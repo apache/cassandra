@@ -43,6 +43,7 @@ public class IncomingStreamMessage extends StreamMessage
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(header.tableId);
             if (cfs == null)
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
+            
             try
             {
                 IncomingStream incomingData = cfs.getStreamManager().prepareIncomingStream(session, header);
