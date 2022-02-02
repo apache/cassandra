@@ -113,7 +113,7 @@ public class CassandraStreamReader implements IStreamReader
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (cfs == null)
             // schema was dropped during streaming
-            throw new IOException("Table " + tableId + " was dropped during streaming");
+            throw new IllegalStateException("Table " + tableId + " was dropped during streaming");
 
         logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', table = '{}', pendingRepair = '{}'.",
                      session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(),
