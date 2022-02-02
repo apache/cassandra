@@ -52,9 +52,9 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class CommitLogReplayer implements CommitLogReadHandler
 {
@@ -69,7 +69,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     private final Set<Keyspace> keyspacesReplayed;
     private final Queue<Future<Integer>> futures;
 
-    private final AtomicInteger replayedCount;
+    public final AtomicInteger replayedCount;
     private final Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted;
     private final CommitLogPosition globalPosition;
 
@@ -84,6 +84,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     @VisibleForTesting
     protected CommitLogReader commitLogReader;
+
+    // The OpOrder used to order mutations before and after schema mutations
+    private final OpOrder writeOrder = new OpOrder();
 
     CommitLogReplayer(CommitLog commitLog,
                       CommitLogPosition globalPosition,
@@ -275,11 +278,22 @@ public class CommitLogReplayer implements CommitLogReadHandler
                         assert !newPUCollector.isEmpty();
 
                         Keyspace.open(newPUCollector.getKeyspaceName()).apply(newPUCollector.build(), false, true, false);
+
+                        // We should reload in memory schema once we re-apply schema mutations
+                        // so tables/keyspaces are available for the next mutations.
+                        if (SchemaConstants.isSchemaKeyspace(mutation.getKeyspaceName()))
+                            Schema.instance.reloadSchema();
+
                         commitLogReplayer.keyspacesReplayed.add(keyspace);
                     }
                 }
             };
-            return Stage.MUTATION.submit(runnable, serializedSize);
+            return Stage.MUTATION.submit(() -> {
+                try (OpOrder.Group opOrder = commitLogReplayer.writeOrder.start())
+                {
+                    runnable.run();
+                }
+            }, serializedSize);
         }
     }
 
@@ -364,7 +378,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
         }
     }
 
-    private static class AlwaysReplayFilter extends ReplayFilter
+    @VisibleForTesting
+    static class AlwaysReplayFilter extends ReplayFilter
     {
         public Iterable<PartitionUpdate> filter(Mutation mutation)
         {
@@ -413,8 +428,14 @@ public class CommitLogReplayer implements CommitLogReadHandler
      *
      * @return true iff replay is necessary
      */
-    private boolean shouldReplay(TableId tableId, CommitLogPosition position)
+    @VisibleForTesting
+    boolean shouldReplay(TableId tableId, CommitLogPosition position)
     {
+        // If we are replaying schema mutations (unlikely event) it's possible that the table id
+        // is not present in cfPersisted map, eventhough we should replay the mutation.
+        if (cfPersisted.get(tableId) == null)
+            return true;
+
         return !cfPersisted.get(tableId).contains(position);
     }
 
@@ -436,16 +457,23 @@ public class CommitLogReplayer implements CommitLogReadHandler
             sawCDCMutation = true;
 
         pendingMutationBytes += size;
+
+        boolean isSchemaMutation = SchemaConstants.isSchemaKeyspace(m.getKeyspaceName());
+
+        if (isSchemaMutation)
+            writeOrder.awaitNewBarrier();
+
         futures.offer(mutationInitiator.initiateMutation(m,
                                                          desc.id,
                                                          size,
                                                          entryLocation,
                                                          this));
+
         // If there are finished mutations, or too many outstanding bytes/mutations
         // drain the futures in the queue
         while (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT
                || pendingMutationBytes > MAX_OUTSTANDING_REPLAY_BYTES
-               || (!futures.isEmpty() && futures.peek().isDone()))
+               || (!futures.isEmpty() && (futures.peek().isDone() || isSchemaMutation)))
         {
             pendingMutationBytes -= FBUtilities.waitOnFuture(futures.poll());
         }
