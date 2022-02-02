@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.streaming.compression;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.io.util.File;
@@ -33,6 +36,7 @@ import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.sstable.Component;
@@ -154,7 +158,7 @@ public class CompressedInputStreamTest
             size += (c.length + 4); // 4bytes CRC
         byte[] toRead = new byte[size];
 
-        try (RandomAccessFile f = new RandomAccessFile(tmp.toJavaIOFile(), "r"))
+        try (RandomAccessReader f = RandomAccessReader.open(tmp))
         {
             int pos = 0;
             for (CompressionMetadata.Chunk c : chunks)

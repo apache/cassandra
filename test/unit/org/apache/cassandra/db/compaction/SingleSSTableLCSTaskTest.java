@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Random;
 
 import org.apache.commons.lang3.StringUtils;
@@ -30,6 +30,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -127,10 +129,11 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
-        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
-        file.seek(0);
-        file.writeBytes(StringUtils.repeat('z', 2));
-        file.close();
+        try(FileChannel fc = new File(filenameToCorrupt).newReadWriteChannel())
+        {
+            fc.position(0);
+            fc.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
+        }
         boolean gotException = false;
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.COMPACTION))
         {

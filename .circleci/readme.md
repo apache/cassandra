@@ -92,27 +92,28 @@ again or use the `-l`/`-m`/`-h` script flags.
 Read below for details how to generate the files manually without the `generate.sh` script:
 
 1. make your edits to config-2_1.yml - let it stay at lowres settings
-1. generate a valid LOWRES file:
+2. generate a valid LOWRES file:
    `circleci config process config-2_1.yml > config.yml.LOWRES`
-1. add the Apache license header to the newly created LOWRES file:
+3. add the Apache license header to the newly created LOWRES file:
    `cat license.yml config.yml.LOWRES > config.yml.LOWRES.new && mv config.yml.LOWRES.new config.yml.LOWRES`
-1. then apply the highres patch to config-2_1.yml;
+4. then apply the highres patch to config-2_1.yml;
    `patch -o config-2_1.yml.HIGHRES config-2_1.yml config-2_1.yml.high_res.patch`
    (this creates a new file `config-2_1.yml.HIGHRES` instead of in-place patching
    config-2_1.yml)
    Note that if the patch no longer applies to `config-2_1.yml` a new patch file
    is needed, do this by manually making `config-2_1.yml` high resource and create
    the patch file based on the diff (don't commit it though).
-1. generate the HIGHRES file:
+5. generate the HIGHRES file:
    `circleci config process config-2_1.yml.HIGHRES > config.yml.HIGHRES`
-1. remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
-1. add the Apache license header to the newly created HIGHRES file:
+6. remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
+7. add the Apache license header to the newly created HIGHRES file:
    `cat license.yml config.yml.HIGHRES > config.yml.HIGHRES.new && mv config.yml.HIGHRES.new config.yml.HIGHRES`
-1. repeat the last steps to generate the MIDRES file:
+8. repeat the last steps to generate the MIDRES file:
    ```
    patch -o config-2_1.yml.MIDRES config-2_1.yml config-2_1.yml.mid_res.patch
    circleci config process config-2_1.yml.MIDRES > config.yml.MIDRES
    rm config-2_1.yml.MIDRES
    cat license.yml config.yml.MIDRES > config.yml.MIDRES.new && mv config.yml.MIDRES.new config.yml.MIDRES
    ```
+9. finally, remember to update the config.yml
 

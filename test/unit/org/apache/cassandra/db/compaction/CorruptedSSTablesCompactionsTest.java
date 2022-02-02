@@ -21,7 +21,8 @@ package org.apache.cassandra.db.compaction;
  */
 
 
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.*;
 
 import org.junit.After;
@@ -44,6 +45,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
 
@@ -177,29 +179,29 @@ public class CorruptedSSTablesCompactionsTest
             if (currentSSTable + 1 > SSTABLES_TO_CORRUPT)
                 break;
 
-            RandomAccessFile raf = null;
+            FileChannel fc = null;
 
             try
             {
                 int corruptionSize = 100;
-                raf = new RandomAccessFile(sstable.getFilename(), "rw");
-                assertNotNull(raf);
-                assertTrue(raf.length() > corruptionSize);
-                long pos = random.nextInt((int)(raf.length() - corruptionSize));
-                logger.info("Corrupting sstable {} [{}] at pos {} / {}", currentSSTable, sstable.getFilename(), pos, raf.length());
-                raf.seek(pos);
+                fc = new File(sstable.getFilename()).newReadWriteChannel();
+                assertNotNull(fc);
+                assertTrue(fc.size() > corruptionSize);
+                long pos = random.nextInt((int)(fc.size() - corruptionSize));
+                logger.info("Corrupting sstable {} [{}] at pos {} / {}", currentSSTable, sstable.getFilename(), pos, fc.size());
+                fc.position(pos);
                 // We want to write something large enough that the corruption cannot get undetected
                 // (even without compression)
                 byte[] corruption = new byte[corruptionSize];
                 random.nextBytes(corruption);
-                raf.write(corruption);
+                fc.write(ByteBuffer.wrap(corruption));
                 if (ChunkCache.instance != null)
                     ChunkCache.instance.invalidateFile(sstable.getFilename());
 
             }
             finally
             {
-                FileUtils.closeQuietly(raf);
+                FileUtils.closeQuietly(fc);
             }
 
             currentSSTable++;
