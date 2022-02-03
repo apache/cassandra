@@ -101,26 +101,6 @@ public class BootstrapTest extends TestBaseImpl
         }
     }
 
-    @Test
-    public void autoBootstrapTest() throws Throwable
-    {
-        int originalNodeCount = 2;
-        int expandedNodeCount = originalNodeCount + 1;
-
-        try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
-        {
-            populate(cluster, 0, 100);
-            bootstrapAndJoinNode(cluster);
-
-            for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
-                Assert.assertEquals("Node " + e.getKey() + " has incorrect row state", e.getValue().longValue(), 100L);
-        }
-    }
-
     public static void populate(ICluster cluster, int from, int to)
     {
         populate(cluster, from, to, 1, 3, ConsistencyLevel.QUORUM);

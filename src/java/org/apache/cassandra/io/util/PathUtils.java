@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
@@ -526,15 +527,67 @@ public final class PathUtils
         return realFile.startsWith(realFolder);
     }
 
+    @VisibleForTesting
+    static public void runOnExitThreadsAndClear()
+    {
+        DeleteOnExit.runOnExitThreadsAndClear();
+    }
+
+    static public void clearOnExitThreads()
+    {
+        DeleteOnExit.clearOnExitThreads();
+    }
+
+
     private static final class DeleteOnExit implements Runnable
     {
         private boolean isRegistered;
         private final Set<Path> deleteRecursivelyOnExit = new HashSet<>();
         private final Set<Path> deleteOnExit = new HashSet<>();
 
+        private static List<Thread> onExitThreads = new ArrayList<>();
+
+        private static void runOnExitThreadsAndClear()
+        {
+            List<Thread> toRun;
+            synchronized (onExitThreads)
+            {
+                toRun = new ArrayList<>(onExitThreads);
+                onExitThreads.clear();
+            }
+            Runtime runtime = Runtime.getRuntime();
+            toRun.forEach(onExitThread -> {
+                try
+                {
+                    runtime.removeShutdownHook(onExitThread);
+                    //noinspection CallToThreadRun
+                    onExitThread.run();
+                }
+                catch (Exception ex)
+                {
+                    logger.warn("Exception thrown when cleaning up files to delete on exit, continuing.", ex);
+                }
+            });
+        }
+
+        private static void clearOnExitThreads()
+        {
+            synchronized (onExitThreads)
+            {
+                Runtime runtime = Runtime.getRuntime();
+                onExitThreads.forEach(runtime::removeShutdownHook);
+                onExitThreads.clear();
+            }
+        }
+
         DeleteOnExit()
         {
-            Runtime.getRuntime().addShutdownHook(new Thread(this)); // checkstyle: permit this instantiation
+            final Thread onExitThread = new Thread(this); // checkstyle: permit this instantiation
+            synchronized (onExitThreads)
+            {
+                onExitThreads.add(onExitThread);
+            }
+            Runtime.getRuntime().addShutdownHook(onExitThread);
         }
 
         synchronized void add(Path path, boolean recursive)
