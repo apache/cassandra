@@ -109,18 +109,21 @@ We shall discuss some of the virtual tables in more detail next.
 === Clients Virtual Table
 
 The `clients` virtual table lists all active connections (connected
-clients) including their ip address, port, connection stage, driver
+clients) including their ip address, port, client_options, connection stage, driver
 name, driver version, hostname, protocol version, request count, ssl
 enabled, ssl protocol and user name:
 
 ....
-cqlsh:system_views> select * from system_views.clients;
- address   | port  | connection_stage | driver_name | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
------------+-------+------------------+-------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
- 127.0.0.1 | 50628 |            ready |        null |           null | localhost |                4 |            55 |             null |       False |         null | anonymous
- 127.0.0.1 | 50630 |            ready |        null |           null | localhost |                4 |            70 |             null |       False |         null | anonymous
+cqlsh> SELECT * FROM system_views.clients;
 
-(2 rows)
+ address   | port  | client_options                                                                                                                                                                                                                          | connection_stage | driver_name                                  | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
+-----------+-------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------+----------------------------------------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
+ 127.0.0.1 | 58210 |                                                                                                                                           {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'} |            ready |                       DataStax Python Driver |         3.25.0 | localhost |                5 |            33 |             null |       False |         null | anonymous
+ 127.0.0.1 | 58211 |                                                                                                                                           {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'} |            ready |                       DataStax Python Driver |         3.25.0 | localhost |                5 |            21 |             null |       False |         null | anonymous
+ 127.0.0.1 | 59037 | {'APPLICATION_NAME': 'TestApp', 'APPLICATION_VERSION': '1.0.0', 'CLIENT_ID': '8f56bf85-3d55-4f04-9639-39af1cefc224', 'CQL_VERSION': '3.0.0', 'DRIVER_NAME': 'DataStax Java driver for Apache Cassandra(R)', 'DRIVER_VERSION': '4.13.0'} |            ready | DataStax Java driver for Apache Cassandra(R) |         4.13.0 | localhost |                5 |            18 |             null |       False |         null | anonymous
+ 127.0.0.1 | 59040 | {'APPLICATION_NAME': 'TestApp', 'APPLICATION_VERSION': '1.0.0', 'CLIENT_ID': '8f56bf85-3d55-4f04-9639-39af1cefc224', 'CQL_VERSION': '3.0.0', 'DRIVER_NAME': 'DataStax Java driver for Apache Cassandra(R)', 'DRIVER_VERSION': '4.13.0'} |            ready | DataStax Java driver for Apache Cassandra(R) |         4.13.0 | localhost |                5 |             4 |             null |       False |         null | anonymous
+
+(4 rows)
 ....
 
 Some examples of how `clients` can be used are:
@@ -130,29 +133,36 @@ upgrading and with `nodetool enableoldprotocolversions` and
 `nodetool disableoldprotocolversions` during upgrades.
 * To identify clients sending too many requests.
 * To find if SSL is enabled during the migration to and from ssl.
+* To identify all options the client is sending, e.g. APPLICATION_NAME and APPLICATION_VERSION
 
 The virtual tables may be described with `DESCRIBE` statement. The DDL
 listed however cannot be run to create a virtual table. As an example
 describe the `system_views.clients` virtual table:
 
 ....
-cqlsh:system_views> DESC TABLE system_views.clients;
-CREATE TABLE system_views.clients (
-  address inet,
-  connection_stage text,
-  driver_name text,
-  driver_version text,
-  hostname text,
-  port int,
-  protocol_version int,
-  request_count bigint,
-  ssl_cipher_suite text,
-  ssl_enabled boolean,
-  ssl_protocol text,
-  username text,
-  PRIMARY KEY (address, port)) WITH CLUSTERING ORDER BY (port ASC)
-  AND compaction = {'class': 'None'}
-  AND compression = {};
+cqlsh> DESCRIBE TABLE system_views.clients;
+
+/*
+Warning: Table system_views.clients is a virtual table and cannot be recreated with CQL.
+Structure, for reference:
+VIRTUAL TABLE system_views.clients (
+    address inet,
+    port int,
+    client_options frozen<map<text, text>>,
+    connection_stage text,
+    driver_name text,
+    driver_version text,
+    hostname text,
+    protocol_version int,
+    request_count bigint,
+    ssl_cipher_suite text,
+    ssl_enabled boolean,
+    ssl_protocol text,
+    username text,
+    PRIMARY KEY (address, port)
+) WITH CLUSTERING ORDER BY (port ASC)
+    AND comment = 'currently connected clients';
+*/
 ....
 
 === Caches Virtual Table
