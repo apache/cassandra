@@ -505,6 +505,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
+                if (config.has(GOSSIP))
+                {
+                    // TODO: hacky
+                    System.setProperty("cassandra.ring_delay_ms", "15000");
+                    System.setProperty("cassandra.consistent.rangemovement", "false");
+                    System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
+                }
+
                 mkdirs();
 
                 assert config.networkTopology().contains(config.broadcastAddress());
@@ -718,6 +726,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 StorageService.instance.shutdownServer();
             }
+
+            error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
 
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
