@@ -118,7 +118,6 @@ Table 1. Settings for Hints
 A list of data centers that do not perform hinted handoffs even when
 handoff is otherwise enabled. Example:
 
-a|
 [source,yaml]
 ----
 hinted_handoff_disabled_datacenters:
