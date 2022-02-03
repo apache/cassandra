@@ -1,5 +1,5 @@
 4.0.3
-
+ * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
 
 4.0.2
  * Full Java 11 support (CASSANDRA-16894)
