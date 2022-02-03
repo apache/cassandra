@@ -294,7 +294,7 @@ public class StreamingTransferTest
     {
         final Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEX);
-
+        cfs.disableAutoCompaction();
         List<String> keys = createAndTransfer(cfs, new Mutator()
         {
             public void mutate(String key, String col, long timestamp) throws Exception

@@ -4977,10 +4977,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "flushing column families", false);
 
-            // disable autocompaction - we don't want to start any new compactions while we are draining
-            for (Keyspace keyspace : Keyspace.all())
-                for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    cfs.disableAutoCompaction();
+            // we don't want to start any new compactions while we are draining
+            disableAutoCompaction();
 
             // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
             totalCFs = 0;
@@ -5057,6 +5055,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (postShutdownHookThrowable != null)
                 logger.error("Post-shutdown hooks returned exception", postShutdownHookThrowable);
         }
+    }
+
+    @VisibleForTesting
+    public void disableAutoCompaction()
+    {
+        for (Keyspace keyspace : Keyspace.all())
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                cfs.disableAutoCompaction();
     }
 
     /**
