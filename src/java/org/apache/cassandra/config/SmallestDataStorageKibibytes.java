@@ -23,7 +23,7 @@ package org.apache.cassandra.config;
  * not to lose precision while converting to smaller units (until we migrate those parameters to use internally the smallest
  * supported unit) we restrict those parameters to use only kibibytes or larger units. (CASSANDRA-15234)
  */
-public class SmallestDataStorageKibibytes extends DataStorageSpec
+public final class SmallestDataStorageKibibytes extends DataStorageSpec
 {
     /**
      * Creates a {@code SmallestDataStorageKibibytes} of the specified amount of seconds and provides the smallest

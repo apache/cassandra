@@ -318,9 +318,9 @@ public class Config
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
-    public int trickle_fsync_interval_in_kb = 10240;
+    public SmallestDataStorageKibibytes trickle_fsync_interval = new SmallestDataStorageKibibytes("10240KiB");
 
-    public volatile int sstable_preemptive_open_interval_in_mb = 50;
+    public volatile SmallestDataStorageMebibytes sstable_preemptive_open_interval = new SmallestDataStorageMebibytes("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
     public Long key_cache_size_in_mb = null;
