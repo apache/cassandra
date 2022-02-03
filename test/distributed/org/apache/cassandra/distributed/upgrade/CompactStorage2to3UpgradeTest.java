@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.upgrade;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.UpgradeableCluster;
@@ -37,7 +38,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-
+@Ignore // 2.2 branch is no longer maintained and using dtest-api 0.0.8 which is incompatible with current
 public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 {
     @Test

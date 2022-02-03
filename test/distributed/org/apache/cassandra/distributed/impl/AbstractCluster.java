@@ -195,9 +195,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         @Override
         public synchronized void startup()
         {
+            startup(AbstractCluster.this);
+        }
+
+        @Override
+        public synchronized void startup(ICluster cluster)
+        {
             if (!isShutdown)
                 throw new IllegalStateException();
-            delegateForStartup().startup(AbstractCluster.this);
+            delegateForStartup().startup(cluster);
             isShutdown = false;
             updateMessagingVersions();
         }
