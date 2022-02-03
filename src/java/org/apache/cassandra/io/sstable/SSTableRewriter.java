@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 /**
- * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval_in_mb
+ * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval
  * we look in the summary we're collecting for the latest writer for the penultimate key that we know to have been fully
  * flushed to the index file, and then double check that the key is fully present in the flushed data file.
  * Then we move the starts of each reader forwards to that point, replace them in the Tracker, and attach a runnable

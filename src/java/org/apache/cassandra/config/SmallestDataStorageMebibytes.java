@@ -23,7 +23,7 @@ package org.apache.cassandra.config;
  * not to lose precision while converting to smaller units (until we migrate those parameters to use internally the smallest
  * supported unit) we restrict those parameters to use only mebibytes or larger units. (CASSANDRA-15234)
  */
-public class SmallestDataStorageMebibytes extends DataStorageSpec
+public final class SmallestDataStorageMebibytes extends DataStorageSpec
 {
     /**
      * Creates a {@code SmallestDataStoragemebibytes} of the specified amount of seconds and provides the smallest

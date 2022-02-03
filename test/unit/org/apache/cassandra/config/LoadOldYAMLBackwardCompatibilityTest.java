@@ -89,10 +89,10 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DataStorageSpec.inKibibytes(1024), config.hinted_handoff_throttle);
         assertEquals(DataStorageSpec.inKibibytes(1024), config.batchlog_replay_throttle);
         assertEquals(DurationSpec.inMilliseconds(10000), config.hints_flush_period);
-        assertEquals(DataStorageSpec.inMebibytes(128), config.max_hints_file_size);
+        assertEquals(DataStorageSpec.inMebibytes(128), config.max_hints_file_size);*/
         assertEquals(DataStorageSpec.inKibibytes(10240), config.trickle_fsync_interval);
         assertEquals(DataStorageSpec.inMebibytes(50), config.sstable_preemptive_open_interval);
-        assertNull( config.key_cache_size);
+        /*assertNull( config.key_cache_size);
         assertEquals(DataStorageSpec.inMebibytes(0), config.row_cache_size);
         assertNull(config.counter_cache_size);
         assertNull(config.networking_cache_size);

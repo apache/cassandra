@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * not to lose precision while converting to smaller units (until we migrate those parameters to use internally the smallest
  * supported unit) we restrict those parameters to use only Milliseconds or larger units. (CASSANDRA-15234)
  */
-public class SmallestDurationMilliseconds extends DurationSpec
+public final class SmallestDurationMilliseconds extends DurationSpec
 {
     /**
      * Creates a {@code SmallestDurationMilliseconds} of the specified amount of milliseconds and provides the smallest
