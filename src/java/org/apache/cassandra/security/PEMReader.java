@@ -41,6 +41,7 @@ import javax.crypto.EncryptedPrivateKeyInfo;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,13 +60,13 @@ public final class PEMReader
 {
     /**
      * The private key can be with any of these algorithms in order for this read to successfully parse it.
-     * Currently supported algorithms are,
+     * Currently, supported algorithms are,
      * <pre>
      *     RSA, DSA or EC
      * </pre>
      * The first one to be evaluated is RSA, being the most common for private keys.
      */
-    public static final Set<String> SUPPORTED_PRIVATE_KEY_ALGORITHMS = Set.of("RSA", "DSA", "EC");
+    public static final Set<String> SUPPORTED_PRIVATE_KEY_ALGORITHMS = ImmutableSet.of("RSA", "DSA", "EC");
     private static final Logger logger = LoggerFactory.getLogger(PEMReader.class);
     private static final Pattern CERT_PATTERN = Pattern.compile("-+BEGIN\\s+.*CERTIFICATE[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*CERTIFICATE[^-]*-+", CASE_INSENSITIVE);
     private static final Pattern KEY_PATTERN = Pattern.compile("-+BEGIN\\s+.*PRIVATE\\s+KEY[^-]*-+(?:\\s|\\r|\\n)+([a-z0-9+/=\\r\\n]+)-+END\\s+.*PRIVATE\\s+KEY[^-]*-+", CASE_INSENSITIVE);
@@ -101,8 +102,8 @@ public final class PEMReader
 
         if (keyPassword != null)
         {
-            logger.debug("Encrypted key's length: {}", derKeyBytes.length);
-            logger.debug("Key's password length: {}", keyPassword.length());
+            logger.debug("Encrypted key's length: {}, key's password length: {}",
+                         derKeyBytes.length, keyPassword.length());
 
             EncryptedPrivateKeyInfo epki = new EncryptedPrivateKeyInfo(derKeyBytes);
             logger.debug("Encrypted private key info's algorithm name: {}", epki.getAlgName());
@@ -111,12 +112,11 @@ public final class PEMReader
             PBEKeySpec pbeKeySpec = new PBEKeySpec(keyPassword.toCharArray());
             Key encryptionKey = SecretKeyFactory.getInstance(epki.getAlgName()).generateSecret(pbeKeySpec);
             pbeKeySpec.clearPassword();
-            logger.debug("Key algorithm: {}", encryptionKey.getAlgorithm());
-            logger.debug("Key format: {}", encryptionKey.getFormat());
+            logger.debug("Key algorithm: {}, key format: {}", encryptionKey.getAlgorithm(), encryptionKey.getFormat());
 
             Cipher cipher = Cipher.getInstance(epki.getAlgName());
             cipher.init(Cipher.DECRYPT_MODE, encryptionKey, params);
-            byte[] rawKeyBytes = null;
+            byte[] rawKeyBytes;
             try
             {
                 rawKeyBytes = cipher.doFinal(epki.getEncryptedData());
@@ -125,7 +125,7 @@ public final class PEMReader
             {
                 throw new GeneralSecurityException("Failed to decrypt the private key data. Either the password " +
                                                    "provided for the key is wrong or the private key data is " +
-                                                   "corrupted. msg="+e.getMessage(), e);
+                                                   "corrupted. msg=" + e.getMessage(), e);
             }
             logger.debug("Decrypted private key's length: {}", rawKeyBytes.length);
 
@@ -150,8 +150,7 @@ public final class PEMReader
             try
             {
                 privateKey = KeyFactory.getInstance(privateKeyAlgorithm).generatePrivate(keySpec);
-                logger.info("Parsing for the private key finished with {} algorithm.",
-                            privateKeyAlgorithm);
+                logger.info("Parsing for the private key finished with {} algorithm.", privateKeyAlgorithm);
                 return privateKey;
             }
             catch (Exception e)
@@ -202,13 +201,14 @@ public final class PEMReader
 
     /**
      * Logs X509 certificate details for the debugging purpose with {@code INFO} level log.
-     * Namely, it prints- Subject DN, Issuer DN, Certificate serial number and the certificate expiry date which
+     * Namely, it prints - Subject DN, Issuer DN, Certificate serial number and the certificate expiry date which
      * could be very valuable for debugging any certificate related issues.
      *
-     * @param certificate
+     * @param certificate certificate to log
      */
     private static void logCertificateDetails(X509Certificate certificate)
     {
+        assert certificate != null;
         logger.info("*********** Certificate Details *****************");
         logger.info("Subject DN: {}", certificate.getSubjectDN());
         logger.info("Issuer DN: {}", certificate.getIssuerDN());

@@ -124,6 +124,7 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
     private String keyPassword;
     private String pemEncodedCertificates;
     private PEMBasedSslContextFactory pemBasedSslContextFactory;
+
     public KubernetesSecretsPEMSslContextFactory()
     {
         pemBasedSslContextFactory = new PEMBasedSslContextFactory();

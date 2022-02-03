@@ -131,8 +131,8 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
 
         try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
         {
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(
-            algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : algorithm);
+            final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
             KeyStore ks = KeyStore.getInstance(store_type);
             ks.load(ksf, keystore_password.toCharArray());
             if (!checkedExpiry)
@@ -160,8 +160,8 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     {
         try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
         {
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(
-            algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : algorithm);
+            final String algorithm = this.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : this.algorithm;
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
             KeyStore ts = KeyStore.getInstance(store_type);
             ts.load(tsf, truststore_password.toCharArray());
             tmf.init(ts);
@@ -176,13 +176,14 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     protected boolean checkExpiredCerts(KeyStore ks) throws KeyStoreException
     {
         boolean hasExpiredCerts = false;
+        final Date now = new Date();
         for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
         {
             String alias = aliases.nextElement();
             if (ks.getCertificate(alias).getType().equals("X.509"))
             {
                 Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
-                if (expires.before(new Date()))
+                if (expires.before(now))
                 {
                     hasExpiredCerts = true;
                     logger.warn("Certificate for {} expired on {}", alias, expires);
