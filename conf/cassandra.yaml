@@ -61,7 +61,7 @@ hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, new hints for it will not be
 # created until it has been seen alive and gone down again.
-max_hint_window_in_ms: 10800000 # 3 hours
+max_hint_window: 3h
 
 # Maximum throttle in KBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
@@ -101,10 +101,10 @@ auto_hints_cleanup_enabled: false
 # Enable / disable persistent hint windows.
 #
 # If set to false, a hint will be stored only in case a respective node
-# that hint is for is down less than or equal to max_hint_window_in_ms.
+# that hint is for is down less than or equal to max_hint_window.
 #
 # If set to true, a hint will be stored in case there is not any
-# hint which was stored earlier than max_hint_window_in_ms. This is for cases
+# hint which was stored earlier than max_hint_window. This is for cases
 # when a node keeps to restart and hints are not delivered yet, we would be saving
 # hints for that node indefinitely.
 #
@@ -172,21 +172,21 @@ network_authorizer: AllowAllNetworkAuthorizer
 # Will be disabled automatically for AllowAllAuthenticator.
 # For a long-running cache using roles_cache_active_update, consider
 # setting to something longer such as a daily validation: 86400000
-roles_validity_in_ms: 2000
+roles_validity: 2000ms
 
 # Refresh interval for roles cache (if enabled).
 # After this interval, cache entries become eligible for refresh. Upon next
 # access, an async reload is scheduled and the old value returned until it
-# completes. If roles_validity_in_ms is non-zero, then this must be
+# completes. If roles_validity is non-zero, then this must be
 # also.
 # This setting is also used to inform the interval of auto-updating if
 # using roles_cache_active_update.
-# Defaults to the same value as roles_validity_in_ms.
+# Defaults to the same value as roles_validity.
 # For a long-running cache, consider setting this to 60000 (1 hour) etc.
-# roles_update_interval_in_ms: 2000
+# roles_update_interval: 2000ms
 
 # If true, cache contents are actively updated by a background task at the
-# interval set by roles_update_interval_in_ms. If false, cache entries
+# interval set by roles_update_interval. If false, cache entries
 # become eligible for refresh after their update interval. Upon next access,
 # an async reload is scheduled and the old value returned until it completes.
 # roles_cache_active_update: false
@@ -197,21 +197,21 @@ roles_validity_in_ms: 2000
 # Will be disabled automatically for AllowAllAuthorizer.
 # For a long-running cache using permissions_cache_active_update, consider
 # setting to something longer such as a daily validation: 86400000
-permissions_validity_in_ms: 2000
+permissions_validity: 2000ms
 
 # Refresh interval for permissions cache (if enabled).
 # After this interval, cache entries become eligible for refresh. Upon next
 # access, an async reload is scheduled and the old value returned until it
-# completes. If permissions_validity_in_ms is non-zero, then this must be
+# completes. If permissions_validity is non-zero, then this must be
 # also.
 # This setting is also used to inform the interval of auto-updating if
 # using permissions_cache_active_update.
-# Defaults to the same value as permissions_validity_in_ms.
+# Defaults to the same value as permissions_validity.
 # For a longer-running permissions cache, consider setting to update hourly (60000)
-# permissions_update_interval_in_ms: 2000
+# permissions_update_interval: 2000ms
 
 # If true, cache contents are actively updated by a background task at the
-# interval set by permissions_update_interval_in_ms. If false, cache entries
+# interval set by permissions_update_interval. If false, cache entries
 # become eligible for refresh after their update interval. Upon next access,
 # an async reload is scheduled and the old value returned until it completes.
 # permissions_cache_active_update: false
@@ -227,21 +227,21 @@ permissions_validity_in_ms: 2000
 # Defaults to 2000, set to 0 to disable credentials caching.
 # For a long-running cache using credentials_cache_active_update, consider
 # setting to something longer such as a daily validation: 86400000
-credentials_validity_in_ms: 2000
+credentials_validity: 2000ms
 
 # Refresh interval for credentials cache (if enabled).
 # After this interval, cache entries become eligible for refresh. Upon next
 # access, an async reload is scheduled and the old value returned until it
-# completes. If credentials_validity_in_ms is non-zero, then this must be
+# completes. If credentials_validity is non-zero, then this must be
 # also.
 # This setting is also used to inform the interval of auto-updating if
 # using credentials_cache_active_update.
-# Defaults to the same value as credentials_validity_in_ms.
+# Defaults to the same value as credentials_validity.
 # For a longer-running permissions cache, consider setting to update hourly (60000)
-# credentials_update_interval_in_ms: 2000
+# credentials_update_interval: 2000ms
 
 # If true, cache contents are actively updated by a background task at the
-# interval set by credentials_update_interval_in_ms. If false (default), cache entries
+# interval set by credentials_update_interval. If false (default), cache entries
 # become eligible for refresh after their update interval. Upon next access,
 # an async reload is scheduled and the old value returned until it completes.
 # credentials_cache_active_update: false

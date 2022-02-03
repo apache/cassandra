@@ -74,7 +74,7 @@ public class RolesCacheKeysTableTest extends CQLTester
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setRolesValidity(DatabaseDescriptor.getRawConfig().roles_validity_in_ms);
+        DatabaseDescriptor.setRolesValidity(DatabaseDescriptor.getRawConfig().roles_validity.toMillisecondsAsInt());
     }
 
     @Test

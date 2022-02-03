@@ -56,17 +56,23 @@ public class Config
     public String authorizer;
     public String role_manager;
     public String network_authorizer;
-    public volatile int permissions_validity_in_ms = 2000;
+    @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds permissions_validity = new SmallestDurationMilliseconds("2s");
     public volatile int permissions_cache_max_entries = 1000;
-    public volatile int permissions_update_interval_in_ms = -1;
+    @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds permissions_update_interval = new SmallestDurationMilliseconds("0ms");
     public volatile boolean permissions_cache_active_update = false;
-    public volatile int roles_validity_in_ms = 2000;
+    @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds roles_validity = new SmallestDurationMilliseconds("2s");
     public volatile int roles_cache_max_entries = 1000;
-    public volatile int roles_update_interval_in_ms = -1;
+    @Replaces(oldName = "roles_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds roles_update_interval= new SmallestDurationMilliseconds("0ms");
     public volatile boolean roles_cache_active_update = false;
-    public volatile int credentials_validity_in_ms = 2000;
+    @Replaces(oldName = "credentials_validity_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds credentials_validity = new SmallestDurationMilliseconds("2s");
     public volatile int credentials_cache_max_entries = 1000;
-    public volatile int credentials_update_interval_in_ms = -1;
+    @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds credentials_update_interval= new SmallestDurationMilliseconds("0ms");
     public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
@@ -75,7 +81,8 @@ public class Config
     public boolean auto_bootstrap = true;
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
-    public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
+    @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds max_hint_window = new SmallestDurationMilliseconds("3h");
     public String hints_directory;
     public boolean hint_window_persistent_enabled = true;
 

@@ -1282,24 +1282,24 @@ public class DatabaseDescriptor
 
     public static int getPermissionsValidity()
     {
-        return conf.permissions_validity_in_ms;
+        return conf.permissions_validity.toMillisecondsAsInt();
     }
 
     public static void setPermissionsValidity(int timeout)
     {
-        conf.permissions_validity_in_ms = timeout;
+        conf.permissions_validity = SmallestDurationMilliseconds.inMilliseconds(timeout);
     }
 
     public static int getPermissionsUpdateInterval()
     {
-        return conf.permissions_update_interval_in_ms == -1
-             ? conf.permissions_validity_in_ms
-             : conf.permissions_update_interval_in_ms;
+        return conf.permissions_update_interval.toMilliseconds() == 0
+             ? conf.permissions_validity.toMillisecondsAsInt()
+             : conf.permissions_update_interval.toMillisecondsAsInt();
     }
 
     public static void setPermissionsUpdateInterval(int updateInterval)
     {
-        conf.permissions_update_interval_in_ms = updateInterval;
+        conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
     }
 
     public static int getPermissionsCacheMaxEntries()
@@ -1324,19 +1324,19 @@ public class DatabaseDescriptor
 
     public static int getRolesValidity()
     {
-        return conf.roles_validity_in_ms;
+        return conf.roles_validity.toMillisecondsAsInt();
     }
 
     public static void setRolesValidity(int validity)
     {
-        conf.roles_validity_in_ms = validity;
+        conf.roles_validity = SmallestDurationMilliseconds.inMilliseconds(validity);
     }
 
     public static int getRolesUpdateInterval()
     {
-        return conf.roles_update_interval_in_ms == -1
-             ? conf.roles_validity_in_ms
-             : conf.roles_update_interval_in_ms;
+        return conf.roles_update_interval.toMillisecondsAsInt() == 0
+             ? conf.roles_validity.toMillisecondsAsInt()
+             : conf.roles_update_interval.toMillisecondsAsInt();
     }
 
     public static void setRolesCacheActiveUpdate(boolean update)
@@ -1351,7 +1351,7 @@ public class DatabaseDescriptor
 
     public static void setRolesUpdateInterval(int interval)
     {
-        conf.roles_update_interval_in_ms = interval;
+        conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
     }
 
     public static int getRolesCacheMaxEntries()
@@ -1366,24 +1366,24 @@ public class DatabaseDescriptor
 
     public static int getCredentialsValidity()
     {
-        return conf.credentials_validity_in_ms;
+        return conf.credentials_validity.toMillisecondsAsInt();
     }
 
     public static void setCredentialsValidity(int timeout)
     {
-        conf.credentials_validity_in_ms = timeout;
+        conf.credentials_validity = SmallestDurationMilliseconds.inMilliseconds(timeout);
     }
 
     public static int getCredentialsUpdateInterval()
     {
-        return conf.credentials_update_interval_in_ms == -1
-               ? conf.credentials_validity_in_ms
-               : conf.credentials_update_interval_in_ms;
+        return conf.credentials_update_interval.toMillisecondsAsInt() == 0
+               ? conf.credentials_validity.toMillisecondsAsInt()
+               : conf.credentials_update_interval.toMillisecondsAsInt();
     }
 
     public static void setCredentialsUpdateInterval(int updateInterval)
     {
-        conf.credentials_update_interval_in_ms = updateInterval;
+        conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
     }
 
     public static int getCredentialsCacheMaxEntries()
@@ -2618,12 +2618,12 @@ public class DatabaseDescriptor
 
     public static void setMaxHintWindow(int ms)
     {
-        conf.max_hint_window_in_ms = ms;
+        conf.max_hint_window = SmallestDurationMilliseconds.inMilliseconds(ms);
     }
 
     public static int getMaxHintWindow()
     {
-        return conf.max_hint_window_in_ms;
+        return conf.max_hint_window.toMillisecondsAsInt();
     }
 
     public static File getHintsDirectory()
