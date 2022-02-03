@@ -104,7 +104,7 @@ public class DatabaseDescriptor
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
      */
-    static final long LOWEST_ACCEPTED_TIMEOUT = 10L;
+    static final SmallestDurationMilliseconds LOWEST_ACCEPTED_TIMEOUT = SmallestDurationMilliseconds.inMilliseconds(10L);
 
     private static Supplier<IFailureDetector> newFailureDetector;
     private static IEndpointSnitch snitch;
@@ -1061,52 +1061,22 @@ public class DatabaseDescriptor
     @VisibleForTesting
     static void checkForLowestAcceptedTimeouts(Config conf)
     {
-        if(conf.read_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("read_request_timeout_in_ms", conf.read_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.read_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if(conf.range_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("range_request_timeout_in_ms", conf.range_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.range_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if(conf.request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("request_timeout_in_ms", conf.request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if(conf.write_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("write_request_timeout_in_ms", conf.write_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.write_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if(conf.cas_contention_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("cas_contention_timeout_in_ms", conf.cas_contention_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.cas_contention_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if(conf.counter_write_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("counter_write_request_timeout_in_ms", conf.counter_write_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.counter_write_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if(conf.truncate_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
-        {
-           logInfo("truncate_request_timeout_in_ms", conf.truncate_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
-           conf.truncate_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
-        }
+        conf.read_request_timeout = max("read_request_timeout", conf.read_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        conf.range_request_timeout = max("range_request_timeout", conf.range_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        conf.request_timeout = max("request_timeout", conf.request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        conf.write_request_timeout = max("write_request_timeout", conf.write_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        conf.cas_contention_timeout = max("cas_contention_timeout", conf.cas_contention_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        conf.counter_write_request_timeout = max("counter_write_request_timeout", conf.counter_write_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        conf.truncate_request_timeout = max("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
     }
 
-    private static void logInfo(String property, long actualValue, long lowestAcceptedValue)
+    private static void logInfo(String property, SmallestDurationMilliseconds actualValue, SmallestDurationMilliseconds lowestAcceptedValue)
     {
-        logger.info("found {}::{} less than lowest acceptable value {}, continuing with {}", property, actualValue, lowestAcceptedValue, lowestAcceptedValue);
+        logger.info("found {}::{} less than lowest acceptable value {}, continuing with {}",
+                    property,
+                    actualValue.toString(),
+                    lowestAcceptedValue.toString(),
+                    lowestAcceptedValue);
     }
 
     public static void applyTokensConfig()
@@ -1644,82 +1614,82 @@ public class DatabaseDescriptor
 
     public static long nativeTransportIdleTimeout()
     {
-        return conf.native_transport_idle_timeout_in_ms;
+        return conf.native_transport_idle_timeout.toMilliseconds();
     }
 
     public static void setNativeTransportIdleTimeout(long nativeTransportTimeout)
     {
-        conf.native_transport_idle_timeout_in_ms = nativeTransportTimeout;
+        conf.native_transport_idle_timeout= SmallestDurationMilliseconds.inMilliseconds(nativeTransportTimeout);
     }
 
     public static long getRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.request_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.request_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setRpcTimeout(long timeOutInMillis)
     {
-        conf.request_timeout_in_ms = timeOutInMillis;
+        conf.request_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static long getReadRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.read_request_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.read_request_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setReadRpcTimeout(long timeOutInMillis)
     {
-        conf.read_request_timeout_in_ms = timeOutInMillis;
+        conf.read_request_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static long getRangeRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.range_request_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.range_request_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setRangeRpcTimeout(long timeOutInMillis)
     {
-        conf.range_request_timeout_in_ms = timeOutInMillis;
+        conf.range_request_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static long getWriteRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.write_request_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.write_request_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setWriteRpcTimeout(long timeOutInMillis)
     {
-        conf.write_request_timeout_in_ms = timeOutInMillis;
+        conf.write_request_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.counter_write_request_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.counter_write_request_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setCounterWriteRpcTimeout(long timeOutInMillis)
     {
-        conf.counter_write_request_timeout_in_ms = timeOutInMillis;
+        conf.counter_write_request_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static long getCasContentionTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.cas_contention_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.cas_contention_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setCasContentionTimeout(long timeOutInMillis)
     {
-        conf.cas_contention_timeout_in_ms = timeOutInMillis;
+        conf.cas_contention_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static long getTruncateRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.truncate_request_timeout_in_ms, MILLISECONDS);
+        return unit.convert(conf.truncate_request_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     public static void setTruncateRpcTimeout(long timeOutInMillis)
     {
-        conf.truncate_request_timeout_in_ms = timeOutInMillis;
+        conf.truncate_request_timeout = SmallestDurationMilliseconds.inMilliseconds(timeOutInMillis);
     }
 
     public static boolean hasCrossNodeTimeout()
@@ -1734,7 +1704,7 @@ public class DatabaseDescriptor
 
     public static long getSlowQueryTimeout(TimeUnit units)
     {
-        return units.convert(conf.slow_query_log_timeout_in_ms, MILLISECONDS);
+        return units.convert(conf.slow_query_log_timeout.toMilliseconds(), MILLISECONDS);
     }
 
     /**
@@ -2945,7 +2915,7 @@ public class DatabaseDescriptor
 
     public static int getStreamingKeepAlivePeriod()
     {
-        return conf.streaming_keep_alive_period_in_secs;
+        return conf.streaming_keep_alive_period.toSecondsAsInt();
     }
 
     public static int getStreamingConnectionsPerHost()
