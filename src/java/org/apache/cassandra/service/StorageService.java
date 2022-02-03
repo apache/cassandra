@@ -940,7 +940,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     //only go into hibernate state if replacing the same address (CASSANDRA-8523)
                     logger.warn("Writes will not be forwarded to this node during replacement because it has the same address as " +
-                                "the node to be replaced ({}). If the previous node has been down for longer than max_hint_window_in_ms, " +
+                                "the node to be replaced ({}). If the previous node has been down for longer than max_hint_window, " +
                                 "repair must be run after the replacement process in order to make this node consistent.",
                                 DatabaseDescriptor.getReplaceAddress());
                     appStates.put(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true));

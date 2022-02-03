@@ -74,7 +74,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setPermissionsValidity(DatabaseDescriptor.getRawConfig().permissions_validity_in_ms);
+        DatabaseDescriptor.setPermissionsValidity(DatabaseDescriptor.getRawConfig().permissions_validity.toMillisecondsAsInt());
     }
 
     @Test
