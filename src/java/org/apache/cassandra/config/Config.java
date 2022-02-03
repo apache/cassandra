@@ -102,29 +102,39 @@ public class Config
     /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
     public Integer allocate_tokens_for_local_replication_factor = null;
 
-    public long native_transport_idle_timeout_in_ms = 0L;
+    @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds native_transport_idle_timeout = new SmallestDurationMilliseconds("0ms");
 
-    public volatile long request_timeout_in_ms = 10000L;
+    @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds request_timeout = new SmallestDurationMilliseconds("10000ms");
 
-    public volatile long read_request_timeout_in_ms = 5000L;
+    @Replaces(oldName = "read_request_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds read_request_timeout = new SmallestDurationMilliseconds("5000ms");
 
-    public volatile long range_request_timeout_in_ms = 10000L;
+    @Replaces(oldName = "range_request_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds range_request_timeout = new SmallestDurationMilliseconds("10000ms");
 
-    public volatile long write_request_timeout_in_ms = 2000L;
+    @Replaces(oldName = "write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds write_request_timeout = new SmallestDurationMilliseconds("2000ms");
 
-    public volatile long counter_write_request_timeout_in_ms = 5000L;
+    @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds counter_write_request_timeout = new SmallestDurationMilliseconds("5000ms");
 
-    public volatile long cas_contention_timeout_in_ms = 1000L;
+    @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds cas_contention_timeout = new SmallestDurationMilliseconds("1000ms");
 
-    public volatile long truncate_request_timeout_in_ms = 60000L;
+    @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds truncate_request_timeout = new SmallestDurationMilliseconds("60000ms");
 
     public Integer streaming_connections_per_host = 1;
-    public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
+    @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converters.SECONDS_DURATION, deprecated = true)
+    public SmallestDurationSeconds streaming_keep_alive_period = new SmallestDurationSeconds("300s");
 
     @Replaces(oldName = "cross_node_timeout", converter = Converters.IDENTITY, deprecated = true)
     public boolean internode_timeout = true;
 
-    public volatile long slow_query_log_timeout_in_ms = 500L;
+    @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds slow_query_log_timeout = new SmallestDurationMilliseconds("500ms");
 
     public volatile double phi_convict_threshold = 8.0;
 

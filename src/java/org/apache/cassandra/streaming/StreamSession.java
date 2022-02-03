@@ -670,7 +670,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (e instanceof SocketTimeoutException)
         {
             logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
-                         "If not, maybe try increasing streaming_keep_alive_period_in_secs.", planId(),
+                         "If not, maybe try increasing streaming_keep_alive_period.", planId(),
                          hostAddressAndPort(channel.peer()),
                          channel.peer().equals(channel.connectedTo()) ? "" : " through " + hostAddressAndPort(channel.connectedTo()),
                          2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),

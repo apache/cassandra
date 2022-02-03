@@ -43,7 +43,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         /*assertEquals(5, config.internode_socket_send_buffer_size_in_bytes);
         assertEquals(5, config.internode_socket_receive_buffer_size_in_bytes);
         assertEquals(DurationSpec.inMilliseconds(10800000), config.max_hint_window);
-        assertEquals(DurationSpec.inHours(0), config.max_hint_window);
+        assertEquals(DurationSpec.inHours(0), config.max_hint_window);*/
         assertEquals(DurationSpec.inMilliseconds(0), config.native_transport_idle_timeout);
         assertEquals(DurationSpec.inMilliseconds(10000), config.request_timeout);
         assertEquals(DurationSpec.inMilliseconds(5000), config.read_request_timeout);
@@ -54,7 +54,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DurationSpec.inMilliseconds(60000), config.truncate_request_timeout);
         assertEquals(DurationSpec.inSeconds(300), config.streaming_keep_alive_period);
         assertEquals(DurationSpec.inMilliseconds(500), config.slow_query_log_timeout);
-        assertNull(config.memtable_heap_space);
+        /*assertNull(config.memtable_heap_space);
         assertNull(config.memtable_offheap_space);
         assertNull( config.repair_session_space);
         assertEquals(DataStorageSpec.inBytes(4194304), config.internode_application_send_queue_capacity);

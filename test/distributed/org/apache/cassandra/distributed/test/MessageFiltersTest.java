@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.config.SmallestDurationMilliseconds;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -187,7 +188,7 @@ public class MessageFiltersTest extends TestBaseImpl
         String read = "SELECT * FROM " + KEYSPACE + ".tbl";
         String write = "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)";
 
-        try (ICluster<IInvokableInstance> cluster = builder().withNodes(2).withConfig(c -> c.set("range_request_timeout_in_ms", 20000)).start())
+        try (ICluster<IInvokableInstance> cluster = builder().withNodes(2).withConfig(c -> c.set("range_request_timeout", "2000ms")).start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");

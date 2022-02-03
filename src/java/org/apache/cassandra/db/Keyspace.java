@@ -481,7 +481,7 @@ public class Keyspace
      *                       may happen concurrently, depending on the CL Executor type.
      * @param makeDurable    if true, don't return unless write has been made durable
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
-     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
+     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout
      */
     public void apply(final Mutation mutation,
                       final boolean makeDurable,
@@ -498,7 +498,7 @@ public class Keyspace
      *                       may happen concurrently, depending on the CL Executor type.
      * @param makeDurable    if true, don't return unless write has been made durable
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
-     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
+     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout
      * @param isDeferrable   true if caller is not waiting for future to complete, so that future may be deferred
      */
     private Future<?> applyInternal(final Mutation mutation,
