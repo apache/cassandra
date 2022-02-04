@@ -1,4 +1,5 @@
 4.2
+ * Include Git SHA in --verbose flag for nodetool version (CASSANDRA-17753)
  * Update Byteman to 4.0.20 and Jacoco to 0.8.8 (CASSANDRA-16413)
  * Add memtable option among possible tab completions for a table (CASSANDRA-17982)
  * Adds a trie-based memtable implementation (CASSANDRA-17240)

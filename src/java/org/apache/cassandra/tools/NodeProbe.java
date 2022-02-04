@@ -780,6 +780,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getReleaseVersion();
     }
 
+    public String getGitSHA()
+    {
+        return ssProxy.getGitSHA();
+    }
+
     public int getCurrentGenerationNumber()
     {
         return ssProxy.getCurrentGenerationNumber();
