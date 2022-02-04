@@ -438,11 +438,12 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="createVersionPropFile">
+    <target name="createVersionPropFile" depends="get-git-sha">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
         <entry key="CassandraVersion" value="${version}"/>
+        <entry key="GitSHA" value="${git.sha}"/>
       </propertyfile>
     </target>
 
@@ -485,7 +486,7 @@
         </javac>
     </target>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java,rat-check"
+    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java,rat-check,get-git-sha"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
@@ -695,6 +696,7 @@
           <attribute name="Implementation-Title" value="Cassandra"/>
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
+          <attribute name="Implementation-Git-SHA" value="${git.sha}"/>
         <!-- </section> -->
         </manifest>
       </jar>
@@ -1937,4 +1939,5 @@
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
   <import file="${basedir}/.build/build-owasp.xml"/>
+  <import file="${basedir}/.build/build-git.xml"/>
 </project>
