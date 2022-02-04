@@ -3208,10 +3208,10 @@ public class SelectTest extends CQLTester
         createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+        execute("INSERT INTO %s (k1) VALUES(uuid())");
 
         assertRows(execute("SELECT k2 from %s where k2 like '%%Doe' ALLOW FILTERING"), row("John Doe"));
     }
-
 
     @Test
     public void testLikeSuffixQueryWithoutFiltering() throws Throwable
@@ -3231,6 +3231,7 @@ public class SelectTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        execute("INSERT INTO %s (k1) VALUES(uuid())");
 
         assertRows(execute("SELECT k2 from %s where k2 like 'John%%' ALLOW FILTERING"), row("John Doe"));
 
@@ -3257,6 +3258,7 @@ public class SelectTest extends CQLTester
         createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+        execute("INSERT INTO %s (k1) VALUES(uuid())");
 
         assertRows(execute("SELECT k2 from %s where k2 like '%%John2%%' ALLOW FILTERING"), row("John2 Doe2"));
 
@@ -3282,6 +3284,7 @@ public class SelectTest extends CQLTester
         createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+        execute("INSERT INTO %s (k1) VALUES(uuid())");
 
         assertRows(execute("SELECT k2 from %s where k2 like 'John Doe' ALLOW FILTERING"), row("John Doe"));
         assertRows(execute("SELECT k2 from %s where k2 like 'John2 Doe2' ALLOW FILTERING"), row("John2 Doe2"));
