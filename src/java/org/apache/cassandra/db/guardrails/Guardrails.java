@@ -148,6 +148,20 @@ public final class Guardrails implements GuardrailsMBean
     new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
                     "List operation requiring read before write");
 
+    /**
+     * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
+     */
+    public static final Threshold inSelectCartesianProduct =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("The cartesian product of the IN restrictions on %s produces %d values, " +
+                                     "this exceeds warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Aborting query because the cartesian product of the IN restrictions on %s " +
+                                     "produces %d values, this exceeds fail threshold of %s.",
+                                     what, value, threshold));
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -381,6 +395,23 @@ public final class Guardrails implements GuardrailsMBean
     public int getPartitionKeysInSelectFailThreshold()
     {
         return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
+    }
+
+    public int getInSelectCartesianProductWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getInSelectCartesianProductWarnThreshold();
+    }
+
+    @Override
+    public int getInSelectCartesianProductFailThreshold()
+    {
+        return DEFAULT_CONFIG.getInSelectCartesianProductFailThreshold();
+    }
+
+    @Override
+    public void setInSelectCartesianProductThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setInSelectCartesianProductThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

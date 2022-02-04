@@ -52,14 +52,13 @@ public class GuardrailPartitionKeysInSelectTest extends ThresholdTester
 
         assertValid("SELECT k, c, v FROM %s WHERE k = 2 and c IN (2, 3, 4, 5, 6, 7)");
 
-        assertWarns(String.format("Query with partition keys in IN clause on table %s, with " +
-                    "number of partition keys 4 exceeds warning threshold of 3.", tableName),
-                    "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5)");
+        assertWarns("SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5)",
+                    String.format("Query with partition keys in IN clause on table %s, with " +
+                                  "number of partition keys 4 exceeds warning threshold of 3.", tableName));
 
-        assertFails(String.format("Aborting query with partition keys in IN clause on table %s, " +
-                     "number of partition keys 6 exceeds fail threshold of 5.", tableName) ,
-                     "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5, 6, 7)"
-                     );
+        assertFails("SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5, 6, 7)",
+                    String.format("Aborting query with partition keys in IN clause on table %s, " +
+                                  "number of partition keys 6 exceeds fail threshold of 5.", tableName));
     }
 
     @Test

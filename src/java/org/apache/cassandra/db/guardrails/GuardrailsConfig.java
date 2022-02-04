@@ -144,4 +144,16 @@ public interface GuardrailsConfig
      * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
+     * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductWarnThreshold();
+
+    /**
+     * @return The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductFailThreshold();
 }
