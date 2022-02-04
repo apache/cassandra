@@ -496,7 +496,17 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     public static class VirtualTablePartitionRangeReadCommand extends PartitionRangeReadCommand
     {
-        private VirtualTablePartitionRangeReadCommand(boolean isDigest, int digestVersion, boolean acceptsTransient, TableMetadata metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, DataRange dataRange, IndexMetadata index, boolean trackWarnings)
+        private VirtualTablePartitionRangeReadCommand(boolean isDigest,
+                                                      int digestVersion,
+                                                      boolean acceptsTransient,
+                                                      TableMetadata metadata,
+                                                      int nowInSec,
+                                                      ColumnFilter columnFilter,
+                                                      RowFilter rowFilter,
+                                                      DataLimits limits,
+                                                      DataRange dataRange,
+                                                      IndexMetadata index,
+                                                      boolean trackWarnings)
         {
             super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, dataRange, index, trackWarnings);
         }

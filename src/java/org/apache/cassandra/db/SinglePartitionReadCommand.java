@@ -1297,7 +1297,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public static class VirtualTableSinglePartitionReadCommand extends SinglePartitionReadCommand
     {
-        protected VirtualTableSinglePartitionReadCommand(boolean isDigest, int digestVersion, boolean acceptsTransient, TableMetadata metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, IndexMetadata index, boolean trackWarnings)
+        protected VirtualTableSinglePartitionReadCommand(boolean isDigest,
+                                                         int digestVersion,
+                                                         boolean acceptsTransient,
+                                                         TableMetadata metadata,
+                                                         int nowInSec,
+                                                         ColumnFilter columnFilter,
+                                                         RowFilter rowFilter,
+                                                         DataLimits limits,
+                                                         DecoratedKey partitionKey,
+                                                         ClusteringIndexFilter clusteringIndexFilter,
+                                                         IndexMetadata index,
+                                                         boolean trackWarnings)
         {
             super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, index, trackWarnings);
         }
