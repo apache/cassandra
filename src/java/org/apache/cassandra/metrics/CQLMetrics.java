@@ -32,6 +32,8 @@ public class CQLMetrics
     public final Counter preparedStatementsExecuted;
     public final Counter preparedStatementsEvicted;
 
+    public final Counter useStatementsExecuted;
+
     public final Gauge<Integer> preparedStatementsCount;
     public final Gauge<Double> preparedStatementsRatio;
 
@@ -41,13 +43,9 @@ public class CQLMetrics
         preparedStatementsExecuted = Metrics.counter(factory.createMetricName("PreparedStatementsExecuted"));
         preparedStatementsEvicted = Metrics.counter(factory.createMetricName("PreparedStatementsEvicted"));
 
-        preparedStatementsCount = Metrics.register(factory.createMetricName("PreparedStatementsCount"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return QueryProcessor.preparedStatementsCount();
-            }
-        });
+        useStatementsExecuted = Metrics.counter(factory.createMetricName("UseStatementsExecuted"));
+
+        preparedStatementsCount = Metrics.register(factory.createMetricName("PreparedStatementsCount"), QueryProcessor::preparedStatementsCount);
         preparedStatementsRatio = Metrics.register(factory.createMetricName("PreparedStatementsRatio"), new RatioGauge()
         {
             public Ratio getRatio()
