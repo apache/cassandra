@@ -241,7 +241,7 @@ public class ZeroCopyStreamingBenchmark
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void blockStreamReader(BenchmarkState state) throws Exception
+    public void blockStreamReader(BenchmarkState state) throws Throwable
     {
         EmbeddedChannel channel = createMockNettyChannel();
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
@@ -265,7 +265,7 @@ public class ZeroCopyStreamingBenchmark
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void partialStreamReader(BenchmarkState state) throws Exception
+    public void partialStreamReader(BenchmarkState state) throws Throwable
     {
         EmbeddedChannel channel = createMockNettyChannel();
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);

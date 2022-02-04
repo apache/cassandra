@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,8 +46,6 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -55,10 +54,12 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.InstanceKiller;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
@@ -72,6 +73,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageService;
+import org.awaitility.Awaitility;
 
 @RunWith(Parameterized.class)
 public class FailingRepairTest extends TestBaseImpl implements Serializable
@@ -162,7 +164,12 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
     public void cleanupState()
     {
         for (int i = 1; i <= CLUSTER.size(); i++)
-            CLUSTER.get(i).runOnInstance(InstanceKiller::clear);
+        {
+            IInvokableInstance inst = CLUSTER.get(i);
+            if (inst.isShutdown())
+                inst.startup();
+            inst.runOnInstance(InstanceKiller::clear);
+        }
     }
 
     @Test(timeout = 10 * 60 * 1000)
@@ -240,10 +247,7 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         // its possible that the coordinator gets the message that the replica failed before the replica completes
         // shutting down; this then means that isKilled could be updated after the fact
         IInvokableInstance replicaInstance = CLUSTER.get(replica);
-        while (replicaInstance.killAttempts() <= 0)
-            Uninterruptibles.sleepUninterruptibly(50, TimeUnit.MILLISECONDS);
-
-        Assert.assertEquals("replica should be killed", 1, replicaInstance.killAttempts());
+        Awaitility.await().atMost(Duration.ofSeconds(30)).until(replicaInstance::isShutdown);
         Assert.assertEquals("coordinator should not be killed", 0, CLUSTER.get(coordinator).killAttempts());
     }
 

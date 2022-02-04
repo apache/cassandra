@@ -610,7 +610,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 registerInboundFilter(cluster);
                 registerOutboundFilter(cluster);
 
-                JVMStabilityInspector.replaceKiller(new InstanceKiller());
+                JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
                 // TODO: this is more than just gossip
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());

@@ -140,15 +140,26 @@ public final class JVMStabilityInspector
             if (t instanceof FSError || t instanceof CorruptSSTableException)
                 isUnstable = true;
 
-        fn.accept(t);
-
         // Check for file handle exhaustion
         if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)
             if (t.getMessage() != null && t.getMessage().contains("Too many open files"))
                 isUnstable = true;
 
         if (isUnstable)
+        {
+            if (!StorageService.instance.isDaemonSetupCompleted())
+                FileUtils.handleStartupFSError(t);
             killer.killCurrentJVM(t);
+        }
+
+        try
+        {
+            fn.accept(t);
+        }
+        catch (Exception | Error e)
+        {
+            logger.warn("Unexpected error while handling unexpected error", e);
+        }
 
         if (t.getCause() != null)
             inspectThrowable(t.getCause(), fn);

@@ -463,6 +463,11 @@ public final class FileUtils
         fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
     }
 
+    public static void handleStartupFSError(Throwable t)
+    {
+        fsErrorHandler.get().ifPresent(handler -> handler.handleStartupFSError(t));
+    }
+
     /**
      * handleFSErrorAndPropagate will invoke the disk failure policy error handler,
      * which may or may not stop the daemon or transports. However, if we don't exit,

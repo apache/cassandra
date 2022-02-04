@@ -47,6 +47,8 @@ public class StreamingMetrics
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */
     public final Timer incomingProcessTime;
+    private final Counter entireSSTablesStreamedIn;
+    private final Counter partialSSTablesStreamedIn;
 
     public static StreamingMetrics get(InetAddressAndPort ip)
     {
@@ -79,5 +81,13 @@ public class StreamingMetrics
         incomingBytes = Metrics.counter(factory.createMetricName("IncomingBytes"));
         outgoingBytes= Metrics.counter(factory.createMetricName("OutgoingBytes"));
         incomingProcessTime = Metrics.timer(factory.createMetricName("IncomingProcessTime"));
+
+        entireSSTablesStreamedIn = Metrics.counter(factory.createMetricName("EntireSSTablesStreamedIn"));
+        partialSSTablesStreamedIn = Metrics.counter(factory.createMetricName("PartialSSTablesStreamedIn"));
+    }
+
+    public void countStreamedIn(boolean isEntireSSTable)
+    {
+        (isEntireSSTable ? entireSSTablesStreamedIn : partialSSTablesStreamedIn).inc();
     }
 }
