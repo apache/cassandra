@@ -121,4 +121,7 @@ public interface StorageProxyMBean
 
     void setPaxosVariant(String variant);
     String getPaxosVariant();
+
+    boolean getUseStatementsEnabled();
+    void setUseStatementsEnabled(boolean enabled);
 }

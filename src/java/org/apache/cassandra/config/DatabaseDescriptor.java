@@ -70,7 +70,6 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -3809,5 +3808,19 @@ public class DatabaseDescriptor
         }
 
         conf.minimum_keyspace_rf = value;
+    }
+
+    public static boolean getUseStatementsEnabled()
+    {
+        return conf.use_statements_enabled;
+    }
+
+    public static void setUseStatementsEnabled(boolean enabled)
+    {
+        if (enabled != conf.use_statements_enabled)
+        {
+            logger.info("Setting use_statements_enabled to {}", enabled);
+            conf.use_statements_enabled = enabled;
+        }
     }
 }

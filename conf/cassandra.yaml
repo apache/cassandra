@@ -1550,6 +1550,9 @@ enable_transient_replication: false
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
 enable_drop_compact_storage: false
 
+# Whether or not USE <keyspace> is allowed. This is enabled by default to avoid failure on upgrade.
+#use_statements_enabled: true
+
 # When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
 # a client metric showing this; this logic will exclude specific subnets from updating these
 # metrics
