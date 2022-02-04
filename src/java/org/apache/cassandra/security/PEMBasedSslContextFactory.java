@@ -143,8 +143,18 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
     @Override
     public boolean hasKeystore()
     {
-        return maybeFileBasedPrivateKey ? (keystore != null && new File(keystore).exists()) :
+        return maybeFileBasedPrivateKey ? keystoreFileExists() :
                !StringUtils.isEmpty(pemEncodedKey);
+    }
+
+    /**
+     * Checks if the keystore file exists.
+     *
+     * @return {@code true} if keystore file exists; {@code false} otherwise
+     */
+    private boolean keystoreFileExists()
+    {
+        return keystore != null && new File(keystore).exists();
     }
 
     /**
@@ -155,8 +165,18 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
      */
     private boolean hasTruststore()
     {
-        return maybeFileBasedTrustedCertificates ? (truststore != null && new File(truststore).exists()) :
+        return maybeFileBasedTrustedCertificates ? truststoreFileExists() :
                !StringUtils.isEmpty(pemEncodedCertificates);
+    }
+
+    /**
+     * Checks if the truststore file exists.
+     *
+     * @return {@code true} if truststore file exists; {@code false} otherwise
+     */
+    private boolean truststoreFileExists()
+    {
+        return truststore != null && new File(truststore).exists();
     }
 
     /**
@@ -313,7 +333,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
      */
     private void enforceSinglePrivateKeySource()
     {
-        if (!StringUtils.isEmpty(keystore) && !StringUtils.isEmpty(pemEncodedKey))
+        if (keystoreFileExists() && !StringUtils.isEmpty(pemEncodedKey))
         {
             throw new IllegalArgumentException("Configuration must specify value for either keystore or private_key, " +
                                                "not both for PEMBasedSSlContextFactory");
@@ -328,7 +348,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
      */
     private void enforceSingleTurstedCertificatesSource()
     {
-        if (!StringUtils.isEmpty(truststore) && !StringUtils.isEmpty(pemEncodedCertificates))
+        if (truststoreFileExists() && !StringUtils.isEmpty(pemEncodedCertificates))
         {
             throw new IllegalArgumentException("Configuration must specify value for either truststore or " +
                                                "trusted_certificates, not both for PEMBasedSSlContextFactory");

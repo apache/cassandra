@@ -413,7 +413,7 @@ public class PEMBasedSslContextFactoryTest
         new PEMBasedSslContextFactory(config);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testMultiplePrivateKeySourcesWithInvalidKeystorePath()
     {
         Map<String, Object> config = new HashMap<>();
@@ -436,7 +436,7 @@ public class PEMBasedSslContextFactoryTest
         new PEMBasedSslContextFactory(config);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testMultipleTrustedCertificatesSourcesWithInvalidTruststorePath()
     {
         Map<String, Object> config = new HashMap<>();
