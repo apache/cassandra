@@ -39,7 +39,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 
 public class CredentialsCacheKeysTableTest extends CQLTester
 {
-    private static final String KS_NAME = "system_views";
+    private static final String KS_NAME = "vts";
     private static AuthTestUtils.LocalPasswordAuthenticator passwordAuthenticator;
 
     @SuppressWarnings("FieldCanBeLocal")
@@ -80,7 +80,7 @@ public class CredentialsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectAllWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM system_views.credentials_cache_keys"));
+        assertEmpty(execute("SELECT * FROM vts.credentials_cache_keys"));
     }
 
     @Test
@@ -89,7 +89,7 @@ public class CredentialsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        assertRows(execute("SELECT * FROM system_views.credentials_cache_keys"),
+        assertRows(execute("SELECT * FROM vts.credentials_cache_keys"),
                 row("role_a"),
                 row("role_b"));
     }
@@ -97,7 +97,7 @@ public class CredentialsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectPartitionWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM system_views.credentials_cache_keys WHERE role='role_a'"));
+        assertEmpty(execute("SELECT * FROM vts.credentials_cache_keys WHERE role='role_a'"));
     }
 
     @Test
@@ -106,7 +106,7 @@ public class CredentialsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        assertRows(execute("SELECT * FROM system_views.credentials_cache_keys WHERE role='role_a'"),
+        assertRows(execute("SELECT * FROM vts.credentials_cache_keys WHERE role='role_a'"),
                 row("role_a"));
     }
 
@@ -116,9 +116,9 @@ public class CredentialsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        execute("DELETE FROM system_views.credentials_cache_keys WHERE role='role_a'");
+        execute("DELETE FROM vts.credentials_cache_keys WHERE role='role_a'");
 
-        assertRows(execute("SELECT * FROM system_views.credentials_cache_keys"),
+        assertRows(execute("SELECT * FROM vts.credentials_cache_keys"),
                 row("role_b"));
     }
 
@@ -127,9 +127,9 @@ public class CredentialsCacheKeysTableTest extends CQLTester
     {
         cachePermissions(ROLE_A);
 
-        execute("DELETE FROM system_views.credentials_cache_keys WHERE role='invalid_role'");
+        execute("DELETE FROM vts.credentials_cache_keys WHERE role='invalid_role'");
 
-        assertRows(execute("SELECT * FROM system_views.credentials_cache_keys WHERE role='role_a'"),
+        assertRows(execute("SELECT * FROM vts.credentials_cache_keys WHERE role='role_a'"),
                 row("role_a"));
     }
 
@@ -139,9 +139,9 @@ public class CredentialsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        execute("TRUNCATE system_views.credentials_cache_keys");
+        execute("TRUNCATE vts.credentials_cache_keys");
 
-        assertEmpty(execute("SELECT * FROM system_views.credentials_cache_keys"));
+        assertEmpty(execute("SELECT * FROM vts.credentials_cache_keys"));
     }
 
     @Test
@@ -152,8 +152,8 @@ public class CredentialsCacheKeysTableTest extends CQLTester
         // column deletion is not supported, however, this table has no regular columns, so it is not covered by tests
 
         // insert is not supported
-        assertInvalidMessage("Column modification is not supported by table system_views.credentials_cache_keys",
-                "INSERT INTO system_views.credentials_cache_keys (role) VALUES ('role_e')");
+        assertInvalidMessage("Column modification is not supported by table vts.credentials_cache_keys",
+                "INSERT INTO vts.credentials_cache_keys (role) VALUES ('role_e')");
 
         // update is not supported, however, this table has no regular columns, so it is not covered by tests
     }

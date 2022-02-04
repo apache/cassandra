@@ -47,7 +47,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 
 public class JmxPermissionsCacheKeysTableTest extends CQLTester
 {
-    private static final String KS_NAME = "system_views";
+    private static final String KS_NAME = "vts";
     private static final AuthorizationProxy authorizationProxy = new AuthTestUtils.NoAuthSetupAuthorizationProxy();
 
     @SuppressWarnings("FieldCanBeLocal")
@@ -101,7 +101,7 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectAllWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM system_views.jmx_permissions_cache_keys"));
+        assertEmpty(execute("SELECT * FROM vts.jmx_permissions_cache_keys"));
     }
 
     @Test
@@ -110,7 +110,7 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        assertRows(execute("SELECT * FROM system_views.jmx_permissions_cache_keys"),
+        assertRows(execute("SELECT * FROM vts.jmx_permissions_cache_keys"),
                 row("role_a"),
                 row("role_b"));
     }
@@ -118,7 +118,7 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectPartitionWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM system_views.jmx_permissions_cache_keys WHERE role='role_a'"));
+        assertEmpty(execute("SELECT * FROM vts.jmx_permissions_cache_keys WHERE role='role_a'"));
     }
 
     @Test
@@ -127,7 +127,7 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        assertRows(execute("SELECT * FROM system_views.jmx_permissions_cache_keys WHERE role='role_a'"),
+        assertRows(execute("SELECT * FROM vts.jmx_permissions_cache_keys WHERE role='role_a'"),
                 row("role_a"));
     }
 
@@ -137,9 +137,9 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        execute("DELETE FROM system_views.jmx_permissions_cache_keys WHERE role='role_a'");
+        execute("DELETE FROM vts.jmx_permissions_cache_keys WHERE role='role_a'");
 
-        assertRows(execute("SELECT * FROM system_views.jmx_permissions_cache_keys"),
+        assertRows(execute("SELECT * FROM vts.jmx_permissions_cache_keys"),
                 row("role_b"));
     }
 
@@ -148,9 +148,9 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
     {
         cachePermissions(ROLE_A);
 
-        execute("DELETE FROM system_views.jmx_permissions_cache_keys WHERE role='invalid_role'");
+        execute("DELETE FROM vts.jmx_permissions_cache_keys WHERE role='invalid_role'");
 
-        assertRows(execute("SELECT * FROM system_views.jmx_permissions_cache_keys WHERE role='role_a'"),
+        assertRows(execute("SELECT * FROM vts.jmx_permissions_cache_keys WHERE role='role_a'"),
                 row("role_a"));
     }
 
@@ -160,9 +160,9 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        execute("TRUNCATE system_views.jmx_permissions_cache_keys");
+        execute("TRUNCATE vts.jmx_permissions_cache_keys");
 
-        assertEmpty(execute("SELECT * FROM system_views.jmx_permissions_cache_keys"));
+        assertEmpty(execute("SELECT * FROM vts.jmx_permissions_cache_keys"));
     }
 
     @Test
@@ -173,8 +173,8 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         // column deletion is not supported, however, this table has no regular columns, so it is not covered by tests
 
         // insert is not supported
-        assertInvalidMessage("Column modification is not supported by table system_views.jmx_permissions_cache_keys",
-                "INSERT INTO system_views.jmx_permissions_cache_keys (role) VALUES ('role_e')");
+        assertInvalidMessage("Column modification is not supported by table vts.jmx_permissions_cache_keys",
+                "INSERT INTO vts.jmx_permissions_cache_keys (role) VALUES ('role_e')");
 
         // update is not supported, however, this table has no regular columns, so it is not covered by tests
     }

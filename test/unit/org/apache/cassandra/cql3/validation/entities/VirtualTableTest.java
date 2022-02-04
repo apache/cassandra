@@ -61,7 +61,7 @@ import static org.junit.Assert.fail;
 
 public class VirtualTableTest extends CQLTester
 {
-    private static final String KS_NAME = "system_views";
+    private static final String KS_NAME = "test_virtual_ks";
     private static final String VT1_NAME = "vt1";
     private static final String VT2_NAME = "vt2";
     private static final String VT3_NAME = "vt3";
@@ -351,84 +351,84 @@ public class VirtualTableTest extends CQLTester
     @Test
     public void testReadOperationsOnReadOnlyTable() throws Throwable
     {
-        assertRowsNet(executeNet("SELECT * FROM system_views.vt1 WHERE pk = 'UNKNOWN'"));
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt1 WHERE pk = 'UNKNOWN'"));
 
-        assertRowsNet(executeNet("SELECT * FROM system_views.vt1 WHERE pk = 'pk1' AND c = 'UNKNOWN'"));
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c = 'UNKNOWN'"));
 
         // Test DISTINCT query
-        assertRowsNet(executeNet("SELECT DISTINCT pk FROM system_views.vt1"),
+        assertRowsNet(executeNet("SELECT DISTINCT pk FROM test_virtual_ks.vt1"),
                       row("pk1"),
                       row("pk2"));
 
-        assertRowsNet(executeNet("SELECT DISTINCT pk FROM system_views.vt1 WHERE token(pk) > token('pk1')"),
+        assertRowsNet(executeNet("SELECT DISTINCT pk FROM test_virtual_ks.vt1 WHERE token(pk) > token('pk1')"),
                       row("pk2"));
 
         // Test single partition queries
-        assertRowsNet(executeNet("SELECT v1, v2 FROM system_views.vt1 WHERE pk = 'pk1' AND c = 'c1'"),
+        assertRowsNet(executeNet("SELECT v1, v2 FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c = 'c1'"),
                       row(11, 11L));
 
-        assertRowsNet(executeNet("SELECT c, v1, v2 FROM system_views.vt1 WHERE pk = 'pk1' AND c IN ('c1', 'c2')"),
+        assertRowsNet(executeNet("SELECT c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c IN ('c1', 'c2')"),
                       row("c1", 11, 11L),
                       row("c2", 12, 12L));
 
-        assertRowsNet(executeNet("SELECT c, v1, v2 FROM system_views.vt1 WHERE pk = 'pk1' AND c IN ('c2', 'c1') ORDER BY c DESC"),
+        assertRowsNet(executeNet("SELECT c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk = 'pk1' AND c IN ('c2', 'c1') ORDER BY c DESC"),
                       row("c2", 12, 12L),
                       row("c1", 11, 11L));
 
         // Test multi-partition queries
-        assertRows(execute("SELECT * FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
                    row("pk1", "c1", 11, 11L),
                    row("pk1", "c2", 12, 12L),
                    row("pk2", "c1", 21, 21L),
                    row("pk2", "c2", 22, 22L));
 
-        assertRows(execute("SELECT pk, c, v1 FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC"),
+        assertRows(execute("SELECT pk, c, v1 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC"),
                    row("pk1", "c2", 12),
                    row("pk2", "c2", 22),
                    row("pk1", "c1", 11),
                    row("pk2", "c1", 21));
 
-        assertRows(execute("SELECT pk, c, v1 FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC LIMIT 1"),
+        assertRows(execute("SELECT pk, c, v1 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') ORDER BY c DESC LIMIT 1"),
                    row("pk1", "c2", 12));
 
-        assertRows(execute("SELECT c, v1, v2 FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1' , 'c3') ORDER BY c DESC PER PARTITION LIMIT 1"),
+        assertRows(execute("SELECT c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1' , 'c3') ORDER BY c DESC PER PARTITION LIMIT 1"),
                    row("c3", 13, 13L),
                    row("c3", 23, 23L));
 
-        assertRows(execute("SELECT count(*) FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
+        assertRows(execute("SELECT count(*) FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')"),
                    row(4L));
 
         for (int pageSize = 1; pageSize < 5; pageSize++)
         {
-            assertRowsNet(executeNetWithPaging("SELECT pk, c, v1, v2 FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT pk, c, v1, v2 FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
                           row("pk1", "c1", 11, 11L),
                           row("pk1", "c2", 12, 12L),
                           row("pk2", "c1", 21, 21L),
                           row("pk2", "c2", 22, 22L));
 
-            assertRowsNet(executeNetWithPaging("SELECT * FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') LIMIT 2", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1') LIMIT 2", pageSize),
                           row("pk1", "c1", 11, 11L),
                           row("pk1", "c2", 12, 12L));
 
-            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM system_views.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks.vt1 WHERE pk IN ('pk2', 'pk1') AND c IN ('c2', 'c1')", pageSize),
                           row(4L));
         }
 
         // Test range queries
         for (int pageSize = 1; pageSize < 4; pageSize++)
         {
-            assertRowsNet(executeNetWithPaging("SELECT * FROM system_views.vt1 WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') ALLOW FILTERING", pageSize),
                           row("pk1", "c1", 11, 11L),
                           row("pk1", "c2", 12, 12L));
 
-            assertRowsNet(executeNetWithPaging("SELECT * FROM system_views.vt1 WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') LIMIT 1 ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE token(pk) < token('pk2') AND c IN ('c2', 'c1') LIMIT 1 ALLOW FILTERING", pageSize),
                           row("pk1", "c1", 11, 11L));
 
-            assertRowsNet(executeNetWithPaging("SELECT * FROM system_views.vt1 WHERE token(pk) <= token('pk2') AND c > 'c1' PER PARTITION LIMIT 1 ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT * FROM test_virtual_ks.vt1 WHERE token(pk) <= token('pk2') AND c > 'c1' PER PARTITION LIMIT 1 ALLOW FILTERING", pageSize),
                           row("pk1", "c2", 12, 12L),
                           row("pk2", "c2", 22, 22L));
 
-            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM system_views.vt1 WHERE token(pk) = token('pk2') AND c < 'c3' ALLOW FILTERING", pageSize),
+            assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks.vt1 WHERE token(pk) = token('pk2') AND c < 'c3' ALLOW FILTERING", pageSize),
                           row(2L));
         }
     }
@@ -436,16 +436,16 @@ public class VirtualTableTest extends CQLTester
     @Test
     public void testReadOperationsOnReadOnlyTableWithMultiplePks() throws Throwable
     {
-        assertRowsNet(executeNet("SELECT * FROM system_views.vt3 WHERE pk1 = 'UNKNOWN' AND pk2 = 'UNKNOWN'"));
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt3 WHERE pk1 = 'UNKNOWN' AND pk2 = 'UNKNOWN'"));
 
-        assertRowsNet(executeNet("SELECT * FROM system_views.vt3 WHERE pk1 = 'pk11' AND pk2 = 'pk22' AND ck1 = 'UNKNOWN'"));
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt3 WHERE pk1 = 'pk11' AND pk2 = 'pk22' AND ck1 = 'UNKNOWN'"));
 
         // Test DISTINCT query
-        assertRowsNet(executeNet("SELECT DISTINCT pk1, pk2 FROM system_views.vt3"),
+        assertRowsNet(executeNet("SELECT DISTINCT pk1, pk2 FROM test_virtual_ks.vt3"),
                       row("pk11", "pk11"));
 
         // Test single partition queries
-        assertRowsNet(executeNet("SELECT v1, v2 FROM system_views.vt3 WHERE pk1 = 'pk11' AND pk2 = 'pk11'"),
+        assertRowsNet(executeNet("SELECT v1, v2 FROM test_virtual_ks.vt3 WHERE pk1 = 'pk11' AND pk2 = 'pk11'"),
                       row(1111, 1111L),
                       row(1122, 1122L));
     }
@@ -454,23 +454,23 @@ public class VirtualTableTest extends CQLTester
     public void testDMLOperationsOnMutableCompositeTable() throws Throwable
     {
         // check for a clean state
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
 
         // fill the table, test UNLOGGED batch
         execute("BEGIN UNLOGGED BATCH " +
-                "UPDATE system_views.vt2 SET v1 =  1, v2 =  1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  2, v2 =  2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
-                "UPDATE system_views.vt2 SET v1 =  3, v2 =  3 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  4, v2 =  4 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_3';" +
-                "UPDATE system_views.vt2 SET v1 =  5, v2 =  5 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5';" +
-                "UPDATE system_views.vt2 SET v1 =  6, v2 =  6 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_6';" +
-                "UPDATE system_views.vt2 SET v1 =  7, v2 =  7 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  8, v2 =  8 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  9, v2 =  9 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 = 10, v2 = 10 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  1, v2 =  1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  2, v2 =  2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  3, v2 =  3 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  4, v2 =  4 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_3';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  5, v2 =  5 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  6, v2 =  6 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_6';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  7, v2 =  7 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  8, v2 =  8 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  9, v2 =  9 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 10, v2 = 10 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_2';" +
                 "APPLY BATCH");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
@@ -483,28 +483,28 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_2", 10, 10L));
 
         // update a single column with UPDATE
-        execute("UPDATE system_views.vt2 SET v1 = 11 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'"),
+        execute("UPDATE test_virtual_ks.vt2 SET v1 = 11 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 11, 1L));
 
         // update multiple columns with UPDATE
-        execute("UPDATE system_views.vt2 SET v1 = 111, v2 = 111 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'"),
+        execute("UPDATE test_virtual_ks.vt2 SET v1 = 111, v2 = 111 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 111, 111L));
 
         // update a single columns with INSERT
-        execute("INSERT INTO system_views.vt2 (pk1, pk2, c1, c2, v2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2', 22)");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
+        execute("INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2, v2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2', 22)");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 22L));
 
         // update multiple columns with INSERT
-        execute("INSERT INTO system_views.vt2 (pk1, pk2, c1, c2, v1, v2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2', 222, 222)");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
+        execute("INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2, v1, v2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2', 222, 222)");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 222, 222L));
 
         // delete a single partition
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
@@ -515,8 +515,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_2", 10, 10L));
 
         // delete a first-level range (one-sided limit)
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 <= 'c1_1'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 <= 'c1_1'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
@@ -526,8 +526,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_2", 10, 10L));
 
         // delete a first-level range (two-sided limit)
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 > 'c1_1' AND c1 < 'c1_3'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 > 'c1_1' AND c1 < 'c1_3'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
@@ -536,66 +536,66 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_2", 10, 10L));
 
         // delete multiple rows
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L));
 
         // delete a second-level range (one-sided limit)
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 > 'c2_5'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 > 'c2_5'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L));
 
         // delete a second-level range (two-sided limit)
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 >= 'c2_3' AND c2 < 'c2_5'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 >= 'c2_3' AND c2 < 'c2_5'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L));
 
         // delete a single row
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L));
 
         // delete a single column
-        execute("DELETE v1 FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE v1 FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", null, 3L));
 
         // truncate
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
     }
 
     @Test
     public void testRangeDeletionWithMulticolumnRestrictionsOnMutableTable() throws Throwable
     {
         // check for a clean state
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
 
         // fill the table, test UNLOGGED batch
         execute("BEGIN UNLOGGED BATCH " +
-                "UPDATE system_views.vt2 SET v1 =  1, v2 =  1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  2, v2 =  2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
-                "UPDATE system_views.vt2 SET v1 =  3, v2 =  3 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  4, v2 =  4 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_3';" +
-                "UPDATE system_views.vt2 SET v1 =  5, v2 =  5 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5';" +
-                "UPDATE system_views.vt2 SET v1 =  6, v2 =  6 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_6';" +
-                "UPDATE system_views.vt2 SET v1 =  7, v2 =  7 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  8, v2 =  8 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  9, v2 =  9 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 = 10, v2 = 10 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_2';" +
-                "UPDATE system_views.vt2 SET v1 = 11, v2 = 11 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_3';" +
-                "UPDATE system_views.vt2 SET v1 = 12, v2 = 12 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_4';" +
-                "UPDATE system_views.vt2 SET v1 = 13, v2 = 13 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_5';" +
-                "UPDATE system_views.vt2 SET v1 = 14, v2 = 14 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_3' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  1, v2 =  1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  2, v2 =  2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  3, v2 =  3 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  4, v2 =  4 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_3';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  5, v2 =  5 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  6, v2 =  6 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_6';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  7, v2 =  7 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  8, v2 =  8 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  9, v2 =  9 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 10, v2 = 10 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 11, v2 = 11 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_3';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 12, v2 = 12 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_4';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 13, v2 = 13 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_5';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 14, v2 = 14 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_3' AND c2 = 'c2_1';" +
                 "APPLY BATCH");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
@@ -612,8 +612,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
         // Test deletion with multiple columns equality
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND (c1, c2) = ('c1_1', 'c2_5')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND (c1, c2) = ('c1_1', 'c2_5')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
@@ -629,8 +629,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
         // Test deletion with multiple columns with slice on both side of different length
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 >= 'c1_1' AND (c1, c2) <= ('c1_1', 'c2_5')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 >= 'c1_1' AND (c1, c2) <= ('c1_1', 'c2_5')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L),
@@ -643,8 +643,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_5", 13, 13L),
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND (c1, c2) > ('c1_2', 'c2_3') AND (c1) < ('c1_3')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND (c1, c2) > ('c1_2', 'c2_3') AND (c1) < ('c1_3')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L),
@@ -656,8 +656,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
         // Test deletion with multiple columns with slice on both side of different length
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 >= 'c1_1' AND (c1, c2) <= ('c1_1', 'c2_5')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 >= 'c1_1' AND (c1, c2) <= ('c1_1', 'c2_5')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L),
@@ -669,8 +669,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
         // Test deletion with multiple columns with only top slice
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND (c1, c2) < ('c1_2', 'c2_2')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND (c1, c2) < ('c1_2', 'c2_2')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L),
@@ -681,8 +681,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
         // Test deletion with multiple columns with only bottom slice
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND (c1, c2) > ('c1_1', 'c2_1')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND (c1, c2) > ('c1_1', 'c2_1')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L),
                 row("pk1_2", "pk2_2", "c1_1", "c2_1", 7, 7L),
@@ -692,8 +692,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_3", "c2_1", 14, 14L));
 
         // Test deletion with multiple columns IN
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND (c1, c2) IN (('c1_2', 'c2_2'), ('c1_3', 'c2_1'), ('c1_4', 'c2_1'))");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND (c1, c2) IN (('c1_2', 'c2_2'), ('c1_3', 'c2_1'), ('c1_4', 'c2_1'))");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_6", 6, 6L),
                 row("pk1_2", "pk2_2", "c1_1", "c2_1", 7, 7L),
@@ -701,56 +701,56 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_3", 11, 11L));
 
         // truncate
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
     }
 
     @Test
     public void testDMLOperationsOnMutableNonCompositeTable() throws Throwable
     {
         // check for a clean state
-        execute("TRUNCATE system_views.vt4");
-        assertEmpty(execute("SELECT * FROM system_views.vt4"));
+        execute("TRUNCATE test_virtual_ks.vt4");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt4"));
 
         // fill the table, test UNLOGGED batch
         execute("BEGIN UNLOGGED BATCH " +
-                "INSERT INTO system_views.vt4 (pk, v) VALUES ('pk1', 1);" +
-                "INSERT INTO system_views.vt4 (pk, v) VALUES ('pk2', 2);" +
-                "INSERT INTO system_views.vt4 (pk, v) VALUES ('pk3', 3);" +
-                "INSERT INTO system_views.vt4 (pk, v) VALUES ('pk4', 4);" +
+                "INSERT INTO test_virtual_ks.vt4 (pk, v) VALUES ('pk1', 1);" +
+                "INSERT INTO test_virtual_ks.vt4 (pk, v) VALUES ('pk2', 2);" +
+                "INSERT INTO test_virtual_ks.vt4 (pk, v) VALUES ('pk3', 3);" +
+                "INSERT INTO test_virtual_ks.vt4 (pk, v) VALUES ('pk4', 4);" +
                 "APPLY BATCH");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                 row("pk1", 1L),
                 row("pk2", 2L),
                 row("pk3", 3L),
                 row("pk4", 4L));
 
-         execute("UPDATE system_views.vt4 SET v = 3 WHERE pk = 'pk1'");
-         assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+         execute("UPDATE test_virtual_ks.vt4 SET v = 3 WHERE pk = 'pk1'");
+         assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                  row("pk1", 3L),
                  row("pk2", 2L),
                  row("pk3", 3L),
                  row("pk4", 4L));
 
         // update a single columns with INSERT
-         execute("INSERT INTO system_views.vt4 (pk, v) VALUES ('pk1', 1);");
-         assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+         execute("INSERT INTO test_virtual_ks.vt4 (pk, v) VALUES ('pk1', 1);");
+         assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                  row("pk1", 1L),
                  row("pk2", 2L),
                  row("pk3", 3L),
                  row("pk4", 4L));
 
          // update no column via INSERT
-         execute("INSERT INTO system_views.vt4 (pk) VALUES ('pk1');");
-         assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+         execute("INSERT INTO test_virtual_ks.vt4 (pk) VALUES ('pk1');");
+         assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                  row("pk1", 1L),
                  row("pk2", 2L),
                  row("pk3", 3L),
                  row("pk4", 4L));
 
          // insert new primary key only
-         execute("INSERT INTO system_views.vt4 (pk) VALUES ('pk5');");
-         assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+         execute("INSERT INTO test_virtual_ks.vt4 (pk) VALUES ('pk5');");
+         assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                  row("pk1", 1L),
                  row("pk2", 2L),
                  row("pk3", 3L),
@@ -758,64 +758,64 @@ public class VirtualTableTest extends CQLTester
                  row("pk5", null));
 
         // delete a single partition
-        execute("DELETE FROM system_views.vt4 WHERE pk = 'pk2'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+        execute("DELETE FROM test_virtual_ks.vt4 WHERE pk = 'pk2'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                 row("pk1", 1L),
                 row("pk3", 3L),
                 row("pk4", 4L),
                 row("pk5", null));
 
         // delete a single column
-        execute("DELETE v FROM system_views.vt4 WHERE pk = 'pk4'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt4"),
+        execute("DELETE v FROM test_virtual_ks.vt4 WHERE pk = 'pk4'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt4"),
                 row("pk1", 1L),
                 row("pk3", 3L),
                 row("pk4", null),
                 row("pk5", null));
 
         // truncate
-        execute("TRUNCATE system_views.vt4");
-        assertEmpty(execute("SELECT * FROM system_views.vt4"));
+        execute("TRUNCATE test_virtual_ks.vt4");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt4"));
     }
 
     @Test
     public void testInsertRowWithoutRegularColumnsOperationOnMutableTable() throws Throwable
     {
         // check for a clean state
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
 
         // insert a primary key without columns
-        execute("INSERT INTO system_views.vt2 (pk1, pk2, c1, c2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
+        execute("INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2) VALUES ('pk1_1', 'pk2_1', 'c1_1', 'c2_2')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_2'"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_2", null, null));
 
         // truncate
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
     }
 
     @Test
     public void testDeleteWithInOperationsOnMutableTable() throws Throwable
     {
         // check for a clean state
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
 
         // fill the table, test UNLOGGED batch
         execute("BEGIN UNLOGGED BATCH " +
-                "UPDATE system_views.vt2 SET v1 =  1, v2 =  1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  2, v2 =  2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
-                "UPDATE system_views.vt2 SET v1 =  3, v2 =  3 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  4, v2 =  4 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_2' AND c2 = 'c2_3';" +
-                "UPDATE system_views.vt2 SET v1 =  5, v2 =  5 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5';" +
-                "UPDATE system_views.vt2 SET v1 =  6, v2 =  6 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_2' AND c2 = 'c2_6';" +
-                "UPDATE system_views.vt2 SET v1 =  7, v2 =  7 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 =  8, v2 =  8 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
-                "UPDATE system_views.vt2 SET v1 =  9, v2 =  9 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
-                "UPDATE system_views.vt2 SET v1 = 10, v2 = 10 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  1, v2 =  1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  2, v2 =  2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  3, v2 =  3 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  4, v2 =  4 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_2' AND c2 = 'c2_3';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  5, v2 =  5 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_1' AND c2 = 'c2_5';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  6, v2 =  6 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 = 'c1_2' AND c2 = 'c2_6';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  7, v2 =  7 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  8, v2 =  8 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 = 'c2_2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 =  9, v2 =  9 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_1' AND c2 = 'c2_1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 10, v2 = 10 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 = 'c1_2' AND c2 = 'c2_2';" +
                 "APPLY BATCH");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_1", "pk2_1", "c1_1", "c2_1", 1, 1L),
                 row("pk1_1", "pk2_2", "c1_1", "c2_2", 2, 2L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
@@ -828,8 +828,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_2", 10, 10L));
 
         // delete multiple partitions with IN
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 IN('pk2_1', 'pk2_2')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 IN('pk2_1', 'pk2_2')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_2", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
@@ -840,8 +840,8 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_1", "pk2_3", "c1_2", "c2_2", 10, 10L));
 
         // delete multiple rows via first-level IN
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 IN('c1_1', 'c1_2')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2_3' AND c1 IN('c1_1', 'c1_2')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_2", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
@@ -850,28 +850,28 @@ public class VirtualTableTest extends CQLTester
                 row("pk1_2", "pk2_2", "c1_1", "c2_2", 8, 8L));
 
         // delete multiple rows via second-level IN
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 IN('c2_1', 'c2_2')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_2' AND c1 = 'c1_1' AND c2 IN('c2_1', 'c2_2')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_1", 3, 3L),
                 row("pk1_2", "pk2_1", "c1_2", "c2_3", 4, 4L),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
                 row("pk1_2", "pk2_1", "c1_2", "c2_6", 6, 6L));
 
         // delete multiple rows with first-level IN and second-level range (one-sided limit)
-        execute("DELETE FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 IN('c1_1', 'c1_2') AND c2 <= 'c2_3'");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 IN('c1_1', 'c1_2') AND c2 <= 'c2_3'");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", 5, 5L),
                 row("pk1_2", "pk2_1", "c1_2", "c2_6", 6, 6L));
 
         // delete multiple rows via first-level and second-level IN
-        execute("DELETE v1 FROM system_views.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 IN('c1_1', 'c1_2') AND c2 IN('c2_5', 'c2_6')");
-        assertRowsIgnoringOrder(execute("SELECT * FROM system_views.vt2"),
+        execute("DELETE v1 FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2_1' AND c1 IN('c1_1', 'c1_2') AND c2 IN('c2_5', 'c2_6')");
+        assertRowsIgnoringOrder(execute("SELECT * FROM test_virtual_ks.vt2"),
                 row("pk1_2", "pk2_1", "c1_1", "c2_5", null, 5L),
                 row("pk1_2", "pk2_1", "c1_2", "c2_6", null, 6L));
 
         // truncate
-        execute("TRUNCATE system_views.vt2");
-        assertEmpty(execute("SELECT * FROM system_views.vt2"));
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
     }
 
     @Test
@@ -880,108 +880,108 @@ public class VirtualTableTest extends CQLTester
         // test that LOGGED batch doesn't allow virtual table updates
         assertInvalidMessage("Cannot include a virtual table statement in a logged batch",
                 "BEGIN BATCH " +
-                        "UPDATE system_views.vt2 SET v1 = 1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
-                        "UPDATE system_views.vt2 SET v1 = 2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
-                        "UPDATE system_views.vt2 SET v1 = 3 WHERE pk1 = 'pk1_3' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk1 = 'pk1_3' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
                         "APPLY BATCH");
 
         // test that UNLOGGED batch doesn't allow mixing updates for regular and virtual tables
         createTable("CREATE TABLE %s (pk1 text, pk2 text, c1 text, c2 text, v1 int, v2 bigint, PRIMARY KEY ((pk1, pk2), c1, c2))");
         assertInvalidMessage("Mutations for virtual and regular tables cannot exist in the same batch",
                 "BEGIN UNLOGGED BATCH " +
-                        "UPDATE system_views.vt2 SET v1 = 1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 1 WHERE pk1 = 'pk1_1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
                         "UPDATE %s                  SET v1 = 2 WHERE pk1 = 'pk1_2' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
-                        "UPDATE system_views.vt2 SET v1 = 3 WHERE pk1 = 'pk1_3' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk1 = 'pk1_3' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2';" +
                         "APPLY BATCH");
 
         // test that TIMESTAMP is (currently) rejected with INSERT and UPDATE
         assertInvalidMessage("Custom timestamp is not supported by virtual tables",
-                "INSERT INTO system_views.vt2 (pk1, pk2, c1, c2, v1, v2) VALUES ('pk1', 'pk2', 'c1', 'c2', 1, 11) USING TIMESTAMP 123456789");
+                "INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2, v1, v2) VALUES ('pk1', 'pk2', 'c1', 'c2', 1, 11) USING TIMESTAMP 123456789");
         assertInvalidMessage("Custom timestamp is not supported by virtual tables",
-                "UPDATE system_views.vt2 USING TIMESTAMP 123456789 SET v1 = 1, v2 = 11 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2'");
+                "UPDATE test_virtual_ks.vt2 USING TIMESTAMP 123456789 SET v1 = 1, v2 = 11 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2'");
 
         // test that TTL is (currently) rejected with INSERT and UPDATE
         assertInvalidMessage("Expiring columns are not supported by virtual tables",
-                "INSERT INTO system_views.vt2 (pk1, pk2, c1, c2, v1, v2) VALUES ('pk1', 'pk2', 'c1', 'c2', 1, 11) USING TTL 86400");
+                "INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2, v1, v2) VALUES ('pk1', 'pk2', 'c1', 'c2', 1, 11) USING TTL 86400");
         assertInvalidMessage("Expiring columns are not supported by virtual tables",
-                "UPDATE system_views.vt2 USING TTL 86400 SET v1 = 1, v2 = 11 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2'");
+                "UPDATE test_virtual_ks.vt2 USING TTL 86400 SET v1 = 1, v2 = 11 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2'");
 
         // test that LWT is (currently) rejected with BATCH
         assertInvalidMessage("Conditional BATCH statements cannot include mutations for virtual tables",
                 "BEGIN UNLOGGED BATCH " +
-                        "UPDATE system_views.vt2 SET v1 = 3 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2' IF v1 = 2;" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2' IF v1 = 2;" +
                         "APPLY BATCH");
 
         // test that LWT is (currently) rejected with INSERT and UPDATE
         assertInvalidMessage("Conditional updates are not supported by virtual tables",
-                "INSERT INTO system_views.vt2 (pk1, pk2, c1, c2, v1) VALUES ('pk1', 'pk2', 'c1', 'c2', 2) IF NOT EXISTS");
+                "INSERT INTO test_virtual_ks.vt2 (pk1, pk2, c1, c2, v1) VALUES ('pk1', 'pk2', 'c1', 'c2', 2) IF NOT EXISTS");
         assertInvalidMessage("Conditional updates are not supported by virtual tables",
-                "UPDATE system_views.vt2 SET v1 = 3 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2' IF v1 = 2");
+                "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 = 'c2' IF v1 = 2");
 
         // test that row DELETE without full primary key with equality relation is (currently) rejected
         assertInvalidMessage("Some partition key parts are missing: pk2",
-                "DELETE FROM system_views.vt2 WHERE pk1 = 'pk1' AND c1 = 'c1' AND c2 > 'c2'");
+                "DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND c1 = 'c1' AND c2 > 'c2'");
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function) for DELETE statements",
-                "DELETE FROM system_views.vt2 WHERE pk1 = 'pk1' AND pk2 > 'pk2' AND c1 = 'c1' AND c2 > 'c2'");
+                "DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND pk2 > 'pk2' AND c1 = 'c1' AND c2 > 'c2'");
         assertInvalidMessage("KEY column \"c2\" cannot be restricted as preceding column \"c1\" is not restricted",
-                "DELETE FROM system_views.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c2 > 'c2'");
+                "DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c2 > 'c2'");
         assertInvalidMessage("Clustering column \"c2\" cannot be restricted (preceding column \"c1\" is restricted by a non-EQ relation)",
-                "DELETE FROM system_views.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 > 'c1' AND c2 > 'c2'");
+                "DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 > 'c1' AND c2 > 'c2'");
         assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations",
-                "DELETE FROM system_views.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 > 'c2' IF v1 = 2");
+                "DELETE FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 > 'c2' IF v1 = 2");
 
         // test that column DELETE without full primary key with equality relation is (currently) rejected
         assertInvalidMessage("Range deletions are not supported for specific columns",
-                "DELETE v1 FROM system_views.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1'");
+                "DELETE v1 FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1'");
         assertInvalidMessage("Range deletions are not supported for specific columns",
-                "DELETE v1 FROM system_views.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 > 'c2'");
+                "DELETE v1 FROM test_virtual_ks.vt2 WHERE pk1 = 'pk1' AND pk2 = 'pk2' AND c1 = 'c1' AND c2 > 'c2'");
     }
 
     @Test
     public void testInvalidDMLOperationsOnReadOnlyTable() throws Throwable
     {
-        assertInvalidMessage("Modification is not supported by table system_views.vt1",
-                "INSERT INTO system_views.vt1 (pk, c, v1, v2) VALUES ('pk1_1', 'ck1_1', 11, 11)");
+        assertInvalidMessage("Modification is not supported by table test_virtual_ks.vt1",
+                "INSERT INTO test_virtual_ks.vt1 (pk, c, v1, v2) VALUES ('pk1_1', 'ck1_1', 11, 11)");
 
-        assertInvalidMessage("Modification is not supported by table system_views.vt1",
-                "UPDATE system_views.vt1 SET v1 = 11, v2 = 11 WHERE pk = 'pk1_1' AND c = 'ck1_1'");
+        assertInvalidMessage("Modification is not supported by table test_virtual_ks.vt1",
+                "UPDATE test_virtual_ks.vt1 SET v1 = 11, v2 = 11 WHERE pk = 'pk1_1' AND c = 'ck1_1'");
 
-        assertInvalidMessage("Modification is not supported by table system_views.vt1",
-                "DELETE FROM system_views.vt1 WHERE pk = 'pk1_1' AND c = 'ck1_1'");
+        assertInvalidMessage("Modification is not supported by table test_virtual_ks.vt1",
+                "DELETE FROM test_virtual_ks.vt1 WHERE pk = 'pk1_1' AND c = 'ck1_1'");
 
-        assertInvalidMessage("Error during truncate: Truncation is not supported by table system_views.vt1",
-                "TRUNCATE TABLE system_views.vt1");
+        assertInvalidMessage("Error during truncate: Truncation is not supported by table test_virtual_ks.vt1",
+                "TRUNCATE TABLE test_virtual_ks.vt1");
     }
 
     @Test
     public void testInvalidDDLOperationsOnVirtualKeyspaceAndReadOnlyTable() throws Throwable
     {
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "DROP KEYSPACE system_views");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "DROP KEYSPACE test_virtual_ks");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "ALTER KEYSPACE system_views WITH durable_writes = false");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "ALTER KEYSPACE test_virtual_ks WITH durable_writes = false");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "CREATE TABLE system_views.test (id int PRIMARY KEY)");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "CREATE TABLE test_virtual_ks.test (id int PRIMARY KEY)");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "CREATE TYPE system_views.type (id int)");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "CREATE TYPE test_virtual_ks.type (id int)");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "DROP TABLE system_views.vt1");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "DROP TABLE test_virtual_ks.vt1");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "ALTER TABLE system_views.vt1 DROP v1");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "ALTER TABLE test_virtual_ks.vt1 DROP v1");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "CREATE INDEX ON system_views.vt1 (v1)");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "CREATE INDEX ON test_virtual_ks.vt1 (v1)");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "CREATE MATERIALIZED VIEW system_views.mvt1 AS SELECT c, v1 FROM system_views.vt1 WHERE c IS NOT NULL PRIMARY KEY(c)");
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "CREATE MATERIALIZED VIEW test_virtual_ks.mvt1 AS SELECT c, v1 FROM test_virtual_ks.vt1 WHERE c IS NOT NULL PRIMARY KEY(c)");
 
-        assertInvalidMessage("Virtual keyspace 'system_views' is not user-modifiable",
-                             "CREATE TRIGGER test_trigger ON system_views.vt1 USING '" + TestTrigger.class.getName() + '\'');
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
+                             "CREATE TRIGGER test_trigger ON test_virtual_ks.vt1 USING '" + TestTrigger.class.getName() + '\'');
     }
 
     /**

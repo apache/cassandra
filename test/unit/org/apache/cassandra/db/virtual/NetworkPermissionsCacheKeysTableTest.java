@@ -33,13 +33,12 @@ import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 
 public class NetworkPermissionsCacheKeysTableTest extends CQLTester
 {
-    private static final String KS_NAME = "system_views";
+    private static final String KS_NAME = "vts";
 
     @SuppressWarnings("FieldCanBeLocal")
     private NetworkPermissionsCacheKeysTable table;
@@ -70,9 +69,6 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthenticatedUser.networkPermissionsCache.invalidate();
-
-        // prepared statements cache the metadata, but this class changes it for each test
-        // need to disable as LocalPartitioner doesn't allow tokens from other LocalPartitioners (object equality)
         disablePreparedReuseForTest();
     }
 
@@ -85,7 +81,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectAllWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute(format("SELECT * FROM %s.network_permissions_cache_keys", KS_NAME)));
+        assertEmpty(execute("SELECT * FROM vts.network_permissions_cache_keys"));
     }
 
     @Test
@@ -94,7 +90,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        assertRows(execute(format("SELECT * FROM %s.network_permissions_cache_keys", KS_NAME)),
+        assertRows(execute("SELECT * FROM vts.network_permissions_cache_keys"),
                 row("role_a"),
                 row("role_b"));
     }
@@ -102,7 +98,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
     @Test
     public void testSelectPartitionWhenPermissionsAreNotCached() throws Throwable
     {
-        assertEmpty(execute(format("SELECT * FROM %s.network_permissions_cache_keys WHERE role='role_a'", KS_NAME)));
+        assertEmpty(execute("SELECT * FROM vts.network_permissions_cache_keys WHERE role='role_a'"));
     }
 
     @Test
@@ -111,7 +107,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        assertRows(execute(format("SELECT * FROM %s.network_permissions_cache_keys WHERE role='role_a'", KS_NAME)),
+        assertRows(execute("SELECT * FROM vts.network_permissions_cache_keys WHERE role='role_a'"),
                 row("role_a"));
     }
 
@@ -121,9 +117,9 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        execute(format("DELETE FROM %s.network_permissions_cache_keys WHERE role='role_a'", KS_NAME));
+        execute("DELETE FROM vts.network_permissions_cache_keys WHERE role='role_a'");
 
-        assertRows(execute(format("SELECT * FROM %s.network_permissions_cache_keys", KS_NAME)),
+        assertRows(execute("SELECT * FROM vts.network_permissions_cache_keys"),
                 row("role_b"));
     }
 
@@ -132,9 +128,9 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
     {
         cachePermissions(ROLE_A);
 
-        execute(format("DELETE FROM %s.network_permissions_cache_keys WHERE role='invalid_role'", KS_NAME));
+        execute("DELETE FROM vts.network_permissions_cache_keys WHERE role='invalid_role'");
 
-        assertRows(execute(format("SELECT * FROM %s.network_permissions_cache_keys WHERE role='role_a'", KS_NAME)),
+        assertRows(execute("SELECT * FROM vts.network_permissions_cache_keys WHERE role='role_a'"),
                 row("role_a"));
     }
 
@@ -144,9 +140,9 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
         cachePermissions(ROLE_A);
         cachePermissions(ROLE_B);
 
-        execute(format("TRUNCATE %s.network_permissions_cache_keys", KS_NAME));
+        execute("TRUNCATE vts.network_permissions_cache_keys");
 
-        assertEmpty(execute(format("SELECT * FROM %s.network_permissions_cache_keys", KS_NAME)));
+        assertEmpty(execute("SELECT * FROM vts.network_permissions_cache_keys"));
     }
 
     @Test
@@ -157,8 +153,8 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
         // column deletion is not supported, however, this table has no regular columns, so it is not covered by tests
 
         // insert is not supported
-        assertInvalidMessage(format("Column modification is not supported by table %s.network_permissions_cache_keys", KS_NAME),
-                format("INSERT INTO %s.network_permissions_cache_keys (role) VALUES ('role_e')", KS_NAME));
+        assertInvalidMessage("Column modification is not supported by table vts.network_permissions_cache_keys",
+                "INSERT INTO vts.network_permissions_cache_keys (role) VALUES ('role_e')");
 
         // update is not supported, however, this table has no regular columns, so it is not covered by tests
     }
