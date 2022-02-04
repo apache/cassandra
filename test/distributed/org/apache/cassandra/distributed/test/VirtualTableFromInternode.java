@@ -18,7 +18,6 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -38,7 +37,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class VirtualTableFromInternode extends TestBaseImpl implements Serializable
+public class VirtualTableFromInternode extends TestBaseImpl
 {
     private static Cluster CLUSTER;
 
