@@ -90,7 +90,6 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
-    public static final Semver LATEST = new Semver(FBUtilities.getReleaseVersionString(), SemverType.LOOSE);
 
     protected static final List<Pair<Semver,Semver>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
         Pair.create(v22, v30),
@@ -164,9 +163,9 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** Will test this specific upgrade path **/
-        public TestCase singleUpgrade(Semver from, Semver to)
+        public TestCase singleUpgrade(Semver from)
         {
-            this.upgrade.add(new TestVersions(versions.getLatest(from), versions.getLatest(to)));
+            this.upgrade.add(new TestVersions(versions.getLatest(from), versions.getLatest(CURRENT)));
             return this;
         }
 
