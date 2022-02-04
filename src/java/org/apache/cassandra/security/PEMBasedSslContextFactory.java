@@ -326,10 +326,8 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
     }
 
     /**
-     * Enforces that the configuration specified a sole source of loading private keys - either {@code keystore}
-     * or {@code private_key}, not both. Here, the actual existence of the file specified by {@code keystore} does not
-     * matter. As far as there is a non-empty value for the {@code keystore}, it will be considered as a valid input
-     * for the check.
+     * Enforces that the configuration specified a sole source of loading private keys - either {@code keystore} (the
+     * actual file must exist) or {@code private_key}, not both.
      */
     private void enforceSinglePrivateKeySource()
     {
@@ -342,9 +340,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
     /**
      * Enforces that the configuration specified a sole source of loading trusted certificates - either {@code
-     * truststore} or {@code trusted_certificates}, not both. Here, the actual existence of the file specified by {@code
-     * truststore} does not matter. As far as there is a non-empty value for the {@code truststore}, it will be
-     * considered as a valid input for the check.
+     * truststore} (actual file must exist) or {@code trusted_certificates}, not both.
      */
     private void enforceSingleTurstedCertificatesSource()
     {
