@@ -1591,12 +1591,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getBatchlogReplayThrottleInKB()
     {
-        return DatabaseDescriptor.getBatchlogReplayThrottleInKB();
+        return DatabaseDescriptor.getBatchlogReplayThrottleInKiB();
     }
 
     public void setBatchlogReplayThrottleInKB(int throttleInKB)
     {
-        DatabaseDescriptor.setBatchlogReplayThrottleInKB(throttleInKB);
+        DatabaseDescriptor.setBatchlogReplayThrottleInKiB(throttleInKB);
         BatchlogManager.instance.setRate(throttleInKB);
     }
 
@@ -5971,8 +5971,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
-        DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
-        logger.info("updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
+        DatabaseDescriptor.setHintedHandoffThrottleInKiB(throttleInKB);
+        logger.info("updated hinted_handoff_throttle to {} KiB", throttleInKB);
     }
 
     @Override

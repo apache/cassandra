@@ -315,7 +315,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         private long allowableCDCBytes()
         {
-            return (long)DatabaseDescriptor.getCDCSpaceInMB() * 1024 * 1024;
+            return (long)DatabaseDescriptor.getCDCSpaceInMiB() * 1024 * 1024;
         }
 
         public void submitOverflowSizeRecalculation()

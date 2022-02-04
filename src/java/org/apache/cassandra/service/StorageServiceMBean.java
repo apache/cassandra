@@ -536,12 +536,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*
-      Update dynamic_snitch_update_interval_in_ms
+      Update dynamic_snitch_update_interval in ms
      */
     public void setDynamicUpdateInterval(int dynamicUpdateInterval);
 
     /*
-      Get dynamic_snitch_update_interval_in_ms
+      Get dynamic_snitch_update_interval in ms
      */
     public int getDynamicUpdateInterval();
 
@@ -796,7 +796,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the threshold for warning queries due to a large batch size */
     public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
 
-    /** Sets the hinted handoff throttle in kb per second, per delivery thread. */
+    /** Sets the hinted handoff throttle in KiB per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
 
     /**

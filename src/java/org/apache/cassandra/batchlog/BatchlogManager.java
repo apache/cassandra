@@ -208,7 +208,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             logger.trace("Replay cancelled as there are no peers in the ring.");
             return;
         }
-        setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKB());
+        setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKiB());
 
         UUID limitUuid = UUIDGen.maxTimeUUID(currentTimeMillis() - getBatchlogTimeout());
         ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
@@ -229,18 +229,18 @@ public class BatchlogManager implements BatchlogManagerMBean
      * Sets the rate for the current rate limiter. When {@code throttleInKB} is 0, this sets the rate to
      * {@link Double#MAX_VALUE} bytes per second.
      *
-     * @param throttleInKB throughput to set in KB per second
+     * @param throttleInKB throughput to set in KiB per second
      */
     public void setRate(final int throttleInKB)
     {
         int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
         if (endpointsCount > 0)
         {
-            int endpointThrottleInKB = throttleInKB / endpointsCount;
-            double throughput = endpointThrottleInKB == 0 ? Double.MAX_VALUE : endpointThrottleInKB * 1024.0;
+            int endpointThrottleInKiB = throttleInKB / endpointsCount;
+            double throughput = endpointThrottleInKiB == 0 ? Double.MAX_VALUE : endpointThrottleInKiB * 1024.0;
             if (rateLimiter.getRate() != throughput)
             {
-                logger.debug("Updating batchlog replay throttle to {} KB/s, {} KB/s per endpoint", throttleInKB, endpointThrottleInKB);
+                logger.debug("Updating batchlog replay throttle to {} KB/s, {} KB/s per endpoint", throttleInKB, endpointThrottleInKiB);
                 rateLimiter.setRate(throughput);
             }
         }

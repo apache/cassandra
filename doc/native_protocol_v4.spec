@@ -1103,7 +1103,7 @@ Table of Contents
                              - "VIEW": the timeout occured when a write involves
                                 VIEW update and failure to acqiure local view(MV)
                                 lock for key within timeout
-                             - "CDC": the timeout occured when cdc_total_space_in_mb is
+                             - "CDC": the timeout occured when cdc_total_space is
                                 exceeded when doing a write to data tracked by cdc.
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
@@ -1176,7 +1176,7 @@ Table of Contents
                              - "VIEW": the failure occured when a write involves
                                 VIEW update and failure to acqiure local view(MV)
                                 lock for key within timeout
-                             - "CDC": the failure occured when cdc_total_space_in_mb is
+                             - "CDC": the failure occured when cdc_total_space is
                                 exceeded when doing a write to data tracked by cdc.
 
     0x2000    Syntax_error: The submitted query has a syntax error.

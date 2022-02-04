@@ -65,7 +65,7 @@ public class LargeColumnTest extends TestBaseImpl
         try (ICluster cluster = init(builder()
                                      .withNodes(nodes)
                                      .withConfig(config ->
-                                                 config.set("commitlog_segment_size_in_mb", (columnSize * 3) >> 20)
+                                                 config.set("commitlog_segment_size", String.format("%dMiB",(columnSize * 3) >> 20))
                                                        .set("internode_application_send_queue_reserve_endpoint_capacity", String.format("%dB", (columnSize * 2)))
                                                        .set("internode_application_send_queue_reserve_global_capacity", String.format("%dB", (columnSize * 3)))
                                                        .set("write_request_timeout", "30s")

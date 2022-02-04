@@ -78,7 +78,7 @@ import org.apache.commons.lang3.StringUtils;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
-import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
+import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
@@ -381,35 +381,35 @@ public class DatabaseDescriptor
 
         if (conf.commitlog_sync == Config.CommitLogSync.batch)
         {
-            if (conf.commitlog_sync_period_in_ms != 0)
+            if (conf.commitlog_sync_period.toMilliseconds() != 0)
             {
-                throw new ConfigurationException("Batch sync specified, but commitlog_sync_period_in_ms found. Only specify commitlog_sync_batch_window_in_ms when using batch sync", false);
+                throw new ConfigurationException("Batch sync specified, but commitlog_sync_period found.", false);
             }
             logger.debug("Syncing log with batch mode");
         }
         else if (conf.commitlog_sync == CommitLogSync.group)
         {
-            if (Double.isNaN(conf.commitlog_sync_group_window_in_ms) || conf.commitlog_sync_group_window_in_ms <= 0d)
+            if (conf.commitlog_sync_group_window.toMilliseconds() == 0)
             {
-                throw new ConfigurationException("Missing value for commitlog_sync_group_window_in_ms: positive double value expected.", false);
+                throw new ConfigurationException("Missing value for commitlog_sync_group_window.", false);
             }
-            else if (conf.commitlog_sync_period_in_ms != 0)
+            else if (conf.commitlog_sync_period.toMilliseconds() != 0)
             {
-                throw new ConfigurationException("Group sync specified, but commitlog_sync_period_in_ms found. Only specify commitlog_sync_group_window_in_ms when using group sync", false);
+                throw new ConfigurationException("Group sync specified, but commitlog_sync_period found. Only specify commitlog_sync_group_window when using group sync", false);
             }
-            logger.debug("Syncing log with a group window of {}", conf.commitlog_sync_period_in_ms);
+            logger.debug("Syncing log with a group window of {}", conf.commitlog_sync_period.toString());
         }
         else
         {
-            if (conf.commitlog_sync_period_in_ms <= 0)
+            if (conf.commitlog_sync_period.toMilliseconds() <= 0)
             {
-                throw new ConfigurationException("Missing value for commitlog_sync_period_in_ms: positive integer expected", false);
+                throw new ConfigurationException("Missing value for commitlog_sync_period.", false);
             }
             else if (!Double.isNaN(conf.commitlog_sync_batch_window_in_ms))
             {
-                throw new ConfigurationException("commitlog_sync_period_in_ms specified, but commitlog_sync_batch_window_in_ms found.  Only specify commitlog_sync_period_in_ms when using periodic sync.", false);
+                throw new ConfigurationException("commitlog_sync_period specified, but commitlog_sync_batch_window found.  Only specify commitlog_sync_period when using periodic sync.", false);
             }
-            logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period_in_ms);
+            logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
@@ -551,16 +551,17 @@ public class DatabaseDescriptor
         else
             logger.info("Native transport rate-limiting disabled.");
 
-        if (conf.commitlog_total_space_in_mb == null)
+        if (conf.commitlog_total_space == null)
         {
-            final int preferredSizeInMB = 8192;
+            final int preferredSizeInMiB = 8192;
             // use 1/4 of available space.  See discussion on #10013 and #10199
             final long totalSpaceInBytes = tryGetSpace(conf.commitlog_directory, FileStore::getTotalSpace);
-            conf.commitlog_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
-                                                                         conf.commitlog_directory,
-                                                                         "commitlog_total_space_in_mb",
-                                                                         preferredSizeInMB,
-                                                                         totalSpaceInBytes, 1, 4);
+            int defaultSpaceInMiB = calculateDefaultSpaceInMiB("commitlog",
+                                                               conf.commitlog_directory,
+                                                               "commitlog_total_space",
+                                                               preferredSizeInMiB,
+                                                               totalSpaceInBytes, 1, 4);
+            conf.commitlog_total_space = SmallestDataStorageMebibytes.inMebibytes(defaultSpaceInMiB);
         }
 
         if (conf.cdc_enabled)
@@ -570,16 +571,17 @@ public class DatabaseDescriptor
                 conf.cdc_raw_directory = storagedirFor("cdc_raw");
             }
 
-            if (conf.cdc_total_space_in_mb == 0)
+            if (conf.cdc_total_space.toMebibytes() == 0)
             {
-                final int preferredSizeInMB = 4096;
+                final int preferredSizeInMiB = 4096;
                 // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
                 final long totalSpaceInBytes = tryGetSpace(conf.cdc_raw_directory, FileStore::getTotalSpace);
-                conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("cdc",
-                                                                       conf.cdc_raw_directory,
-                                                                       "cdc_total_space_in_mb",
-                                                                       preferredSizeInMB,
-                                                                       totalSpaceInBytes, 1, 8);
+                int defaultSpaceInMiB = calculateDefaultSpaceInMiB("cdc",
+                                                                   conf.cdc_raw_directory,
+                                                                   "cdc_total_space",
+                                                                   preferredSizeInMiB,
+                                                                   totalSpaceInBytes, 1, 8);
+                conf.cdc_total_space = SmallestDataStorageMebibytes.inMebibytes(defaultSpaceInMiB);
             }
 
             logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
@@ -611,7 +613,7 @@ public class DatabaseDescriptor
 
             dataFreeBytes = saturatedSum(dataFreeBytes, tryGetSpace(datadir, FileStore::getUnallocatedSpace));
         }
-        if (dataFreeBytes < 64 * ONE_GB) // 64 GB
+        if (dataFreeBytes < 64 * ONE_GIB) // 64 GB
             logger.warn("Only {} free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
                         FBUtilities.prettyPrintMemory(dataFreeBytes));
 
@@ -626,7 +628,7 @@ public class DatabaseDescriptor
 
             long freeBytes = tryGetSpace(conf.local_system_data_file_directory, FileStore::getUnallocatedSpace);
 
-            if (freeBytes < ONE_GB)
+            if (freeBytes < ONE_GIB)
                 logger.warn("Only {} free in the system data volume. Consider adding more capacity or removing obsolete snapshots",
                             FBUtilities.prettyPrintMemory(freeBytes));
         }
@@ -743,17 +745,17 @@ public class DatabaseDescriptor
         if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
             throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
 
-        if (conf.commitlog_segment_size_in_mb <= 0)
-            throw new ConfigurationException("commitlog_segment_size_in_mb must be positive, but was "
-                    + conf.commitlog_segment_size_in_mb, false);
-        else if (conf.commitlog_segment_size_in_mb >= 2048)
-            throw new ConfigurationException("commitlog_segment_size_in_mb must be smaller than 2048, but was "
-                    + conf.commitlog_segment_size_in_mb, false);
+        if (conf.commitlog_segment_size.toMebibytes() == 0)
+            throw new ConfigurationException("commitlog_segment_size must be positive, but was "
+                    + conf.commitlog_segment_size.toString(), false);
+        else if (conf.commitlog_segment_size.toMebibytes() >= 2048)
+            throw new ConfigurationException("commitlog_segment_size must be smaller than 2048, but was "
+                    + conf.commitlog_segment_size.toString(), false);
 
-        if (conf.max_mutation_size_in_kb == null)
-            conf.max_mutation_size_in_kb = conf.commitlog_segment_size_in_mb * 1024 / 2;
-        else if (conf.commitlog_segment_size_in_mb * 1024 < 2 * conf.max_mutation_size_in_kb)
-            throw new ConfigurationException("commitlog_segment_size_in_mb must be at least twice the size of max_mutation_size_in_kb / 1024", false);
+        if (conf.max_mutation_size == null)
+            conf.max_mutation_size = SmallestDataStorageKibibytes.inKibibytes(conf.commitlog_segment_size.toKibibytes() / 2);
+        else if (conf.commitlog_segment_size.toKibibytes() < 2 * conf.max_mutation_size.toKibibytes())
+            throw new ConfigurationException("commitlog_segment_size must be at least twice the size of max_mutation_size / 1024", false);
 
         // native transport encryption options
         if (conf.client_encryption_options != null)
@@ -904,20 +906,20 @@ public class DatabaseDescriptor
         return storagedir;
     }
 
-    static int calculateDefaultSpaceInMB(String type, String path, String setting, int preferredSizeInMB, long totalSpaceInBytes, long totalSpaceNumerator, long totalSpaceDenominator)
+    static int calculateDefaultSpaceInMiB(String type, String path, String setting, int preferredSizeInMiB, long totalSpaceInBytes, long totalSpaceNumerator, long totalSpaceDenominator)
     {
-        final long totalSizeInMB = totalSpaceInBytes / ONE_MIB;
-        final int minSizeInMB = Ints.saturatedCast(totalSpaceNumerator * totalSizeInMB / totalSpaceDenominator);
+        final long totalSizeInMiB = totalSpaceInBytes / ONE_MIB;
+        final int minSizeInMiB = Ints.saturatedCast(totalSpaceNumerator * totalSizeInMiB / totalSpaceDenominator);
 
-        if (minSizeInMB < preferredSizeInMB)
+        if (minSizeInMiB < preferredSizeInMiB)
         {
             logger.warn("Small {} volume detected at '{}'; setting {} to {}.  You can override this in cassandra.yaml",
-                        type, path, setting, minSizeInMB);
-            return minSizeInMB;
+                        type, path, setting, minSizeInMiB);
+            return minSizeInMiB;
         }
         else
         {
-            return preferredSizeInMB;
+            return preferredSizeInMiB;
         }
     }
 
@@ -1867,7 +1869,7 @@ public class DatabaseDescriptor
         conf.compaction_throughput = DataRateSpec.inMebibytesPerSecond(value);
     }
 
-    public static long getCompactionLargePartitionWarningThreshold() { return ByteUnit.MEBI_BYTES.toBytes(conf.compaction_large_partition_warning_threshold_mb); }
+    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytes(); }
 
     public static int getCompactionTombstoneWarningThreshold()
     {
@@ -1902,7 +1904,7 @@ public class DatabaseDescriptor
 
     public static long getMinFreeSpacePerDriveInBytes()
     {
-        return ByteUnit.MEBI_BYTES.toBytes(conf.min_free_space_per_drive_in_mb);
+        return conf.min_free_space_per_drive.toBytes();
     }
 
     public static boolean getDisableSTCSInL0()
@@ -2074,7 +2076,7 @@ public class DatabaseDescriptor
 
     public static int getMaxMutationSize()
     {
-        return (int) ByteUnit.KIBI_BYTES.toBytes(conf.max_mutation_size_in_kb);
+        return conf.max_mutation_size.toBytesAsInt();
     }
 
     public static int getTombstoneWarnThreshold()
@@ -2122,19 +2124,19 @@ public class DatabaseDescriptor
      */
     public static int getCommitLogSegmentSize()
     {
-        return (int) ByteUnit.MEBI_BYTES.toBytes(conf.commitlog_segment_size_in_mb);
+        return conf.commitlog_segment_size.toBytesAsInt();
     }
 
     /**
-     * Update commitlog_segment_size_in_mb in the tests.
+     * Update commitlog_segment_size in the tests.
      * {@link CommitLogSegmentManagerCDC} uses the CommitLogSegmentSize to estimate the file size on allocation.
      * It is important to keep the value unchanged for the estimation to be correct.
-     * @param sizeMegabytes
+     * @param sizeMebibytes
      */
     @VisibleForTesting /* Only for testing */
-    public static void setCommitLogSegmentSize(int sizeMegabytes)
+    public static void setCommitLogSegmentSize(int sizeMebibytes)
     {
-        conf.commitlog_segment_size_in_mb = sizeMegabytes;
+        conf.commitlog_segment_size = SmallestDataStorageMebibytes.inMebibytes(sizeMebibytes);
     }
 
     public static String getSavedCachesLocation()
@@ -2404,14 +2406,14 @@ public class DatabaseDescriptor
         conf.native_transport_allow_older_protocols = isEnabled;
     }
 
-    public static double getCommitLogSyncGroupWindow()
+    public static long getCommitLogSyncGroupWindow()
     {
-        return conf.commitlog_sync_group_window_in_ms;
+        return conf.commitlog_sync_group_window.toMilliseconds();
     }
 
-    public static void setCommitLogSyncGroupWindow(double windowMillis)
+    public static void setCommitLogSyncGroupWindow(long windowMillis)
     {
-        conf.commitlog_sync_group_window_in_ms = windowMillis;
+        conf.commitlog_sync_group_window = SmallestDurationMilliseconds.inMilliseconds(windowMillis);
     }
 
     public static int getNativeTransportReceiveQueueCapacityInBytes()
@@ -2478,20 +2480,20 @@ public class DatabaseDescriptor
 
     public static int getCommitLogSyncPeriod()
     {
-        return conf.commitlog_sync_period_in_ms;
+        return conf.commitlog_sync_period.toMillisecondsAsInt();
     }
 
     public static long getPeriodicCommitLogSyncBlock()
     {
-        Integer blockMillis = conf.periodic_commitlog_sync_lag_block_in_ms;
+        SmallestDurationMilliseconds blockMillis = conf.periodic_commitlog_sync_lag_block;
         return blockMillis == null
                ? (long)(getCommitLogSyncPeriod() * 1.5)
-               : blockMillis;
+               : blockMillis.toMilliseconds();
     }
 
     public static void setCommitLogSyncPeriod(int periodMillis)
     {
-        conf.commitlog_sync_period_in_ms = periodMillis;
+        conf.commitlog_sync_period = SmallestDurationMilliseconds.inMilliseconds(periodMillis);
     }
 
     public static Config.CommitLogSync getCommitLogSync()
@@ -2656,20 +2658,20 @@ public class DatabaseDescriptor
 
     public static int getDynamicUpdateInterval()
     {
-        return conf.dynamic_snitch_update_interval_in_ms;
+        return conf.dynamic_snitch_update_interval.toMillisecondsAsInt();
     }
     public static void setDynamicUpdateInterval(int dynamicUpdateInterval)
     {
-        conf.dynamic_snitch_update_interval_in_ms = dynamicUpdateInterval;
+        conf.dynamic_snitch_update_interval = SmallestDurationMilliseconds.inMilliseconds(dynamicUpdateInterval);
     }
 
     public static int getDynamicResetInterval()
     {
-        return conf.dynamic_snitch_reset_interval_in_ms;
+        return conf.dynamic_snitch_reset_interval.toMillisecondsAsInt();
     }
     public static void setDynamicResetInterval(int dynamicResetInterval)
     {
-        conf.dynamic_snitch_reset_interval_in_ms = dynamicResetInterval;
+        conf.dynamic_snitch_reset_interval = SmallestDurationMilliseconds.inMilliseconds(dynamicResetInterval);
     }
 
     public static double getDynamicBadnessThreshold()
@@ -2703,24 +2705,24 @@ public class DatabaseDescriptor
         conf.client_encryption_options = update.apply(conf.client_encryption_options);
     }
 
-    public static int getHintedHandoffThrottleInKB()
+    public static int getHintedHandoffThrottleInKiB()
     {
-        return conf.hinted_handoff_throttle_in_kb;
+        return conf.hinted_handoff_throttle.toKibibytesAsInt();
     }
 
-    public static void setHintedHandoffThrottleInKB(int throttleInKB)
+    public static void setHintedHandoffThrottleInKiB(int throttleInKiB)
     {
-        conf.hinted_handoff_throttle_in_kb = throttleInKB;
+        conf.hinted_handoff_throttle = SmallestDataStorageKibibytes.inKibibytes(throttleInKiB);
     }
 
-    public static int getBatchlogReplayThrottleInKB()
+    public static int getBatchlogReplayThrottleInKiB()
     {
-        return conf.batchlog_replay_throttle_in_kb;
+        return conf.batchlog_replay_throttle.toKibibytesAsInt();
     }
 
-    public static void setBatchlogReplayThrottleInKB(int throttleInKB)
+    public static void setBatchlogReplayThrottleInKiB(int throttleInKiB)
     {
-        conf.batchlog_replay_throttle_in_kb = throttleInKB;
+        conf.batchlog_replay_throttle = SmallestDataStorageKibibytes.inKibibytes(throttleInKiB);
     }
 
     public static int getMaxHintsDeliveryThreads()
@@ -2730,12 +2732,12 @@ public class DatabaseDescriptor
 
     public static int getHintsFlushPeriodInMS()
     {
-        return conf.hints_flush_period_in_ms;
+        return conf.hints_flush_period.toMillisecondsAsInt();
     }
 
     public static long getMaxHintsFileSize()
     {
-        return  ByteUnit.MEBI_BYTES.toBytes(conf.max_hints_file_size_in_mb);
+        return  conf.max_hints_file_size.toBytes();
     }
 
     public static ParameterizedClass getHintsCompression()
@@ -2818,9 +2820,9 @@ public class DatabaseDescriptor
         return conf.disk_optimization_estimate_percentile;
     }
 
-    public static long getTotalCommitlogSpaceInMB()
+    public static long getTotalCommitlogSpaceInMiB()
     {
-        return conf.commitlog_total_space_in_mb;
+        return conf.commitlog_total_space.toMebibytes();
     }
 
     public static boolean shouldMigrateKeycacheOnCompaction()
@@ -3215,20 +3217,20 @@ public class DatabaseDescriptor
         return conf.cdc_raw_directory;
     }
 
-    public static int getCDCSpaceInMB()
+    public static int getCDCSpaceInMiB()
     {
-        return conf.cdc_total_space_in_mb;
+        return conf.cdc_total_space.toMebibytesAsInt();
     }
 
     @VisibleForTesting
-    public static void setCDCSpaceInMB(int input)
+    public static void setCDCSpaceInMiB(int input)
     {
-        conf.cdc_total_space_in_mb = input;
+        conf.cdc_total_space = SmallestDataStorageMebibytes.inMebibytes(input);
     }
 
     public static int getCDCDiskCheckInterval()
     {
-        return conf.cdc_free_space_check_interval_ms;
+        return conf.cdc_free_space_check_interval.toMillisecondsAsInt();
     }
 
     @VisibleForTesting

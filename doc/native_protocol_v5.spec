@@ -1298,7 +1298,7 @@ Table of Contents
                              - "VIEW": the timeout occured when a write involves
                                VIEW update and failure to acqiure local view(MV)
                                lock for key within timeout
-                             - "CDC": the timeout occured when cdc_total_space_in_mb is
+                             - "CDC": the timeout occured when cdc_total_space is
                                exceeded when doing a write to data tracked by cdc.
                 <contentions> is a [short] that describes the number of contentions occured during the CAS operation.
                               The field only presents when the <writeType> is "CAS".
@@ -1381,7 +1381,7 @@ Table of Contents
                              - "VIEW": the failure occured when a write involves
                                VIEW update and failure to acqiure local view(MV)
                                lock for key within timeout
-                             - "CDC": the failure occured when cdc_total_space_in_mb is
+                             - "CDC": the failure occured when cdc_total_space is
                                exceeded when doing a write to data tracked by cdc.
     0x1600    CDC_WRITE_FAILURE: // todo
     0x1700    CAS_WRITE_UNKNOWN: An exception occured due to contended Compare And Set write/update.
