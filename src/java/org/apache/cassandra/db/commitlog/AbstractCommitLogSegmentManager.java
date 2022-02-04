@@ -383,7 +383,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     private long unusedCapacity()
     {
-        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
+        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMiB() * 1024 * 1024;
         long currentSize = size.get();
         logger.trace("Total active commitlog segment space used is {} out of {}", currentSize, total);
         return total - currentSize;

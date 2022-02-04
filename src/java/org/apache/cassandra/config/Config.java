@@ -272,8 +272,10 @@ public class Config
     public volatile Integer concurrent_compactors;
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec compaction_throughput = new DataRateSpec("16MiB/s");
-    public volatile int compaction_large_partition_warning_threshold_mb = 100;
-    public int min_free_space_per_drive_in_mb = 50;
+    @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public volatile SmallestDataStorageMebibytes compaction_large_partition_warning_threshold = new SmallestDataStorageMebibytes("100MiB");
+    @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes min_free_space_per_drive = new SmallestDataStorageMebibytes("50MiB");
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
     public volatile int concurrent_materialized_view_builders = 1;
@@ -305,23 +307,29 @@ public class Config
 
     // Commit Log
     public String commitlog_directory;
-    public Integer commitlog_total_space_in_mb;
+    @Replaces(oldName = "commitlog_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes commitlog_total_space;
     public CommitLogSync commitlog_sync;
 
     /**
      * @deprecated since 4.0 This value was near useless, and we're not using it anymore
      */
     public double commitlog_sync_batch_window_in_ms = Double.NaN;
-    public double commitlog_sync_group_window_in_ms = Double.NaN;
-    public int commitlog_sync_period_in_ms;
-    public int commitlog_segment_size_in_mb = 32;
+    @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converters.MILLIS_DOUBLE_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds commitlog_sync_group_window = new SmallestDurationMilliseconds("0ms");
+    @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds commitlog_sync_period = new SmallestDurationMilliseconds("0ms");
+    @Replaces(oldName = "commitlog_segment_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes commitlog_segment_size = new SmallestDataStorageMebibytes("32MiB");
     public ParameterizedClass commitlog_compression;
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
-    public Integer periodic_commitlog_sync_lag_block_in_ms;
+    @Replaces(oldName = "periodic_commitlog_sync_lag_block_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds periodic_commitlog_sync_lag_block;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
-    public Integer max_mutation_size_in_kb;
+    @Replaces(oldName = "max_mutation_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public SmallestDataStorageKibibytes max_mutation_size;
 
     // Change-data-capture logs
     public boolean cdc_enabled = false;
@@ -329,16 +337,20 @@ public class Config
     // When false, new CDC mutations can always be added. But it will remove the oldest CDC commit log segment on full.
     public volatile boolean cdc_block_writes = true;
     public String cdc_raw_directory;
-    public int cdc_total_space_in_mb = 0;
-    public int cdc_free_space_check_interval_ms = 250;
+    @Replaces(oldName = "cdc_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes cdc_total_space = new SmallestDataStorageMebibytes("0MiB");
+    @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds cdc_free_space_check_interval = new SmallestDurationMilliseconds("250ms");
 
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
-    public int dynamic_snitch_update_interval_in_ms = 100;
-    public int dynamic_snitch_reset_interval_in_ms = 600000;
+    @Replaces(oldName = "dynamic_snitch_update_interval_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds dynamic_snitch_update_interval = new SmallestDurationMilliseconds("100ms");
+    @Replaces(oldName = "dynamic_snitch_reset_interval_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds dynamic_snitch_reset_interval = new SmallestDurationMilliseconds("10m");
     public double dynamic_snitch_badness_threshold = 1.0;
 
     public String failure_detector = "FailureDetector";
@@ -348,11 +360,17 @@ public class Config
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
-    public int hinted_handoff_throttle_in_kb = 1024;
-    public int batchlog_replay_throttle_in_kb = 1024;
+    @Replaces(oldName = "hinted_handoff_throttle_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public SmallestDataStorageKibibytes hinted_handoff_throttle = new SmallestDataStorageKibibytes("1024KiB");
+    @Replaces(oldName = "batchlog_replay_throttle_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public SmallestDataStorageKibibytes batchlog_replay_throttle = new SmallestDataStorageKibibytes("1024KiB");
     public int max_hints_delivery_threads = 2;
-    public int hints_flush_period_in_ms = 10000;
-    public int max_hints_file_size_in_mb = 128;
+
+    @Replaces(oldName = "hints_flush_period_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds hints_flush_period = new SmallestDurationMilliseconds("10s");
+    @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes max_hints_file_size = new SmallestDataStorageMebibytes("128MiB");
+
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
 

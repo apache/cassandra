@@ -451,7 +451,7 @@ public class DatabaseDescriptorTest
         int spaceInBytes = 999 * 1024 * 1024;
 
         assertEquals(666, // total size is less than preferred, so return lower limit
-                     DatabaseDescriptor.calculateDefaultSpaceInMB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
+                     DatabaseDescriptor.calculateDefaultSpaceInMiB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
 
         // check preferred size is used for a small storage volume
         preferredInMB = 100;
@@ -460,7 +460,7 @@ public class DatabaseDescriptorTest
         spaceInBytes = 999 * 1024 * 1024;
 
         assertEquals(100, // total size is more than preferred so keep the configured limit
-                     DatabaseDescriptor.calculateDefaultSpaceInMB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
+                     DatabaseDescriptor.calculateDefaultSpaceInMiB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
     }
 
     @Test

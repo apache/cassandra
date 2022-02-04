@@ -122,9 +122,9 @@ public class HintedHandoffNodetoolTest extends TestBaseImpl
     @Test
     public void testThrottle()
     {
-        Integer throttleInKB = cluster.get(node).callOnInstance(DatabaseDescriptor::getHintedHandoffThrottleInKB);
+        Integer throttleInKB = cluster.get(node).callOnInstance(DatabaseDescriptor::getHintedHandoffThrottleInKiB);
         cluster.get(node).nodetoolResult("sethintedhandoffthrottlekb", String.valueOf(throttleInKB * 2)).asserts().success();
-        Integer newThrottleInKB = cluster.get(node).callOnInstance(DatabaseDescriptor::getHintedHandoffThrottleInKB);
+        Integer newThrottleInKB = cluster.get(node).callOnInstance(DatabaseDescriptor::getHintedHandoffThrottleInKiB);
         assertEquals(throttleInKB * 2, newThrottleInKB.intValue());
     }
 
