@@ -295,7 +295,7 @@ public class DatabaseDescriptorTest
     public void testExceptionsForInvalidConfigValues() {
         try
         {
-            DatabaseDescriptor.setColumnIndexCacheSize(-1);
+            DatabaseDescriptor.setColumnIndexCacheSizeInKB(-1);
             fail("Should have received a ConfigurationException column_index_cache_size_in_kb = -1");
         }
         catch (ConfigurationException ignored) { }
@@ -303,7 +303,7 @@ public class DatabaseDescriptorTest
 
         try
         {
-            DatabaseDescriptor.setColumnIndexCacheSize(2 * 1024 * 1024);
+            DatabaseDescriptor.setColumnIndexCacheSizeInKB(2 * 1024 * 1024);
             fail("Should have received a ConfigurationException column_index_cache_size_in_kb = 2GiB");
         }
         catch (ConfigurationException ignored) { }
@@ -311,7 +311,7 @@ public class DatabaseDescriptorTest
 
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(-1);
+            DatabaseDescriptor.setColumnIndexSizeInKB(-1);
             fail("Should have received a ConfigurationException column_index_size_in_kb = -1");
         }
         catch (ConfigurationException ignored) { }
@@ -319,7 +319,7 @@ public class DatabaseDescriptorTest
 
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(2 * 1024 * 1024);
+            DatabaseDescriptor.setColumnIndexSizeInKB(2 * 1024 * 1024);
             fail("Should have received a ConfigurationException column_index_size_in_kb = 2GiB");
         }
         catch (ConfigurationException ignored) { }
