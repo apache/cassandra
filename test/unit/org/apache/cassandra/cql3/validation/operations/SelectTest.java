@@ -3193,18 +3193,99 @@ public class SelectTest extends CQLTester
     }
 
     @Test
-    public void testLikeQueryWithoutFiltering() throws Throwable
+    public void testLikePrefixQueryWithoutFiltering() throws Throwable
     {
         createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1, k2))");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+
         assertRows(execute("SELECT k2 from %s where k2 like '%%Doe'"), row("John Doe"));
     }
 
     @Test
-    public void testLikeQueryWithFiltering() throws Throwable
+    public void testLikePrefixQueryWithFiltering() throws Throwable
     {
         createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
         execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+
         assertRows(execute("SELECT k2 from %s where k2 like '%%Doe' ALLOW FILTERING"), row("John Doe"));
     }
+
+
+    @Test
+    public void testLikeSuffixQueryWithoutFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1, k2))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+
+        assertRows(execute("SELECT k2 from %s where k2 like 'John%%'"), row("John Doe"));
+
+        UntypedResultSet resultSet = execute("SELECT k2 from %s where k2 like 'Jacob%%'");
+        assert resultSet.isEmpty() == true;
+
+    }
+
+    @Test
+    public void testLikeSuffixQueryWithFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+
+        assertRows(execute("SELECT k2 from %s where k2 like 'John%%' ALLOW FILTERING"), row("John Doe"));
+
+        UntypedResultSet resultSet = execute("SELECT k2 from %s where k2 like 'Jacob%%' ALLOW FILTERING");
+        assert resultSet.isEmpty() == true;
+    }
+
+    @Test
+    public void testLikeContainsQueryWithoutFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1, k2))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+
+        assertRows(execute("SELECT k2 from %s where k2 like '%%John%%'"), row("John Doe"));
+
+        UntypedResultSet resultSet = execute("SELECT k2 from %s where k2 like '%%Jacob%%'");
+        assert resultSet.isEmpty() == true;
+
+    }
+
+    @Test
+    public void testLikeContainsQueryWithFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+
+        assertRows(execute("SELECT k2 from %s where k2 like '%%John2%%' ALLOW FILTERING"), row("John2 Doe2"));
+
+        UntypedResultSet resultSet = execute("SELECT k2 from %s where k2 like '%%Jacob%%' ALLOW FILTERING");
+        assert resultSet.isEmpty() == true;
+    }
+
+    @Test
+    public void testLikeMatchQueryWithoutFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1, k2))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+
+        assertRows(execute("SELECT k2 from %s where k2 like 'John Doe'"), row("John Doe"));
+        assertRows(execute("SELECT k2 from %s where k2 like 'John2 Doe2'"), row("John2 Doe2"));
+
+    }
+
+    @Test
+    public void testLikeMatchQueryWithFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 uuid, k2 text, PRIMARY KEY (k1))");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John Doe')");
+        execute("INSERT INTO %s (k1, k2) VALUES(uuid(), 'John2 Doe2')");
+
+        assertRows(execute("SELECT k2 from %s where k2 like 'John Doe' ALLOW FILTERING"), row("John Doe"));
+        assertRows(execute("SELECT k2 from %s where k2 like 'John2 Doe2' ALLOW FILTERING"), row("John2 Doe2"));
+
+    }
+
 }
