@@ -52,4 +52,15 @@ public final class SmallestDataStorageMebibytes extends DataStorageSpec
     {
         return new SmallestDataStorageMebibytes(mebibytes, DataStorageSpec.DataStorageUnit.MEBIBYTES);
     }
+
+    /**
+     * Creates a {@code SmallestDataStorageMebibytes} of the specified amount of bytes.
+     *
+     * @param bytes the amount of bytes
+     * @return a data storage
+     */
+    public static SmallestDataStorageMebibytes inBytes(long bytes)
+    {
+        return new SmallestDataStorageMebibytes(bytes, DataStorageSpec.DataStorageUnit.BYTES);
+    }
 }

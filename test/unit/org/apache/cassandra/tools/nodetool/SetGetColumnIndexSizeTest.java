@@ -42,7 +42,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidColumnIndexSize(null, "Required parameters are missing: column_index_size_in_kb", 1);
+        assertSetInvalidColumnIndexSize(null, "Required parameters are missing: column_index_size", 1);
     }
 
     @Test
@@ -66,20 +66,20 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testNegative()
     {
-        assertSetInvalidColumnIndexSize("-7", "column_index_size_in_kb must be positive value < 2097152, but was -7", 2);
+        assertSetInvalidColumnIndexSize("-7", "Invalid data storage: value must be positive, but was -7", 2);
     }
 
     @Test
     public void testInvalidValue()
     {
-        assertSetInvalidColumnIndexSize("2097152", "column_index_size_in_kb must be positive value < 2097152, but was 2097152", 2);
+        assertSetInvalidColumnIndexSize("2097152", "column_index_size must be positive value < 2097151B, but was 2147483648B", 2);
     }
 
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidColumnIndexSize("1.2", "column_index_size_in_kb: can not convert \"1.2\" to a int", 1);
-        assertSetInvalidColumnIndexSize("value", "column_index_size_in_kb: can not convert \"value\" to a int", 1);
+        assertSetInvalidColumnIndexSize("1.2", "column_index_size: can not convert \"1.2\" to a int", 1);
+        assertSetInvalidColumnIndexSize("value", "column_index_size: can not convert \"value\" to a int", 1);
     }
 
     private static void assertSetGetValidColumnIndexSize(int columnIndexSizeInKB)
@@ -105,6 +105,6 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     {
         ToolResult tool = invokeNodetool("getcolumnindexsize");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Current value for column_index_size_in_kb: " + expected + " KiB");
+        assertThat(tool.getStdout()).contains("Current value for column_index_size: " + expected + " KiB");
     }
 }

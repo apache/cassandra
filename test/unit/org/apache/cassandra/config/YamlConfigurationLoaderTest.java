@@ -91,8 +91,8 @@ public class YamlConfigurationLoaderTest
                                  .put("commitlog_sync", commitLogSync)
                                  .put("seed_provider", seedProvider)
                                  .put("client_encryption_options", encryptionOptions)
-                                 .put("internode_send_buff_size_in_bytes", 5)
-                                 .put("internode_recv_buff_size_in_bytes", 5)
+                                 .put("internode_socket_send_buffer_size", "5B")
+                                 .put("internode_socket_receive_buffer_size", "5B")
                                  .build();
 
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
@@ -101,8 +101,8 @@ public class YamlConfigurationLoaderTest
         assertEquals(seedProvider, config.seed_provider); // Check a parameterized class
         assertEquals(false, config.client_encryption_options.optional); // Check a nested object
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
-        assertEquals(5, config.internode_socket_send_buffer_size_in_bytes); // Check names backward compatibility (CASSANDRA-17141)
-        assertEquals(5, config.internode_socket_receive_buffer_size_in_bytes); // Check names backward compatibility (CASSANDRA-17141)
+        assertEquals(new DataStorageSpec("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
+        assertEquals(new DataStorageSpec("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
     }
 
     @Test

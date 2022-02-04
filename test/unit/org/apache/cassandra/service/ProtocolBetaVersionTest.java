@@ -35,7 +35,7 @@ public class ProtocolBetaVersionTest extends CQLTester
     public static void setUp()
     {
         requireNetwork();
-        DatabaseDescriptor.setBatchSizeWarnThresholdInKB(1);
+        DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(1);
     }
 
     private ProtocolVersion getBetaVersion()

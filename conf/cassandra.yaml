@@ -582,8 +582,8 @@ concurrent_materialized_view_writes: 32
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
 # If omitted, Cassandra will set both to 1/4 the size of the heap.
-# memtable_heap_space_in_mb: 2048
-# memtable_offheap_space_in_mb: 2048
+# memtable_heap_space: 2048MiB
+# memtable_offheap_space: 2048MiB
 
 # memtable_cleanup_threshold is deprecated. The default calculation
 # is the only reasonable choice. See the comments on  memtable_flush_writers
@@ -620,7 +620,7 @@ memtable_allocation_type: heap_buffers
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
 #
-# repair_session_space_in_mb:
+# repair_session_space:
 
 # Total space to use for commit logs on disk.
 #
@@ -771,7 +771,7 @@ native_transport_port: 9042
 # The maximum size of allowed frame. Frame (requests) larger than this will
 # be rejected as invalid. The default is 16MB. If you're changing this parameter,
 # you may want to adjust max_value_size_in_mb accordingly. This should be positive and less than 2048.
-# native_transport_max_frame_size_in_mb: 16
+# native_transport_max_frame_size: 16MiB
 
 # The maximum number of concurrent client connections.
 # The default is -1, which means unlimited.
@@ -836,7 +836,7 @@ rpc_keepalive: true
 # /proc/sys/net/ipv4/tcp_wmem
 # /proc/sys/net/ipv4/tcp_wmem
 # and 'man tcp'
-# internode_socket_send_buffer_size_in_bytes:
+# internode_socket_send_buffer_size:
 
 # Uncomment to set socket buffer size for internode communication
 # Note that when setting this, the buffer size is limited by net.core.wmem_max
@@ -878,7 +878,7 @@ snapshot_links_per_second: 0
 # - but, Cassandra will keep the collation index in memory for hot
 #   rows (as part of the key cache), so a larger granularity means
 #   you can cache more hot rows
-column_index_size_in_kb: 64
+column_index_size: 64KiB
 
 # Per sstable indexed key cache entries (the collation index in memory
 # mentioned above) exceeding this size will not be held on heap.
@@ -887,7 +887,7 @@ column_index_size_in_kb: 64
 #
 # Note that this size refers to the size of the
 # serialized index information and not the size of the partition.
-column_index_cache_size_in_kb: 2
+column_index_cache_size: 2KiB
 
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
@@ -1011,17 +1011,17 @@ request_timeout: 10000ms
 # See (CASSANDRA-14358) for details.
 #
 # The amount of time to wait for internode tcp connections to establish.
-# internode_tcp_connect_timeout_in_ms: 2000
+# internode_tcp_connect_timeout: 2000ms
 #
 # The amount of time unacknowledged data is allowed on a connection before we throw out the connection
 # Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
 # (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
 # which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-# internode_tcp_user_timeout_in_ms: 30000
+# internode_tcp_user_timeout: 30000ms
 
 # The amount of time unacknowledged data is allowed on a streaming connection.
 # The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-# internode_streaming_tcp_user_timeout_in_ms: 300000
+# internode_streaming_tcp_user_timeout: 300000ms
 
 # Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 # and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
@@ -1029,7 +1029,7 @@ request_timeout: 10000ms
 #
 # The basic per-link limit is consumed in isolation before any endpoint or global limit is imposed.
 # Each node-pair has three links: urgent, small and large.  So any given node may have a maximum of
-# N*3*(internode_application_send_queue_capacity_in_bytes+internode_application_receive_queue_capacity_in_bytes)
+# N*3*(internode_application_send_queue_capacity+internode_application_receive_queue_capacity)
 # messages queued without any coordination between them although in practice, with token-aware routing, only RF*tokens
 # nodes should need to communicate with significant bandwidth.
 #
@@ -1038,12 +1038,12 @@ request_timeout: 10000ms
 # The global limit is imposed on all messages exceeding the per-link limit, simultaneously with the per-endpoint limit,
 # on all links to or from any node in the cluster.
 #
-# internode_application_send_queue_capacity_in_bytes: 4194304                       #4MiB
-# internode_application_send_queue_reserve_endpoint_capacity_in_bytes: 134217728    #128MiB
-# internode_application_send_queue_reserve_global_capacity_in_bytes: 536870912      #512MiB
-# internode_application_receive_queue_capacity_in_bytes: 4194304                    #4MiB
-# internode_application_receive_queue_reserve_endpoint_capacity_in_bytes: 134217728 #128MiB
-# internode_application_receive_queue_reserve_global_capacity_in_bytes: 536870912   #512MiB
+# internode_application_send_queue_capacity: 4MiB
+# internode_application_send_queue_reserve_endpoint_capacity: 128MiB
+# internode_application_send_queue_reserve_global_capacity: 512MiB
+# internode_application_receive_queue_capacity: 4MiB
+# internode_application_receive_queue_reserve_endpoint_capacity: 128MiB
+# internode_application_receive_queue_reserve_global_capacity: 512MiB
 
 
 # How long before a node logs slow queries. Select queries that take longer than
@@ -1385,10 +1385,10 @@ replica_filtering_protection:
 
 # Log WARN on any multiple-partition batch size exceeding this value. 5kb per batch by default.
 # Caution should be taken on increasing the size of this threshold as it can lead to node instability.
-batch_size_warn_threshold_in_kb: 5
+batch_size_warn_threshold: 5KiB
 
 # Fail any multiple-partition batch exceeding this value. 50kb (10x warn threshold) by default.
-batch_size_fail_threshold_in_kb: 50
+batch_size_fail_threshold: 50KiB
 
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
@@ -1411,7 +1411,7 @@ compaction_tombstone_warning_threshold: 100000
 # Maximum size of any value in SSTables. Safety measure to detect SSTable corruption
 # early. Any value size larger than this threshold will result into marking an SSTable
 # as corrupted. This should be positive and less than 2048.
-# max_value_size_in_mb: 256
+# max_value_size: 256MiB
 
 # ** Impact on keyspace creation **
 # If replication factor is not mentioned as part of keyspace creation, default_keyspace_rf would apply.

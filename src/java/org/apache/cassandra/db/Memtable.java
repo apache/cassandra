@@ -87,8 +87,8 @@ public class Memtable implements Comparable<Memtable>
 
     private static MemtablePool createMemtableAllocatorPool()
     {
-        long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMb() << 20;
-        long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMb() << 20;
+        long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMiB() << 20;
+        long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMiB() << 20;
         final float cleaningThreshold = DatabaseDescriptor.getMemtableCleanupThreshold();
         final MemtableCleaner cleaner = ColumnFamilyStore::flushLargestMemtable;
         switch (DatabaseDescriptor.getMemtableAllocationType())

@@ -93,7 +93,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("concurrent_reads", 2)
                 .set("memtable_flush_writers", 1)
                 .set("concurrent_compactors", 1)
-                .set("memtable_heap_space_in_mb", 10)
+                .set("memtable_heap_space", "10MiB")
                 .set("commitlog_sync", "batch")
                 .set("storage_port", storage_port)
                 .set("native_transport_port", native_transport_port)

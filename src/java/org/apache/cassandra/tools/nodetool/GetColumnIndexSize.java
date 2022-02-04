@@ -28,6 +28,6 @@ public class GetColumnIndexSize extends NodeToolCmd
     @Override
     protected void execute(NodeProbe probe)
     {
-        probe.output().out.println("Current value for column_index_size_in_kb: " + probe.getColumnIndexSizeInKB() + " KiB");
+        probe.output().out.println("Current value for column_index_size: " + probe.getColumnIndexSizeInKB() + " KiB");
     }
 }

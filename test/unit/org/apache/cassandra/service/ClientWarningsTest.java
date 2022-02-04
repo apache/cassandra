@@ -60,7 +60,7 @@ public class ClientWarningsTest extends CQLTester
     public static void setUp()
     {
         requireNetwork();
-        DatabaseDescriptor.setBatchSizeWarnThresholdInKB(1);
+        DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(1);
     }
 
     @Test
