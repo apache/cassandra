@@ -302,6 +302,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             if (isRunning())
                 throw new IllegalStateException("Can not start a instance that is already running");
             isShutdown = false;
+            // if the delegate isn't running, remove so it can be recreated
+            if (delegate != null && delegate.isShutdown())
+                delegate = null;
             if (!broadcastAddress.equals(config.broadcastAddress()))
             {
                 // previous address != desired address, so cleanup
