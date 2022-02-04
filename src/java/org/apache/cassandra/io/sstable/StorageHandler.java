@@ -53,21 +53,28 @@ public abstract class StorageHandler
     public enum ReloadReason
     {
         /** New nodes joined or left */
-        TOPOLOGY_CHANGED,
+        TOPOLOGY_CHANGED(true),
         /** Data was truncated */
-        TRUNCATION,
-        /** Ordinary periodic reload */
-        PERIODIC,
-        /** Data was replayed either from the commit log or a batch log */
-        DATA_REPLAYED,
-        /** When repair task started */
-        REPAIR,
-        /** A request over forced by users to reload. */
-        USER_REQUESTED,
+        TRUNCATION(false),
         /** SSTables might have been added or removed, regardless of a specific reason
          * e.g. it could be compaction or flushing or regions being updated which caused
          * new sstables to arrive */
-        SSTABLES_CHANGED
+        SSTABLES_CHANGED(false),
+        /** Data was replayed either from the commit log or a batch log */
+        DATA_REPLAYED(true),
+        /** When repair task started */
+        REPAIR(true),
+        /** A request over forced by users to reload. */
+        USER_REQUESTED(true);
+
+        /** When this is true, a reload operation will reload all sstables even those that could
+         * have been flushed by other nodes. */
+        public final boolean loadFlushedSSTables;
+
+        ReloadReason(boolean loadFlushedSSTables)
+        {
+            this.loadFlushedSSTables = loadFlushedSSTables;
+        }
     }
 
     protected final TableMetadataRef metadata;
