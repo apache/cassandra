@@ -642,7 +642,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              .set("write_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.writeTimeoutNanos)))
                              .set("cas_contention_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.contentionTimeoutNanos)))
                              .set("request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.requestTimeoutNanos)))
-                             .set("memtable_heap_space_in_mb", 1)
+                             .set("memtable_heap_space", "1mb")
                              .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
                              .set("file_cache_size_in_mb", 16)
                              .set("use_deterministic_table_id", true)

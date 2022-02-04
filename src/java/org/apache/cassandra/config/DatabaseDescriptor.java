@@ -79,7 +79,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
-import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
+import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
@@ -469,24 +469,22 @@ public class DatabaseDescriptor
         if (conf.file_cache_round_up == null)
             conf.file_cache_round_up = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.spinning;
 
-        if (conf.memtable_offheap_space_in_mb == null)
-            conf.memtable_offheap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
-        if (conf.memtable_offheap_space_in_mb < 0)
-            throw new ConfigurationException("memtable_offheap_space_in_mb must be positive, but was " + conf.memtable_offheap_space_in_mb, false);
+        if (conf.memtable_offheap_space == null)
+            conf.memtable_offheap_space = SmallestDataStorageMebibytes.inMebibytes( (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
         // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
-        if (conf.memtable_heap_space_in_mb == null)
-            conf.memtable_heap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
-        if (conf.memtable_heap_space_in_mb <= 0)
-            throw new ConfigurationException("memtable_heap_space_in_mb must be positive, but was " + conf.memtable_heap_space_in_mb, false);
-        logger.info("Global memtable on-heap threshold is enabled at {}MB", conf.memtable_heap_space_in_mb);
-        if (conf.memtable_offheap_space_in_mb == 0)
+        if (conf.memtable_heap_space == null)
+            conf.memtable_heap_space = SmallestDataStorageMebibytes.inMebibytes((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        if (conf.memtable_heap_space.toMebibytesAsInt() == 0)
+            throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
+        logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
+        if (conf.memtable_offheap_space.toMebibytesAsInt() == 0)
             logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
         else
-            logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
+            logger.info("Global memtable off-heap threshold is enabled at {}", conf.memtable_offheap_space);
 
         if (conf.repair_session_max_tree_depth != null)
         {
-            logger.warn("repair_session_max_tree_depth has been deprecated and should be removed from cassandra.yaml. Use repair_session_space_in_mb instead");
+            logger.warn("repair_session_max_tree_depth has been deprecated and should be removed from cassandra.yaml. Use repair_session_space instead");
             if (conf.repair_session_max_tree_depth < 10)
                 throw new ConfigurationException("repair_session_max_tree_depth should not be < 10, but was " + conf.repair_session_max_tree_depth);
             if (conf.repair_session_max_tree_depth > 20)
@@ -497,27 +495,30 @@ public class DatabaseDescriptor
             conf.repair_session_max_tree_depth = 20;
         }
 
-        if (conf.repair_session_space_in_mb == null)
-            conf.repair_session_space_in_mb = Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576)));
+        if (conf.repair_session_space == null)
+            conf.repair_session_space = SmallestDataStorageMebibytes.inMebibytes(Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
-        if (conf.repair_session_space_in_mb < 1)
-            throw new ConfigurationException("repair_session_space_in_mb must be > 0, but was " + conf.repair_session_space_in_mb);
-        else if (conf.repair_session_space_in_mb > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space_in_mb of " + conf.repair_session_space_in_mb + " megabytes is likely to cause heap pressure");
+        if (conf.repair_session_space.toMebibytes() < 1)
+            throw new ConfigurationException("repair_session_space must be > 0, but was " + conf.repair_session_space);
+        else if (conf.repair_session_space.toMebibytesAsInt() > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A repair_session_space of " + conf.repair_session_space+ " mebibytes is likely to cause heap pressure");
 
         checkForLowestAcceptedTimeouts(conf);
 
-        checkValidForByteConversion(conf.native_transport_max_frame_size_in_mb,
-                                    "native_transport_max_frame_size_in_mb", ByteUnit.MEBI_BYTES);
+        long valueInBytes = conf.native_transport_max_frame_size.toBytes();
+        if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException(String.format("%s must be positive value < %dB, but was %dB",
+                                                           "native_transport_max_frame_size",
+                                                           conf.native_transport_max_frame_size.getUnit()
+                                                                .convert(Integer.MAX_VALUE, DataStorageSpec.DataStorageUnit.BYTES),
+                                                           valueInBytes),
+                                             false);
+        }
 
-        checkValidForByteConversion(conf.column_index_size_in_kb,
-                                    "column_index_size_in_kb", ByteUnit.KIBI_BYTES);
-
-        checkValidForByteConversion(conf.column_index_cache_size_in_kb,
-                                    "column_index_cache_size_in_kb", ByteUnit.KIBI_BYTES);
-
-        checkValidForByteConversion(conf.batch_size_warn_threshold_in_kb,
-                                    "batch_size_warn_threshold_in_kb", ByteUnit.KIBI_BYTES);
+        checkValidForByteConversion(conf.column_index_size, "column_index_size");
+        checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
+        checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
         if (conf.native_transport_max_negotiable_protocol_version != null)
             logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
@@ -770,11 +771,11 @@ public class DatabaseDescriptor
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
-        if (conf.max_value_size_in_mb <= 0)
-            throw new ConfigurationException("max_value_size_in_mb must be positive", false);
-        else if (conf.max_value_size_in_mb >= 2048)
-            throw new ConfigurationException("max_value_size_in_mb must be smaller than 2048, but was "
-                    + conf.max_value_size_in_mb, false);
+        if (conf.max_value_size.toMebibytesAsInt() == 0)
+            throw new ConfigurationException("max_value_size must be positive", false);
+        else if (conf.max_value_size.toMebibytesAsInt() >= 2048)
+            throw new ConfigurationException("max_value_size must be smaller than 2048, but was "
+                    + conf.max_value_size.toString(), false);
 
         switch (conf.disk_optimization_strategy)
         {
@@ -796,26 +797,30 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("legacy_ssl_storage_port_enabled is true (enabled) with internode encryption disabled (none). Enable encryption or disable the legacy ssl storage port.");
             }
         }
-        Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
-        if (maxMessageSize != null)
+
+        if (conf.internode_max_message_size != null)
         {
-            if (maxMessageSize > conf.internode_application_receive_queue_reserve_endpoint_capacity_in_bytes)
-                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_receive_queue_reserve_endpoint_capacity_in_bytes", false);
+            long maxMessageSize = conf.internode_max_message_size.toBytes();
 
-            if (maxMessageSize > conf.internode_application_receive_queue_reserve_global_capacity_in_bytes)
-                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_receive_queue_reserve_global_capacity_in_bytes", false);
+            if (maxMessageSize > conf.internode_application_receive_queue_reserve_endpoint_capacity.toBytes())
+                throw new ConfigurationException("internode_max_message_size must no exceed internode_application_receive_queue_reserve_endpoint_capacity", false);
 
-            if (maxMessageSize > conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes)
-                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_send_queue_reserve_endpoint_capacity_in_bytes", false);
+            if (maxMessageSize > conf.internode_application_receive_queue_reserve_global_capacity.toBytes())
+                throw new ConfigurationException("internode_max_message_size must no exceed internode_application_receive_queue_reserve_global_capacity", false);
 
-            if (maxMessageSize > conf.internode_application_send_queue_reserve_global_capacity_in_bytes)
-                throw new ConfigurationException("internode_max_message_size_in_mb must no exceed internode_application_send_queue_reserve_global_capacity_in_bytes", false);
+            if (maxMessageSize > conf.internode_application_send_queue_reserve_endpoint_capacity.toBytes())
+                throw new ConfigurationException("internode_max_message_size must no exceed internode_application_send_queue_reserve_endpoint_capacity", false);
+
+            if (maxMessageSize > conf.internode_application_send_queue_reserve_global_capacity.toBytes())
+                throw new ConfigurationException("internode_max_message_size must no exceed internode_application_send_queue_reserve_global_capacity", false);
         }
         else
         {
-            conf.internode_max_message_size_in_bytes =
-                Math.min(conf.internode_application_receive_queue_reserve_endpoint_capacity_in_bytes,
-                         conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes);
+            long maxMessageSizeInBytes =
+            Math.min(conf.internode_application_receive_queue_reserve_endpoint_capacity.toBytes(),
+                     conf.internode_application_send_queue_reserve_endpoint_capacity.toBytes());
+
+            conf.internode_max_message_size = DataStorageSpec.inBytes(maxMessageSizeInBytes);
         }
 
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
@@ -901,7 +906,7 @@ public class DatabaseDescriptor
 
     static int calculateDefaultSpaceInMB(String type, String path, String setting, int preferredSizeInMB, long totalSpaceInBytes, long totalSpaceNumerator, long totalSpaceDenominator)
     {
-        final long totalSizeInMB = totalSpaceInBytes / ONE_MB;
+        final long totalSizeInMB = totalSpaceInBytes / ONE_MIB;
         final int minSizeInMB = Ints.saturatedCast(totalSpaceNumerator * totalSizeInMB / totalSpaceDenominator);
 
         if (minSizeInMB < preferredSizeInMB)
@@ -1061,13 +1066,46 @@ public class DatabaseDescriptor
     @VisibleForTesting
     static void checkForLowestAcceptedTimeouts(Config conf)
     {
-        conf.read_request_timeout = max("read_request_timeout", conf.read_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
-        conf.range_request_timeout = max("range_request_timeout", conf.range_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
-        conf.request_timeout = max("request_timeout", conf.request_timeout, LOWEST_ACCEPTED_TIMEOUT);
-        conf.write_request_timeout = max("write_request_timeout", conf.write_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
-        conf.cas_contention_timeout = max("cas_contention_timeout", conf.cas_contention_timeout, LOWEST_ACCEPTED_TIMEOUT);
-        conf.counter_write_request_timeout = max("counter_write_request_timeout", conf.counter_write_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
-        conf.truncate_request_timeout = max("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+        if(conf.read_request_timeout.toMillisecondsAsInt() < LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("read_request_timeout", conf.read_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.read_request_timeout = new SmallestDurationMilliseconds("10ms");
+        }
+
+        if(conf.range_request_timeout.toMillisecondsAsInt() < LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("range_request_timeout", conf.range_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.range_request_timeout = new SmallestDurationMilliseconds("10ms");
+        }
+
+        if(conf.request_timeout.toMillisecondsAsInt() < LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("request_timeout", conf.request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.request_timeout = new SmallestDurationMilliseconds("10ms");
+        }
+
+        if(conf.write_request_timeout.toMillisecondsAsInt() < LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("write_request_timeout", conf.write_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.write_request_timeout = new SmallestDurationMilliseconds("10ms");
+        }
+
+        if(conf.cas_contention_timeout.toMillisecondsAsInt() < LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("cas_contention_timeout", conf.cas_contention_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.cas_contention_timeout = new SmallestDurationMilliseconds("10ms");
+        }
+
+        if(conf.counter_write_request_timeout.toMillisecondsAsInt()< LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("counter_write_request_timeout", conf.counter_write_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.counter_write_request_timeout = new SmallestDurationMilliseconds("10ms");
+        }
+        if(conf.truncate_request_timeout.toMillisecondsAsInt() < LOWEST_ACCEPTED_TIMEOUT.toMillisecondsAsInt())
+        {
+            logInfo("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
+        }
     }
 
     private static void logInfo(String property, SmallestDurationMilliseconds actualValue, SmallestDurationMilliseconds lowestAcceptedValue)
@@ -1378,12 +1416,12 @@ public class DatabaseDescriptor
 
     public static int getMaxValueSize()
     {
-        return conf.max_value_size_in_mb * 1024 * 1024;
+        return conf.max_value_size.toBytesAsInt();
     }
 
     public static void setMaxValueSize(int maxValueSizeInBytes)
     {
-        conf.max_value_size_in_mb = maxValueSizeInBytes / 1024 / 1024;
+        conf.max_value_size = SmallestDataStorageMebibytes.inBytes(maxValueSizeInBytes);
     }
 
     /**
@@ -1470,54 +1508,56 @@ public class DatabaseDescriptor
 
     public static int getColumnIndexSize()
     {
-        return (int) ByteUnit.KIBI_BYTES.toBytes(conf.column_index_size_in_kb);
+        return conf.column_index_size.toBytesAsInt();
     }
 
-    public static int getColumnIndexSizeInKB()
+    public static int getColumnIndexSizeInKiB()
     {
-        return conf.column_index_size_in_kb;
+        return conf.column_index_size.toKibibytesAsInt();
     }
 
     public static void setColumnIndexSize(int val)
     {
-        checkValidForByteConversion(val, "column_index_size_in_kb", ByteUnit.KIBI_BYTES);
-        conf.column_index_size_in_kb = val;
+        SmallestDataStorageKibibytes memory = SmallestDataStorageKibibytes.inKibibytes(val);
+        checkValidForByteConversion(memory, "column_index_size");
+        conf.column_index_size = SmallestDataStorageKibibytes.inKibibytes(val);
     }
 
     public static int getColumnIndexCacheSize()
     {
-        return (int) ByteUnit.KIBI_BYTES.toBytes(conf.column_index_cache_size_in_kb);
+        return conf.column_index_cache_size.toBytesAsInt();
     }
 
-    public static int getColumnIndexCacheSizeInKB()
+    public static int getColumnIndexCacheSizeInKiB()
     {
-        return conf.column_index_cache_size_in_kb;
+        return conf.column_index_cache_size.toKibibytesAsInt();
     }
 
     public static void setColumnIndexCacheSize(int val)
     {
-        checkValidForByteConversion(val, "column_index_cache_size_in_kb", ByteUnit.KIBI_BYTES);
-        conf.column_index_cache_size_in_kb = val;
+        SmallestDataStorageKibibytes memory = SmallestDataStorageKibibytes.inKibibytes(val);
+        checkValidForByteConversion(memory, "column_index_cache_size");
+        conf.column_index_cache_size = SmallestDataStorageKibibytes.inKibibytes(val);
     }
 
     public static int getBatchSizeWarnThreshold()
     {
-        return (int) ByteUnit.KIBI_BYTES.toBytes(conf.batch_size_warn_threshold_in_kb);
+        return conf.batch_size_warn_threshold.toBytesAsInt();
     }
 
-    public static int getBatchSizeWarnThresholdInKB()
+    public static int getBatchSizeWarnThresholdInKiB()
     {
-        return conf.batch_size_warn_threshold_in_kb;
+        return conf.batch_size_warn_threshold.toKibibytesAsInt();
     }
 
     public static long getBatchSizeFailThreshold()
     {
-        return ByteUnit.KIBI_BYTES.toBytes(conf.batch_size_fail_threshold_in_kb);
+        return conf.batch_size_fail_threshold.toBytesAsInt();
     }
 
     public static int getBatchSizeFailThresholdInKB()
     {
-        return conf.batch_size_fail_threshold_in_kb;
+        return conf.batch_size_fail_threshold.toKibibytesAsInt();
     }
 
     public static int getUnloggedBatchAcrossPartitionsWarnThreshold()
@@ -1525,15 +1565,16 @@ public class DatabaseDescriptor
         return conf.unlogged_batch_across_partitions_warn_threshold;
     }
 
-    public static void setBatchSizeWarnThresholdInKB(int threshold)
+    public static void setBatchSizeWarnThresholdInKiB(int threshold)
     {
-        checkValidForByteConversion(threshold, "batch_size_warn_threshold_in_kb", ByteUnit.KIBI_BYTES);
-        conf.batch_size_warn_threshold_in_kb = threshold;
+        SmallestDataStorageKibibytes storage = SmallestDataStorageKibibytes.inKibibytes(threshold);
+        checkValidForByteConversion(storage, "batch_size_warn_threshold");
+        conf.batch_size_warn_threshold = SmallestDataStorageKibibytes.inKibibytes(threshold);
     }
 
     public static void setBatchSizeFailThresholdInKB(int threshold)
     {
-        conf.batch_size_fail_threshold_in_kb = threshold;
+        conf.batch_size_fail_threshold = SmallestDataStorageKibibytes.inKibibytes(threshold);
     }
 
     public static Collection<String> getInitialTokens()
@@ -2198,83 +2239,83 @@ public class DatabaseDescriptor
 
     public static int getInternodeSocketSendBufferSizeInBytes()
     {
-        return conf.internode_socket_send_buffer_size_in_bytes;
+        return conf.internode_socket_send_buffer_size.toBytesAsInt();
     }
 
     public static int getInternodeSocketReceiveBufferSizeInBytes()
     {
-        return conf.internode_socket_receive_buffer_size_in_bytes;
+        return conf.internode_socket_receive_buffer_size.toBytesAsInt();
     }
 
     public static int getInternodeApplicationSendQueueCapacityInBytes()
     {
-        return conf.internode_application_send_queue_capacity_in_bytes;
+        return conf.internode_application_send_queue_capacity.toBytesAsInt();
     }
 
     public static int getInternodeApplicationSendQueueReserveEndpointCapacityInBytes()
     {
-        return conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes;
+        return conf.internode_application_send_queue_reserve_endpoint_capacity.toBytesAsInt();
     }
 
     public static int getInternodeApplicationSendQueueReserveGlobalCapacityInBytes()
     {
-        return conf.internode_application_send_queue_reserve_global_capacity_in_bytes;
+        return conf.internode_application_send_queue_reserve_global_capacity.toBytesAsInt();
     }
 
     public static int getInternodeApplicationReceiveQueueCapacityInBytes()
     {
-        return conf.internode_application_receive_queue_capacity_in_bytes;
+        return conf.internode_application_receive_queue_capacity.toBytesAsInt();
     }
 
     public static int getInternodeApplicationReceiveQueueReserveEndpointCapacityInBytes()
     {
-        return conf.internode_application_receive_queue_reserve_endpoint_capacity_in_bytes;
+        return conf.internode_application_receive_queue_reserve_endpoint_capacity.toBytesAsInt();
     }
 
     public static int getInternodeApplicationReceiveQueueReserveGlobalCapacityInBytes()
     {
-        return conf.internode_application_receive_queue_reserve_global_capacity_in_bytes;
+        return conf.internode_application_receive_queue_reserve_global_capacity.toBytesAsInt();
     }
 
     public static int getInternodeTcpConnectTimeoutInMS()
     {
-        return conf.internode_tcp_connect_timeout_in_ms;
+        return conf.internode_tcp_connect_timeout.toMillisecondsAsInt();
     }
 
     public static void setInternodeTcpConnectTimeoutInMS(int value)
     {
-        conf.internode_tcp_connect_timeout_in_ms = value;
+        conf.internode_tcp_connect_timeout = SmallestDurationMilliseconds.inMilliseconds(value);
     }
 
     public static int getInternodeTcpUserTimeoutInMS()
     {
-        return conf.internode_tcp_user_timeout_in_ms;
+        return conf.internode_tcp_user_timeout.toMillisecondsAsInt();
     }
 
     public static void setInternodeTcpUserTimeoutInMS(int value)
     {
-        conf.internode_tcp_user_timeout_in_ms = value;
+        conf.internode_tcp_user_timeout = SmallestDurationMilliseconds.inMilliseconds(value);
     }
 
     public static int getInternodeStreamingTcpUserTimeoutInMS()
     {
-        return conf.internode_streaming_tcp_user_timeout_in_ms;
+        return conf.internode_streaming_tcp_user_timeout.toMillisecondsAsInt();
     }
 
     public static void setInternodeStreamingTcpUserTimeoutInMS(int value)
     {
-        conf.internode_streaming_tcp_user_timeout_in_ms = value;
+        conf.internode_streaming_tcp_user_timeout = SmallestDurationMilliseconds.inMilliseconds(value);
     }
 
     public static int getInternodeMaxMessageSizeInBytes()
     {
-        return conf.internode_max_message_size_in_bytes;
+        return conf.internode_max_message_size.toBytesAsInt();
     }
 
     @VisibleForTesting
     public static void setInternodeMaxMessageSizeInBytes(int value)
     {
-        conf.internode_max_message_size_in_bytes = value;
+        conf.internode_max_message_size = DataStorageSpec.inBytes(value);
     }
 
     public static boolean startNativeTransport()
@@ -2320,12 +2361,12 @@ public class DatabaseDescriptor
 
     public static int getNativeTransportMaxFrameSize()
     {
-        return (int) ByteUnit.MEBI_BYTES.toBytes(conf.native_transport_max_frame_size_in_mb);
+        return conf.native_transport_max_frame_size.toBytesAsInt();
     }
 
     public static void setNativeTransportMaxFrameSize(int bytes)
     {
-        conf.native_transport_max_frame_size_in_mb = (int) ByteUnit.MEBI_BYTES.fromBytes(bytes);
+        conf.native_transport_max_frame_size = SmallestDataStorageMebibytes.inMebibytes(bytes);
     }
 
     public static long getNativeTransportMaxConcurrentConnections()
@@ -2953,14 +2994,14 @@ public class DatabaseDescriptor
         return conf.inter_dc_tcp_nodelay;
     }
 
-    public static long getMemtableHeapSpaceInMb()
+    public static long getMemtableHeapSpaceInMiB()
     {
-        return conf.memtable_heap_space_in_mb;
+        return conf.memtable_heap_space.toMebibytes();
     }
 
-    public static long getMemtableOffheapSpaceInMb()
+    public static long getMemtableOffheapSpaceInMiB()
     {
-        return conf.memtable_offheap_space_in_mb;
+        return conf.memtable_offheap_space.toMebibytes();
     }
 
     public static Config.MemtableAllocationType getMemtableAllocationType()
@@ -2984,21 +3025,21 @@ public class DatabaseDescriptor
         conf.repair_session_max_tree_depth = depth;
     }
 
-    public static int getRepairSessionSpaceInMegabytes()
+    public static int getRepairSessionSpaceInMiB()
     {
-        return conf.repair_session_space_in_mb;
+        return conf.repair_session_space.toMebibytesAsInt();
     }
 
-    public static void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
+    public static void setRepairSessionSpaceInMiB(int sizeInMiB)
     {
-        if (sizeInMegabytes < 1)
-            throw new ConfigurationException("Cannot set repair_session_space_in_mb to " + sizeInMegabytes +
-                                             " < 1 megabyte");
-        else if (sizeInMegabytes > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space_in_mb of " + conf.repair_session_space_in_mb +
-                        " megabytes is likely to cause heap pressure.");
+        if (sizeInMiB < 1)
+            throw new ConfigurationException("Cannot set repair_session_space to " + sizeInMiB +
+                                             " < 1 mebibyte");
+        else if (sizeInMiB > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A repair_session_space of " + conf.repair_session_space +
+                        " is likely to cause heap pressure.");
 
-        conf.repair_session_space_in_mb = sizeInMegabytes;
+        conf.repair_session_space = SmallestDataStorageMebibytes.inMebibytes(sizeInMiB);
     }
 
     public static Float getMemtableCleanupThreshold()
@@ -3420,11 +3461,18 @@ public class DatabaseDescriptor
     /**
      * Ensures passed in configuration value is positive and will not overflow when converted to Bytes
      */
-    private static void checkValidForByteConversion(int val, final String name, final ByteUnit unit)
+    private static void checkValidForByteConversion(final SmallestDataStorageKibibytes value, String name)
     {
-        if (val < 0 || unit.willOverflowInBytes(val))
-            throw new ConfigurationException(String.format("%s must be positive value < %d, but was %d",
-                                                           name, unit.overflowThreshold(), val), false);
+        long valueInBytes = value.toBytes();
+        if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException(String.format("%s must be positive value < %dB, but was %dB",
+                                                           name,
+                                                           value.getUnit()
+                                                                .convert(Integer.MAX_VALUE, DataStorageSpec.DataStorageUnit.BYTES),
+                                                           valueInBytes),
+                                             false);
+        }
     }
 
     public static int getValidationPreviewPurgeHeadStartInSec()

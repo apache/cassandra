@@ -22,6 +22,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 
@@ -39,11 +40,9 @@ public class LoadOldYAMLBackwardCompatibilityTest
     public void testConfigurationLoaderBackwardCompatibility()
     {
         Config config = DatabaseDescriptor.loadConfig();
-        //Confirm parameters were successfully read with their old names and the default values in cassandra-old.yaml
-        /*assertEquals(5, config.internode_socket_send_buffer_size_in_bytes);
-        assertEquals(5, config.internode_socket_receive_buffer_size_in_bytes);
+
         assertEquals(DurationSpec.inMilliseconds(10800000), config.max_hint_window);
-        assertEquals(DurationSpec.inHours(0), config.max_hint_window);*/
+        assertEquals(DurationSpec.inHours(3), config.max_hint_window);
         assertEquals(DurationSpec.inMilliseconds(0), config.native_transport_idle_timeout);
         assertEquals(DurationSpec.inMilliseconds(10000), config.request_timeout);
         assertEquals(DurationSpec.inMilliseconds(5000), config.read_request_timeout);
@@ -54,7 +53,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DurationSpec.inMilliseconds(60000), config.truncate_request_timeout);
         assertEquals(DurationSpec.inSeconds(300), config.streaming_keep_alive_period);
         assertEquals(DurationSpec.inMilliseconds(500), config.slow_query_log_timeout);
-        /*assertNull(config.memtable_heap_space);
+        assertNull(config.memtable_heap_space);
         assertNull(config.memtable_offheap_space);
         assertNull( config.repair_session_space);
         assertEquals(DataStorageSpec.inBytes(4194304), config.internode_application_send_queue_capacity);
@@ -68,9 +67,9 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DurationSpec.inMilliseconds(300000), config.internode_streaming_tcp_user_timeout);
         assertEquals(DataStorageSpec.inMebibytes(16), config.native_transport_max_frame_size);
         assertEquals(DataStorageSpec.inMebibytes(256), config.max_value_size);
-        assertEquals(DataStorageSpec.inKibibytes(64), config.column_index_size);
+        assertEquals(DataStorageSpec.inKibibytes(4), config.column_index_size);
         assertEquals(DataStorageSpec.inKibibytes(2), config.column_index_cache_size);
-        assertEquals(DataStorageSpec.inKibibytes(5), config.batch_size_warn_threshold);*/
+        assertEquals(DataStorageSpec.inKibibytes(5), config.batch_size_warn_threshold);
         assertEquals(DataRateSpec.inMebibytesPerSecond(64), config.compaction_throughput);
         //assertEquals(DataStorageSpec.inMebibytes(50), config.min_free_space_per_drive);
         assertEquals(DataRateSpec.inMebibytesPerSecond(23841858).toString(), config.stream_throughput_outbound.toString());

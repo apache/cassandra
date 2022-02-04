@@ -73,7 +73,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                                     SchemaLoader.standardCFMD(KEYSPACE, CF_SMALL_MAX_VALUE));
 
         maxValueSize = DatabaseDescriptor.getMaxValueSize();
-        DatabaseDescriptor.setMaxValueSize(1024 * 1024); // set max value size to 1MB
+        DatabaseDescriptor.setMaxValueSize(1024 * 1024); // set max value size to 1MiB
     }
 
     @AfterClass

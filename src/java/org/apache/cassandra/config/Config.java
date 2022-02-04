@@ -148,14 +148,17 @@ public class Config
     public Integer concurrent_replicates = null;
 
     public int memtable_flush_writers = 0;
-    public Integer memtable_heap_space_in_mb;
-    public Integer memtable_offheap_space_in_mb;
+    @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes memtable_heap_space;
+    @Replaces(oldName = "memtable_offheap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes memtable_offheap_space;
     public Float memtable_cleanup_threshold = null;
 
     // Limit the maximum depth of repair session merkle trees
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
-    public volatile Integer repair_session_space_in_mb = null;
+    @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public volatile SmallestDataStorageMebibytes repair_session_space = null;
 
     public volatile boolean use_offheap_merkle_trees = true;
 
@@ -183,39 +186,52 @@ public class Config
     public String broadcast_rpc_address;
     public boolean rpc_keepalive = true;
 
-    public Integer internode_max_message_size_in_bytes;
+    @Replaces(oldName = "internode_max_message_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated=true)
+    public DataStorageSpec internode_max_message_size;
 
-    @Replaces(oldName = "internode_send_buff_size_in_bytes", deprecated = true)
-    public int internode_socket_send_buffer_size_in_bytes = 0;
-    @Replaces(oldName = "internode_recv_buff_size_in_bytes", deprecated = true)
-    public int internode_socket_receive_buffer_size_in_bytes = 0;
+    @Replaces(oldName = "internode_socket_send_buffer_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    @Replaces(oldName = "internode_send_buff_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_socket_send_buffer_size = new DataStorageSpec("0B");
+    @Replaces(oldName = "internode_socket_receive_buffer_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    @Replaces(oldName = "internode_recv_buff_size_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_socket_receive_buffer_size = new DataStorageSpec("0B");
+
+    @Replaces(oldName = "internode_application_send_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_application_send_queue_capacity = new DataStorageSpec("4MiB");
+    @Replaces(oldName = "internode_application_send_queue_reserve_endpoint_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_application_send_queue_reserve_endpoint_capacity = new DataStorageSpec("128MiB");
+    @Replaces(oldName = "internode_application_send_queue_reserve_global_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_application_send_queue_reserve_global_capacity = new DataStorageSpec("512MiB");
 
     // TODO: derive defaults from system memory settings?
-    public int internode_application_send_queue_capacity_in_bytes = 1 << 22; // 4MiB
-    public int internode_application_send_queue_reserve_endpoint_capacity_in_bytes = 1 << 27; // 128MiB
-    public int internode_application_send_queue_reserve_global_capacity_in_bytes = 1 << 29; // 512MiB
-
-    public int internode_application_receive_queue_capacity_in_bytes = 1 << 22; // 4MiB
-    public int internode_application_receive_queue_reserve_endpoint_capacity_in_bytes = 1 << 27; // 128MiB
-    public int internode_application_receive_queue_reserve_global_capacity_in_bytes = 1 << 29; // 512MiB
+    @Replaces(oldName = "internode_application_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_application_receive_queue_capacity = new DataStorageSpec("4MiB");
+    @Replaces(oldName = "internode_application_receive_queue_reserve_endpoint_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_application_receive_queue_reserve_endpoint_capacity = new DataStorageSpec("128MiB");
+    @Replaces(oldName = "internode_application_receive_queue_reserve_global_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec internode_application_receive_queue_reserve_global_capacity = new DataStorageSpec("512MiB");
 
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
-    public volatile int internode_tcp_connect_timeout_in_ms = 2000;
+    @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds internode_tcp_connect_timeout = new SmallestDurationMilliseconds("2s");
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-    public volatile int internode_tcp_user_timeout_in_ms = 30000;
-    // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
+    @Replaces(oldName = "internode_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds internode_tcp_user_timeout = new SmallestDurationMilliseconds("30s");
+    // Similar to internode_tcp_user_timeout but used specifically for streaming connection.
     // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-    public volatile int internode_streaming_tcp_user_timeout_in_ms = 300_000; // 5 minutes
+    @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public volatile SmallestDurationMilliseconds internode_streaming_tcp_user_timeout = new SmallestDurationMilliseconds("300s"); // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
     public Integer native_transport_port_ssl = null;
     public int native_transport_max_threads = 128;
-    public int native_transport_max_frame_size_in_mb = 16;
+    @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes native_transport_max_frame_size = new SmallestDataStorageMebibytes("16MiB");
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
@@ -224,27 +240,34 @@ public class Config
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
     public volatile boolean native_transport_rate_limiting_enabled = false;
     public volatile int native_transport_max_requests_per_second = 1000000;
+    // not exposed in the yaml
     public int native_transport_receive_queue_capacity_in_bytes = 1 << 20; // 1MiB
 
     @Deprecated
     public Integer native_transport_max_negotiable_protocol_version = null;
 
     /**
-     * Max size of values in SSTables, in MegaBytes.
-     * Default is the same as the native protocol frame limit: 256Mb.
+     * Max size of values in SSTables, in MebiBytes.
+     * Default is the same as the native protocol frame limit: 256MiB.
      * See AbstractType for how it is used.
      */
-    public int max_value_size_in_mb = 256;
+    @Replaces(oldName = "max_value_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes max_value_size = new SmallestDataStorageMebibytes("256MiB");
 
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
     public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
-    public volatile int column_index_size_in_kb = 64;
-    public volatile int column_index_cache_size_in_kb = 2;
-    public volatile int batch_size_warn_threshold_in_kb = 5;
-    public volatile int batch_size_fail_threshold_in_kb = 50;
+    @Replaces(oldName = "column_index_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public volatile SmallestDataStorageKibibytes column_index_size = new SmallestDataStorageKibibytes("64KiB");
+    @Replaces(oldName = "column_index_cache_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public volatile SmallestDataStorageKibibytes column_index_cache_size = new SmallestDataStorageKibibytes("2KiB");
+    @Replaces(oldName = "batch_size_warn_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public volatile SmallestDataStorageKibibytes batch_size_warn_threshold = new SmallestDataStorageKibibytes("5KiB");
+    @Replaces(oldName = "batch_size_fail_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public volatile SmallestDataStorageKibibytes batch_size_fail_threshold = new SmallestDataStorageKibibytes("50KiB");
+
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
@@ -354,8 +377,6 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public int cache_load_timeout_seconds = 30;
-
-    public Long paxos_cache_size_in_mb = null;
 
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;

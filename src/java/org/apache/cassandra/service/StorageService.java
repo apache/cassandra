@@ -5891,25 +5891,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getColumnIndexSizeInKB()
     {
-        return DatabaseDescriptor.getColumnIndexSizeInKB();
+        return DatabaseDescriptor.getColumnIndexSizeInKiB();
     }
 
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
-        int oldValueInKB = DatabaseDescriptor.getColumnIndexSizeInKB();
+        int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
         DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
-        logger.info("Updated column_index_size_in_kb to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKB);
+        logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 
     public int getColumnIndexCacheSize()
     {
-        return DatabaseDescriptor.getColumnIndexCacheSizeInKB();
+        return DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
     }
 
     public void setColumnIndexCacheSize(int cacheSizeInKB)
     {
         DatabaseDescriptor.setColumnIndexCacheSize(cacheSizeInKB);
-        logger.info("Updated column_index_cache_size_in_kb to {}", cacheSizeInKB);
+        logger.info("Updated column_index_cache_size to {}", cacheSizeInKB);
     }
 
     public int getBatchSizeFailureThreshold()
@@ -5920,18 +5920,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setBatchSizeFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
-        logger.info("updated batch_size_fail_threshold_in_kb to {}", threshold);
+        logger.info("updated batch_size_fail_threshold to {}", threshold);
     }
 
     public int getBatchSizeWarnThreshold()
     {
-        return DatabaseDescriptor.getBatchSizeWarnThresholdInKB();
+        return DatabaseDescriptor.getBatchSizeWarnThresholdInKiB();
     }
 
     public void setBatchSizeWarnThreshold(int threshold)
     {
-        DatabaseDescriptor.setBatchSizeWarnThresholdInKB(threshold);
-        logger.info("Updated batch_size_warn_threshold_in_kb to {}", threshold);
+        DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(threshold);
+        logger.info("Updated batch_size_warn_threshold to {}", threshold);
     }
 
     public int getInitialRangeTombstoneListAllocationSize()
