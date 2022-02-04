@@ -280,7 +280,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
             {
-                promise.tryFailure(new FailureResponseException(String.format("Failure from %s: %s", from, failureReason.name())));
+                promise.tryFailure(new FailureResponseException(from, failureReason));
             }
 
             @Override
@@ -294,9 +294,24 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
     public static class FailureResponseException extends IOException
     {
-        public FailureResponseException(String message)
+        private final InetAddressAndPort from;
+        private final RequestFailureReason failureReason;
+
+        public FailureResponseException(InetAddressAndPort from, RequestFailureReason failureReason)
         {
-            super(message);
+            super(String.format("Failure from %s: %s", from, failureReason.name()));
+            this.from = from;
+            this.failureReason = failureReason;
+        }
+
+        public InetAddressAndPort from()
+        {
+            return from;
+        }
+
+        public RequestFailureReason failureReason()
+        {
+            return failureReason;
         }
     }
 
