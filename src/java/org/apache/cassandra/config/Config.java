@@ -376,41 +376,52 @@ public class Config
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
+    @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public SmallestDataStorageKibibytes trickle_fsync_interval = new SmallestDataStorageKibibytes("10240KiB");
 
+    @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public volatile SmallestDataStorageMebibytes sstable_preemptive_open_interval = new SmallestDataStorageMebibytes("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
-    public Long key_cache_size_in_mb = null;
-    public volatile int key_cache_save_period = 14400;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
+    @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes key_cache_size = null;
+    @Replaces(oldName = "key_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    public volatile SmallestDurationSeconds key_cache_save_period = new SmallestDurationSeconds("4h");
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
-    public long row_cache_size_in_mb = 0;
-    public volatile int row_cache_save_period = 0;
+    @Replaces(oldName = "row_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes row_cache_size = new SmallestDataStorageMebibytes("0MiB");
+    @Replaces(oldName = "row_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    public volatile SmallestDurationSeconds row_cache_save_period = new SmallestDurationSeconds("0s");
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
 
-    public Long counter_cache_size_in_mb = null;
-    public volatile int counter_cache_save_period = 7200;
+    @Replaces(oldName = "counter_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes counter_cache_size = null;
+    @Replaces(oldName = "counter_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    public volatile SmallestDurationSeconds counter_cache_save_period = new SmallestDurationSeconds("7200s");
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
-    public int cache_load_timeout_seconds = 30;
+    @Replaces(oldName = "cache_load_timeout_seconds ", converter = Converters.SECONDS_DURATION, deprecated = true)
+    public SmallestDurationSeconds cache_load_timeout = new SmallestDurationSeconds("30s");
 
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
 
-    public Integer networking_cache_size_in_mb;
+    @Replaces(oldName = "networking_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes networking_cache_size;
 
-    public Integer file_cache_size_in_mb;
+    @Replaces(oldName = "file_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes file_cache_size;
 
     public boolean file_cache_enabled = Boolean.getBoolean("cassandra.file_cache_enabled");
 
     /**
-     * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 kb, we
-     * store in the file cache buffers that divide 64 kb, so we need to round the buffer sizes to powers of two.
+     * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 KiB, we
+     * store in the file cache buffers that divide 64 KiB, so we need to round the buffer sizes to powers of two.
      * This boolean controls weather they are rounded up or down. Set it to true to round up to the
      * next power of two, set it to false to round down to the previous power of two. Note that buffer sizes are
-     * already rounded to 4 kb and capped between 4 kb minimum and 64 kb maximum by the {@link DiskOptimizationStrategy}.
+     * already rounded to 4 KiB and capped between 4 KiB minimum and 64 kb maximum by the {@link DiskOptimizationStrategy}.
      * By default, this boolean is set to round down when {@link #disk_optimization_strategy} is {@code ssd},
      * and to round up when it is {@code spinning}.
      */
@@ -436,15 +447,21 @@ public class Config
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
-    public volatile Long index_summary_capacity_in_mb;
-    public volatile int index_summary_resize_interval_in_minutes = 60;
+    @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public volatile SmallestDataStorageMebibytes index_summary_capacity;
+    @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converters.MINUTES_DURATION, deprecated = true)
+    public volatile SmallestDurationMinutes index_summary_resize_interval = new SmallestDurationMinutes("60m");
 
-    public int gc_log_threshold_in_ms = 200;
-    public int gc_warn_threshold_in_ms = 1000;
+    @Replaces(oldName = "gc_log_threshold_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds gc_log_threshold = new SmallestDurationMilliseconds("200ms");
+    @Replaces(oldName = "gc_warn_threshold_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds gc_warn_threshold = new SmallestDurationMilliseconds("1s");
 
     // TTL for different types of trace events.
-    public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
-    public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
+    @Replaces(oldName = "tracetype_query_ttl", converter = Converters.SECONDS_DURATION, deprecated=true)
+    public SmallestDurationSeconds trace_type_query_ttl = new SmallestDurationSeconds("1d");
+    @Replaces(oldName = "tracetype_repair_ttl", converter = Converters.SECONDS_DURATION, deprecated=true)
+    public SmallestDurationSeconds trace_type_repair_ttl = new SmallestDurationSeconds("7d");
 
     /**
      * Maintain statistics on whether writes achieve the ideal consistency level
@@ -453,10 +470,11 @@ public class Config
     public volatile ConsistencyLevel ideal_consistency_level = null;
 
     /**
-     * Size of the CQL prepared statements cache in MB.
-     * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
+     * Size of the CQL prepared statements cache in MiB.
+     * Defaults to 1/256th of the heap size or 10MiB, whichever is greater.
      */
-    public Long prepared_statements_cache_size_mb = null;
+    @Replaces(oldName = "prepared_statements_cache_size_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
+    public SmallestDataStorageMebibytes prepared_statements_cache_size = null;
 
     @Replaces(oldName = "enable_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean user_defined_functions_enabled = false;
@@ -494,6 +512,7 @@ public class Config
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
+    //No need of unit conversion as this parameter is not exposed in the yaml file
     public long user_defined_function_warn_timeout = 500;
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
