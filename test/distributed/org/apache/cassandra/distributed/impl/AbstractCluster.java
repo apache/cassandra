@@ -303,6 +303,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             if (isRunning())
                 throw new IllegalStateException("Can not start a instance that is already running");
             isShutdown = false;
+            // if the underline instance is shutdown, remove reference so delegateForStartup() can recreate
+            if (delegate != null && delegate.isShutdown())
+                delegate = null;
             if (!broadcastAddress.equals(config.broadcastAddress()))
             {
                 // previous address != desired address, so cleanup
@@ -311,9 +314,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 instanceMap.put(newAddress, (I) this); // if the broadcast address changes, update
                 instanceMap.remove(previous);
                 broadcastAddress = newAddress;
+                // remove delegate to make sure static state is reset
+                if (delegate != null)
+                    delegate.shutdown(false);
+                delegate = null;
             }
-            // remove delegate to make sure static state is reset
-            delegate = null;
             try
             {
                 delegateForStartup().startup(cluster);
