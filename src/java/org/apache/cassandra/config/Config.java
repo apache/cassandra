@@ -411,6 +411,8 @@ public class Config
 
     public volatile boolean enable_drop_compact_storage = false;
 
+    public volatile boolean use_statements_enabled = true;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!

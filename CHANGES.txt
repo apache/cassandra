@@ -1,4 +1,5 @@
 4.1
+ * Runtime-configurable YAML option to prohibit USE statements (CASSANDRA-17318)
  * Add a virtual table for exposing prepared statements metrics (CASSANDRA-17224)
  * Remove python 2.x support from cqlsh (CASSANDRA-17242)
  * Prewarm role and credential caches to avoid timeouts at startup (CASSANDRA-16958)

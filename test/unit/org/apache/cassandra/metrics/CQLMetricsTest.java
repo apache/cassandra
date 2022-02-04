@@ -20,12 +20,14 @@ package org.apache.cassandra.metrics;
 
 import java.io.IOException;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -33,12 +35,12 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CQLMetricsTest extends SchemaLoader
 {
-    private static EmbeddedCassandraService cassandra;
-
     private static Cluster cluster;
     private static Session session;
 
@@ -47,7 +49,7 @@ public class CQLMetricsTest extends SchemaLoader
     {
         Schema.instance.clear();
 
-        cassandra = new EmbeddedCassandraService();
+        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
         cassandra.start();
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
@@ -58,10 +60,33 @@ public class CQLMetricsTest extends SchemaLoader
     }
 
     @Test
+    public void testConnectionWithUseDisabled()
+    {
+        long useCountBefore = QueryProcessor.metrics.useStatementsExecuted.getCount();
+        DatabaseDescriptor.setUseStatementsEnabled(false);
+
+        try (Session ignored = cluster.connect("junit"))
+        {
+            fail("expected USE statement to fail with use_statements_enabled = false");
+        }
+        catch (InvalidQueryException e)
+        {
+            Assert.assertEquals(useCountBefore, QueryProcessor.metrics.useStatementsExecuted.getCount());
+            assertTrue(e.getMessage().contains("USE statements prohibited"));
+        }
+        finally
+        {
+            DatabaseDescriptor.setUseStatementsEnabled(true);
+        }
+    }
+
+    @Test
     public void testPreparedStatementsCount()
     {
         int n = QueryProcessor.metrics.preparedStatementsCount.getValue();
+        long useCountBefore = QueryProcessor.metrics.useStatementsExecuted.getCount();
         session.execute("use junit");
+        Assert.assertEquals(useCountBefore + 1, QueryProcessor.metrics.useStatementsExecuted.getCount());
         session.prepare("SELECT * FROM junit.metricstest WHERE id = ?");
         assertEquals(n+2, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
     }
@@ -104,15 +129,15 @@ public class CQLMetricsTest extends SchemaLoader
         clearMetrics();
         PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
-        assertEquals(Double.NaN, QueryProcessor.metrics.preparedStatementsRatio.getValue());
+        assertEquals(Double.NaN, QueryProcessor.metrics.preparedStatementsRatio.getValue(), 0.0);
 
         for (int i = 0; i < 10; i++)
             session.execute(metricsStatement.bind(i, "val" + i));
-        assertEquals(1.0, QueryProcessor.metrics.preparedStatementsRatio.getValue());
+        assertEquals(1.0, QueryProcessor.metrics.preparedStatementsRatio.getValue(), 0.0);
 
         for (int i = 0; i < 10; i++)
             session.execute(String.format("INSERT INTO junit.metricstest (id, val) VALUES (%d, '%s')", i, "val" + i));
-        assertEquals(0.5, QueryProcessor.metrics.preparedStatementsRatio.getValue());
+        assertEquals(0.5, QueryProcessor.metrics.preparedStatementsRatio.getValue(), 0.0);
     }
 
     private void clearMetrics()

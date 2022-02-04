@@ -17,15 +17,41 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class UseTest extends CQLTester
 {
     @Test
     public void testUseStatementWithBindVariable() throws Throwable
     {
+        DatabaseDescriptor.setUseStatementsEnabled(true);
         assertInvalidSyntaxMessage("Bind variables cannot be used for keyspace names", "USE ?");
+    }
+
+    @Test
+    public void shouldRejectUseStatementWhenProhibited() throws Throwable
+    {
+        long useCountBefore = QueryProcessor.metrics.useStatementsExecuted.getCount();
+
+        try
+        {
+            DatabaseDescriptor.setUseStatementsEnabled(false);
+            execute("USE cql_test_keyspace");
+            fail("expected USE statement to fail with use_statements_enabled = false");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals(useCountBefore, QueryProcessor.metrics.useStatementsExecuted.getCount());
+            Assertions.assertThat(e).hasMessageContaining("USE statements prohibited");
+        }
     }
 }
