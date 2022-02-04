@@ -375,13 +375,13 @@ public class CompactionsCQLTest extends CQLTester
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt row deletion
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         int maxSizePre = DatabaseDescriptor.getColumnIndexSizeInKB();
-        DatabaseDescriptor.setColumnIndexSize(1024);
+        DatabaseDescriptor.setColumnIndexSizeInKB(1024);
         prepareWide();
         RowUpdateBuilder.deleteRowAt(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, -1, 22, 33).apply();
         flush();
         readAndValidate(true);
         readAndValidate(false);
-        DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+        DatabaseDescriptor.setColumnIndexSizeInKB(maxSizePre);
     }
 
     @Test
@@ -390,14 +390,14 @@ public class CompactionsCQLTest extends CQLTester
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt standard tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         int maxSizePre = DatabaseDescriptor.getColumnIndexSizeInKB();
-        DatabaseDescriptor.setColumnIndexSize(1024);
+        DatabaseDescriptor.setColumnIndexSizeInKB(1024);
         prepareWide();
         RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), -1, System.currentTimeMillis() * 1000, 22).clustering(33).delete("b");
         rub.build().apply();
         flush();
         readAndValidate(true);
         readAndValidate(false);
-        DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+        DatabaseDescriptor.setColumnIndexSizeInKB(maxSizePre);
     }
 
     @Test
@@ -406,7 +406,7 @@ public class CompactionsCQLTest extends CQLTester
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt range tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         final int maxSizePreKB = DatabaseDescriptor.getColumnIndexSizeInKB();
-        DatabaseDescriptor.setColumnIndexSize(1024);
+        DatabaseDescriptor.setColumnIndexSizeInKB(1024);
         prepareWide();
         RangeTombstone rt = new RangeTombstone(Slice.ALL, new DeletionTime(System.currentTimeMillis(), -1));
         RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, 22).clustering(33).addRangeTombstone(rt);
@@ -414,7 +414,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         readAndValidate(true);
         readAndValidate(false);
-        DatabaseDescriptor.setColumnIndexSize(maxSizePreKB);
+        DatabaseDescriptor.setColumnIndexSizeInKB(maxSizePreKB);
     }
 
 

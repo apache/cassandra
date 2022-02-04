@@ -526,4 +526,19 @@ public class StorageServiceTest
         ss.forceRemoveCompletion();
         assertEquals("Leaving endpoints still exist after forceRemoveCompletion()", emptySet, tmd.getLeavingEndpoints());
     }
+
+    @Test
+    public void testSettingColumnIndexCacheSize()
+    {
+        int old = StorageService.instance.getColumnIndexCacheSize();
+        try
+        {
+            StorageService.instance.setColumnIndexCacheSize(old + 2);
+            assertEquals(old + 2, DatabaseDescriptor.getColumnIndexCacheSizeInKB());
+        }
+        finally
+        {
+            StorageService.instance.setColumnIndexCacheSize(old);
+        }
+    }
 }

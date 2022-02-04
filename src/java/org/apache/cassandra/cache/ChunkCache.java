@@ -22,6 +22,7 @@ package org.apache.cassandra.cache;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
@@ -55,6 +56,8 @@ public class ChunkCache
 
     private final LoadingCache<Key, Buffer> cache;
     public final ChunkCacheMetrics metrics;
+
+    private Function<ChunkReader, RebuffererFactory> wrapper = this::wrap;
 
     static class Key
     {
@@ -185,15 +188,7 @@ public class ChunkCache
         if (!enabled)
             return file;
 
-        return instance.wrap(file);
-    }
-
-    public void invalidatePosition(FileHandle dfile, long position)
-    {
-        if (!(dfile.rebuffererFactory() instanceof CachingRebufferer))
-            return;
-
-        ((CachingRebufferer) dfile.rebuffererFactory()).invalidate(position);
+        return instance.wrapper.apply(file);
     }
 
     public void invalidateFile(String fileName)
@@ -205,8 +200,16 @@ public class ChunkCache
     public void enable(boolean enabled)
     {
         ChunkCache.enabled = enabled;
+        wrapper = this::wrap;
         cache.invalidateAll();
         metrics.reset();
+    }
+
+    @VisibleForTesting
+    public void intercept(Function<RebuffererFactory, RebuffererFactory> interceptor)
+    {
+        final Function<ChunkReader, RebuffererFactory> prevWrapper = wrapper;
+        wrapper = rdr -> interceptor.apply(prevWrapper.apply(rdr));
     }
 
     // TODO: Invalidate caches for obsoleted/MOVED_START tables?
@@ -261,16 +264,17 @@ public class ChunkCache
             }
         }
 
-        public void invalidate(long position)
-        {
-            long pageAlignedPos = position & alignmentMask;
-            cache.invalidate(new Key(source, pageAlignedPos));
-        }
-
         @Override
         public Rebufferer instantiateRebufferer()
         {
             return this;
+        }
+
+        @Override
+        public void invalidateIfCached(long position)
+        {
+            long pageAlignedPos = position & alignmentMask;
+            cache.invalidate(new Key(source, pageAlignedPos));
         }
 
         @Override

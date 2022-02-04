@@ -210,9 +210,7 @@ public class TrieIndexSSTableWriter extends SSTableWriter
     void invalidateCacheAtBoundary(FileHandle dfile)
     {
         if (lastEarlyOpenLength != 0 && dfile.dataLength() > lastEarlyOpenLength)
-        {
             dfile.invalidateIfCached(lastEarlyOpenLength);
-        }
 
         lastEarlyOpenLength = dfile.dataLength();
     }

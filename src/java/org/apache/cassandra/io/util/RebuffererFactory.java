@@ -30,5 +30,5 @@ public interface RebuffererFactory extends ReaderFileProxy
 {
     Rebufferer instantiateRebufferer();
 
-    default void invalidateIfCached(long position) {}
+    void invalidateIfCached(long position);
 }
