@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.IOException;
-
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
 
@@ -37,7 +35,7 @@ public interface IncomingStream
     /**
      * Read in the stream data.
      */
-    void read(DataInputPlus inputPlus, int version) throws IOException;
+    void read(DataInputPlus inputPlus, int version) throws Throwable;
 
     String getName();
     long getSize();

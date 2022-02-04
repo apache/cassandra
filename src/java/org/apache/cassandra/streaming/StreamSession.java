@@ -19,6 +19,7 @@ package org.apache.cassandra.streaming;
 
 import java.io.EOFException;
 import java.net.SocketTimeoutException;
+import java.nio.channels.ClosedChannelException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -55,7 +56,6 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
-import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -364,7 +364,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                                                               getPendingRepair(),
                                                               getPreviewKind());
 
-            channel.sendControlMessage(message);
+            channel.sendControlMessage(message).sync();
             onInitializationComplete();
         }
         catch (Exception e)
@@ -535,8 +535,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void state(State newState)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("[Stream #{}] Changing session state from {} to {}", planId(), state, newState);
+        if (logger.isDebugEnabled())
+            logger.debug("[Stream #{}] Changing session state from {} to {}", planId(), state, newState);
 
         sink.recordState(peer, newState);
         state = newState;
@@ -626,7 +626,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             prepare.summaries.add(task.getSummary());
         }
 
-        channel.sendControlMessage(prepare);
+        channel.sendControlMessage(prepare).syncUninterruptibly();
     }
 
     /**
@@ -636,9 +636,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized Future onError(Throwable e)
     {
-        boolean isEofException = e instanceof EOFException;
+        boolean isEofException = e instanceof EOFException || e instanceof ClosedChannelException;
         if (isEofException)
         {
+            State state = this.state;
             if (state.finalState)
             {
                 logger.debug("[Stream #{}] Socket closed after session completed with state {}", planId(), state);
@@ -659,7 +660,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         logError(e);
         // send session failure message
         if (channel.connected())
-            channel.sendControlMessage(new SessionFailedMessage());
+            channel.sendControlMessage(new SessionFailedMessage()).syncUninterruptibly();
         // fail session
         return closeSession(State.FAILED);
     }
@@ -703,6 +704,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         });
     }
 
+    public void countStreamedIn(boolean isEntireSSTable)
+    {
+        metrics.countStreamedIn(isEntireSSTable);
+    }
+
     /**
      * Finish preparing the session. This method is blocking (memtables are flushed in {@link #addTransferRanges}),
      * so the logic should not execute on the main IO thread (read: netty event loop).
@@ -718,9 +724,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
-        channel.sendControlMessage(prepareSynAck);
 
         streamResult.handleSessionPrepared(this);
+        // After sending the message the initiator can close the channel which will cause a ClosedChannelException
+        // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
+        // the session.  To avoid a race condition between sending and setting state, make sure to update the state
+        // before sending the message (without closing the channel)
+        // see CASSANDRA-17116
+        if (isPreview())
+            state(State.COMPLETE);
+        channel.sendControlMessage(prepareSynAck).syncUninterruptibly();
 
         if (isPreview())
             completePreview();
@@ -737,7 +750,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
             if (!isPreview())
-                channel.sendControlMessage(new PrepareAckMessage());
+                channel.sendControlMessage(new PrepareAckMessage()).syncUninterruptibly();
         }
 
         if (isPreview())
@@ -794,7 +807,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
-        channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
+        channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         long receivedStartNanos = nanoTime();
         try
@@ -837,14 +850,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         logger.debug("[Stream #{}] handling Complete message, state = {}", planId(), state);
 
-        if (!isFollower)
+        if (!isFollower) // initiator
         {
-            if (state == State.WAIT_COMPLETE)
-                closeSession(State.COMPLETE);
-            else
-                state(State.WAIT_COMPLETE);
+            initiatorCompleteOrWait();
         }
-        else
+        else // follower
         {
             // pre-4.0 nodes should not be connected via streaming, see {@link MessagingService#accept_streaming}
             throw new IllegalStateException(String.format("[Stream #%s] Complete message can be only received by the initiator!", planId()));
@@ -864,20 +874,33 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             return true;
 
         maybeCompleted = true;
-        if (!isFollower)
+        if (!isFollower) // initiator
         {
-            if (state == State.WAIT_COMPLETE)
-                closeSession(State.COMPLETE);
-            else
-                state(State.WAIT_COMPLETE);
+            initiatorCompleteOrWait();
         }
-        else
+        else // follower
         {
-            channel.sendControlMessage(new CompleteMessage());
+            // After sending the message the initiator can close the channel which will cause a ClosedChannelException
+            // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
+            // the session.  To avoid a race condition between sending and setting state, make sure to update the state
+            // before sending the message (without closing the channel)
+            // see CASSANDRA-17116
+            state(State.COMPLETE);
+            channel.sendControlMessage(new CompleteMessage()).syncUninterruptibly();
             closeSession(State.COMPLETE);
         }
 
         return true;
+    }
+
+    private void initiatorCompleteOrWait()
+    {
+        // This is called when coordination completes AND when COMPLETE message is seen; it is possible that the
+        // COMPLETE method is seen first!
+        if (state == State.WAIT_COMPLETE)
+            closeSession(State.COMPLETE);
+        else
+            state(State.WAIT_COMPLETE);
     }
 
     /**
@@ -988,6 +1011,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 {
                     // pass the session planId/index to the OFM (which is only set at init(), after the transfers have already been created)
                     ofm.header.addSessionInfo(this);
+                    // do not sync here as this does disk access
                     channel.sendControlMessage(ofm);
                 }
             }

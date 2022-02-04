@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.streaming;
 
-import java.io.IOException;
 import java.util.Objects;
 
 import com.google.common.base.Preconditions;
@@ -64,10 +63,11 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
-    public synchronized void read(DataInputPlus in, int version) throws IOException
+    public synchronized void read(DataInputPlus in, int version) throws Throwable
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
         logger.debug("Incoming stream entireSSTable={} components={}", streamHeader.isEntireSSTable, streamHeader.componentManifest);
+        session.countStreamedIn(streamHeader.isEntireSSTable);
 
         IStreamReader reader;
         if (streamHeader.isEntireSSTable)

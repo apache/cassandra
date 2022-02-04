@@ -160,7 +160,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     }
 
     @Test
-    public void testStream() throws Exception
+    public void testStream() throws Throwable
     {
         testStreamWithConcurrentComponentMutation(NO_OP, NO_OP);
     }
@@ -170,7 +170,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
      * update causes the actual transfered file size to be different from the one in {@link ComponentManifest}
      */
     @Test
-    public void testStreamWithStatsMutation() throws Exception
+    public void testStreamWithStatsMutation() throws Throwable
     {
         testStreamWithConcurrentComponentMutation(() -> {
 
@@ -188,7 +188,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
             targetLocation = "AFTER INVOKE serialize",
             condition = "$descriptor.cfname.contains(\"Standard1\")",
             action = "org.apache.cassandra.db.streaming.EntireSSTableStreamConcurrentComponentMutationTest.countDown();Thread.sleep(5000);")
-    public void testStreamWithIndexSummaryRedistributionDelaySavingSummary() throws Exception
+    public void testStreamWithIndexSummaryRedistributionDelaySavingSummary() throws Throwable
     {
         testStreamWithConcurrentComponentMutation(() -> {
             // wait until new index summary is partially written
@@ -203,7 +203,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         latch.countDown();
     }
 
-    private void testStreamWithConcurrentComponentMutation(Callable<?> runBeforeStreaming, Callable<?> runConcurrentWithStreaming) throws Exception
+    private void testStreamWithConcurrentComponentMutation(Callable<?> runBeforeStreaming, Callable<?> runConcurrentWithStreaming) throws Throwable
     {
         ByteBuf serializedFile = Unpooled.buffer(8192);
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();

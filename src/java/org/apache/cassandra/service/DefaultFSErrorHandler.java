@@ -94,7 +94,8 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         }
     }
 
-    private static void handleStartupFSError(Throwable t)
+    @Override
+    public void handleStartupFSError(Throwable t)
     {
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {

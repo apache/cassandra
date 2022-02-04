@@ -129,7 +129,7 @@ public class CassandraEntireSSTableStreamWriterTest
     }
 
     @Test
-    public void testBlockReadingAndWritingOverWire() throws Exception
+    public void testBlockReadingAndWritingOverWire() throws Throwable
     {
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();

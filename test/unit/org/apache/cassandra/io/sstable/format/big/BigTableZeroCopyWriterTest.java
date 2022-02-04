@@ -19,7 +19,9 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.ByteArrayInputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collection;
@@ -161,7 +163,14 @@ public class BigTableZeroCopyWriterTest
             {
                 Pair<DataInputPlus, Long> pair = getSSTableComponentData(sstable, component, bufferMapper);
 
-                btzcw.writeComponent(component.type, pair.left, pair.right);
+                try
+                {
+                    btzcw.writeComponent(component.type, pair.left, pair.right);
+                }
+                catch (ClosedChannelException e)
+                {
+                    throw new UncheckedIOException(e);
+                }
             }
         }
 
