@@ -19,6 +19,8 @@
 package org.apache.cassandra.config;
 
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Wrapper class for Cassandra duration configuration parameters which are internally represented in Seconds. In order
@@ -27,6 +29,8 @@ import java.util.concurrent.TimeUnit;
  */
 public final class SmallestDurationSeconds extends DurationSpec
 {
+    private static final Pattern VALUES_PATTERN = Pattern.compile(("\\d+"));
+
     /**
      * Creates a {@code SmallestDurationSeconds} of the specified amount of seconds and provides the smallest
      * required unit of seconds for the respective parameter of type {@code SmallestDurationSeconds}.
@@ -53,5 +57,30 @@ public final class SmallestDurationSeconds extends DurationSpec
     public static SmallestDurationSeconds inSeconds(long seconds)
     {
         return new SmallestDurationSeconds(seconds, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Creates a {@code SmallestDurationSeconds} of the specified amount of seconds. Custom method for special cases.
+     *
+     * @param value which can be in the old form only presenting the quantity or the post CASSANDRA-15234 form - a
+     * value consisting of quantity and unit. This method is necessary for three parameters which didn't change their
+     * names but only their value format. (key_cache_save_period, row_cache_save_period, counter_cache_save_period)
+     * @return a duration
+     */
+    public static SmallestDurationSeconds inSecondsString(String value)
+    {
+        //parse the string field value
+        Matcher matcher = VALUES_PATTERN.matcher(value);
+
+        long seconds;
+        //if the provided string value is just a number, then we create a Duration Spec value in seconds
+        if (matcher.matches())
+        {
+            seconds = Long.parseLong(value);
+            return new SmallestDurationSeconds(seconds, TimeUnit.SECONDS);
+        }
+
+        //otherwise we just use the standard constructors
+        return new SmallestDurationSeconds(value);
     }
 }

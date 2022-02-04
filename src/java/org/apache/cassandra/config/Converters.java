@@ -26,7 +26,9 @@ import java.util.function.Function;
  * parameter name(suffix). (CASSANDRA-15234)
  * It is important to be noted that this converter is not intended to be used when we don't change name of a configuration
  * parameter but we want to add unit. This would always default to the old value provided without a unit at the moment.
- * In case this functionality is needed at some point, please, raise a Jira ticket.
+ * In case this functionality is needed at some point, please, raise a Jira ticket. There is only one exception handling
+ * three parameters (key_cache_save_period, row_cache_save_period, counter_cache_save_period) - the SECONDS_CUSTOM_DURATION
+ * converter.
  */
 public enum Converters
 {
@@ -51,6 +53,15 @@ public enum Converters
     SECONDS_DURATION(Long.class,
                      o -> SmallestDurationSeconds.inSeconds((Long) o),
                      o -> ((SmallestDurationSeconds)o).toSeconds()),
+    /**
+     * This converter is used to support backward compatibility for Duration parameters where we added the opportunity
+     * for the users to add a unit in the parameters' values but we didn't change the names. (key_cache_save_period,
+     * row_cache_save_period, counter_cache_save_period)
+     * Example: row_cache_save_period = 0 and row_cache_save_period = 0s (quantity of 0s) are equal.
+     */
+    SECONDS_CUSTOM_DURATION(String.class,
+                            o -> SmallestDurationSeconds.inSecondsString((String) o),
+                            o -> ((SmallestDurationSeconds)o).toSeconds()),
     MINUTES_DURATION(Long.class,
                      o -> SmallestDurationMinutes.inMinutes((Long) o),
                      o -> ((SmallestDurationMinutes)o).toMinutes()),

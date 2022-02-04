@@ -110,7 +110,7 @@ public class NodeToolTest extends TestBaseImpl
     @Test
     public void testSetCacheCapacityWhenDisabled() throws Throwable
     {
-        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
+        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size", "0MiB")).start()))
         {
             NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
             ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
