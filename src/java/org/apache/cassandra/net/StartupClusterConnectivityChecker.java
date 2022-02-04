@@ -171,10 +171,12 @@ public class StartupClusterConnectivityChecker
         }
         else
         {
-
             // dc -> missing peer host addresses
             Map<String, List<String>> peersDown = acks.getMissingPeers().stream()
-                                                      .collect(groupingBy(peer -> Optional.ofNullable(peerToDatacenter.get(peer)).orElseGet(() -> StringUtils.defaultString(getDatacenterSource.apply(peer), "unknown")),
+                                                      .collect(groupingBy(peer -> {
+                                                                              String dc = peerToDatacenter.get(peer);
+                                                                              return dc != null ? dc : StringUtils.defaultString(getDatacenterSource.apply(peer), "unknown");
+                                                                          },
                                                                           mapping(InetAddressAndPort::getHostAddressAndPort,
                                                                                   toList())));
             logger.warn("Timed out after {} milliseconds, was waiting for remaining peers to connect: {}",
