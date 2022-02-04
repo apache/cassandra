@@ -64,6 +64,11 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     }
 
     @Override
+    public void invalidateIfCached(long position)
+    {
+    }
+
+    @Override
     public String toString()
     {
         return String.format("%s(%s - chunk length %d, data length %d)",

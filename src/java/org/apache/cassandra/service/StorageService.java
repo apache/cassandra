@@ -5803,7 +5803,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setColumnIndexCacheSize(int cacheSizeInKB)
     {
-        DatabaseDescriptor.setColumnIndexCacheSize(cacheSizeInKB);
+        DatabaseDescriptor.setColumnIndexCacheSizeInKB(cacheSizeInKB);
         logger.info("Updated column_index_cache_size_in_kb to {}", cacheSizeInKB);
     }
 

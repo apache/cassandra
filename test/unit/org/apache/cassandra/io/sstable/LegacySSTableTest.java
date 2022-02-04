@@ -148,7 +148,7 @@ public class LegacySSTableTest
     @Test
     public void testLoadLegacyCqlTables() throws Exception
     {
-        DatabaseDescriptor.setColumnIndexCacheSize(99999);
+        DatabaseDescriptor.setColumnIndexCacheSizeInKB(99999);
         CacheService.instance.invalidateKeyCache();
         doTestLegacyCqlTables();
     }
@@ -156,7 +156,7 @@ public class LegacySSTableTest
     @Test
     public void testLoadLegacyCqlTablesShallow() throws Exception
     {
-        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        DatabaseDescriptor.setColumnIndexCacheSizeInKB(0);
         CacheService.instance.invalidateKeyCache();
         doTestLegacyCqlTables();
     }
