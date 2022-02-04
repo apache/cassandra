@@ -370,8 +370,9 @@ public class BigTableWriter extends SSTableWriter
 
     void invalidateCacheAtBoundary(FileHandle dfile)
     {
-        if (ChunkCache.instance != null && lastEarlyOpenLength != 0 && dfile.dataLength() > lastEarlyOpenLength)
-            ChunkCache.instance.invalidatePosition(dfile, lastEarlyOpenLength);
+        if (lastEarlyOpenLength != 0 && dfile.dataLength() > lastEarlyOpenLength)
+            dfile.invalidateIfCached(lastEarlyOpenLength);
+
         lastEarlyOpenLength = dfile.dataLength();
     }
 

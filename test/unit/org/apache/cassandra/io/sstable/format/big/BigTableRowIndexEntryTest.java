@@ -98,14 +98,14 @@ public class BigTableRowIndexEntryTest extends CQLTester
     @Test
     public void testC11206AgainstPreviousArray() throws Exception
     {
-        DatabaseDescriptor.setColumnIndexCacheSize(99999);
+        DatabaseDescriptor.setColumnIndexCacheSizeInKB(99999);
         testC11206AgainstPrevious();
     }
 
     @Test
     public void testC11206AgainstPreviousShallow() throws Exception
     {
-        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        DatabaseDescriptor.setColumnIndexCacheSizeInKB(0);
         testC11206AgainstPrevious();
     }
 

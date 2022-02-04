@@ -1535,7 +1535,7 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    public static void setColumnIndexSize(int val)
+    public static void setColumnIndexSizeInKB(int val)
     {
         checkValidForByteConversion(val, "column_index_size_in_kb", ByteUnit.KIBI_BYTES);
         conf.column_index_size_in_kb = val;
@@ -1551,7 +1551,7 @@ public class DatabaseDescriptor
         return conf.column_index_cache_size_in_kb;
     }
 
-    public static void setColumnIndexCacheSize(int val)
+    public static void setColumnIndexCacheSizeInKB(int val)
     {
         checkValidForByteConversion(val, "column_index_cache_size_in_kb", ByteUnit.KIBI_BYTES);
         conf.column_index_cache_size_in_kb = val;
