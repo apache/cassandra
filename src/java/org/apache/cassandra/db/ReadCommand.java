@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
@@ -661,8 +662,8 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)
     {
-        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarnThresholdKb() * 1024;
-        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKb() * 1024;
+        final long warnThresholdBytes = Math.max(0, Guardrails.instance.getLocalReadSizeWarnThresholdInKB()) * 1024;
+        final long abortThresholdBytes = Math.max(0, Guardrails.instance.getLocalReadSizeAbortThresholdInKB()) * 1024;
         if (!shouldTrackSize(warnThresholdBytes, abortThresholdBytes))
             return iterator;
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
@@ -708,7 +709,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                 this.sizeInBytes += size;
                 if (abortThresholdBytes != 0 && this.sizeInBytes >= abortThresholdBytes)
                 {
-                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see track_warnings.local_read_size.abort_threshold_kb)",
+                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; " +
+                                               "query aborted  (see guardrails.local_read_size.abort_threshold_in_kb)",
                                                ReadCommand.this.toCQLString(), this.sizeInBytes, abortThresholdBytes);
                     Tracing.trace(msg);
                     MessageParams.remove(ParamType.LOCAL_READ_SIZE_WARN);
