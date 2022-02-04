@@ -33,6 +33,7 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -173,8 +174,7 @@ public class StartupClusterConnectivityChecker
             Map<String, List<String>> peersDown = acks.getMissingPeers().stream()
                                                       .collect(groupingBy(peer -> {
                                                                               String dc = peerToDatacenter.get(peer);
-                                                                              return dc != null ? dc
-                                                                                                : (dc = getDatacenterSource.apply(peer)) != null ? dc : "unknown";
+                                                                              return dc != null ? dc : StringUtils.defaultString(getDatacenterSource.apply(peer), "unknown");
                                                                           },
                                                                           mapping(InetAddressAndPort::getHostAddressAndPort,
                                                                                   toList())));
