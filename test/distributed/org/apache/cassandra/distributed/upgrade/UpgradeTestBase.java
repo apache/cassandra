@@ -32,6 +32,9 @@ import com.vdurmont.semver4j.Semver.SemverType;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
@@ -41,6 +44,7 @@ import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.distributed.shared.Versions.Version;
@@ -50,6 +54,8 @@ import static org.apache.cassandra.distributed.shared.Versions.find;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(UpgradeTestBase.class);
+
     @After
     public void afterEach()
     {
@@ -84,6 +90,7 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
+    public static final Semver LATEST = new Semver(FBUtilities.getReleaseVersionString(), SemverType.LOOSE);
 
     protected static final List<Pair<Semver,Semver>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
         Pair.create(v22, v30),
@@ -219,7 +226,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
             for (TestVersions upgrade : this.upgrade)
             {
-                System.out.printf("testing upgrade from %s to %s%n", upgrade.initial.version, upgrade.upgrade.version);
+                logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgrade.version);
                 try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);

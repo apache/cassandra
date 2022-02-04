@@ -83,7 +83,7 @@ public class MixedModeMessageForwardTest extends UpgradeTestBase
         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK).set("request_timeout_in_ms", 30000))
         .withBuilder(b -> b.withRacks(numDCs, 1, nodesPerDc))
         .nodes(numDCs * nodesPerDc)
-        .singleUpgrade(v30, v40)
+        .singleUpgrade(v30, LATEST)
         .setup(cluster -> {
             cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE +
                 " WITH replication = {'class': 'NetworkTopologyStrategy', " + ntsArgs + " };");
