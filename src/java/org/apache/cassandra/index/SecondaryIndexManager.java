@@ -333,9 +333,20 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public boolean isIndexQueryable(Index index)
     {
-        return queryableIndexes.contains(index.getIndexMetadata().name);
+        return isIndexQueryable(index.getIndexMetadata().name);
     }
-    
+
+    /**
+     * Checks if the specified index is queryable.
+     *
+     * @param indexName name of the index
+     * @return <code>true</code> if the specified index is registered, <code>false</code> otherwise
+     */
+    public boolean isIndexQueryable(String indexName)
+    {
+        return queryableIndexes.contains(indexName);
+    }
+
     /**
      * Checks if the specified index is writable.
      *
