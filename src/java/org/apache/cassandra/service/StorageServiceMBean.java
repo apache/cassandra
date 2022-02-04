@@ -103,6 +103,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getReleaseVersion();
 
     /**
+     * Fetch a string representation of the Cassandra git SHA.
+     * @return A string representation of the Cassandra git SHA.
+     */
+    public String getGitSHA();
+
+    /**
      * Fetch a string representation of the current Schema version.
      * @return A string representation of the Schema version.
      */

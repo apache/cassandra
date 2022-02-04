@@ -105,6 +105,7 @@ public class FBUtilities
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
     public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
+    public static final String UNKNOWN_GIT_SHA = "Unknown";
 
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
@@ -419,24 +420,40 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    public static String getReleaseVersionString()
+    private static Properties getVersionProperties()
     {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
             {
-                return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
+                return null;
             }
             Properties props = new Properties();
             props.load(in);
-            return props.getProperty("CassandraVersion");
+            return props;
         }
         catch (Exception e)
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
-            return "debug version";
+            return null;
         }
+    }
+
+    public static String getReleaseVersionString()
+    {
+        Properties props = getVersionProperties();
+        if (props == null)
+            return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
+        return props.getProperty("CassandraVersion");
+    }
+
+    public static String getGitSHA()
+    {
+        Properties props = getVersionProperties();
+        if (props == null)
+            return System.getProperty("cassandra.gitSHA", UNKNOWN_GIT_SHA);
+        return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
     }
 
     public static String getReleaseVersionMajor()
