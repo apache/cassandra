@@ -97,6 +97,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     boolean trackWarnings)
     {
         if (metadata.isVirtual())
+        {
             return new VirtualTableSinglePartitionReadCommand(isDigest,
                                                               digestVersion,
                                                               acceptsTransient,
@@ -109,6 +110,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                               clusteringIndexFilter,
                                                               index,
                                                               trackWarnings);
+        }
         return new SinglePartitionReadCommand(isDigest,
                                               digestVersion,
                                               acceptsTransient,

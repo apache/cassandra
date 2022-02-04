@@ -85,6 +85,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                     boolean trackWarnings)
     {
         if (metadata.isVirtual())
+        {
             return new VirtualTablePartitionRangeReadCommand(isDigest,
                                                              digestVersion,
                                                              acceptsTransient,
@@ -96,6 +97,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                              dataRange,
                                                              index,
                                                              trackWarnings);
+        }
         return new PartitionRangeReadCommand(isDigest,
                                              digestVersion,
                                              acceptsTransient,
