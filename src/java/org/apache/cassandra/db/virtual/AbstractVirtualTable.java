@@ -53,9 +53,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
         if (!metadata.isVirtual())
             throw new IllegalArgumentException("Cannot instantiate a non-virtual table");
 
-        this.metadata = metadata.unbuild()
-                                .id(TableId.forSystemTable(metadata.keyspace, metadata.name))
-                                .build();
+        this.metadata = metadata;
     }
 
     public TableMetadata metadata()
