@@ -151,7 +151,7 @@ public class SchemaInsert extends SchemaStatement
     {
         return StressCQLSSTableWriter.builder()
                                .withCfs(cfs)
-                               .withBufferSizeInMB(bufferSize)
+                               .withBufferSizeInMiB(bufferSize)
                                .forTable(tableSchema)
                                .using(insertStatement)
                                .rangeAware(makeRangeAware)

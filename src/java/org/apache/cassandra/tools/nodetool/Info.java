@@ -162,8 +162,8 @@ public class Info extends NodeToolCmd
     }
 
     /**
-     * Returns the total off heap memory used in MB.
-     * @return the total off heap memory used in MB.
+     * Returns the total off heap memory used in MiB.
+     * @return the total off heap memory used in MiB.
      */
     private static double getOffHeapMemoryUsed(NodeProbe probe)
     {

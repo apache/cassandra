@@ -65,7 +65,7 @@ public class CaffeineCache<K extends IMeasurableMemory, V extends IMeasurableMem
         return create(weightedCapacity, (key, value) -> {
             long size = key.unsharedHeapSize() + value.unsharedHeapSize();
             if (size > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Serialized size cannot be more than 2GB/Integer.MAX_VALUE");
+                throw new IllegalArgumentException("Serialized size cannot be more than 2GiB/Integer.MAX_VALUE");
             }
             return (int) size;
         });

@@ -355,8 +355,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getTrackWarningsEnabled())
                 return;
 
-            int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKb() * 1024;
-            int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKb() * 1024;
+            int warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThresholdKiB() * 1024;
+            int abortThreshold = DatabaseDescriptor.getRowIndexSizeAbortThresholdKiB() * 1024;
             if (warnThreshold == 0 && abortThreshold == 0)
                 return;
 

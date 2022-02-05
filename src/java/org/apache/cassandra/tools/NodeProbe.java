@@ -1227,14 +1227,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.isInitialized();
     }
 
-    public void setColumnIndexSize(int columnIndexSizeInKB)
+    public void setColumnIndexSize(int columnIndexSizeInKiB)
     {
-        ssProxy.setColumnIndexSize(columnIndexSizeInKB);
+        ssProxy.setColumnIndexSize(columnIndexSizeInKiB);
     }
 
     public int getColumnIndexSizeInKB()
     {
-        return ssProxy.getColumnIndexSizeInKB();
+        return ssProxy.getColumnIndexSizeInKiB();
     }
 
     public void setCompactionThroughput(int value)

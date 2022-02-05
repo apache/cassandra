@@ -211,7 +211,7 @@ public class IndexSummaryBuilder implements AutoCloseable
             else
             {
                 // we cannot fully sample this sstable due to too much memory in the index summary, so let's tell the user
-                logger.error("Memory capacity of index summary exceeded (2GB), index summary will not cover full sstable, " +
+                logger.error("Memory capacity of index summary exceeded (2GiB), index summary will not cover full sstable, " +
                              "you should increase min_sampling_level");
             }
         }

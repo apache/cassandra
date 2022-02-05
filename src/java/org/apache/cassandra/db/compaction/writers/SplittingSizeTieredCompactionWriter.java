@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
  * CompactionAwareWriter that splits input in differently sized sstables
  *
  * Biggest sstable will be total_compaction_size / 2, second biggest total_compaction_size / 4 etc until
- * the result would be sub 50MB, all those are put in the same
+ * the result would be sub 50MiB, all those are put in the same
  */
 public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 {
@@ -70,7 +70,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         }
 
         int noPointIndex = 0;
-        // find how many sstables we should create - 50MB min sstable size
+        // find how many sstables we should create - 50MiB min sstable size
         for (double ratio : potentialRatios)
         {
             noPointIndex++;

@@ -90,7 +90,6 @@ public class CommitLogInitWithExceptionTest
             Assert.fail();
         }
 
-
         Assert.assertTrue(CommitLog.instance.segmentManager.executor.isTerminated()); // exit successfully
     }
 

@@ -71,7 +71,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return create(weightedCapacity, (key, value) -> {
             long size = value.size();
             if (size > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Serialized size must not be more than 2GB");
+                throw new IllegalArgumentException("Serialized size must not be more than 2GiB");
             }
             return (int) size;
         }, serializer);

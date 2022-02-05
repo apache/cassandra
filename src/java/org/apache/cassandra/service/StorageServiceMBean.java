@@ -777,7 +777,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setCachedReplicaRowsFailThreshold(int threshold);
 
     /** Returns the granularity of the collation index of rows within a partition **/
-    public int getColumnIndexSizeInKB();
+    public int getColumnIndexSizeInKiB();
     /** Sets the granularity of the collation index of rows within a partition **/
     public void setColumnIndexSize(int columnIndexSizeInKB);
 

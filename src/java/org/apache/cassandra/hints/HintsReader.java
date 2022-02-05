@@ -53,7 +53,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsReader.class);
 
-    // don't read more than 512 KB of hints at a time.
+    // don't read more than 512 KiB of hints at a time.
     private static final int PAGE_SIZE = 512 << 10;
 
     private final HintsDescriptor descriptor;

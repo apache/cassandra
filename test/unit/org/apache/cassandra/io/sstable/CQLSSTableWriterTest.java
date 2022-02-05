@@ -173,8 +173,8 @@ public class CQLSSTableWriterTest
     public void testSyncWithinPartition() throws Exception
     {
         // Check that the write respect the buffer size even if we only insert rows withing the same partition (#7360)
-        // To do that simply, we use a writer with a buffer of 1MB, and write 2 rows in the same partition with a value
-        // > 1MB and validate that this created more than 1 sstable.
+        // To do that simply, we use a writer with a buffer of 1MiB, and write 2 rows in the same partition with a value
+        // > 1MiB and validate that this created more than 1 sstable.
         String schema = "CREATE TABLE " + qualifiedTable + " ("
                       + "  k int PRIMARY KEY,"
                       + "  v blob"
@@ -184,7 +184,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .using(insert)
                                                   .forTable(schema)
-                                                  .withBufferSizeInMB(1)
+                                                  .withBufferSizeInMiB(1)
                                                   .build();
 
         ByteBuffer val = ByteBuffer.allocate(1024 * 1050);
@@ -212,7 +212,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMB(1)
+                                                  .withBufferSizeInMiB(1)
                                                   .build();
 
         for (int i = 0 ; i < 50000 ; i++) {
@@ -644,7 +644,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMB(1)
+                                                  .withBufferSizeInMiB(1)
                                                   .build();
 
         final int ID_OFFSET = 1000;

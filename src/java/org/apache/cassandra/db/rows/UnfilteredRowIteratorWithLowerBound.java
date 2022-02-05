@@ -185,7 +185,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         // CASSANDRA-11369 is there to fix this afterwards.
 
         // Creating the iterator ensures that rowIndexEntry is loaded if available (partitions bigger than
-        // DatabaseDescriptor.column_index_size_in_kb)
+        // DatabaseDescriptor.column_index_size)
         if (!canUseMetadataLowerBound())
             maybeInit();
 

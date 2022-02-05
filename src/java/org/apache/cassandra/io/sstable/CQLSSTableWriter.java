@@ -52,7 +52,6 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -356,7 +355,7 @@ public class CQLSSTableWriter implements Closeable
         private IPartitioner partitioner;
 
         private boolean sorted = false;
-        private long bufferSizeInMB = 128;
+        private long bufferSizeInMiB = 128;
 
         protected Builder() {
             this.typeStatements = new ArrayList<>();
@@ -469,15 +468,15 @@ public class CQLSSTableWriter implements Closeable
          * a new SSTable. This correspond roughly to the data size that will have the created
          * sstable.
          * <p>
-         * The default is 128MB, which should be reasonable for a 1GB heap. If you experience
+         * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
          * OOM while using the writer, you should lower this value.
          *
-         * @param size the size to use in MB.
+         * @param size the size to use in MiB.
          * @return this builder.
          */
-        public Builder withBufferSizeInMB(int size)
+        public Builder withBufferSizeInMiB(int size)
         {
-            this.bufferSizeInMB = size;
+            this.bufferSizeInMiB = size;
             return this;
         }
 
@@ -494,7 +493,7 @@ public class CQLSSTableWriter implements Closeable
          * the rows in order, which is rarely the case. If you can provide the
          * rows in order however, using this sorted might be more efficient.
          * <p>
-         * Note that if used, some option like withBufferSizeInMB will be ignored.
+         * Note that if used, some option like withBufferSizeInMiB will be ignored.
          *
          * @return this builder.
          */
@@ -548,7 +547,7 @@ public class CQLSSTableWriter implements Closeable
                 TableMetadataRef ref = TableMetadataRef.forOfflineTools(tableMetadata);
                 AbstractSSTableSimpleWriter writer = sorted
                                                    ? new SSTableSimpleWriter(directory, ref, preparedInsert.updatedColumns())
-                                                   : new SSTableSimpleUnsortedWriter(directory, ref, preparedInsert.updatedColumns(), bufferSizeInMB);
+                                                   : new SSTableSimpleUnsortedWriter(directory, ref, preparedInsert.updatedColumns(), bufferSizeInMiB);
 
                 if (formatType != null)
                     writer.setSSTableFormatType(formatType);

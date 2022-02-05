@@ -93,7 +93,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     {
         private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
                                                                     .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                                    .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
+                                                                    .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
                                                                     .finishOnClose(true).build();
 
         public InputStream getInputStream(File dataPath, File crcPath) throws IOException

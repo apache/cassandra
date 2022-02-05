@@ -54,7 +54,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     @VisibleForTesting
     final LeveledManifest manifest;
-    private final int maxSSTableSizeInMB;
+    private final int maxSSTableSizeInMiB;
     private final int levelFanoutSize;
     private final boolean singleSSTableUplevel;
 
@@ -91,11 +91,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 configuredSingleSSTableUplevel = Boolean.parseBoolean(options.get(SINGLE_SSTABLE_UPLEVEL_OPTION));
             }
         }
-        maxSSTableSizeInMB = configuredMaxSSTableSize;
+        maxSSTableSizeInMiB = configuredMaxSSTableSize;
         levelFanoutSize = configuredLevelFanoutSize;
         singleSSTableUplevel = configuredSingleSSTableUplevel;
 
-        manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMB, this.levelFanoutSize, localOptions);
+        manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMiB, this.levelFanoutSize, localOptions);
         logger.trace("Created {}", manifest);
     }
 
@@ -282,7 +282,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     public long getMaxSSTableBytes()
     {
-        return maxSSTableSizeInMB * 1024L * 1024L;
+        return maxSSTableSizeInMiB * 1024L * 1024L;
     }
 
     public int getLevelFanoutSize()

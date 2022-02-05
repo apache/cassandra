@@ -94,7 +94,7 @@ public class RowCacheTest
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
-        // set global row cache size to 1 MB
+        // set global row cache size to 1 MiB
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
@@ -139,7 +139,7 @@ public class RowCacheTest
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
-        // set global row cache size to 1 MB
+        // set global row cache size to 1 MiB
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         // inserting 100 rows into both column families
@@ -221,7 +221,7 @@ public class RowCacheTest
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
-        // set global row cache size to 1 MB
+        // set global row cache size to 1 MiB
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         // inserting 100 rows into column family
@@ -409,7 +409,7 @@ public class RowCacheTest
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
-        // set global row cache size to 1 MB
+        // set global row cache size to 1 MiB
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
@@ -484,7 +484,7 @@ public class RowCacheTest
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
-        // set global row cache size to 1 MB
+        // set global row cache size to 1 MiB
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         // inserting 100 rows into both column families

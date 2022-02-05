@@ -90,7 +90,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
 
         assertGetThroughput(columnIndexSizeInKB);
 
-        assertThat(StorageService.instance.getColumnIndexSizeInKB()).isEqualTo(columnIndexSizeInKB);
+        assertThat(StorageService.instance.getColumnIndexSizeInKiB()).isEqualTo(columnIndexSizeInKB);
     }
 
     private static void assertSetInvalidColumnIndexSize(String columnIndexSizeInKB, String expectedErrorMessage, int expectedErrorCode)

@@ -32,7 +32,6 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;

@@ -112,7 +112,7 @@ public class IndexSummaryTest
     }
 
     /**
-     * Test an index summary whose total size is bigger than 2GB,
+     * Test an index summary whose total size is bigger than 2GiB,
      * the index summary builder should log an error but it should still
      * create an index summary, albeit one that does not cover the entire sstable.
      */
@@ -146,7 +146,7 @@ public class IndexSummaryTest
     }
 
     /**
-     * Test an index summary whose total size is bigger than 2GB,
+     * Test an index summary whose total size is bigger than 2GiB,
      * having updated IndexSummaryBuilder.defaultExpectedKeySize to match the size,
      * the index summary should be downsampled automatically.
      */

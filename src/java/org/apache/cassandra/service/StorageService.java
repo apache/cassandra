@@ -5827,12 +5827,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setSSTablePreemptiveOpenIntervalInMB(int intervalInMB)
     {
-        DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(intervalInMB);
+        DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(intervalInMB);
     }
 
     public int getSSTablePreemptiveOpenIntervalInMB()
     {
-        return DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB();
+        return DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB();
     }
 
     public boolean getMigrateKeycacheOnCompaction()
@@ -5889,7 +5889,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
     }
 
-    public int getColumnIndexSizeInKB()
+    public int getColumnIndexSizeInKiB()
     {
         return DatabaseDescriptor.getColumnIndexSizeInKiB();
     }
@@ -5914,12 +5914,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getBatchSizeFailureThreshold()
     {
-        return DatabaseDescriptor.getBatchSizeFailThresholdInKB();
+        return DatabaseDescriptor.getBatchSizeFailThresholdInKiB();
     }
 
     public void setBatchSizeFailureThreshold(int threshold)
     {
-        DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
+        DatabaseDescriptor.setBatchSizeFailThresholdInKiB(threshold);
         logger.info("updated batch_size_fail_threshold to {}", threshold);
     }
 
@@ -6318,7 +6318,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public int getRowIndexSizeWarnThresholdKb()
     {
-        return DatabaseDescriptor.getRowIndexSizeWarnThresholdKb();
+        return DatabaseDescriptor.getRowIndexSizeWarnThresholdKiB();
     }
 
     @Override
@@ -6326,14 +6326,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeWarnThresholdKb(value);
+        DatabaseDescriptor.setRowIndexSizeWarnThresholdKiB(value);
         logger.info("updated track_warnings.row_index_size.warn_threshold_kb to {}", value);
     }
 
     @Override
     public int getRowIndexSizeAbortThresholdKb()
     {
-        return DatabaseDescriptor.getRowIndexSizeAbortThresholdKb();
+        return DatabaseDescriptor.getRowIndexSizeAbortThresholdKiB();
     }
 
     @Override
@@ -6341,7 +6341,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (value < 0)
             throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(value);
+        DatabaseDescriptor.setRowIndexSizeAbortThresholdKiB(value);
         logger.info("updated track_warnings.row_index_size.abort_threshold_kb to {}", value);
     }
 

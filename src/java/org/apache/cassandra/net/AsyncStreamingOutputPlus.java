@@ -147,7 +147,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     /**
      * Writes all data in file channel to stream: <br>
      * * For zero-copy-streaming, 1MiB at a time, with at most 2MiB in flight at once. <br>
-     * * For streaming with SSL, 64kb at a time, with at most 32+64kb (default low water mark + batch size) in flight. <br>
+     * * For streaming with SSL, 64KiB at a time, with at most 32+64KiB (default low water mark + batch size) in flight. <br>
      * <p>
      * This method takes ownership of the provided {@link FileChannel}.
      * <p>
@@ -157,7 +157,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
     {
         if (channel.pipeline().get(SslHandler.class) != null)
-            // each batch is loaded into ByteBuffer, 64kb is more BufferPool friendly.
+            // each batch is loaded into ByteBuffer, 64KiB is more BufferPool friendly.
             return writeFileToChannel(file, limiter, 1 << 16);
         else
             // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,

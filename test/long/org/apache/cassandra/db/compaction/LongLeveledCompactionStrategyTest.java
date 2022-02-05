@@ -75,7 +75,7 @@ public class LongLeveledCompactionStrategyTest
         CompactionStrategyManager mgr = store.getCompactionStrategyManager();
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) mgr.getStrategies().get(1).get(0);
 
-        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KiB value, make it easy to have multiple files
 
         populateSSTables(store);
 
@@ -138,7 +138,7 @@ public class LongLeveledCompactionStrategyTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL2);
-        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KiB value, make it easy to have multiple files
 
         populateSSTables(store);
 
@@ -147,7 +147,7 @@ public class LongLeveledCompactionStrategyTest
         CompactionStrategyManager mgr = store.getCompactionStrategyManager();
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) mgr.getStrategies().get(1).get(0);
 
-        value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
+        value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KiB value
 
         // Adds 10 partitions
         for (int r = 0; r < 10; r++)
@@ -245,7 +245,7 @@ public class LongLeveledCompactionStrategyTest
 
     private void populateSSTables(ColumnFamilyStore store)
     {
-        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KiB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
         int rows = 128;

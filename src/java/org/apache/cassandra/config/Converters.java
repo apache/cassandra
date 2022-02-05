@@ -112,6 +112,7 @@ public enum Converters
      *
      * @param value we will use from cassandra.yaml to create a new {@link Config} parameter of type {@link DurationSpec},
      * {@link DataRateSpec} or {@link DataStorageSpec}
+     *
      * @return new object of type {@link DurationSpec}, {@link DataRateSpec} or {@link DataStorageSpec}
      */
     public Object convert(Object value)
@@ -126,6 +127,7 @@ public enum Converters
      * compatibility
      *
      * @param value we will use to calculate the output value
+     *
      * @return the numeric value
      */
     public Object deconvert(Object value)
