@@ -121,14 +121,6 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
                         return;
                 }
 
-                //Filter out Windows newline
-                if (size() == 2)
-                {
-                    byte[] bytes = toByteArray();
-                    if (bytes[0] == 0xD && bytes[1] == 0xA)
-                        return;
-                }
-
                 String statement;
                 if (encoding != null)
                     statement = new String(toByteArray(), encoding);

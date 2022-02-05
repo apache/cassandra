@@ -217,7 +217,6 @@ public class SSTableExport
         }
         catch (IOException e)
         {
-            // throwing exception outside main with broken pipe causes windows cmd to hang
             e.printStackTrace(System.err);
         }
 

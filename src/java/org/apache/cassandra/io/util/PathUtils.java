@@ -352,8 +352,6 @@ public final class PathUtils
     public static boolean tryRename(Path from, Path to)
     {
         logger.trace("Renaming {} to {}", from, to);
-        // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
-        // and Windows is picky about that.
         try
         {
             atomicMoveWithFallback(from, to);
@@ -369,8 +367,6 @@ public final class PathUtils
     public static void rename(Path from, Path to)
     {
         logger.trace("Renaming {} to {}", from, to);
-        // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
-        // and Windows is picky about that.
         try
         {
             atomicMoveWithFallback(from, to);

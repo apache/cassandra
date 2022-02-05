@@ -33,7 +33,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.fail;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
@@ -44,7 +43,7 @@ import static org.junit.Assert.assertTrue;
 public class SSTableWriterTest extends SSTableWriterTestBase
 {
     @Test
-    public void testAbortTxnWithOpenEarlyShouldRemoveSSTable() throws InterruptedException
+    public void testAbortTxnWithOpenEarlyShouldRemoveSSTable()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -81,13 +80,9 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             int datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 1);
 
-            // These checks don't work on Windows because the writer has the channel still
-            // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows)
-            {
-                LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.tryListNames());
-            }
+            LifecycleTransaction.waitForDeletions();
+            assertFileCounts(dir.tryListNames());
+
             writer.abort();
             txn.abort();
             LifecycleTransaction.waitForDeletions();
@@ -130,13 +125,9 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             assertEquals(datafiles, 1);
 
             sstable.selfRef().release();
-            // These checks don't work on Windows because the writer has the channel still
-            // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows)
-            {
-                LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.tryListNames());
-            }
+
+            LifecycleTransaction.waitForDeletions();
+            assertFileCounts(dir.tryListNames());
 
             txn.abort();
             LifecycleTransaction.waitForDeletions();
@@ -184,13 +175,9 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             int datafiles = assertFileCounts(dir.tryListNames());
             assertEquals(datafiles, 2);
 
-            // These checks don't work on Windows because the writer has the channel still
-            // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows)
-            {
-                LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.tryListNames());
-            }
+            LifecycleTransaction.waitForDeletions();
+            assertFileCounts(dir.tryListNames());
+
             txn.abort();
             LifecycleTransaction.waitForDeletions();
             datafiles = assertFileCounts(dir.tryListNames());

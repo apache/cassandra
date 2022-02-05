@@ -54,10 +54,10 @@ public final class SchemaConstants
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
         ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME);
     /**
-     * longest permissible KS or CF name.  Our main concern is that filename not be more than 255 characters;
-     * the filename will contain both the KS and CF names. Since non-schema-name components only take up
-     * ~64 characters, we could allow longer names than this, but on Windows, the entire path should be not greater than
-     * 255 characters, so a lower limit here helps avoid problems.  See CASSANDRA-4110.
+     * The longest permissible KS or CF name.
+     *
+     * Before CASSANDRA-16956, we used to care about not having the entire path longer than 255 characters because of
+     * Windows support but this limit is by implementing CASSANDRA-16956 not in effect anymore.
      */
     public static final int NAME_LENGTH = 48;
 

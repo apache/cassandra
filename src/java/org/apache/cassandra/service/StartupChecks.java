@@ -140,8 +140,6 @@ public class StartupChecks
     {
         public void execute()
         {
-            if (FBUtilities.isWindows)
-                return;
             String jemalloc = System.getProperty("cassandra.libjemalloc");
             if (jemalloc == null)
                 logger.warn("jemalloc shared library could not be preloaded to speed up memory allocations");

@@ -64,11 +64,6 @@ public class DirectorySizerBench
         // [java]   Statistics: (min, avg, max) = (73.687, 74.714, 76.872), stdev = 0.835
         // [java]   Confidence interval (99.9%): [74.156, 75.272]
 
-        // Throttle CPU on the Windows box to .87GHZ from 4.3GHZ turbo single-core, and #'s for 25600:
-        // [java] Result: 298.628 ▒(99.9%) 14.755 ms/op [Average]
-        // [java]   Statistics: (min, avg, max) = (291.245, 298.628, 412.881), stdev = 22.085
-        // [java]   Confidence interval (99.9%): [283.873, 313.383]
-
         // Test w/25,600 files, 100x the load of a full default CommitLog (8192) divided by size (32 per)
         populateRandomFiles(tempDir, 25600);
         sizer = new DirectorySizeCalculator(tempDir);

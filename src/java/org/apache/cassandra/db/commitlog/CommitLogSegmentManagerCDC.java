@@ -351,7 +351,6 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             try
             {
                 resetSize();
-                // The Arrays.stream approach is considerably slower on Windows than linux
                 Files.walkFileTree(path.toPath(), this);
                 sizeInProgress.getAndSet(getAllocatedSize());
             }

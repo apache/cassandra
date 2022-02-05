@@ -35,8 +35,6 @@ from . import wcwidth
 from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
 from .util import UTC
 
-is_win = platform.system() == 'Windows'
-
 unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
 controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
 

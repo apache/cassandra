@@ -22,8 +22,6 @@ from __future__ import unicode_literals, with_statement
 import locale
 import os
 import re
-import subprocess
-import sys
 import six
 import unittest
 
@@ -124,8 +122,7 @@ class TestCqlshOutput(BaseTestCase):
         for termname in ('', 'dumb', 'vt100'):
             cqlshlog.debug('TERM=%r' % termname)
             env['TERM'] = termname
-            with testrun_cqlsh(tty=True, env=env,
-                               win_force_colors=False) as c:
+            with testrun_cqlsh(tty=True, env=env) as c:
                 c.send('select * from has_all_types;\n')
                 self.assertNoHasColors(c.read_to_next_prompt())
                 c.send('select count(*) from has_all_types;\n')
@@ -588,7 +585,7 @@ class TestCqlshOutput(BaseTestCase):
             outputlines = c.read_to_next_prompt().splitlines()
 
             start_index = 0
-            if c.realtty:
+            if c.tty:
                 self.assertEqual(outputlines[start_index], 'use NONEXISTENTKEYSPACE;')
                 start_index = 1
 
@@ -781,7 +778,6 @@ class TestCqlshOutput(BaseTestCase):
             self.assertRegex(output, '^Connected to .* at %s:%d$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
 
-    @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             c.send(CONTROL_D)
@@ -796,9 +792,8 @@ class TestCqlshOutput(BaseTestCase):
             with testrun_cqlsh(tty=True, env=self.default_env) as c:
                 cmd = 'exit%s\n' % semicolon
                 c.send(cmd)
-                if c.realtty:
-                    out = c.read_lines(1)[0].replace('\r', '')
-                    self.assertEqual(out, cmd)
+                out = c.read_lines(1)[0].replace('\r', '')
+                self.assertEqual(out, cmd)
                 with self.assertRaises(BaseException) as cm:
                     c.read_lines(1)
                 self.assertIn(type(cm.exception), (EOFError, OSError))

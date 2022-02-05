@@ -119,14 +119,6 @@ if [ -z "$CASSANDRA_LOG_DIR" ]; then
   CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
 fi
 
-# Special-case path variables.
-case "`uname`" in
-    CYGWIN*|MINGW*) 
-        CLASSPATH=`cygpath -p -w "$CLASSPATH"`
-        CASSANDRA_CONF=`cygpath -p -w "$CASSANDRA_CONF"`
-    ;;
-esac
-
 # Cassandra uses an installed jemalloc via LD_PRELOAD / DYLD_INSERT_LIBRARIES by default to improve off-heap
 # memory allocation performance. The following code searches for an installed libjemalloc.dylib/.so/.1.so using
 # Linux and OS-X specific approaches.
