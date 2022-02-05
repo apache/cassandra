@@ -38,7 +38,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
-import static org.apache.cassandra.utils.NativeLibrary.OSType.WINDOWS;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.AIX;
 
 public final class NativeLibrary
@@ -50,7 +49,6 @@ public final class NativeLibrary
     {
         LINUX,
         MAC,
-        WINDOWS,
         AIX,
         OTHER;
     }
@@ -99,7 +97,6 @@ public final class NativeLibrary
         switch (osType)
         {
             case MAC: wrappedLibrary = new NativeLibraryDarwin(); break;
-            case WINDOWS: wrappedLibrary = new NativeLibraryWindows(); break;
             case LINUX:
             case AIX:
             case OTHER:
@@ -143,10 +140,8 @@ public final class NativeLibrary
             return LINUX;
         else if (osName.contains("mac"))
             return MAC;
-        else if (osName.contains("windows"))
-            return WINDOWS;
 
-        logger.warn("the current operating system, {}, is unsupported by cassandra", osName);
+        logger.warn("the current operating system, {}, is unsupported by Cassandra", osName);
         if (osName.contains("aix"))
             return AIX;
         else

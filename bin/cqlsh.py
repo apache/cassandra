@@ -28,6 +28,7 @@ import os
 import platform
 import re
 import stat
+import subprocess
 import sys
 import traceback
 import warnings
@@ -44,7 +45,6 @@ if platform.python_implementation().startswith('Jython'):
     sys.exit("\nCQL Shell does not run on Jython\n")
 
 UTF8 = 'utf-8'
-CP65001 = 'cp65001'  # Win utf-8 variant
 
 description = "CQL Shell for Apache Cassandra"
 version = "6.0.0"
@@ -92,14 +92,8 @@ if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ
 # use bundled lib for python-cql if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
 ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
-myplatform = platform.system()
-is_win = myplatform == 'Windows'
 
-# Workaround for supporting CP65001 encoding on python < 3.3 (https://bugs.python.org/issue13216)
-if is_win and sys.version_info < (3, 3):
-    codecs.register(lambda name: codecs.lookup(UTF8) if name == CP65001 else None)
-
-if myplatform == 'Linux':
+if platform.system() == 'Linux':
     ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
 
 if os.environ.get('CQLSH_NO_BUNDLED', ''):
@@ -211,7 +205,7 @@ parser.add_option('--debug', action='store_true',
 parser.add_option('--coverage', action='store_true',
                   help='Collect coverage data')
 parser.add_option("--encoding", help="Specify a non-default encoding for output."
-                  " (Default: %s)" % (UTF8,))
+                  + " (Default: %s)" % (UTF8,))
 parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_option("--credentials", help="Specify an alternative credentials file location.")
 parser.add_option('--cqlversion', default=None,
@@ -261,9 +255,9 @@ OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 if os.path.exists(OLD_CONFIG_FILE):
     if os.path.exists(CONFIG_FILE):
         print('\nWarning: cqlshrc config files were found at both the old location ({0})'
-              ' and the new location ({1}), the old config file will not be migrated to the new'
-              ' location, and the new location will be used for now.  You should manually'
-              ' consolidate the config files at the new location and remove the old file.'
+              + ' and the new location ({1}), the old config file will not be migrated to the new'
+              + ' location, and the new location will be used for now.  You should manually'
+              + ' consolidate the config files at the new location and remove the old file.'
               .format(OLD_CONFIG_FILE, CONFIG_FILE))
     else:
         os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
@@ -508,7 +502,6 @@ class Shell(cmd.Cmd):
 
         self.tty = tty
         self.encoding = encoding
-        self.check_windows_encoding()
 
         self.output_codec = codecs.lookup(encoding)
 
@@ -543,15 +536,7 @@ class Shell(cmd.Cmd):
     @property
     def is_using_utf8(self):
         # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
-        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8', CP65001]
-
-    def check_windows_encoding(self):
-        if is_win and os.name == 'nt' and self.tty and \
-           self.is_using_utf8 and sys.stdout.encoding != CP65001:
-            self.printerr("\nWARNING: console codepage must be set to cp65001 "
-                          "to support {} encoding on Windows platforms.\n"
-                          "If you experience encoding problems, change your console"
-                          " codepage with 'chcp 65001' before starting cqlsh.\n".format(self.encoding))
+        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8']
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -817,8 +802,6 @@ class Shell(cmd.Cmd):
             try:
                 import readline
             except ImportError:
-                if is_win:
-                    print("WARNING: pyreadline dependency missing.  Install to enable tab completion.")
                 pass
             else:
                 old_completer = readline.get_completer()
@@ -1886,8 +1869,7 @@ class Shell(cmd.Cmd):
 
         Clears the console.
         """
-        import subprocess
-        subprocess.call(['clear', 'cls'][is_win], shell=True)
+        subprocess.call('clear', shell=True)
     do_cls = do_clear
 
     def do_debug(self, parsed):
@@ -2098,7 +2080,6 @@ def should_use_color():
     if os.environ.get('TERM', '') in ('dumb', ''):
         return False
     try:
-        import subprocess
         p = subprocess.Popen(['tput', 'colors'], stdout=subprocess.PIPE)
         stdout, _ = p.communicate()
         if int(stdout.strip()) < 8:
@@ -2111,11 +2092,6 @@ def should_use_color():
 
 
 def is_file_secure(filename):
-    if is_win:
-        # We simply cannot tell whether the file is seucre on Windows,
-        # because os.stat().st_uid is always 0 and os.stat().st_mode is meaningless
-        return True
-
     try:
         st = os.stat(filename)
     except OSError as e:
@@ -2359,9 +2335,9 @@ def main(options, hostname, port):
             # does contain a TZ part) was specified
             if options.time_format != DEFAULT_TIMESTAMP_FORMAT:
                 sys.stderr.write("Warning: custom timestamp format specified in cqlshrc, "
-                                 "but local timezone could not be detected.\n"
-                                 "Either install Python 'tzlocal' module for auto-detection "
-                                 "or specify client timezone in your cqlshrc.\n\n")
+                                 + "but local timezone could not be detected.\n"
+                                 + "Either install Python 'tzlocal' module for auto-detection "
+                                 + "or specify client timezone in your cqlshrc.\n\n")
 
     try:
         shell = Shell(hostname,
@@ -2414,7 +2390,7 @@ def main(options, hostname, port):
 
 
 # always call this regardless of module name: when a sub-process is spawned
-# on Windows then the module name is not __main__, see CASSANDRA-9304
+# on Windows then the module name is not __main__, see CASSANDRA-9304 (Windows support was dropped in CASSANDRA-16956)
 insert_driver_hooks()
 
 if __name__ == '__main__':

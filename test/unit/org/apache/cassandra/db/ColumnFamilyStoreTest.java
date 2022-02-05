@@ -220,11 +220,6 @@ public class ColumnFamilyStoreTest
     @Test
     public void testClearEphemeralSnapshots() throws Throwable
     {
-        // We don't do snapshot-based repair on Windows so we don't have ephemeral snapshots from repair that need clearing.
-        // This test will fail as we'll revert to the WindowsFailedSnapshotTracker and counts will be off, but since we
-        // don't do snapshot-based repair on Windows, we just skip this test.
-        Assume.assumeTrue(!FBUtilities.isWindows);
-
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1);
 
         //cleanup any previous test gargbage

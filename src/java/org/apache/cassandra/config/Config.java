@@ -392,8 +392,6 @@ public class Config
      */
     public volatile ConsistencyLevel ideal_consistency_level = null;
 
-    public int windows_timer_interval = 0;
-
     /**
      * Size of the CQL prepared statements cache in MB.
      * Defaults to 1/256th of the heap size or 10MB, whichever is greater.

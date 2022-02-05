@@ -884,7 +884,7 @@ class FilesReader(object):
         self.max_rows = options.copy['maxrows']
         self.skip_rows = options.copy['skiprows']
         self.fname = fname
-        self.sources = None  # must be created later due to pickle problems on Windows
+        self.sources = None  # might be initialised directly here? (see CASSANDRA-17350)
         self.num_sources = 0
         self.current_source = None
         self.num_read = 0
@@ -1299,9 +1299,9 @@ class FeedingProcess(mp.Process):
         self.inpipe = inpipe
         self.outpipe = outpipe
         self.worker_pipes = worker_pipes
-        self.inmsg = None  # must be created after forking on Windows
-        self.outmsg = None  # must be created after forking on Windows
-        self.worker_channels = None  # must be created after forking on Windows
+        self.inmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.outmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.worker_channels = None  # might be initialised directly here? (see CASSANDRA-17350)
         self.reader = FilesReader(fname, options) if fname else PipeReader(inpipe, options)
         self.send_meter = RateMeter(log_fcn=None, update_interval=1)
         self.ingest_rate = options.copy['ingestrate']
@@ -1405,8 +1405,8 @@ class ChildProcess(mp.Process):
         super(ChildProcess, self).__init__(target=target)
         self.inpipe = params['inpipe']
         self.outpipe = params['outpipe']
-        self.inmsg = None  # must be initialized after fork on Windows
-        self.outmsg = None  # must be initialized after fork on Windows
+        self.inmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.outmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
         self.ks = params['ks']
         self.table = params['table']
         self.local_dc = params['local_dc']

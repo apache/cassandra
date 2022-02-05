@@ -564,10 +564,6 @@ public class DatabaseDescriptor
 
         if (conf.cdc_enabled)
         {
-            // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
-            if (FBUtilities.isWindows && conf.commitlog_compression == null)
-                throw new ConfigurationException("Cannot enable cdc on Windows with uncompressed commitlog.");
-
             if (conf.cdc_raw_directory == null)
             {
                 conf.cdc_raw_directory = storagedirFor("cdc_raw");
@@ -2803,7 +2799,7 @@ public class DatabaseDescriptor
 
     public static int getSSTablePreemptiveOpenIntervalInMB()
     {
-        return FBUtilities.isWindows ? -1 : conf.sstable_preemptive_open_interval_in_mb;
+        return conf.sstable_preemptive_open_interval_in_mb;
     }
     public static void setSSTablePreemptiveOpenIntervalInMB(int mb)
     {
@@ -3044,11 +3040,6 @@ public class DatabaseDescriptor
     public static int getTracetypeQueryTTL()
     {
         return conf.tracetype_query_ttl;
-    }
-
-    public static int getWindowsTimerInterval()
-    {
-        return conf.windows_timer_interval;
     }
 
     public static long getPreparedStatementsCacheSizeMB()

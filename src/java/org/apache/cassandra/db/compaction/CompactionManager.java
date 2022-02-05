@@ -70,7 +70,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
-import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -1846,7 +1845,6 @@ public class CompactionManager implements CompactionManagerMBean
     static class CompactionExecutor extends WrappedExecutorPlus
     {
         static final ThreadGroup compactionThreadGroup = executorFactory().newThreadGroup("compaction");
-        private static final WithResources RESCHEDULE_FAILED = () -> SnapshotDeletingTask::rescheduleFailedTasks;
 
         public CompactionExecutor()
         {
@@ -1901,12 +1899,12 @@ public class CompactionManager implements CompactionManagerMBean
 
         public void execute(Runnable command)
         {
-            executor.execute(RESCHEDULE_FAILED, command);
+            executor.execute(command);
         }
 
         public <T> Future<T> submit(Callable<T> task)
         {
-            return executor.submit(RESCHEDULE_FAILED, task);
+            return executor.submit(task);
         }
 
         public <T> Future<T> submit(Runnable task, T result)

@@ -1,4 +1,5 @@
 4.1
+ * Remove support for Windows (CASSANDRA-16956)
  * Runtime-configurable YAML option to prohibit USE statements (CASSANDRA-17318)
  * When streaming sees a ClosedChannelException this triggers the disk failure policy (CASSANDRA-17116)
  * Add a virtual table for exposing prepared statements metrics (CASSANDRA-17224)
