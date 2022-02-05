@@ -70,7 +70,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         List<File> splitFiles = Arrays.asList(sstablesDir.tryList());
         splitFiles.stream().forEach(f -> {
             if (f.name().endsWith("Data.db") && !origSstables.contains(f))
-                assertTrue(f.name() + " is way bigger than 1MB: [" + f.length() + "] bytes",
+                assertTrue(f.name() + " is way bigger than 1MiB: [" + f.length() + "] bytes",
                            f.length() <= 1024 * 1024 * 1.2); //give a 20% margin on size check
         });
         assertTrue(origSstables.size() < splitFiles.size());
@@ -93,7 +93,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         List<File> splitFiles = Arrays.asList(sstablesDir.tryList());
         splitFiles.stream().forEach(f -> {
             if (f.name().endsWith("Data.db") && !origSstables.contains(f))
-                assertTrue(f.name() + " is way bigger than 1MB: [" + f.length() + "] bytes",
+                assertTrue(f.name() + " is way bigger than 1MiB: [" + f.length() + "] bytes",
                            f.length() <= 1024 * 1024 * 1.2); //give a 20% margin on size check
         });
         assertTrue(origSstables.size() < splitFiles.size());
@@ -123,7 +123,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
 
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         sstableFileName = sstables.iterator().next().getFilename();
-        assertTrue("Generated sstable must be at least 1MB", (new File(sstableFileName)).length() > 1024*1024);
+        assertTrue("Generated sstable must be at least 1MiB", (new File(sstableFileName)).length() > 1024*1024);
         sstablesDir = new File(sstableFileName).parent();
         origSstables = Arrays.asList(sstablesDir.tryList());
         System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing

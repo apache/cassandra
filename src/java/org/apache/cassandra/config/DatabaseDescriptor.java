@@ -32,11 +32,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.io.util.File;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
@@ -54,6 +49,8 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
@@ -75,6 +72,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
@@ -94,7 +94,7 @@ public class DatabaseDescriptor
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
     /**
-     * Tokens are serialized in a Gossip VersionedValue String.  VV are restricted to 64KB
+     * Tokens are serialized in a Gossip VersionedValue String.  VV are restricted to 64KiB
      * when we send them over the wire, which works out to about 1700 tokens.
      */
     private static final int MAX_NUM_TOKENS = 1536;
@@ -379,7 +379,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Missing required directive CommitLogSync", false);
         }
 
-        if (conf.commitlog_sync == Config.CommitLogSync.batch)
+        if (conf.commitlog_sync == CommitLogSync.batch)
         {
             if (conf.commitlog_sync_period.toMilliseconds() != 0)
             {
@@ -401,7 +401,7 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (conf.commitlog_sync_period.toMilliseconds() <= 0)
+            if (conf.commitlog_sync_period.toMilliseconds() == 0)
             {
                 throw new ConfigurationException("Missing value for commitlog_sync_period.", false);
             }
@@ -495,7 +495,7 @@ public class DatabaseDescriptor
 
         if (conf.repair_session_space.toMebibytes() < 1)
             throw new ConfigurationException("repair_session_space must be > 0, but was " + conf.repair_session_space);
-        else if (conf.repair_session_space.toMebibytesAsInt() > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+        else if (conf.repair_session_space.toMebibytes() > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
             logger.warn("A repair_session_space of " + conf.repair_session_space+ " mebibytes is likely to cause heap pressure");
 
         checkForLowestAcceptedTimeouts(conf);
@@ -682,13 +682,13 @@ public class DatabaseDescriptor
                                               ? Math.max(10, (int) (Runtime.getRuntime().maxMemory() / 1024 / 1024 / 256))
                                               : conf.prepared_statements_cache_size.toMebibytes();
 
-            if (preparedStatementsCacheSizeInMiB <= 0)
+            if (preparedStatementsCacheSizeInMiB == 0)
                 throw new NumberFormatException(); // to escape duplicating error message
         }
         catch (NumberFormatException e)
         {
             throw new ConfigurationException("prepared_statements_cache_size option was set incorrectly to '"
-                                             + conf.prepared_statements_cache_size + "', supported values are <integer> >= 0.", false);
+                                             + (conf.prepared_statements_cache_size != null ? conf.prepared_statements_cache_size.toString() : null) + "', supported values are <integer> >= 0.", false);
         }
 
         try
@@ -720,7 +720,7 @@ public class DatabaseDescriptor
         catch (NumberFormatException e)
         {
             throw new ConfigurationException("counter_cache_size option was set incorrectly to '"
-                                             + conf.counter_cache_size + "', supported values are <integer> >= 0.", false);
+                                             + (conf.counter_cache_size !=null ?conf.counter_cache_size.toString() : null) + "', supported values are <integer> >= 0.", false);
         }
 
         // if set to empty/"auto" then use 5% of Heap size
@@ -732,13 +732,13 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity option was set incorrectly to '"
                                              + conf.index_summary_capacity.toString() + "', it should be a non-negative integer.", false);
 
-        if (conf.user_defined_function_fail_timeout < 0)
-            throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
-        if (conf.user_defined_function_warn_timeout < 0)
-            throw new ConfigurationException("user_defined_function_warn_timeout must not be negative", false);
+        if (conf.user_defined_function_fail_timeout_in_ms < 0)
+            throw new ConfigurationException("user_defined_function_fail_timeout_in_ms must not be negative", false);
+        if (conf.user_defined_function_warn_timeout_in_ms < 0)
+            throw new ConfigurationException("user_defined_function_warn_timeout_in_ms must not be negative", false);
 
-        if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
-            throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
+        if (conf.user_defined_function_fail_timeout_in_ms < conf.user_defined_function_warn_timeout_in_ms)
+            throw new ConfigurationException("user_defined_function_warn_timeout_in_ms must less than user_defined_function_fail_timeout_in_ms", false);
 
         if (conf.commitlog_segment_size.toMebibytes() == 0)
             throw new ConfigurationException("commitlog_segment_size must be positive, but was "
@@ -768,9 +768,9 @@ public class DatabaseDescriptor
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
 
-        if (conf.max_value_size.toMebibytesAsInt() == 0)
+        if (conf.max_value_size.toMebibytes() == 0)
             throw new ConfigurationException("max_value_size must be positive", false);
-        else if (conf.max_value_size.toMebibytesAsInt() >= 2048)
+        else if (conf.max_value_size.toMebibytes() >= 2048)
             throw new ConfigurationException("max_value_size must be smaller than 2048, but was "
                     + conf.max_value_size.toString(), false);
 
@@ -1552,7 +1552,7 @@ public class DatabaseDescriptor
         return conf.batch_size_fail_threshold.toBytesAsInt();
     }
 
-    public static int getBatchSizeFailThresholdInKB()
+    public static int getBatchSizeFailThresholdInKiB()
     {
         return conf.batch_size_fail_threshold.toKibibytesAsInt();
     }
@@ -1569,7 +1569,7 @@ public class DatabaseDescriptor
         conf.batch_size_warn_threshold = SmallestDataStorageKibibytes.inKibibytes(threshold);
     }
 
-    public static void setBatchSizeFailThresholdInKB(int threshold)
+    public static void setBatchSizeFailThresholdInKiB(int threshold)
     {
         conf.batch_size_fail_threshold = SmallestDataStorageKibibytes.inKibibytes(threshold);
     }
@@ -1662,7 +1662,7 @@ public class DatabaseDescriptor
 
     public static long getRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.request_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.request_timeout.to(unit);
     }
 
     public static void setRpcTimeout(long timeOutInMillis)
@@ -1672,7 +1672,7 @@ public class DatabaseDescriptor
 
     public static long getReadRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.read_request_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.read_request_timeout.to(unit);
     }
 
     public static void setReadRpcTimeout(long timeOutInMillis)
@@ -1682,7 +1682,7 @@ public class DatabaseDescriptor
 
     public static long getRangeRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.range_request_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.range_request_timeout.to(unit);
     }
 
     public static void setRangeRpcTimeout(long timeOutInMillis)
@@ -1692,7 +1692,7 @@ public class DatabaseDescriptor
 
     public static long getWriteRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.write_request_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.write_request_timeout.to(unit);
     }
 
     public static void setWriteRpcTimeout(long timeOutInMillis)
@@ -1702,7 +1702,7 @@ public class DatabaseDescriptor
 
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.counter_write_request_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.counter_write_request_timeout.to(unit);
     }
 
     public static void setCounterWriteRpcTimeout(long timeOutInMillis)
@@ -1712,7 +1712,7 @@ public class DatabaseDescriptor
 
     public static long getCasContentionTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.cas_contention_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.cas_contention_timeout.to(unit);
     }
 
     public static void setCasContentionTimeout(long timeOutInMillis)
@@ -1722,7 +1722,7 @@ public class DatabaseDescriptor
 
     public static long getTruncateRpcTimeout(TimeUnit unit)
     {
-        return unit.convert(conf.truncate_request_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.truncate_request_timeout.to(unit);
     }
 
     public static void setTruncateRpcTimeout(long timeOutInMillis)
@@ -1740,9 +1740,9 @@ public class DatabaseDescriptor
         conf.internode_timeout = crossNodeTimeout;
     }
 
-    public static long getSlowQueryTimeout(TimeUnit units)
+    public static long getSlowQueryTimeout(TimeUnit unit)
     {
-        return units.convert(conf.slow_query_log_timeout.toMilliseconds(), MILLISECONDS);
+        return conf.slow_query_log_timeout.to(unit);
     }
 
     /**
@@ -2770,7 +2770,7 @@ public class DatabaseDescriptor
         return conf.file_cache_enabled;
     }
 
-    public static int getFileCacheSizeInMB()
+    public static int getFileCacheSizeInMiB()
     {
         if (conf.file_cache_size == null)
         {
@@ -2782,7 +2782,7 @@ public class DatabaseDescriptor
         return conf.file_cache_size.toMebibytesAsInt();
     }
 
-    public static int getNetworkingCacheSizeInMB()
+    public static int getNetworkingCacheSizeInMiB()
     {
         if (conf.networking_cache_size == null)
         {
@@ -2830,13 +2830,14 @@ public class DatabaseDescriptor
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;
     }
 
-    public static int getSSTablePreemptiveOpenIntervalInMB()
+    public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
         return conf.sstable_preemptive_open_interval.toMebibytesAsInt();
     }
-    public static void setSSTablePreemptiveOpenIntervalInMB(int mb)
+
+    public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
-        conf.sstable_preemptive_open_interval = SmallestDataStorageMebibytes.inMebibytes(mb);
+        conf.sstable_preemptive_open_interval = SmallestDataStorageMebibytes.inMebibytes(mib);
     }
 
     public static boolean getTrickleFsync()
@@ -2844,17 +2845,17 @@ public class DatabaseDescriptor
         return conf.trickle_fsync;
     }
 
-    public static int getTrickleFsyncIntervalInKb()
+    public static int getTrickleFsyncIntervalInKiB()
     {
         return conf.trickle_fsync_interval.toKibibytesAsInt();
     }
 
-    public static long getKeyCacheSizeInMB()
+    public static long getKeyCacheSizeInMiB()
     {
         return keyCacheSizeInMiB;
     }
 
-    public static long getIndexSummaryCapacityInMB()
+    public static long getIndexSummaryCapacityInMiB()
     {
         return indexSummaryCapacityInMiB;
     }
@@ -3075,7 +3076,7 @@ public class DatabaseDescriptor
         return conf.trace_type_query_ttl.toSecondsAsInt();
     }
 
-    public static long getPreparedStatementsCacheSizeMB()
+    public static long getPreparedStatementsCacheSizeMiB()
     {
         return preparedStatementsCacheSizeInMiB;
     }
@@ -3102,12 +3103,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionWarnTimeout()
     {
-        return conf.user_defined_function_warn_timeout;
+        return conf.user_defined_function_warn_timeout_in_ms;
     }
 
     public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
     {
-        conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
+        conf.user_defined_function_warn_timeout_in_ms = userDefinedFunctionWarnTimeout;
     }
 
     public static boolean getMaterializedViewsEnabled()
@@ -3153,12 +3154,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionFailTimeout()
     {
-        return conf.user_defined_function_fail_timeout;
+        return conf.user_defined_function_fail_timeout_in_ms;
     }
 
     public static void setUserDefinedFunctionFailTimeout(long userDefinedFunctionFailTimeout)
     {
-        conf.user_defined_function_fail_timeout = userDefinedFunctionFailTimeout;
+        conf.user_defined_function_fail_timeout_in_ms = userDefinedFunctionFailTimeout;
     }
 
     public static Config.UserFunctionTimeoutPolicy getUserFunctionTimeoutPolicy()
@@ -3416,43 +3417,6 @@ public class DatabaseDescriptor
     public static void setCommitLogSegmentMgrProvider(Function<CommitLog, AbstractCommitLogSegmentManager> provider)
     {
         commitLogSegmentMgrProvider = provider;
-    }
-
-    /**
-     * Class that primarily tracks overflow thresholds during conversions
-     */
-    private enum ByteUnit {
-        KIBI_BYTES(2048 * 1024, 1024),
-        MEBI_BYTES(2048, 1024 * 1024);
-
-        private final int overflowThreshold;
-        private final int multiplier;
-
-        ByteUnit(int t, int m)
-        {
-            this.overflowThreshold = t;
-            this.multiplier = m;
-        }
-
-        public int overflowThreshold()
-        {
-            return overflowThreshold;
-        }
-
-        public boolean willOverflowInBytes(int val)
-        {
-            return val >= overflowThreshold;
-        }
-
-        public long toBytes(int val)
-        {
-            return val * multiplier;
-        }
-
-        public long fromBytes(int val)
-        {
-            return val / multiplier;
-        }
     }
 
     /**
@@ -3789,22 +3753,22 @@ public class DatabaseDescriptor
         conf.track_warnings.local_read_size.setAbortThresholdKb(value);
     }
 
-    public static int getRowIndexSizeWarnThresholdKb()
+    public static int getRowIndexSizeWarnThresholdKiB()
     {
         return conf.track_warnings.row_index_size.getWarnThresholdKb();
     }
 
-    public static void setRowIndexSizeWarnThresholdKb(int value)
+    public static void setRowIndexSizeWarnThresholdKiB(int value)
     {
         conf.track_warnings.row_index_size.setWarnThresholdKb(value);
     }
 
-    public static int getRowIndexSizeAbortThresholdKb()
+    public static int getRowIndexSizeAbortThresholdKiB()
     {
         return conf.track_warnings.row_index_size.getAbortThresholdKb();
     }
 
-    public static void setRowIndexSizeAbortThresholdKb(int value)
+    public static void setRowIndexSizeAbortThresholdKiB(int value)
     {
         conf.track_warnings.row_index_size.setAbortThresholdKb(value);
     }

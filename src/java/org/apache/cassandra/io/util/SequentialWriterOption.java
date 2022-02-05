@@ -32,10 +32,10 @@ public class SequentialWriterOption
      * Default write option.
      *
      * <ul>
-     *   <li>buffer size: 64 KB
+     *   <li>buffer size: 64 KiB
      *   <li>buffer type: on heap
      *   <li>trickle fsync: false
-     *   <li>trickle fsync byte interval: 10 MB
+     *   <li>trickle fsync byte interval: 10 MiB
      *   <li>finish on close: false
      * </ul>
      */
@@ -108,7 +108,7 @@ public class SequentialWriterOption
         private BufferType bufferType = BufferType.ON_HEAP;
         /* default: no trickle fsync */
         private boolean trickleFsync = false;
-        /* default tricle fsync byte interval: 10MB */
+        /* default tricle fsync byte interval: 10MiB */
         private int trickleFsyncByteInterval = 10 * 1024 * 1024;
         private boolean finishOnClose = false;
 

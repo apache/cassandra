@@ -202,7 +202,7 @@ public class CassandraStreamManagerTest
         Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
         Assert.assertEquals(1, allSSTables.size());
         final Token firstToken = allSSTables.iterator().next().first.getToken();
-        DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(1);
+        DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(1);
 
         Set<SSTableReader> sstablesBeforeRewrite = getReadersForRange(new Range<>(firstToken, firstToken));
         Assert.assertEquals(1, sstablesBeforeRewrite.size());
@@ -234,7 +234,7 @@ public class CassandraStreamManagerTest
         }
         finally
         {
-            DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(50);
+            DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(50);
             done.set(true);
             t.join(20);
         }

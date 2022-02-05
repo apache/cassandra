@@ -52,26 +52,26 @@ public class FileUtilsTest
         // test straightforward conversions for each unit
         assertEquals("FileUtils.parseFileSize() failed to parse a whole number of bytes",
             256L, FileUtils.parseFileSize("256 bytes"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of kilobytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of kibibytes",
             2048L, FileUtils.parseFileSize("2 KiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of megabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of mebibytes",
             4194304L, FileUtils.parseFileSize("4 MiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of gigabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of gibibytes",
             3221225472L, FileUtils.parseFileSize("3 GiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of terabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a whole number of tebibytes",
             5497558138880L, FileUtils.parseFileSize("5 TiB"));
         // test conversions of fractional units
-        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of kilobytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of kibibytes",
             1536L, FileUtils.parseFileSize("1.5 KiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of kilobytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of kibibytes",
             4434L, FileUtils.parseFileSize("4.33 KiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of megabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of mebibytes",
             2359296L, FileUtils.parseFileSize("2.25 MiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of megabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of mebibytes",
             3292529L, FileUtils.parseFileSize("3.14 MiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of gigabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of gibibytes",
             1299227607L, FileUtils.parseFileSize("1.21 GiB"));
-        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of terabytes",
+        assertEquals("FileUtils.parseFileSize() failed to parse a rational number of tebibytes",
             6621259022467L, FileUtils.parseFileSize("6.022 TiB"));
     }
 
