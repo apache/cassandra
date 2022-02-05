@@ -33,8 +33,8 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.assertj.core.api.Assertions.assertThatIOException;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.cassandra.config.Duration;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 
@@ -108,7 +108,7 @@ public class SnapshotManifestTest
 
     @Test
     public void testSerializeAndDeserialize() throws Exception {
-        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new Duration("2m"), Instant.ofEpochMilli(currentTimeMillis()));
+        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new DurationSpec("2m"), Instant.ofEpochMilli(currentTimeMillis()));
         File manifestFile = new File(tempFolder.newFile("manifest.json"));
 
         manifest.serializeToJsonFile(manifestFile);
