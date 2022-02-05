@@ -52,7 +52,6 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
@@ -1870,7 +1869,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
      */
-    public TableSnapshot snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
+    public TableSnapshot snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (ephemeral && ttl != null)
         {
@@ -1900,7 +1899,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables, creationTime);
     }
 
-    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, Duration ttl, Set<SSTableReader> sstables, Instant creationTime) {
+    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, DurationSpec ttl, Set<SSTableReader> sstables, Instant creationTime) {
         Set<File> snapshotDirs = sstables.stream()
                                          .map(s -> Directories.getSnapshotDirectory(s.descriptor, tag).toAbsolute())
                                          .filter(dir -> !Directories.isSecondaryIndexFolder(dir)) // Remove secondary index subdirectory
@@ -2064,7 +2063,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param rateLimiter Rate limiter for hardlinks-per-second
      * @param creationTime time when this snapshot was taken
      */
-    public TableSnapshot snapshot(String snapshotName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
+    public TableSnapshot snapshot(String snapshotName, boolean skipFlush, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         return snapshot(snapshotName, null, false, skipFlush, ttl, rateLimiter, creationTime);
     }
@@ -2086,7 +2085,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param rateLimiter Rate limiter for hardlinks-per-second
      * @param creationTime time when this snapshot was taken
      */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, Duration ttl, RateLimiter rateLimiter, Instant creationTime)
+    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (!skipFlush)
         {

@@ -441,7 +441,7 @@ counter_cache_save_period: 7200s
 # saved_caches_directory: /var/lib/cassandra/saved_caches
 
 # Number of seconds the server will wait for each cache (row, key, etc ...) to load while starting
-# the Cassandra process. Setting this to a negative value is equivalent to disabling all cache loading on startup
+# the Cassandra process. Setting this to zero is equivalent to disabling all cache loading on startup
 # while still having the cache during runtime.
 # cache_load_timeout: 30s
 
@@ -1467,15 +1467,15 @@ audit_logging_options:
 
 # default options for full query logging - these can be overridden from command line when executing
 # nodetool enablefullquerylog
-#full_query_logging_options:
-    # log_dir:
-    # roll_cycle: HOURLY
-    # block: true
-    # max_queue_weight: 268435456 # 256 MiB
-    # max_log_size: 17179869184 # 16 GiB
-    ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
-    # archive_command:
-    # max_archive_retries: 10
+# full_query_logging_options:
+  # log_dir:
+  # roll_cycle: HOURLY
+  # block: true
+  # max_queue_weight: 268435456 # 256 MiB
+  # max_log_size: 17179869184 # 16 GiB
+  ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+  # archive_command:
+  # max_archive_retries: 10
 
 # validate tombstones on reads and compaction
 # can be either "disabled", "warn" or "exception"
