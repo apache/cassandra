@@ -755,6 +755,12 @@ public class DatabaseDescriptor
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.", false);
 
+        if (!conf.allow_insecure_udfs && !conf.enable_user_defined_functions_threads)
+            throw new ConfigurationException("To be able to set enable_user_defined_functions_threads: false you need to set allow_insecure_udfs: true - this is an unsafe configuration and is not recommended.");
+
+        if (conf.allow_extra_insecure_udfs)
+            logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
+
         if (conf.user_defined_function_fail_timeout < 0)
             throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
         if (conf.user_defined_function_warn_timeout < 0)
@@ -2173,6 +2179,16 @@ public class DatabaseDescriptor
     public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
     {
         conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
+    }
+
+    public static boolean allowInsecureUDFs()
+    {
+        return conf.allow_insecure_udfs;
+    }
+
+    public static boolean allowExtraInsecureUDFs()
+    {
+        return conf.allow_extra_insecure_udfs;
     }
 
     public static boolean enableMaterializedViews()
