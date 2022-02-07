@@ -64,31 +64,28 @@ public abstract class ParsedStatement
 
         @Nullable
         public final short[] partitionKeyBindIndexes;
-
+        public final boolean fullyQualified;
         @Nullable
         public final String keyspace;
 
-        protected Prepared(CQLStatement statement, List<ColumnSpecification> boundNames, short[] partitionKeyBindIndexes, String keyspace)
+        protected Prepared(CQLStatement statement, List<ColumnSpecification> boundNames, short[] partitionKeyBindIndexes, String keyspace, boolean fullyQualified)
         {
             this.statement = statement;
             this.boundNames = boundNames;
             this.partitionKeyBindIndexes = partitionKeyBindIndexes;
+            this.rawCQLStatement = "";
+            this.fullyQualified = fullyQualified;
             this.keyspace = keyspace;
         }
 
-        public Prepared(CQLStatement statement, VariableSpecifications names, short[] partitionKeyBindIndexes)
+        public Prepared(CQLStatement statement, VariableSpecifications names, short[] partitionKeyBindIndexes, String keyspace, boolean fullyQualified)
         {
-            this(statement, names, partitionKeyBindIndexes, null);
-        }
-
-        public Prepared(CQLStatement statement, VariableSpecifications names, short[] partitionKeyBindIndexes, String keyspace)
-        {
-            this(statement, names.getSpecifications(), partitionKeyBindIndexes, keyspace);
+            this(statement, names.getSpecifications(), partitionKeyBindIndexes, keyspace, fullyQualified);
         }
 
         public Prepared(CQLStatement statement)
         {
-            this(statement, Collections.<ColumnSpecification>emptyList(), null, null);
+            this(statement, Collections.<ColumnSpecification>emptyList(), null, null,false);
         }
     }
 

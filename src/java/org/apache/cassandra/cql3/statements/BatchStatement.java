@@ -522,8 +522,12 @@ public class BatchStatement implements CQLStatement
         @Override
         public void prepareKeyspace(ClientState state) throws InvalidRequestException
         {
+            fullyQualified = true;
             for (ModificationStatement.Parsed statement : parsedStatements)
+            {
                 statement.prepareKeyspace(state);
+                fullyQualified &= statement.fullyQualified;
+            }
         }
 
         public ParsedStatement.Prepared prepare(ClientState clientState) throws InvalidRequestException
@@ -561,7 +565,7 @@ public class BatchStatement implements CQLStatement
             short[] partitionKeyBindIndexes = (haveMultipleCFs || batchStatement.statements.isEmpty())? null
                                                               : boundNames.getPartitionKeyBindIndexes(batchStatement.statements.get(0).cfm);
 
-            return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes, null);
+            return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes, null, isFullyQualified());
         }
     }
 

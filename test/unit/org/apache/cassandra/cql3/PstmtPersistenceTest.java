@@ -92,7 +92,7 @@ public class PstmtPersistenceTest extends CQLTester
             Assert.assertNull(handler.getPrepared(stmtId));
 
         // load prepared statements and validate that these still execute fine
-        QueryProcessor.preloadPreparedStatement();
+        QueryProcessor.instance.preloadPreparedStatements();
         validatePstmts(stmtIds, handler);
 
 
@@ -189,6 +189,6 @@ public class PstmtPersistenceTest extends CQLTester
 
     private MD5Digest prepareStatement(String stmt, String keyspace, String table, ClientState clientState)
     {
-        return QueryProcessor.prepare(String.format(stmt, keyspace + "." + table), clientState, false).statementId;
+        return QueryProcessor.instance.prepare(String.format(stmt, keyspace + "." + table), clientState, false).statementId;
     }
 }
