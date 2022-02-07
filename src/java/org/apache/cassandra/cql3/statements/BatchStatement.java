@@ -609,11 +609,28 @@ public class BatchStatement implements CQLStatement
             this.parsedStatements = parsedStatements;
         }
 
+        // Not doing this in the constructor since we only need this for prepared statements
+        @Override
+        public boolean isFullyQualified()
+        {
+            for (ModificationStatement.Parsed statement : parsedStatements)
+                if (!statement.isFullyQualified())
+                    return false;
+
+            return true;
+        }
+
         @Override
         public void setKeyspace(ClientState state) throws InvalidRequestException
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
                 statement.setKeyspace(state);
+        }
+
+        @Override
+        public String keyspace()
+        {
+            return null;
         }
 
         public BatchStatement prepare(ClientState state)
