@@ -222,7 +222,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 if (differences.isEmpty())
                     continue;
 
-                SyncTask task;
+                SyncTask task = null;
                 if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                 {
                     TreeResponse self = r1.endpoint.equals(local) ? r1 : r2;
@@ -248,11 +248,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     TreeResponse streamTo = isTransient.test(r1.endpoint) ? r2 : r1;
                     task = new AsymmetricRemoteSyncTask(desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind);
                 }
-                else
+                else if (!pushRepair)
                 {
                     task = new SymmetricRemoteSyncTask(desc, r1.endpoint, r2.endpoint, differences, previewKind);
                 }
-                syncTasks.add(task);
+                if (task != null)
+                    syncTasks.add(task);
             }
             trees.get(i).trees.release();
         }
