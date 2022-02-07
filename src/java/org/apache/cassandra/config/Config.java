@@ -420,6 +420,7 @@ public class Config
     public volatile boolean check_for_duplicate_rows_during_reads = true;
     public volatile boolean check_for_duplicate_rows_during_compaction = true;
 
+    public volatile boolean force_new_prepared_statement_behaviour = false;
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.

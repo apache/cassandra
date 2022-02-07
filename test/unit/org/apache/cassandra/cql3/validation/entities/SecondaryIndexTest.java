@@ -1755,9 +1755,9 @@ public class SecondaryIndexTest extends CQLTester
     
     private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)
     {
-        return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),
-                                      ClientState.forInternalCalls(),
-                                      forThrift);
+        return QueryProcessor.instance.prepare(String.format(cql, KEYSPACE, currentTable()),
+                                               ClientState.forInternalCalls(),
+                                               forThrift);
     }
 
     private void validateCell(Cell cell, ColumnDefinition def, ByteBuffer val, long timestamp)
