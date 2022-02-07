@@ -36,6 +36,11 @@ public abstract class QualifiedStatement extends CQLStatement.Raw
         this.qualifiedName = qualifiedName;
     }
 
+    public boolean isFullyQualified()
+    {
+        return qualifiedName.hasKeyspace();
+    }
+
     public void setKeyspace(ClientState state)
     {
         if (!qualifiedName.hasKeyspace())

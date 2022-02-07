@@ -1729,8 +1729,8 @@ public class SecondaryIndexTest extends CQLTester
 
     private ResultMessage.Prepared prepareStatement(String cql)
     {
-        return QueryProcessor.prepare(format(cql, KEYSPACE, currentTable()),
-                                      ClientState.forInternalCalls());
+        return QueryProcessor.instance.prepare(format(cql, KEYSPACE, currentTable()),
+                                               ClientState.forInternalCalls());
     }
 
     private void validateCell(Cell<?> cell, ColumnMetadata def, ByteBuffer val, long timestamp)

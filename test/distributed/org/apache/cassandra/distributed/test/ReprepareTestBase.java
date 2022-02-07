@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import com.google.common.collect.Iterators;
@@ -42,7 +41,6 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.FixedValue;
 import net.bytebuddy.implementation.MethodDelegation;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -190,7 +188,7 @@ public class ReprepareTestBase extends TestBaseImpl
 
         static void newBehaviour(ClassLoader cl, int nodeNumber)
         {
-            setReleaseVersion(cl, "3.0.19.63");
+            setReleaseVersion(cl, QueryProcessor.NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40.toString());
         }
 
         static void oldBehaviour(ClassLoader cl, int nodeNumber)
@@ -202,11 +200,11 @@ public class ReprepareTestBase extends TestBaseImpl
                                .intercept(MethodDelegation.to(PrepareBehaviour.class))
                                .make()
                                .load(cl, ClassLoadingStrategy.Default.INJECTION);
-                setReleaseVersion(cl, "3.0.19.60");
+                setReleaseVersion(cl, "4.0.0.0");
             }
             else
             {
-                setReleaseVersion(cl, "3.0.19.63");
+                setReleaseVersion(cl, QueryProcessor.NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40.toString());
             }
         }
 
@@ -216,10 +214,9 @@ public class ReprepareTestBase extends TestBaseImpl
             if (existing != null)
                 return existing;
 
-            CQLStatement statement = QueryProcessor.getStatement(queryString, clientState);
-            QueryHandler.Prepared prepared = new QueryHandler.Prepared(statement, queryString);
+            QueryHandler.Prepared prepared = QueryProcessor.parseAndPrepare(queryString, clientState, false);
 
-            int boundTerms = statement.getBindVariables().size();
+            int boundTerms = prepared.statement.getBindVariables().size();
             if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
                 throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
 

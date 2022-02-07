@@ -75,6 +75,8 @@ public class Config
     public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
     public String hints_directory;
 
+    public volatile boolean force_new_prepared_statement_behaviour = false;
+
     public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
