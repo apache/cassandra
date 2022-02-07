@@ -1,4 +1,5 @@
 3.11.13
+ * Fix snapshot true size calculation (CASSANDRA-17267)
 Merged from 3.0:
  * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
  * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
