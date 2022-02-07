@@ -158,6 +158,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/util/zip/",
     };
 
+    private static final String[] disallowedPatternsSyncUDF =
+    {
+    "java/lang/System.class"
+    };
+
     static boolean secureResource(String resource)
     {
         while (resource.startsWith("/"))
@@ -166,14 +171,26 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         for (String allowed : allowedPatterns)
             if (resource.startsWith(allowed))
             {
-
                 // resource is in allowedPatterns, let's see if it is not explicitly disallowed
                 for (String disallowed : disallowedPatterns)
+                {
                     if (resource.startsWith(disallowed))
                     {
                         logger.trace("access denied: resource {}", resource);
                         return false;
                     }
+                }
+                if (!DatabaseDescriptor.enableUserDefinedFunctionsThreads() && !DatabaseDescriptor.allowExtraInsecureUDFs())
+                {
+                    for (String disallowed : disallowedPatternsSyncUDF)
+                    {
+                        if (resource.startsWith(disallowed))
+                        {
+                            logger.trace("access denied: resource {}", resource);
+                            return false;
+                        }
+                    }
+                }
 
                 return true;
             }
