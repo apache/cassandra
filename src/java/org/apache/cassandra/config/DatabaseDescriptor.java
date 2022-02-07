@@ -3820,4 +3820,18 @@ public class DatabaseDescriptor
             conf.use_statements_enabled = enabled;
         }
     }
+
+    public static boolean getForceNewPreparedStatementBehaviour()
+    {
+        return conf.force_new_prepared_statement_behaviour;
+    }
+
+    public static void setForceNewPreparedStatementBehaviour(boolean value)
+    {
+        if (value != conf.force_new_prepared_statement_behaviour)
+        {
+            logger.info("Setting force_new_prepared_statement_behaviour to {}", value);
+            conf.force_new_prepared_statement_behaviour = value;
+        }
+    }
 }

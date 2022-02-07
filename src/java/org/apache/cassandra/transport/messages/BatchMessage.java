@@ -20,8 +20,12 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.Attributes;
@@ -45,6 +49,7 @@ import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -182,12 +187,12 @@ public class BatchMessage extends Message.Request
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
-                CQLStatement statement;
                 QueryHandler.Prepared p;
                 if (query instanceof String)
                 {
-                    statement = QueryProcessor.parseStatement((String)query, state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
-                    p = new QueryHandler.Prepared(statement, (String) query);
+                    p = QueryProcessor.parseAndPrepare((String) query,
+                                                       state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()),
+                                                       false);
                 }
                 else
                 {

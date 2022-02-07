@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.collect.ImmutableMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.QueryEvents;
@@ -29,11 +34,15 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class PrepareMessage extends Message.Request
 {
+    private static final Logger logger = LoggerFactory.getLogger(PrepareMessage.class);
+    private static final NoSpamLogger nospam = NoSpamLogger.getLogger(logger, 10, TimeUnit.MINUTES);
+
     public static final Message.Codec<PrepareMessage> codec = new Message.Codec<PrepareMessage>()
     {
         public PrepareMessage decode(ByteBuf body, ProtocolVersion version)
@@ -47,7 +56,11 @@ public class PrepareMessage extends Message.Request
 
                 int flags = (int)body.readUnsignedInt();
                 if ((flags & 0x1) == 0x1)
+                {
                     keyspace = CBUtil.readString(body);
+                    nospam.warn("Keyspace is set via query options. This is considered dangerous and should not be used. Query: {}. Keyspace: {}",
+                                query, keyspace);
+                }
             }
             return new PrepareMessage(query, keyspace);
         }

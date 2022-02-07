@@ -139,6 +139,11 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     public int compareTo(CassandraVersion other)
     {
+        return compareTo(other, false);
+    }
+
+    public int compareTo(CassandraVersion other, boolean compareToPatchOnly)
+    {
         if (major < other.major)
             return -1;
         if (major > other.major)
@@ -153,6 +158,9 @@ public class CassandraVersion implements Comparable<CassandraVersion>
             return -1;
         if (patch > other.patch)
             return 1;
+
+        if (compareToPatchOnly)
+            return 0;
 
         int c = Integer.compare(hotfix, other.hotfix);
         if (c != 0)

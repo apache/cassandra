@@ -383,6 +383,16 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return data.get(column);
         }
 
+        public byte[] getByteArray(String column)
+        {
+            ByteBuffer buf = data.get(column);
+            byte[] arr = new byte[buf.remaining()];
+            for (int i = 0; i < arr.length; i++)
+                arr[i] = buf.get(buf.position() + i);
+
+            return arr;
+        }
+
         public InetAddress getInetAddress(String column)
         {
             return InetAddressType.instance.compose(data.get(column));
