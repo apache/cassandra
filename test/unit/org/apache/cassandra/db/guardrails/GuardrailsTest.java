@@ -68,8 +68,8 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> guard.guard(5, "Z", userClientState));
         assertWarns(() -> guard.guard(25, "A", userClientState), "Warning: for A, 25 > 10");
         assertWarns(() -> guard.guard(100, "B", userClientState), "Warning: for B, 100 > 10");
-        assertAborts(() -> guard.guard(101, "X", userClientState), "Aborting: for X, 101 > 100");
-        assertAborts(() -> guard.guard(200, "Y", userClientState), "Aborting: for Y, 200 > 100");
+        assertFails(() -> guard.guard(101, "X", userClientState), "Aborting: for X, 101 > 100");
+        assertFails(() -> guard.guard(200, "Y", userClientState), "Aborting: for Y, 200 > 100");
         assertValid(() -> guard.guard(5, "Z", userClientState));
     }
 
@@ -88,7 +88,7 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
-    public void testAbortOnlyThreshold() throws Throwable
+    public void testFailOnlyThreshold() throws Throwable
     {
         Threshold guard = new Threshold(state -> DISABLED,
                                         state -> 10,
@@ -98,7 +98,7 @@ public class GuardrailsTest extends GuardrailTester
         assertTrue(guard.enabled(userClientState));
 
         assertValid(() -> guard.guard(5, "Z", userClientState));
-        assertAborts(() -> guard.guard(11, "A", userClientState), "Aborting: for A, 11 > 10");
+        assertFails(() -> guard.guard(11, "A", userClientState), "Aborting: for A, 11 > 10");
     }
 
     @Test
@@ -121,9 +121,9 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> guard.guard(100, "y", systemClientState));
         assertValid(() -> guard.guard(100, "y", superClientState));
 
-        // value over abort threshold
-        assertAborts(() -> guard.guard(101, "z", null), "Aborting: for z, 101 > 100");
-        assertAborts(() -> guard.guard(101, "z", userClientState), "Aborting: for z, 101 > 100");
+        // value over fail threshold
+        assertFails(() -> guard.guard(101, "z", null), "Aborting: for z, 101 > 100");
+        assertFails(() -> guard.guard(101, "z", userClientState), "Aborting: for z, 101 > 100");
         assertValid(() -> guard.guard(101, "z", systemClientState));
         assertValid(() -> guard.guard(101, "z", superClientState));
     }
@@ -131,10 +131,10 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testDisableFlag() throws Throwable
     {
-        assertAborts(() -> new DisableFlag(state -> true, "X").ensureEnabled(userClientState), "X is not allowed");
+        assertFails(() -> new DisableFlag(state -> true, "X").ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> new DisableFlag(state -> false, "X").ensureEnabled(userClientState));
 
-        assertAborts(() -> new DisableFlag(state -> true, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
+        assertFails(() -> new DisableFlag(state -> true, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
         assertValid(() -> new DisableFlag(state -> false, "X").ensureEnabled("Y", userClientState));
     }
 
@@ -148,8 +148,8 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> enabled.ensureEnabled(superClientState));
 
         DisableFlag disabled = new DisableFlag(state -> true, "X");
-        assertAborts(() -> disabled.ensureEnabled(null), "X is not allowed");
-        assertAborts(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
+        assertFails(() -> disabled.ensureEnabled(null), "X is not allowed");
+        assertFails(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> disabled.ensureEnabled(systemClientState));
         assertValid(() -> disabled.ensureEnabled(superClientState));
     }
@@ -164,18 +164,18 @@ public class GuardrailsTest extends GuardrailTester
 
         Consumer<Integer> action = i -> Assert.fail("The ignore action shouldn't have been triggered");
         assertValid(() -> disallowed.guard(set(3), action, userClientState));
-        assertAborts(() -> disallowed.guard(set(4), action, userClientState),
-                     "Provided values [4] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertFails(() -> disallowed.guard(set(4), action, userClientState),
+                    "Provided values [4] are not allowed for integer (disallowed values are: [4, 6, 20])");
         assertValid(() -> disallowed.guard(set(10), action, userClientState));
-        assertAborts(() -> disallowed.guard(set(20), action, userClientState),
-                     "Provided values [20] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertFails(() -> disallowed.guard(set(20), action, userClientState),
+                    "Provided values [20] are not allowed for integer (disallowed values are: [4, 6, 20])");
         assertValid(() -> disallowed.guard(set(200), action, userClientState));
         assertValid(() -> disallowed.guard(set(1, 2, 3), action, userClientState));
 
-        assertAborts(() -> disallowed.guard(set(4, 6), action, null),
-                     "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
-        assertAborts(() -> disallowed.guard(set(4, 5, 6, 7), action, null),
-                     "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertFails(() -> disallowed.guard(set(4, 6), action, null),
+                    "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
+        assertFails(() -> disallowed.guard(set(4, 5, 6, 7), action, null),
+                    "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
     }
 
     @Test
@@ -192,8 +192,8 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> disallowed.guard(set(1), action, superClientState));
 
         String message = "Provided values [2] are not allowed for integer (disallowed values are: [2])";
-        assertAborts(() -> disallowed.guard(set(2), action, null), message);
-        assertAborts(() -> disallowed.guard(set(2), action, userClientState), message);
+        assertFails(() -> disallowed.guard(set(2), action, null), message);
+        assertFails(() -> disallowed.guard(set(2), action, userClientState), message);
         assertValid(() -> disallowed.guard(set(2), action, systemClientState));
         assertValid(() -> disallowed.guard(set(2), action, superClientState));
 
@@ -205,8 +205,8 @@ public class GuardrailsTest extends GuardrailTester
 
         Set<Integer> disallowedValues = set(2);
         message = "Provided values [2] are not allowed for integer (disallowed values are: [2])";
-        assertAborts(() -> disallowed.guard(disallowedValues, action, null), message);
-        assertAborts(() -> disallowed.guard(disallowedValues, action, userClientState), message);
+        assertFails(() -> disallowed.guard(disallowedValues, action, null), message);
+        assertFails(() -> disallowed.guard(disallowedValues, action, userClientState), message);
         assertValid(() -> disallowed.guard(disallowedValues, action, systemClientState));
         assertValid(() -> disallowed.guard(disallowedValues, action, superClientState));
     }

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.config;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -44,7 +43,7 @@ import static java.util.stream.Collectors.toSet;
  * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
  * individual settings to control each guardrail.
  *
- * <p>We have 2 variants of guardrails, soft (warn) and hard (abort) limits, each guardrail having either one of the
+ * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
  * execution. For other guardrails, say one triggering during compaction, aborting that compaction does not make sense.
  *
@@ -53,36 +52,27 @@ import static java.util.stream.Collectors.toSet;
  */
 public class GuardrailsOptions implements GuardrailsConfig
 {
-    private static final String NAME_PREFIX = "guardrails.";
     private static final Logger logger = LoggerFactory.getLogger(GuardrailsOptions.class);
+    
+    private final Config config;
 
-    public volatile boolean enabled = false;
-    public final IntThreshold keyspaces = new IntThreshold();
-    public final IntThreshold tables = new IntThreshold();
-    public final IntThreshold columns_per_table = new IntThreshold();
-    public final IntThreshold secondary_indexes_per_table = new IntThreshold();
-    public final IntThreshold materialized_views_per_table = new IntThreshold();
-    public final TableProperties table_properties = new TableProperties();
-    public final IntThreshold page_size = new IntThreshold();
-
-    public volatile boolean user_timestamps_enabled = true;
-    public volatile boolean read_before_write_list_operations_enabled = true;
-
-    public void validate()
+    public GuardrailsOptions(Config config)
     {
-        keyspaces.init("keyspaces");
-        tables.init("tables");
-        columns_per_table.init("columns_per_table");
-        secondary_indexes_per_table.init("secondary_indexes_per_table");
-        materialized_views_per_table.init("materialized_views_per_table");
-        table_properties.init("table_properties");
-        page_size.init("guardrails.page_size");
+        this.config = config;
+        validateIntThreshold(config.keyspaces_warn_threshold, config.keyspaces_fail_threshold, "keyspaces");
+        validateIntThreshold(config.tables_warn_threshold, config.tables_fail_threshold, "tables");
+        validateIntThreshold(config.columns_per_table_warn_threshold, config.columns_per_table_fail_threshold, "columns_per_table");
+        validateIntThreshold(config.secondary_indexes_per_table_warn_threshold, config.secondary_indexes_per_table_fail_threshold, "secondary_indexes_per_table");
+        validateIntThreshold(config.materialized_views_per_table_warn_threshold, config.materialized_views_per_table_fail_threshold, "materialized_views_per_table");
+        config.table_properties_ignored = validateTableProperties(config.table_properties_ignored, "table_properties_ignored");
+        config.table_properties_disallowed = validateTableProperties(config.table_properties_disallowed, "table_properties_disallowed");
+        validateIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
     }
 
     @Override
     public boolean getEnabled()
     {
-        return enabled;
+        return config.guardrails_enabled;
     }
 
     /**
@@ -92,77 +82,216 @@ public class GuardrailsOptions implements GuardrailsConfig
      */
     public void setEnabled(boolean enabled)
     {
-        updatePropertyWithLogging(NAME_PREFIX + "enabled", enabled, () -> this.enabled, x -> this.enabled = x);
+        updatePropertyWithLogging("guardrails_enabled",
+                                  enabled,
+                                  () -> config.guardrails_enabled,
+                                  x -> config.guardrails_enabled = x);
     }
 
     @Override
-    public IntThreshold getKeyspaces()
+    public int getKeyspacesWarnThreshold()
     {
-        return keyspaces;
+        return config.keyspaces_warn_threshold;
     }
 
     @Override
-    public IntThreshold getTables()
+    public int getKeyspacesFailThreshold()
     {
-        return tables;
+        return config.keyspaces_fail_threshold;
+    }
+
+    public void setKeyspacesThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "keyspaces");
+        updatePropertyWithLogging("keyspaces_warn_threshold",
+                                  warn,
+                                  () -> config.keyspaces_warn_threshold,
+                                  x -> config.keyspaces_warn_threshold = x);
+        updatePropertyWithLogging("keyspaces_fail_threshold",
+                                  fail,
+                                  () -> config.keyspaces_fail_threshold,
+                                  x -> config.keyspaces_fail_threshold = x);
     }
 
     @Override
-    public IntThreshold getColumnsPerTable()
+    public int getTablesWarnThreshold()
     {
-        return columns_per_table;
+        return config.tables_warn_threshold;
     }
 
     @Override
-    public IntThreshold getSecondaryIndexesPerTable()
+    public int getTablesFailThreshold()
     {
-        return secondary_indexes_per_table;
+        return config.tables_fail_threshold;
+    }
+
+    public void setTablesThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "tables");
+        updatePropertyWithLogging("tables_warn_threshold",
+                                  warn,
+                                  () -> config.tables_warn_threshold,
+                                  x -> config.tables_warn_threshold = x);
+        updatePropertyWithLogging("tables_fail_threshold",
+                                  fail,
+                                  () -> config.tables_fail_threshold,
+                                  x -> config.tables_fail_threshold = x);
     }
 
     @Override
-    public IntThreshold getMaterializedViewsPerTable()
+    public int getColumnsPerTableWarnThreshold()
     {
-        return materialized_views_per_table;
+        return config.columns_per_table_warn_threshold;
     }
 
     @Override
-    public TableProperties getTableProperties()
+    public int getColumnsPerTableFailThreshold()
     {
-        return table_properties;
+        return config.columns_per_table_fail_threshold;
+    }
+
+    public void setColumnsPerTableThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "columns_per_table");
+        updatePropertyWithLogging("columns_per_table_warn_threshold",
+                                  warn,
+                                  () -> config.columns_per_table_warn_threshold,
+                                  x -> config.columns_per_table_warn_threshold = x);
+        updatePropertyWithLogging("columns_per_table_fail_threshold",
+                                  fail,
+                                  () -> config.columns_per_table_fail_threshold,
+                                  x -> config.columns_per_table_fail_threshold = x);
+    }
+
+    @Override
+    public int getSecondaryIndexesPerTableWarnThreshold()
+    {
+        return config.secondary_indexes_per_table_warn_threshold;
+    }
+
+    @Override
+    public int getSecondaryIndexesPerTableFailThreshold()
+    {
+        return config.secondary_indexes_per_table_fail_threshold;
+    }
+
+    public void setSecondaryIndexesPerTableThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "secondary_indexes_per_table");
+        updatePropertyWithLogging("secondary_indexes_per_table_warn_threshold",
+                                  warn,
+                                  () -> config.secondary_indexes_per_table_warn_threshold,
+                                  x -> config.secondary_indexes_per_table_warn_threshold = x);
+        updatePropertyWithLogging("secondary_indexes_per_table_fail_threshold",
+                                  fail,
+                                  () -> config.secondary_indexes_per_table_fail_threshold,
+                                  x -> config.secondary_indexes_per_table_fail_threshold = x);
+    }
+
+    @Override
+    public int getMaterializedViewsPerTableWarnThreshold()
+    {
+        return config.materialized_views_per_table_warn_threshold;
+    }
+
+    @Override
+    public int getMaterializedViewsPerTableFailThreshold()
+    {
+        return config.materialized_views_per_table_fail_threshold;
+    }
+
+    public void setMaterializedViewsPerTableThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "materialized_views_per_table");
+        updatePropertyWithLogging("materialized_views_per_table_warn_threshold",
+                                  warn,
+                                  () -> config.materialized_views_per_table_warn_threshold,
+                                  x -> config.materialized_views_per_table_warn_threshold = x);
+        updatePropertyWithLogging("materialized_views_per_table_fail_threshold",
+                                  fail,
+                                  () -> config.materialized_views_per_table_fail_threshold,
+                                  x -> config.materialized_views_per_table_fail_threshold = x);
+    }
+
+    @Override
+    public int getPageSizeWarnThreshold()
+    {
+        return config.page_size_warn_threshold;
+    }
+
+    @Override
+    public int getPageSizeFailThreshold()
+    {
+        return config.page_size_fail_threshold;
+    }
+
+    public void setPageSizeThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "page_size");
+        updatePropertyWithLogging("page_size_warn_threshold",
+                                  warn,
+                                  () -> config.page_size_warn_threshold,
+                                  x -> config.page_size_warn_threshold = x);
+        updatePropertyWithLogging("page_size_fail_threshold",
+                                  fail,
+                                  () -> config.page_size_fail_threshold,
+                                  x -> config.page_size_fail_threshold = x);
+    }
+
+    @Override
+    public Set<String> getTablePropertiesIgnored()
+    {
+        return config.table_properties_ignored;
+    }
+
+    public void setTablePropertiesIgnored(Set<String> properties)
+    {
+        updatePropertyWithLogging("table_properties_ignored",
+                                  validateTableProperties(properties, "table_properties_ignored"),
+                                  () -> config.table_properties_ignored,
+                                  x -> config.table_properties_ignored = x);
+    }
+
+    @Override
+    public Set<String> getTablePropertiesDisallowed()
+    {
+        return config.table_properties_disallowed;
+    }
+
+    public void setTablePropertiesDisallowed(Set<String> properties)
+    {
+        updatePropertyWithLogging("table_properties_disallowed",
+                                  validateTableProperties(properties, "table_properties_disallowed"),
+                                  () -> config.table_properties_disallowed,
+                                  x -> config.table_properties_disallowed = x);
     }
 
     @Override
     public boolean getUserTimestampsEnabled()
     {
-        return user_timestamps_enabled;
-    }
-
-    @Override
-    public IntThreshold getPageSize()
-    {
-        return page_size;
+        return config.user_timestamps_enabled;
     }
 
     public void setUserTimestampsEnabled(boolean enabled)
     {
-        updatePropertyWithLogging(NAME_PREFIX + "user_timestamps_enabled",
+        updatePropertyWithLogging("user_timestamps_enabled",
                                   enabled,
-                                  () -> user_timestamps_enabled,
-                                  x -> user_timestamps_enabled = x);
+                                  () -> config.user_timestamps_enabled,
+                                  x -> config.user_timestamps_enabled = x);
     }
 
     @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
-        return read_before_write_list_operations_enabled;
+        return config.read_before_write_list_operations_enabled;
     }
 
     public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
     {
-        updatePropertyWithLogging(NAME_PREFIX + "read_before_write_list_operations_enabled",
+        updatePropertyWithLogging("read_before_write_list_operations_enabled",
                                   enabled,
-                                  () -> read_before_write_list_operations_enabled,
-                                  x -> read_before_write_list_operations_enabled = x);
+                                  () -> config.read_before_write_list_operations_enabled,
+                                  x -> config.read_before_write_list_operations_enabled = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
@@ -175,169 +304,62 @@ public class GuardrailsOptions implements GuardrailsConfig
         }
     }
 
-    protected static abstract class Config
+    private static void validatePositiveNumeric(long value, long maxValue, boolean allowZero, String name)
     {
-        protected String name;
+        if (value > maxValue)
+            throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
+                                                      value, name, maxValue));
 
-        public String getName()
-        {
-            return name;
-        }
+        if (value == 0 && !allowZero)
+            throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
+                                                      "if attempting to disable use %d",
+                                                      name, Config.DISABLED_GUARDRAIL));
 
-        protected void init(String name)
-        {
-            this.name = NAME_PREFIX + name;
-            validate();
-        }
-
-        protected abstract void validate();
+        // We allow -1 as a general "disabling" flag. But reject anything lower to avoid mistakes.
+        if (value < Config.DISABLED_GUARDRAIL)
+            throw new IllegalArgumentException(format("Invalid value %d for %s: negative values are not allowed, " +
+                                                      "outside of %d which disables the guardrail",
+                                                      value, name, Config.DISABLED_GUARDRAIL));
     }
 
-    public static abstract class Threshold extends Config
+    private static void validateStrictlyPositiveInteger(long value, String name)
     {
-        public static final long DISABLED = -1;
-
-        public abstract long maxValue();
-
-        public abstract boolean allowZero();
-
-        protected void validate(long warn, long abort)
-        {
-            validateLimits(warn, name + ".warn_threshold");
-            validateLimits(abort, name + ".abort_threshold");
-            validateWarnLowerThanAbort(warn, abort);
-        }
-
-        protected void validateLimits(long value, String name)
-        {
-            if (value > maxValue())
-                throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
-                                                          value, name, maxValue()));
-
-            if (value == 0 && !allowZero())
-                throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
-                                                          "if attempting to disable use %d",
-                                                          name, DISABLED));
-
-            // We allow -1 as a general "disabling" flag. But reject anything lower to avoid mistakes.
-            if (value < DISABLED)
-                throw new IllegalArgumentException(format("Invalid value %d for %s: negative values are not allowed, " +
-                                                          "outside of %d which disables the guardrail",
-                                                          value, name, DISABLED));
-        }
-
-        private void validateWarnLowerThanAbort(long warn, long abort)
-        {
-            if (warn == DISABLED || abort == DISABLED)
-                return;
-
-            if (abort < warn)
-                throw new IllegalArgumentException(format("The warn threshold %d for %s should be lower than the " +
-                                                          "abort threshold %d", warn, name, abort));
-        }
+        // We use 'long' for generality, but most numeric guardrail cannot effectively be more than a 'int' for various
+        // internal reasons. Not that any should ever come close in practice ...
+        // Also, in most cases, zero does not make sense (allowing 0 tables or columns is not exactly useful).
+        validatePositiveNumeric(value, Integer.MAX_VALUE, false, name);
     }
 
-    public static class IntThreshold extends Threshold implements GuardrailsConfig.IntThreshold
+    private static void validateIntThreshold(int warn, int fail, String name)
     {
-        public volatile int warn_threshold = (int) DISABLED;
-        public volatile int abort_threshold = (int) DISABLED;
-
-        @Override
-        public int getWarnThreshold()
-        {
-            return warn_threshold;
-        }
-
-        @Override
-        public int getAbortThreshold()
-        {
-            return abort_threshold;
-        }
-
-        public void setThresholds(int warn, int abort)
-        {
-            validate(warn, abort);
-            updatePropertyWithLogging(name + ".warn_threshold", warn, () -> warn_threshold, x -> warn_threshold = x);
-            updatePropertyWithLogging(name + ".abort_threshold", abort, () -> abort_threshold, x -> abort_threshold = x);
-        }
-
-        @Override
-        protected void validate()
-        {
-            validate(warn_threshold, abort_threshold);
-        }
-
-        @Override
-        public long maxValue()
-        {
-            return Integer.MAX_VALUE;
-        }
-
-        @Override
-        public boolean allowZero()
-        {
-            return false;
-        }
+        validateStrictlyPositiveInteger(warn, name + "_warn_threshold");
+        validateStrictlyPositiveInteger(fail, name + "_fail_threshold");
+        validateWarnLowerThanFail(warn, fail, name);
     }
 
-    public static class TableProperties extends Config implements GuardrailsConfig.TableProperties
+    private static void validateWarnLowerThanFail(long warn, long fail, String name)
     {
-        public volatile Set<String> ignored = Collections.emptySet();
-        public volatile Set<String> disallowed = Collections.emptySet();
+        if (warn == Config.DISABLED_GUARDRAIL || fail == Config.DISABLED_GUARDRAIL)
+            return;
 
-        @Override
-        public Set<String> getIgnored()
-        {
-            return ignored;
-        }
+        if (fail < warn)
+            throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be lower " +
+                                                      "than the fail threshold %d", warn, name, fail));
+    }
 
-        @Override
-        public Set<String> getDisallowed()
-        {
-            return disallowed;
-        }
+    private static Set<String> validateTableProperties(Set<String> properties, String name)
+    {
+        if (properties == null)
+            throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
 
-        public void setIgnored(Set<String> properties)
-        {
-            updatePropertyWithLogging(name + ".ignored", validateIgnored(properties), () -> ignored, x -> ignored = x);
-        }
+        Set<String> lowerCaseProperties = properties.stream().map(String::toLowerCase).collect(toSet());
 
-        public void setDisallowed(Set<String> properties)
-        {
-            updatePropertyWithLogging(name + ".disallowed", validateDisallowed(properties), () -> disallowed, x -> disallowed = x);
-        }
+        Set<String> diff = Sets.difference(lowerCaseProperties, TableAttributes.allKeywords());
 
-        @Override
-        protected void validate()
-        {
-            validateIgnored(ignored);
-            validateDisallowed(disallowed);
-        }
+        if (!diff.isEmpty())
+            throw new IllegalArgumentException(format("Invalid value for %s: '%s' do not parse as valid table properties",
+                                                      name, diff));
 
-        private Set<String> validateIgnored(Set<String> properties)
-        {
-            return validateTableProperties(properties, name + ".ignored");
-        }
-
-        private Set<String> validateDisallowed(Set<String> properties)
-        {
-            return validateTableProperties(properties, name + ".disallowed");
-        }
-
-        private Set<String> validateTableProperties(Set<String> properties, String name)
-        {
-            if (properties == null)
-                throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
-
-            Set<String> lowerCaseProperties = properties.stream().map(String::toLowerCase).collect(toSet());
-
-            Set<String> diff = Sets.difference(lowerCaseProperties, TableAttributes.allKeywords());
-
-            if (!diff.isEmpty())
-                throw new IllegalArgumentException(format("Invalid value for %s: '%s' do not parse as valid table properties",
-                                                          name, diff));
-
-            return lowerCaseProperties;
-        }
+        return lowerCaseProperties;
     }
 }

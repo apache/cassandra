@@ -1,4 +1,5 @@
 4.1
+ * Flatten guardrails config (CASSANDRA-17353)
  * Make vtables accessible via internode messaging (CASSANDRA-17295)
  * Add support for PEM based key material for SSL (CASSANDRA-17031)
  * Standardize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
