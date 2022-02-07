@@ -2382,7 +2382,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     @Nullable
-    public CassandraVersion getMinVersion(int delay, TimeUnit timeUnit)
+    public CassandraVersion getMinVersion(long delay, TimeUnit timeUnit)
     {
         try
         {
