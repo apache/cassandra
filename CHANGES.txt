@@ -92,6 +92,7 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Fix snapshot true size calculation (CASSANDRA-17267)
  * Deprecate otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
    otc_backlog_expiration_interval_ms (CASSANDRA-17377)
  * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
