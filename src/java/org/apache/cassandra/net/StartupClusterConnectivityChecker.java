@@ -175,7 +175,9 @@ public class StartupClusterConnectivityChecker
             Map<String, List<String>> peersDown = acks.getMissingPeers().stream()
                                                       .collect(groupingBy(peer -> {
                                                                               String dc = peerToDatacenter.get(peer);
-                                                                              return dc != null ? dc : StringUtils.defaultString(getDatacenterSource.apply(peer), "unknown");
+                                                                              if (dc != null)
+                                                                                  return dc;
+                                                                              return StringUtils.defaultString(getDatacenterSource.apply(peer), "unknown");
                                                                           },
                                                                           mapping(InetAddressAndPort::getHostAddressAndPort,
                                                                                   toList())));
