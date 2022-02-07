@@ -339,8 +339,9 @@ public class RepairJobTest
     @Test
     public void testCreateStandardSyncTasksWithPushRepair()
     {
-        List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
-                                                         treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
+        List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "1", RANGE_2, "1", RANGE_3, "1"),
+                                                         treeResponse(addr2, RANGE_1, "1", RANGE_2, "2", RANGE_3, "3"),
+                                                         treeResponse(addr3, RANGE_1, "2", RANGE_2, "3", RANGE_3, "1"));
 
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
                                                                                     treeResponses,
@@ -350,13 +351,23 @@ public class RepairJobTest
                                                                                     true,
                                                                                     false,
                                                                                     PreviewKind.ALL));
-        assertThat(tasks).hasSize(1);
+        assertThat(tasks).hasSize(2);
 
+        // between local and addr2: range2 and rang3 are different
         assertThat(tasks.get(pair(addr1, addr2)))
+        .isInstanceOf(LocalSyncTask.class)
         .isLocal()
         .isNotRequestRanges()
         .hasTransferRanges(true)
-        .hasRanges(RANGE_1, RANGE_3);
+        .hasRanges(RANGE_2, RANGE_3);
+
+        // between local and addr3: range1 and rang2 are different
+        assertThat(tasks.get(pair(addr1, addr3)))
+        .isInstanceOf(LocalSyncTask.class)
+        .isLocal()
+        .isNotRequestRanges()
+        .hasTransferRanges(true)
+        .hasRanges(RANGE_1, RANGE_2);
     }
 
     @Test
