@@ -1,4 +1,5 @@
 4.1
+ * Instance failed to start up due to NPE in StartupClusterConnectivityChecker (CASSANDRA-17347)
  * add the shorter version of version flag (-v) in cqlsh (CASSANDRA-17236)
  * Make vtables accessible via internode messaging (CASSANDRA-17295)
  * Add support for PEM based key material for SSL (CASSANDRA-17031)
