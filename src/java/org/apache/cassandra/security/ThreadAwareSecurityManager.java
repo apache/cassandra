@@ -32,6 +32,7 @@ import java.util.Enumeration;
 import io.netty.util.concurrent.FastThreadLocal;
 
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
@@ -65,6 +66,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
     private static final RuntimePermission CHECK_MEMBER_ACCESS_PERMISSION = new RuntimePermission("accessDeclaredMembers");
     private static final RuntimePermission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
     private static final RuntimePermission MODIFY_THREADGROUP_PERMISSION = new RuntimePermission("modifyThreadGroup");
+    private static final RuntimePermission SET_SECURITY_MANAGER_PERMISSION = new RuntimePermission("setSecurityManager");
 
     private static volatile boolean installed;
 
@@ -181,6 +183,9 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
     public void checkPermission(Permission perm)
     {
+        if (!DatabaseDescriptor.enableUserDefinedFunctionsThreads() && !DatabaseDescriptor.allowExtraInsecureUDFs() && SET_SECURITY_MANAGER_PERMISSION.equals(perm))
+            throw new AccessControlException("Access denied");
+
         if (!isSecuredThread())
             return;
 
