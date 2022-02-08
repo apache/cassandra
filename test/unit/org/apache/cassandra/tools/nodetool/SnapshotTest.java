@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.File; // checkstyle: permit this import
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
@@ -83,9 +82,9 @@ public class SnapshotTest extends CQLTester
     @Test
     public void testInvalidSnapshotName()
     {
-        ToolRunner.ToolResult tool = invokeNodetool("snapshot", "-t", "invalid" + File.separator + "name");
+        ToolRunner.ToolResult tool = invokeNodetool("snapshot", "-t", "invalid" + File.pathSeparator() + "name");
         assertThat(tool.getExitCode()).isEqualTo(2);
-        assertThat(tool.getStderr()).contains("Snapshot name cannot contain " + File.separator);
+        assertThat(tool.getStderr()).contains("Snapshot name cannot contain " + File.pathSeparator());
     }
 
     @Test

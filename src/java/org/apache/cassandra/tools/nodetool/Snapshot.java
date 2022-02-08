@@ -24,7 +24,6 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
-import java.io.File; // checkstyle: permit this import
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -32,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.config.Duration;
@@ -74,9 +74,9 @@ public class Snapshot extends NodeToolCmd
                 options.put("ttl", d.toString());
             }
 
-            if (!snapshotName.isEmpty() && snapshotName.contains(File.separator))
+            if (!snapshotName.isEmpty() && snapshotName.contains(File.pathSeparator()))
             {
-                throw new IOException("Snapshot name cannot contain " + File.separator);
+                throw new IOException("Snapshot name cannot contain " + File.pathSeparator());
             }
             // Create a separate path for kclist to avoid breaking of already existing scripts
             if (null != ktList && !ktList.isEmpty())
