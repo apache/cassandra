@@ -69,6 +69,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthenticatedUser.networkPermissionsCache.invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
