@@ -36,6 +36,7 @@
 
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
+    <property name="lib.geomet.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
     <!--
        Fetch Resolver Ant Tasks and Cassandra's dependencies.
     -->
@@ -188,7 +189,7 @@
         <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.11.0-bb96859b.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- apache/cassandra/lib -->
-        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/geomet-0.1.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.geomet.sha}/lib/geomet-0.1.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get dest="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
             <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
             <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-linux.so"/>
