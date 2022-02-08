@@ -38,9 +38,6 @@ public interface PartitionRangeReadQuery extends ReadQuery
                             DataLimits limits,
                             DataRange dataRange)
     {
-        if (table.isVirtual())
-            return VirtualTablePartitionRangeReadQuery.create(table, nowInSec, columnFilter, rowFilter, limits, dataRange);
-
         return PartitionRangeReadCommand.create(table, nowInSec, columnFilter, rowFilter, limits, dataRange);
     }
 

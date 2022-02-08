@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -262,6 +264,55 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         super(testOnly);
         OutboundConnections.scheduleUnusedConnectionMonitoring(this, ScheduledExecutors.scheduledTasks, 1L, TimeUnit.HOURS);
+    }
+
+    public <T> org.apache.cassandra.utils.concurrent.Future<Message<T>> sendWithResult(Message message, InetAddressAndPort to)
+    {
+        AsyncPromise<Message<T>> promise = new AsyncPromise<>();
+        MessagingService.instance().sendWithCallback(message, to, new RequestCallback<T>()
+        {
+            @Override
+            public void onResponse(Message<T> msg)
+            {
+                promise.trySuccess(msg);
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                promise.tryFailure(new FailureResponseException(from, failureReason));
+            }
+
+            @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
+            }
+        });
+        return promise;
+    }
+
+    public static class FailureResponseException extends IOException
+    {
+        private final InetAddressAndPort from;
+        private final RequestFailureReason failureReason;
+
+        public FailureResponseException(InetAddressAndPort from, RequestFailureReason failureReason)
+        {
+            super(String.format("Failure from %s: %s", from, failureReason.name()));
+            this.from = from;
+            this.failureReason = failureReason;
+        }
+
+        public InetAddressAndPort from()
+        {
+            return from;
+        }
+
+        public RequestFailureReason failureReason()
+        {
+            return failureReason;
+        }
     }
 
     /**

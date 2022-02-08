@@ -67,7 +67,7 @@ public class TableId
      */
     public static TableId forSystemTable(String keyspace, String table)
     {
-        assert SchemaConstants.isLocalSystemKeyspace(keyspace) || SchemaConstants.isReplicatedSystemKeyspace(keyspace);
+        assert SchemaConstants.isSystemKeyspace(keyspace) : String.format("Table %s.%s is not a system table; only keyspaces allowed are %s", keyspace, table, SchemaConstants.getSystemKeyspaces());
         return unsafeDeterministic(keyspace, table);
     }
 

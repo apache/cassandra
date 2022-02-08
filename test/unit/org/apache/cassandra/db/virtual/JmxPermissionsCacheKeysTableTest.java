@@ -89,6 +89,7 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthorizationProxy.jmxPermissionsCache.invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass

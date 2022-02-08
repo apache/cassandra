@@ -68,6 +68,7 @@ public class CredentialsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         passwordAuthenticator.getCredentialsCache().invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass

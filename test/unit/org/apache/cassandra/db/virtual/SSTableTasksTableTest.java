@@ -56,6 +56,7 @@ public class SSTableTasksTableTest extends CQLTester
     {
         table = new SSTableTasksTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+        disablePreparedReuseForTest();
     }
 
     @Test

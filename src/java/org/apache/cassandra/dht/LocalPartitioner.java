@@ -152,7 +152,7 @@ public class LocalPartitioner implements IPartitioner
         @Override
         public int compareTo(Token o)
         {
-            assert getPartitioner() == o.getPartitioner();
+            assert getPartitioner() == o.getPartitioner() : String.format("partitioners do not match; %s != %s", getPartitioner(), o.getPartitioner());
             return comparator.compare(token, ((LocalToken) o).token);
         }
 

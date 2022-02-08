@@ -84,6 +84,7 @@ public class PermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthenticatedUser.permissionsCache.invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass

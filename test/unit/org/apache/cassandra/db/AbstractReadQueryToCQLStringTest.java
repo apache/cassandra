@@ -780,11 +780,6 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
             SinglePartitionReadCommand.Group group = (SinglePartitionReadCommand.Group) readQuery;
             return group.queries.stream().map(AbstractReadQuery::toCQLString).collect(Collectors.toList());
         }
-        else if (readQuery instanceof VirtualTableSinglePartitionReadQuery.Group)
-        {
-            VirtualTableSinglePartitionReadQuery.Group group = (VirtualTableSinglePartitionReadQuery.Group) readQuery;
-            return group.queries.stream().map(AbstractReadQuery::toCQLString).collect(Collectors.toList());
-        }
         else
         {
             assertTrue(readQuery instanceof AbstractReadQuery);
