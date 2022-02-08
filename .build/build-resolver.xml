@@ -185,7 +185,7 @@
         <get src="https://files.pythonhosted.org/packages/2e/a4/6dcb84af409b7bc0c258a0d6bd7e14231724d9a46b750c048f09d74d870c/six-1.16.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.16.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- python-driver -->
-        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.23.0.post0-1a184b99.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.23.0.post0-1a184b99.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.11.0-bb96859b.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- apache/cassandra/lib -->
         <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/geomet-0.1.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
@@ -216,7 +216,7 @@
         
         <copy todir="${build.lib}" quiet="true">
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.23.0.post0-1a184b99.zip"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.16.0-py2.py3-none-any.zip"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
         </copy>
