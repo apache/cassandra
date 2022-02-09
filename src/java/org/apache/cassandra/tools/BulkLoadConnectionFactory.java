@@ -47,7 +47,7 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
         // does not know which node is in which dc/rack, connecting to SSL port is always the option.
 
         if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
-            template = template.withConnectTo(template.to.withPort(secureStoragePort));
+            template = template.withConnectTo(template.to.withPort(secureStoragePort)).withEncryption(encryptionOptions);
 
         return super.createConnection(template, messagingVersion);
     }

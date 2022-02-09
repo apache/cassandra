@@ -19,22 +19,30 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.io.File;
 import java.util.Collections;
+import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.io.FileUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.tools.BulkLoader;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
@@ -72,19 +80,22 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
             CLUSTER.close();
     }
     @Test
-    public void bulkLoaderSuccessfullyConnectsOverSsl() throws Throwable
+    public void bulkLoaderSuccessfullyStreamsOverSsl() throws Throwable
     {
+        File sstables_to_upload = prepareSstablesForUpload();
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
                                                             "--nodes", NODES,
                                                             "--port", Integer.toString(NATIVE_PORT),
-                                                            "--storage-port", Integer.toString(STORAGE_PORT),
+                                                            "--ssl-storage-port", Integer.toString(STORAGE_PORT),
                                                             "--keystore", validKeyStorePath,
                                                             "--keystore-password", validKeyStorePassword,
                                                             "--truststore", validTrustStorePath,
                                                             "--truststore-password", validTrustStorePassword,
-                                                            "test/data/legacy-sstables/na/legacy_tables/legacy_na_clust");
+                                                            "--conf-path", "test/conf/sstableloader_with_encryption.yaml",
+                                                            sstables_to_upload.getAbsolutePath());
         tool.assertOnCleanExit();
         assertTrue(tool.getStdout().contains("Summary statistics"));
+        assertRows(CLUSTER.get(1).executeInternal("SELECT count(*) FROM ssl_upload_tables.test"), row(42L));
     }
 
     @Test
@@ -102,5 +113,48 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                                                             "test/data/legacy-sstables/na/legacy_tables/legacy_na_clust");
         assertNotEquals(0, tool.getExitCode());
         assertTrue(tool.getStdout().contains("SSLHandshakeException"));
+    }
+
+    private static File prepareSstablesForUpload() throws IOException
+    {
+        generateSstables();
+        File sstable_dir = copySstablesFromDataDir("test");
+        truncateGeneratedTables();
+        return sstable_dir;
+    }
+
+    private static void generateSstables() throws IOException
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE ssl_upload_tables WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        CLUSTER.schemaChange("CREATE TABLE ssl_upload_tables.test (pk int, val text, PRIMARY KEY (pk))");
+        for (int i = 0; i < 42; i++)
+        {
+            CLUSTER.get(1).executeInternal(String.format("INSERT INTO ssl_upload_tables.test (pk, val) VALUES (%s, '%s')",
+                                                         i, Integer.toString(i)));
+        }
+        CLUSTER.get(1).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush("ssl_upload_tables")));
+    }
+
+    private static void truncateGeneratedTables() throws IOException
+    {
+        CLUSTER.get(1).executeInternal("TRUNCATE ssl_upload_tables.test");
+    }
+
+    private static File copySstablesFromDataDir(String table) throws IOException
+    {
+        File cfDir = new File("build/test/cassandra/ssl_upload_tables", table);
+        cfDir.mkdirs();
+        List<File> keyspace_dirs = CLUSTER.get(1).callOnInstance(() -> Keyspace.open("ssl_upload_tables").getColumnFamilyStore(table).getDirectories().getCFDirectories());
+        for (File srcDir : keyspace_dirs)
+        {
+            for (File file : srcDir.listFiles())
+            {
+                if (file.isFile())
+                {
+                    FileUtils.copyFileToDirectory(file, cfDir);
+                }
+            }
+        }
+        return cfDir;
     }
 }
