@@ -61,6 +61,7 @@
                  <exclude name="**/test/conf/commitlog_compression_LZ4.yaml"/>
                  <exclude name="**/test/conf/commitlog_compression_Zstd.yaml"/>
                  <exclude name="**/test/conf/system_keyspaces_directory.yaml"/>
+                 <exclude name="**/test/conf/sstableloader_with_encryption.yaml"/>
                  <exclude name="**/test/conf/unit-test-conf/test-native-port.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
