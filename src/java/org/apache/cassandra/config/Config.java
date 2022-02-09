@@ -82,8 +82,6 @@ public class Config
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
     public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
-    public volatile int max_hints_size_per_host_in_mb = 0; // non-positive means disabled
-    public volatile Integer max_hints_size_per_host_in_mb = 0; // non-positive means disabled
     @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
     public volatile SmallestDurationMilliseconds max_hint_window = new SmallestDurationMilliseconds("3h");
     public String hints_directory;
@@ -368,6 +366,7 @@ public class Config
     public SmallestDurationMilliseconds hints_flush_period = new SmallestDurationMilliseconds("10s");
     @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public SmallestDataStorageMebibytes max_hints_file_size = new SmallestDataStorageMebibytes("128MiB");
+    public volatile SmallestDataStorageMebibytes max_hints_size_per_host = new SmallestDataStorageMebibytes("0MiB"); // 0 means disabled
 
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;

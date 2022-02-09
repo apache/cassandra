@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -46,6 +47,7 @@ public class StorageProxyTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.mkdirs();
     }
 
     @Test
@@ -86,7 +88,7 @@ public class StorageProxyTest
     public void testShouldHintOnExceedingSize() throws Exception
     {
         shouldHintTest(replica -> {
-            final long orignialHintsSizeLimit = DatabaseDescriptor.getMaxHintsSizePerHost() / 1024L / 1024L;
+            final int originalHintsSizeLimit = DatabaseDescriptor.getMaxHintsSizePerHostInMb();
             try
             {
                 DatabaseDescriptor.setMaxHintsSizePerHostInMb(1);
@@ -94,7 +96,7 @@ public class StorageProxyTest
             }
             finally
             {
-                DatabaseDescriptor.setMaxHintsSizePerHostInMb((int) orignialHintsSizeLimit);
+                DatabaseDescriptor.setMaxHintsSizePerHostInMb(originalHintsSizeLimit);
             }
         });
     }

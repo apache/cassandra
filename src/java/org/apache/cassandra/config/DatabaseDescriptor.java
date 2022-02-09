@@ -2645,17 +2645,17 @@ public class DatabaseDescriptor
 
     public static void setMaxHintsSizePerHostInMb(int value)
     {
-        conf.max_hints_size_per_host_in_mb = value;
+        conf.max_hints_size_per_host = SmallestDataStorageMebibytes.inMebibytes(value);
     }
 
     public static int getMaxHintsSizePerHostInMb()
     {
-        return conf.max_hints_size_per_host_in_mb;
+        return conf.max_hints_size_per_host.toMebibytesAsInt();
     }
 
     public static long getMaxHintsSizePerHost()
     {
-        return conf.max_hints_size_per_host_in_mb * 1024L * 1024L;
+        return conf.max_hints_size_per_host.toBytes();
     }
 
     public static File getHintsDirectory()
