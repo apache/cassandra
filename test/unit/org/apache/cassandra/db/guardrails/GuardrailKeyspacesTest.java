@@ -20,7 +20,6 @@ package org.apache.cassandra.db.guardrails;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
 
 import static java.lang.String.format;
@@ -31,16 +30,16 @@ import static java.lang.String.format;
 public class GuardrailKeyspacesTest extends ThresholdTester
 {
     private static final int WARN_THRESHOLD = 3; // CQLTester creates two keyspaces
-    private static final int ABORT_THRESHOLD = WARN_THRESHOLD + 1;
+    private static final int FAIL_THRESHOLD = WARN_THRESHOLD + 1;
 
     public GuardrailKeyspacesTest()
     {
         super(WARN_THRESHOLD,
-              ABORT_THRESHOLD,
-              DatabaseDescriptor.getGuardrailsConfig().getKeyspaces(),
+              FAIL_THRESHOLD,
+              "keyspaces",
               Guardrails::setKeyspacesThreshold,
               Guardrails::getKeyspacesWarnThreshold,
-              Guardrails::getKeyspacesAbortThreshold);
+              Guardrails::getKeyspacesFailThreshold);
     }
 
     @Override
@@ -52,22 +51,22 @@ public class GuardrailKeyspacesTest extends ThresholdTester
     @Test
     public void testCreateKeyspace() throws Throwable
     {
-        // create keyspaces until hitting the two warn/abort thresholds
+        // create keyspaces until hitting the two warn/fail thresholds
         String k1 = assertCreateKeyspaceValid();
         String k2 = assertCreateKeyspaceWarns();
-        assertCreateKeyspaceAborts();
+        assertCreateKeyspaceFails();
 
-        // drop a keyspace and hit the warn/abort threshold again
+        // drop a keyspace and hit the warn/fail threshold again
         dropKeyspace(k2);
         String k3 = assertCreateKeyspaceWarns();
-        assertCreateKeyspaceAborts();
+        assertCreateKeyspaceFails();
 
-        // drop two keyspaces and hit the warn/abort threshold again
+        // drop two keyspaces and hit the warn/fail threshold again
         dropKeyspace(k1);
         dropKeyspace(k3);
         assertCreateKeyspaceValid();
         assertCreateKeyspaceWarns();
-        assertCreateKeyspaceAborts();
+        assertCreateKeyspaceFails();
 
         // test excluded users
         testExcludedUsers(this::createKeyspaceQuery,
@@ -96,12 +95,12 @@ public class GuardrailKeyspacesTest extends ThresholdTester
         return keyspaceName;
     }
 
-    private void assertCreateKeyspaceAborts() throws Throwable
+    private void assertCreateKeyspaceFails() throws Throwable
     {
         String keyspaceName = createKeyspaceName();
-        assertThresholdAborts(format("Cannot have more than %d keyspaces, aborting the creation of keyspace %s",
-                                     ABORT_THRESHOLD, keyspaceName),
-                              createKeyspaceQuery(keyspaceName));
+        assertThresholdFails(format("Cannot have more than %d keyspaces, aborting the creation of keyspace %s",
+                                    FAIL_THRESHOLD, keyspaceName),
+                             createKeyspaceQuery(keyspaceName));
     }
 
     private String createKeyspaceQuery()

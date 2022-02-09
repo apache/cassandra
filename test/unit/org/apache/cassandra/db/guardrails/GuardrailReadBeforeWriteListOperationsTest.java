@@ -166,7 +166,7 @@ public class GuardrailReadBeforeWriteListOperationsTest extends GuardrailTester
         }
         else
         {
-            assertAborts(expectedMessage, query);
+            assertFails(expectedMessage, query);
         }
     }
 

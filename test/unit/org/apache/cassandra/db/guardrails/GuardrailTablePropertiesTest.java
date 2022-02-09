@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 
 import static java.lang.String.format;
@@ -46,9 +45,8 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
                                               "WHERE pk IS NOT null and ck IS NOT null PRIMARY KEY(ck, pk) %s";
     private static final String ALTER_VIEW = "ALTER MATERIALIZED VIEW %s.%s WITH %s";
 
-    private static final String PROPERTY_NAME = DatabaseDescriptor.getGuardrailsConfig().getTableProperties().getName();
-    private static final String IGNORED_PROPERTY_NAME = PROPERTY_NAME + ".ignored";
-    private static final String DISALLOWED_PROPERTY_NAME = PROPERTY_NAME + ".disallowed";
+    private static final String IGNORED_PROPERTY_NAME = "table_properties_ignored";
+    private static final String DISALLOWED_PROPERTY_NAME = "table_properties_disallowed";
 
     @Before
     public void before()
@@ -97,11 +95,11 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
     {
         // most table properties are not allowed
         assertValid(this::createTableWithProperties);
-        assertAborts(() -> createTableWithProperties("with id = " + UUID.randomUUID()), "[id]");
-        assertAborts(() -> createTableWithProperties("with compression = { 'enabled': 'false' }"), "[compression]");
-        assertAborts(() -> createTableWithProperties("with compression = { 'enabled': 'false' } AND id = " + UUID.randomUUID()), "[compression, id]");
-        assertAborts(() -> createTableWithProperties("with compaction = { 'class': 'SizeTieredCompactionStrategy' }"), "[compaction]");
-        assertAborts(() -> createTableWithProperties("with gc_grace_seconds = 1000 and compression = { 'enabled': 'false' }"), "[compression]");
+        assertFails(() -> createTableWithProperties("with id = " + UUID.randomUUID()), "[id]");
+        assertFails(() -> createTableWithProperties("with compression = { 'enabled': 'false' }"), "[compression]");
+        assertFails(() -> createTableWithProperties("with compression = { 'enabled': 'false' } AND id = " + UUID.randomUUID()), "[compression, id]");
+        assertFails(() -> createTableWithProperties("with compaction = { 'class': 'SizeTieredCompactionStrategy' }"), "[compaction]");
+        assertFails(() -> createTableWithProperties("with gc_grace_seconds = 1000 and compression = { 'enabled': 'false' }"), "[compression]");
 
         // though gc_grace_seconds alone is
         assertValid(() -> createTableWithProperties("with gc_grace_seconds = 1000"));
@@ -127,15 +125,15 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
         // view properties is not allowed
         createTableWithProperties();
         assertValid(() -> createViewWithProperties(""));
-        assertAborts(() -> createViewWithProperties("with compression = { 'enabled': 'false' }"), "[compression]");
+        assertFails(() -> createViewWithProperties("with compression = { 'enabled': 'false' }"), "[compression]");
         assertValid(() -> createViewWithProperties("with gc_grace_seconds = 1000"));
 
         // alter mv properties except "gc_grace_seconds" is not allowed
         assertValid(() -> alterViewWithProperties("gc_grace_seconds = 1000"));
-        assertAborts(() -> alterViewWithProperties("compaction = { 'class': 'SizeTieredCompactionStrategy' } AND default_time_to_live = 1"),
-                     "[compaction, default_time_to_live]");
-        assertAborts(() -> alterViewWithProperties("compaction = { 'class': 'SizeTieredCompactionStrategy' } AND crc_check_chance = 1"),
-                     "[compaction, crc_check_chance]");
+        assertFails(() -> alterViewWithProperties("compaction = { 'class': 'SizeTieredCompactionStrategy' } AND default_time_to_live = 1"),
+                    "[compaction, default_time_to_live]");
+        assertFails(() -> alterViewWithProperties("compaction = { 'class': 'SizeTieredCompactionStrategy' } AND crc_check_chance = 1"),
+                    "[compaction, crc_check_chance]");
     }
 
     @Test

@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -666,9 +667,6 @@ public class Config
      */
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
-    /** The configuration for guardrails. */
-    public final GuardrailsOptions guardrails = new GuardrailsOptions();
-
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
@@ -724,6 +722,25 @@ public class Config
 
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
+
+    public static final int DISABLED_GUARDRAIL = -1;
+    public volatile boolean guardrails_enabled = false;
+    public volatile int keyspaces_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int keyspaces_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int tables_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int tables_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int columns_per_table_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int columns_per_table_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int secondary_indexes_per_table_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int secondary_indexes_per_table_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int materialized_views_per_table_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int materialized_views_per_table_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int page_size_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int page_size_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile Set<String> table_properties_ignored = Collections.emptySet();
+    public volatile Set<String> table_properties_disallowed = Collections.emptySet();
+    public volatile boolean user_timestamps_enabled = true;
+    public volatile boolean read_before_write_list_operations_enabled = true;
 
     public enum PaxosVariant
     {

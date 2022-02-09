@@ -47,8 +47,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the total number of user keyspaces.
      */
     public static final Threshold keyspaces =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspaces().getWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspaces().getAbortThreshold(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating keyspace %s, current number of keyspaces %s exceeds warning threshold of %s.",
                                      what, value, threshold)
@@ -59,8 +59,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the total number of tables on user keyspaces.
      */
     public static final Threshold tables =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getTables().getWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getTables().getAbortThreshold(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablesFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating table %s, current number of tables %s exceeds warning threshold of %s.",
                                      what, value, threshold)
@@ -71,8 +71,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of columns per table.
      */
     public static final Threshold columnsPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTable().getWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTable().getAbortThreshold(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("The table %s has %s columns, this exceeds the warning threshold of %s.",
                                      what, value, threshold)
@@ -80,8 +80,8 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, value, what));
 
     public static final Threshold secondaryIndexesPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTable().getWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTable().getAbortThreshold(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating secondary index %s, current number of indexes %s exceeds warning threshold of %s.",
                                      what, value, threshold)
@@ -92,8 +92,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of materialized views per table.
      */
     public static final Threshold materializedViewsPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTable().getWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTable().getAbortThreshold(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
                                      what, value, threshold)
@@ -104,8 +104,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail ignoring/disallowing the usage of certain table properties.
      */
     public static final Values<String> tableProperties =
-    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getTableProperties().getIgnored(),
-                 state -> CONFIG_PROVIDER.getOrCreate(state).getTableProperties().getDisallowed(),
+    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesIgnored(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesDisallowed(),
                  "Table Properties");
 
     /**
@@ -119,12 +119,12 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of elements returned within page.
      */
     public static final Threshold pageSize =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPageSize().getWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getPageSize().getAbortThreshold(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
                                      what, value, threshold)
-                            : format("Aborting query for table %s, page size %s exceeds abort threshold of %s.",
+                            : format("Aborting query for table %s, page size %s exceeds fail threshold of %s.",
                                      what, value, threshold));
 
     /**
@@ -165,103 +165,103 @@ public final class Guardrails implements GuardrailsMBean
     @Override
     public int getKeyspacesWarnThreshold()
     {
-        return DEFAULT_CONFIG.getKeyspaces().getWarnThreshold();
+        return DEFAULT_CONFIG.getKeyspacesWarnThreshold();
     }
 
     @Override
-    public int getKeyspacesAbortThreshold()
+    public int getKeyspacesFailThreshold()
     {
-        return DEFAULT_CONFIG.getKeyspaces().getAbortThreshold();
+        return DEFAULT_CONFIG.getKeyspacesFailThreshold();
     }
 
     @Override
-    public void setKeyspacesThreshold(int warn, int abort)
+    public void setKeyspacesThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.getKeyspaces().setThresholds(warn, abort);
+        DEFAULT_CONFIG.setKeyspacesThreshold(warn, fail);
     }
 
     @Override
     public int getTablesWarnThreshold()
     {
-        return DEFAULT_CONFIG.getTables().getWarnThreshold();
+        return DEFAULT_CONFIG.getTablesWarnThreshold();
     }
 
     @Override
-    public int getTablesAbortThreshold()
+    public int getTablesFailThreshold()
     {
-        return DEFAULT_CONFIG.getTables().getAbortThreshold();
+        return DEFAULT_CONFIG.getTablesFailThreshold();
     }
 
     @Override
-    public void setTablesThreshold(int warn, int abort)
+    public void setTablesThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.getTables().setThresholds(warn, abort);
+        DEFAULT_CONFIG.setTablesThreshold(warn, fail);
     }
 
     @Override
     public int getColumnsPerTableWarnThreshold()
     {
-        return DEFAULT_CONFIG.getColumnsPerTable().getWarnThreshold();
+        return DEFAULT_CONFIG.getColumnsPerTableWarnThreshold();
     }
 
     @Override
-    public int getColumnsPerTableAbortThreshold()
+    public int getColumnsPerTableFailThreshold()
     {
-        return DEFAULT_CONFIG.getColumnsPerTable().getAbortThreshold();
+        return DEFAULT_CONFIG.getColumnsPerTableFailThreshold();
     }
 
     @Override
-    public void setColumnsPerTableThreshold(int warn, int abort)
+    public void setColumnsPerTableThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.getColumnsPerTable().setThresholds(warn, abort);
+        DEFAULT_CONFIG.setColumnsPerTableThreshold(warn, fail);
     }
 
     @Override
     public int getSecondaryIndexesPerTableWarnThreshold()
     {
-        return DEFAULT_CONFIG.getSecondaryIndexesPerTable().getWarnThreshold();
+        return DEFAULT_CONFIG.getSecondaryIndexesPerTableWarnThreshold();
     }
 
     @Override
-    public int getSecondaryIndexesPerTableAbortThreshold()
+    public int getSecondaryIndexesPerTableFailThreshold()
     {
-        return DEFAULT_CONFIG.getSecondaryIndexesPerTable().getAbortThreshold();
+        return DEFAULT_CONFIG.getSecondaryIndexesPerTableFailThreshold();
     }
 
     @Override
-    public void setSecondaryIndexesPerTableThreshold(int warn, int abort)
+    public void setSecondaryIndexesPerTableThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.getSecondaryIndexesPerTable().setThresholds(warn, abort);
+        DEFAULT_CONFIG.setSecondaryIndexesPerTableThreshold(warn, fail);
     }
 
     @Override
     public int getMaterializedViewsPerTableWarnThreshold()
     {
-        return DEFAULT_CONFIG.getMaterializedViewsPerTable().getWarnThreshold();
+        return DEFAULT_CONFIG.getMaterializedViewsPerTableWarnThreshold();
     }
 
     @Override
-    public int getMaterializedViewsPerTableAbortThreshold()
+    public int getMaterializedViewsPerTableFailThreshold()
     {
-        return DEFAULT_CONFIG.getMaterializedViewsPerTable().getAbortThreshold();
+        return DEFAULT_CONFIG.getMaterializedViewsPerTableFailThreshold();
     }
 
     @Override
-    public void setMaterializedViewsPerTableThreshold(int warn, int abort)
+    public void setMaterializedViewsPerTableThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.getMaterializedViewsPerTable().setThresholds(warn, abort);
+        DEFAULT_CONFIG.setMaterializedViewsPerTableThreshold(warn, fail);
     }
 
     @Override
     public Set<String> getTablePropertiesDisallowed()
     {
-        return DEFAULT_CONFIG.getTableProperties().getDisallowed();
+        return DEFAULT_CONFIG.getTablePropertiesDisallowed();
     }
 
     @Override
     public String getTablePropertiesDisallowedCSV()
     {
-        return toCSV(DEFAULT_CONFIG.getTableProperties().getDisallowed());
+        return toCSV(DEFAULT_CONFIG.getTablePropertiesDisallowed());
     }
 
     public void setTablePropertiesDisallowed(String... properties)
@@ -272,7 +272,7 @@ public final class Guardrails implements GuardrailsMBean
     @Override
     public void setTablePropertiesDisallowed(Set<String> properties)
     {
-        DEFAULT_CONFIG.getTableProperties().setDisallowed(properties);
+        DEFAULT_CONFIG.setTablePropertiesDisallowed(properties);
     }
 
     @Override
@@ -284,13 +284,13 @@ public final class Guardrails implements GuardrailsMBean
     @Override
     public Set<String> getTablePropertiesIgnored()
     {
-        return DEFAULT_CONFIG.getTableProperties().getIgnored();
+        return DEFAULT_CONFIG.getTablePropertiesIgnored();
     }
 
     @Override
     public String getTablePropertiesIgnoredCSV()
     {
-        return toCSV(DEFAULT_CONFIG.getTableProperties().getIgnored());
+        return toCSV(DEFAULT_CONFIG.getTablePropertiesIgnored());
     }
 
     public void setTablePropertiesIgnored(String... properties)
@@ -301,7 +301,7 @@ public final class Guardrails implements GuardrailsMBean
     @Override
     public void setTablePropertiesIgnored(Set<String> properties)
     {
-        DEFAULT_CONFIG.getTableProperties().setIgnored(properties);
+        DEFAULT_CONFIG.setTablePropertiesIgnored(properties);
     }
 
     @Override
@@ -325,19 +325,19 @@ public final class Guardrails implements GuardrailsMBean
     @Override
     public int getPageSizeWarnThreshold()
     {
-        return DEFAULT_CONFIG.getPageSize().getWarnThreshold();
+        return DEFAULT_CONFIG.getPageSizeWarnThreshold();
     }
 
     @Override
-    public int getPageSizeAbortThreshold()
+    public int getPageSizeFailThreshold()
     {
-        return DEFAULT_CONFIG.getPageSize().getAbortThreshold();
+        return DEFAULT_CONFIG.getPageSizeFailThreshold();
     }
 
     @Override
-    public void setPageSizeThreshold(int warn, int abort)
+    public void setPageSizeThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.getPageSize().setThresholds(warn, abort);
+        DEFAULT_CONFIG.setPageSizeThreshold(warn, fail);
     }
 
     public boolean getReadBeforeWriteListOperationsEnabled()

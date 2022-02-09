@@ -75,8 +75,8 @@ public class Values<T> extends Guardrail
         Set<T> disallowed = disallowedValues.apply(state);
         Set<T> toDisallow = Sets.intersection(values, disallowed);
         if (!toDisallow.isEmpty())
-            abort(format("Provided values %s are not allowed for %s (disallowed values are: %s)",
-                         toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed));
+            fail(format("Provided values %s are not allowed for %s (disallowed values are: %s)",
+                        toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed));
 
         Set<T> ignored = ignoredValues.apply(state);
         Set<T> toIgnore = Sets.intersection(values, ignored);

@@ -76,6 +76,6 @@ public class DisableFlag extends Guardrail
     public void ensureEnabled(String what, @Nullable ClientState state)
     {
         if (enabled(state) && disabled.test(state))
-            abort(what + " is not allowed");
+            fail(what + " is not allowed");
     }
 }

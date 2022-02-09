@@ -68,7 +68,7 @@ public abstract class Guardrail
         Tracing.trace(message);
     }
 
-    protected void abort(String message)
+    protected void fail(String message)
     {
         logger.error(message);
         // Note that ClientWarn will simply ignore the message if we're not running this as part of a user query

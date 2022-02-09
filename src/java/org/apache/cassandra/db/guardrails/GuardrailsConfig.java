@@ -30,7 +30,7 @@ import java.util.Set;
  * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
  * individual settings to control each guardrail.
  *
- * <p>We have 2 variants of guardrails, soft (warn) and hard (abort) limits, each guardrail having either one of the
+ * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
  * execution. For other guardrails, say one triggering during compaction, aborting that compaction does not make sense.
  *
@@ -51,34 +51,64 @@ public interface GuardrailsConfig
     boolean getEnabled();
 
     /**
-     * @return The threshold to warn or abort when creating more user keyspaces than threshold.
+     * @return The threshold to warn when creating more user keyspaces than threshold.
      */
-    IntThreshold getKeyspaces();
+    int getKeyspacesWarnThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more user tables than threshold.
+     * @return The threshold to fail when creating more user keyspaces than threshold.
      */
-    IntThreshold getTables();
+    int getKeyspacesFailThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more columns per table than threshold.
+     * @return The threshold to warn when creating more user tables than threshold.
      */
-    IntThreshold getColumnsPerTable();
+    int getTablesWarnThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more secondary indexes per table than threshold.
+     * @return The threshold to fail when creating more user tables than threshold.
      */
-    IntThreshold getSecondaryIndexesPerTable();
+    int getTablesFailThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more materialized views per table than threshold.
+     * @return The threshold to warn when creating more columns per table than threshold.
      */
-    IntThreshold getMaterializedViewsPerTable();
+    int getColumnsPerTableWarnThreshold();
 
     /**
-     * @return The table properties that are ignored/disallowed when creating or altering a table.
+     * @return The threshold to fail when creating more columns per table than threshold.
      */
-    TableProperties getTableProperties();
+    int getColumnsPerTableFailThreshold();
+
+    /**
+     * @return The threshold to warn when creating more secondary indexes per table than threshold.
+     */
+    int getSecondaryIndexesPerTableWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating more secondary indexes per table than threshold.
+     */
+    int getSecondaryIndexesPerTableFailThreshold();
+
+    /**
+     * @return The threshold to warn when creating more materialized views per table than threshold.
+     */
+    int getMaterializedViewsPerTableWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating more materialized views per table than threshold.
+     */
+    int getMaterializedViewsPerTableFailThreshold();
+
+    /**
+     * @return The table properties that are ignored when creating or altering a table.
+     */
+    Set<String> getTablePropertiesIgnored();
+
+    /**
+     * @return The table properties that are disallowed when creating or altering a table.
+     */
+    Set<String> getTablePropertiesDisallowed();
 
     /**
      * Returns whether user-provided timestamps are allowed.
@@ -88,9 +118,14 @@ public interface GuardrailsConfig
     boolean getUserTimestampsEnabled();
 
     /**
-     * @return The threshold to warn or abort when page size exceeds given size.
+     * @return The threshold to warn when page size exceeds given size.
      */
-    IntThreshold getPageSize();
+    int getPageSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when page size exceeds given size.
+     */
+    int getPageSizeFailThreshold();
 
     /**
      * Returns whether list operations that require read before write are allowed.
@@ -98,37 +133,4 @@ public interface GuardrailsConfig
      * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     boolean getReadBeforeWriteListOperationsEnabled();
-
-    /**
-     * Configuration of {@code int}-based thresholds to check if the guarded value should trigger a warning or abort the
-     * operation.
-     */
-    public interface IntThreshold
-    {
-        /**
-         * @return The threshold to warn when the guarded value exceeds it. A negative value means disabled.
-         */
-        public int getWarnThreshold();
-
-        /**
-         * @return The threshold to abort the operation when the guarded value exceeds it. A negative value means disabled.
-         */
-        public int getAbortThreshold();
-    }
-
-    /**
-     * Configuration class containing the sets of table properties to ignore and/or reject.
-     */
-    public interface TableProperties
-    {
-        /**
-         * @return The values to be ignored.
-         */
-        Set<String> getIgnored();
-
-        /**
-         * @return The values to be rejected.
-         */
-        Set<String> getDisallowed();
-    }
 }
