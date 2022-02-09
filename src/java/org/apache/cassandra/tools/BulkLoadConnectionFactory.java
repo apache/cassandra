@@ -50,7 +50,7 @@ public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
         // does not know which node is in which dc/rack, connecting to SSL port is always the option.
         OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to));
         if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
-            template = template.withConnectTo(template.to.withPort(secureStoragePort));
+            template = template.withConnectTo(template.to.withPort(secureStoragePort)).withEncryption(encryptionOptions);
 
         return connect(template, messagingVersion, kind);
     }

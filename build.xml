@@ -1518,6 +1518,7 @@
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/cdc_raw"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/data"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/ssl_upload_tables"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/system_data"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/saved_caches"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/hints"/>

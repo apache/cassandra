@@ -1,0 +1,7 @@
+server_encryption_options:
+    internode_encryption: all
+    keystore: test/conf/cassandra_ssl_test.keystore
+    keystore_password: cassandra
+    truststore: test/conf/cassandra_ssl_test.truststore
+    truststore_password: cassandra
+    protocol: TLSv1.2
