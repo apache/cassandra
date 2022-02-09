@@ -48,7 +48,7 @@ completely customizing the SSL context. You can choose any keystore
 format supported by Java (JKS, PKCS12 etc) as well as other standards
 like PEM. You can even customize the SSL context creation to use Cloud
 Native technologies like Kuberenetes Secrets for storing the key
-material or to integrate with your inhouse Key Management System.
+material or to integrate with your in-house Key Management System.
 
 For information on generating the keystore and truststore files
 required with the Java supported keystores used in SSL communications,
@@ -58,7 +58,7 @@ documentation on creating keystores].
 
 For customizing the SSL context creation you can implement
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/security/ISslContextFactory.java[ISslContextCreationFactory]
-interface or extend one of it's public subclasses appropriately. You
+interface or extend one of its public subclasses appropriately. You
 can then use the `ssl_context_factory` setting for
 `server_encryption_options` or `client_encryption_options` sections
 appropriately. See https://github.com/apache/cassandra/tree/trunk/examples/ssl-factory[ssl-factory examples]
@@ -69,13 +69,13 @@ image::Cassandra-SslContextFactory-PEM.png[SslContextFactory Class Diagram]
 
 === Using PEM based key material
 
-You can use the inbuilt class `PEMBasedSSLContextFactory` as the
+You can use the in-built class `PEMBasedSSLContextFactory` as the
 `ssl_context_factory` setting for the PEM based key material.
 
 You can configure this factory with either inline PEM data or with the
 files having the required PEM data as shown below,
 
-* Configuration: PEM keys/certs defined inline (mind the spaces in the
+* Configuration: PEM keys/certs defined in-line (mind the spaces in the
 YAML!)
 
 ....
@@ -125,7 +125,7 @@ setting, Cassandra polls your implementation to check if the SSL
 certificates need to be reloaded. See the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/security/ISslContextFactory.java#L90[ISslContextFactory]
 documentation for more details. If you are using one of the
-Cassandra's inbuilt SSL context factory class (example:
+Cassandra's in-built SSL context factory class (example:
 PEMBasedSslContextFactory) with file based key material, it supports
 the hot reloading of the SSL certificates like mentioned above.
 
