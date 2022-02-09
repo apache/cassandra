@@ -536,12 +536,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*
-      Update dynamic_snitch_update_interval_in_ms
+      Update dynamic_snitch_update_interval in ms
      */
     public void setDynamicUpdateInterval(int dynamicUpdateInterval);
 
     /*
-      Get dynamic_snitch_update_interval_in_ms
+      Get dynamic_snitch_update_interval in ms
      */
     public int getDynamicUpdateInterval();
 
@@ -618,17 +618,26 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setTruncateRpcTimeout(long value);
     public long getTruncateRpcTimeout();
 
+    public void setStreamThroughputMbitPerSec(int value);
+    public int getStreamThroughputMbitPerSec();
+
+    @Deprecated
     public void setStreamThroughputMbPerSec(int value);
+    @Deprecated
     public int getStreamThroughputMbPerSec();
 
+    public void setInterDCStreamThroughputMbitPerSec(int value);
+    public int getInterDCStreamThroughputMbitPerSec();
+    @Deprecated
     public void setInterDCStreamThroughputMbPerSec(int value);
+    @Deprecated
     public int getInterDCStreamThroughputMbPerSec();
 
-    public void setEntireSSTableStreamThroughputMbPerSec(int value);
-    public int getEntireSSTableStreamThroughputMbPerSec();
+    public void setEntireSSTableStreamThroughputMebibytesPerSec(int value);
+    public int getEntireSSTableStreamThroughputMebibytesPerSec();
 
-    public void setEntireSSTableInterDCStreamThroughputMbPerSec(int value);
-    public int getEntireSSTableInterDCStreamThroughputMbPerSec();
+    public void setEntireSSTableInterDCStreamThroughputMebibytesPerSec(int value);
+    public int getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
 
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
@@ -768,7 +777,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setCachedReplicaRowsFailThreshold(int threshold);
 
     /** Returns the granularity of the collation index of rows within a partition **/
-    public int getColumnIndexSizeInKB();
+    public int getColumnIndexSizeInKiB();
     /** Sets the granularity of the collation index of rows within a partition **/
     public void setColumnIndexSize(int columnIndexSizeInKB);
 
@@ -787,7 +796,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the threshold for warning queries due to a large batch size */
     public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
 
-    /** Sets the hinted handoff throttle in kb per second, per delivery thread. */
+    /** Sets the hinted handoff throttle in KiB per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
 
     /**

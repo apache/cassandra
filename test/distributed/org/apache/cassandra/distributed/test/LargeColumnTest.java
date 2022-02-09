@@ -29,8 +29,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class LargeColumnTest extends TestBaseImpl
 {
@@ -67,12 +65,12 @@ public class LargeColumnTest extends TestBaseImpl
         try (ICluster cluster = init(builder()
                                      .withNodes(nodes)
                                      .withConfig(config ->
-                                                 config.set("commitlog_segment_size_in_mb", (columnSize * 3) >> 20)
-                                                       .set("internode_application_send_queue_reserve_endpoint_capacity_in_bytes", columnSize * 2)
-                                                       .set("internode_application_send_queue_reserve_global_capacity_in_bytes", columnSize * 3)
-                                                       .set("write_request_timeout_in_ms", SECONDS.toMillis(30L))
-                                                       .set("read_request_timeout_in_ms", SECONDS.toMillis(30L))
-                                                       .set("memtable_heap_space_in_mb", 1024)
+                                                 config.set("commitlog_segment_size", String.format("%dMiB",(columnSize * 3) >> 20))
+                                                       .set("internode_application_send_queue_reserve_endpoint_capacity", String.format("%dB", (columnSize * 2)))
+                                                       .set("internode_application_send_queue_reserve_global_capacity", String.format("%dB", (columnSize * 3)))
+                                                       .set("write_request_timeout", "30s")
+                                                       .set("read_request_timeout", "30s")
+                                                       .set("memtable_heap_space", "1024MiB")
                                      )
                                      .start()))
         {

@@ -19,7 +19,9 @@ package org.apache.cassandra.db.virtual;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -48,6 +50,24 @@ final class SettingsTable extends AbstractVirtualTable
         Arrays.stream(Config.class.getFields())
               .filter(f -> !Modifier.isStatic(f.getModifiers()))
               .collect(Collectors.toMap(Field::getName, Functions.identity()));
+
+    @VisibleForTesting
+    static final Map<String, Field> ANNOTATED_FIELDS =
+        Arrays.stream(Config.class.getFields())
+              .filter(f -> !Modifier.isStatic(f.getModifiers()))
+              .filter(f -> f.isAnnotationPresent(Replaces.class))
+              .collect(Collectors.toMap(Field::getName, Functions.identity()));
+
+    // CASSANDRA-15234 - a few configuration parameters kept their names but added unit to their value, only the
+    // new value format is displayed for them
+    private final List<String> EXCLUDED_CONFIG = new ArrayList<String>()
+    {
+        {
+            add("key_cache_save_period");
+            add("row_cache_save_period");
+            add("counter_cache_save_period");
+        }
+    };
 
     @VisibleForTesting
     final Map<String, BiConsumer<SimpleDataSet, Field>> overrides =
@@ -108,6 +128,15 @@ final class SettingsTable extends AbstractVirtualTable
             if (value.getClass().isArray())
                 value = Arrays.toString((Object[]) value);
             result.row(f.getName()).column(VALUE, value.toString());
+
+            if (ANNOTATED_FIELDS.containsKey(f.getName()) && !EXCLUDED_CONFIG.contains(f.getName()))
+            {
+                Replaces annotation = f.getAnnotation(Replaces.class);
+                result.row(annotation.oldName())
+                      .column(VALUE, annotation.converter()
+                                               .deconvert(value)
+                                               .toString());
+            }
         }
     }
 
@@ -173,7 +202,7 @@ final class SettingsTable extends AbstractVirtualTable
         {
             EncryptionOptions.ServerEncryptionOptions server = (EncryptionOptions.ServerEncryptionOptions) value;
             result.row(f.getName() + "_internode_encryption").column(VALUE, server.internode_encryption.toString());
-            result.row(f.getName() + "_legacy_ssl_storage_port").column(VALUE, Boolean.toString(server.enable_legacy_ssl_storage_port));
+            result.row(f.getName() + "_legacy_ssl_storage_port").column(VALUE, Boolean.toString(server.legacy_ssl_storage_port_enabled));
         }
     }
 

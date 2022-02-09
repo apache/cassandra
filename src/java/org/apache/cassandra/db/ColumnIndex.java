@@ -36,16 +36,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Column index builder used by {@link org.apache.cassandra.io.sstable.format.big.BigTableWriter}.
- * For index entries that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb},
+ * For index entries that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size},
  * this uses the serialization logic as in {@link RowIndexEntry}.
  */
 public class ColumnIndex
 {
-    // used, if the row-index-entry reaches config column_index_cache_size_in_kb
+    // used, if the row-index-entry reaches config column_index_cache_size
     private DataOutputBuffer buffer;
     // used to track the size of the serialized size of row-index-entry (unused for buffer)
     private int indexSamplesSerializedSize;
-    // used, until the row-index-entry reaches config column_index_cache_size_in_kb
+    // used, until the row-index-entry reaches config column_index_cache_size
     private final List<IndexInfo> indexSamples = new ArrayList<>();
 
     private DataOutputBuffer reusableBuffer;
@@ -199,8 +199,8 @@ public class ColumnIndex
         }
         columnIndexCount++;
 
-        // First, we collect the IndexInfo objects until we reach Config.column_index_cache_size_in_kb in an ArrayList.
-        // When column_index_cache_size_in_kb is reached, we switch to byte-buffer mode.
+        // First, we collect the IndexInfo objects until we reach Config.column_index_cache_size in an ArrayList.
+        // When column_index_cache_size is reached, we switch to byte-buffer mode.
         if (buffer == null)
         {
             indexSamplesSerializedSize += idxSerializer.serializedSize(cIndexInfo);
@@ -285,7 +285,7 @@ public class ColumnIndex
 
         // If we serialize the IndexInfo objects directly in the code above into 'buffer',
         // we have to write the offsts to these here. The offsets have already been are collected
-        // in indexOffsets[]. buffer is != null, if it exceeds Config.column_index_cache_size_in_kb.
+        // in indexOffsets[]. buffer is != null, if it exceeds Config.column_index_cache_size.
         // In the other case, when buffer==null, the offsets are serialized in RowIndexEntry.IndexedEntry.serialize().
         if (buffer != null)
             RowIndexEntry.Serializer.serializeOffsets(buffer, indexOffsets, columnIndexCount);

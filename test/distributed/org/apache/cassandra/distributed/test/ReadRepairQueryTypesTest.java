@@ -32,7 +32,6 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
@@ -118,8 +117,8 @@ public class ReadRepairQueryTypesTest extends TestBaseImpl
     public static void setupCluster() throws IOException
     {
         cluster = init(Cluster.build(NUM_NODES)
-                              .withConfig(config -> config.set("read_request_timeout_in_ms", MINUTES.toMillis(1))
-                                                          .set("write_request_timeout_in_ms", MINUTES.toMillis(1)))
+                              .withConfig(config -> config.set("read_request_timeout", "1m")
+                                                          .set("write_request_timeout", "1m"))
                               .start());
         cluster.schemaChange(withKeyspace("CREATE TYPE %s.udt (x int, y int)"));
     }

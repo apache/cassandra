@@ -98,6 +98,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.Sampler;
@@ -537,7 +538,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
-                    System.setProperty("cassandra.ring_delay_ms", "5000");
+                    System.setProperty("cassandra.ring_delay_ms", "15000");
                     System.setProperty("cassandra.consistent.rangemovement", "false");
                     System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
                 }
@@ -609,7 +610,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 registerInboundFilter(cluster);
                 registerOutboundFilter(cluster);
 
-                JVMStabilityInspector.replaceKiller(new InstanceKiller());
+                JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
                 // TODO: this is more than just gossip
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
@@ -629,6 +630,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                     }
                     StorageService.instance.removeShutdownHook();
+
                     Gossiper.waitToSettle();
                 }
                 else
@@ -725,6 +727,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.shutdownServer();
             }
 
+            error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
+
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
@@ -739,15 +743,17 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
+                                () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),
                                 () -> Ref.shutdownReferenceReaper(1L, MINUTES),
                                 () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
+
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
@@ -763,6 +769,17 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor))
             );
+
+            // Make sure any shutdown hooks registered for DeleteOnExit are released to prevent
+            // references to the instance class loaders from being held
+            if (graceful)
+            {
+                PathUtils.runOnExitThreadsAndClear();
+            }
+            else
+            {
+                PathUtils.clearOnExitThreads();
+            }
 
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);

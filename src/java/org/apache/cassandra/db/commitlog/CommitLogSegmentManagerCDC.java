@@ -315,7 +315,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         private long allowableCDCBytes()
         {
-            return (long)DatabaseDescriptor.getCDCSpaceInMB() * 1024 * 1024;
+            return (long)DatabaseDescriptor.getCDCSpaceInMiB() * 1024 * 1024;
         }
 
         public void submitOverflowSizeRecalculation()
@@ -351,7 +351,6 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             try
             {
                 resetSize();
-                // The Arrays.stream approach is considerably slower on Windows than linux
                 Files.walkFileTree(path.toPath(), this);
                 sizeInProgress.getAndSet(getAllocatedSize());
             }

@@ -29,7 +29,6 @@ import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class IncomingStreamMessage extends StreamMessage
 {
@@ -54,7 +53,9 @@ public class IncomingStreamMessage extends StreamMessage
             }
             catch (Throwable t)
             {
-                JVMStabilityInspector.inspectThrowable(t);
+                if (t instanceof StreamReceiveException)
+                    throw (StreamReceiveException) t;
+                // make sure to wrap so the caller always has access to the session to call onError
                 throw new StreamReceiveException(session, t);
             }
         }

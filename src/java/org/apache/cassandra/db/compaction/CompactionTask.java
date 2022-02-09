@@ -87,7 +87,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MB required, {}",
+            logger.warn("insufficient space to compact all requested files. {}MiB required, {}",
                         (float) expectedSize / 1024 / 1024,
                         StringUtils.join(transaction.originals(), ", "));
 
@@ -171,9 +171,6 @@ public class CompactionTask extends AbstractCompactionTask
             long[] mergedRowCounts;
             long totalSourceCQLRows;
 
-            // SSTableScanners need to be closed before markCompactedSSTablesReplaced call as scanners contain references
-            // to both ifile and dfile and SSTR will throw deletion errors on Windows if it tries to delete before scanner is closed.
-            // See CASSANDRA-8019 and CASSANDRA-8399
             int nowInSec = FBUtilities.nowInSeconds();
             try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact);
@@ -397,7 +394,7 @@ public class CompactionTask extends AbstractCompactionTask
             }
 
             sstablesRemoved++;
-            logger.warn("Not enough space for compaction, {}MB estimated.  Reducing scope.",
+            logger.warn("Not enough space for compaction, {}MiB estimated.  Reducing scope.",
                         (float) expectedWriteSize / 1024 / 1024);
         }
 

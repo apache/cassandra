@@ -80,7 +80,7 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * Please ensure that this benchmark is run with entire_sstable_stream_throughput_outbound_megabits_per_sec
+ * Please ensure that this benchmark is run with entire_sstable_stream_throughput_outbound
  * set to a really high value otherwise, throttling will kick in and the results will not be meaningful.
  */
 @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
@@ -241,7 +241,7 @@ public class ZeroCopyStreamingBenchmark
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void blockStreamReader(BenchmarkState state) throws Exception
+    public void blockStreamReader(BenchmarkState state) throws Throwable
     {
         EmbeddedChannel channel = createMockNettyChannel();
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
@@ -265,7 +265,7 @@ public class ZeroCopyStreamingBenchmark
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void partialStreamReader(BenchmarkState state) throws Exception
+    public void partialStreamReader(BenchmarkState state) throws Throwable
     {
         EmbeddedChannel channel = createMockNettyChannel();
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);

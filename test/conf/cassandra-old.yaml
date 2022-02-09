@@ -20,7 +20,7 @@ storage_port: 7012
 ssl_storage_port: 17012
 start_native_transport: true
 native_transport_port: 9042
-column_index_size_in_kb: 4
+column_index_size: 4KiB
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
@@ -39,12 +39,12 @@ server_encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 concurrent_compactors: 4
-compaction_throughput_mb_per_sec: 0
+compaction_throughput_mb_per_sec: 64
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size_in_mb: 16
 enable_user_defined_functions: true
 enable_scripted_user_defined_functions: true
-prepared_statements_cache_size_mb: 1
+prepared_statements_cache_size_mb:
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
 stream_throughput_outbound_megabits_per_sec: 200000000
@@ -54,3 +54,4 @@ enable_drop_compact_storage: true
 file_cache_enabled: true
 internode_send_buff_size_in_bytes: 5
 internode_recv_buff_size_in_bytes: 5
+max_hint_window_in_ms: 10800000

@@ -198,7 +198,24 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.ConsoleAppenderCustomizer",
     "org.apache.cassandra.locator.InetAddressAndPort",
     "org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement",
-    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement"
+    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement",
+    "org.apache.cassandra.config.DurationSpec",
+    "org.apache.cassandra.config.DataStorageSpec",
+    "org.apache.cassandra.config.DataStorageSpec$DataStorageUnit",
+    "org.apache.cassandra.config.DataStorageSpec$DataStorageUnit$1",
+    "org.apache.cassandra.config.DataStorageSpec$DataStorageUnit$2",
+    "org.apache.cassandra.config.DataStorageSpec$DataStorageUnit$3",
+    "org.apache.cassandra.config.DataStorageSpec$DataStorageUnit$4",
+    "org.apache.cassandra.config.DataRateSpec",
+    "org.apache.cassandra.config.DataRateSpec$DataRateUnit",
+    "org.apache.cassandra.config.DataRateSpec$DataRateUnit$1",
+    "org.apache.cassandra.config.DataRateSpec$DataRateUnit$2",
+    "org.apache.cassandra.config.DataRateSpec$DataRateUnit$3",
+    "org.apache.cassandra.config.SmallestDurationMinutes",
+    "org.apache.cassandra.config.SmallestDurationSeconds",
+    "org.apache.cassandra.config.SmallestDurationMilliseconds",
+    "org.apache.cassandra.config.SmallestDataStorageKibibytes",
+    "org.apache.cassandra.config.SmallestDataStorageMebibytes"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

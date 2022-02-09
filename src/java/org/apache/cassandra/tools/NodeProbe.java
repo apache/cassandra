@@ -1227,14 +1227,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.isInitialized();
     }
 
-    public void setColumnIndexSize(int columnIndexSizeInKB)
+    public void setColumnIndexSize(int columnIndexSizeInKiB)
     {
-        ssProxy.setColumnIndexSize(columnIndexSizeInKB);
+        ssProxy.setColumnIndexSize(columnIndexSizeInKiB);
     }
 
     public int getColumnIndexSizeInKB()
     {
-        return ssProxy.getColumnIndexSizeInKB();
+        return ssProxy.getColumnIndexSizeInKiB();
     }
 
     public void setCompactionThroughput(int value)
@@ -1318,22 +1318,22 @@ public class NodeProbe implements AutoCloseable
 
     public int getStreamThroughput()
     {
-        return ssProxy.getStreamThroughputMbPerSec();
+        return ssProxy.getStreamThroughputMbitPerSec();
     }
 
     public int getInterDCStreamThroughput()
     {
-        return ssProxy.getInterDCStreamThroughputMbPerSec();
+        return ssProxy.getInterDCStreamThroughputMbitPerSec();
     }
 
     public int getEntireSSTableStreamThroughput()
     {
-        return ssProxy.getEntireSSTableStreamThroughputMbPerSec();
+        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSec();
     }
 
     public int getEntireSSTableInterDCStreamThroughput()
     {
-        return ssProxy.getEntireSSTableInterDCStreamThroughputMbPerSec();
+        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
     }
 
     public double getTraceProbability()
@@ -1431,22 +1431,22 @@ public class NodeProbe implements AutoCloseable
 
     public void setStreamThroughput(int value)
     {
-        ssProxy.setStreamThroughputMbPerSec(value);
+        ssProxy.setStreamThroughputMbitPerSec(value);
     }
 
     public void setInterDCStreamThroughput(int value)
     {
-        ssProxy.setInterDCStreamThroughputMbPerSec(value);
+        ssProxy.setInterDCStreamThroughputMbitPerSec(value);
     }
 
     public void setEntireSSTableStreamThroughput(int value)
     {
-        ssProxy.setEntireSSTableStreamThroughputMbPerSec(value);
+        ssProxy.setEntireSSTableStreamThroughputMebibytesPerSec(value);
     }
 
     public void setEntireSSTableInterDCStreamThroughput(int value)
     {
-        ssProxy.setEntireSSTableInterDCStreamThroughputMbPerSec(value);
+        ssProxy.setEntireSSTableInterDCStreamThroughputMebibytesPerSec(value);
     }
 
     public void setTraceProbability(double value)

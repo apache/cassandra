@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.cql3.CQLTester;
 
 import static org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
@@ -34,6 +35,10 @@ import static org.assertj.core.api.Assertions.withPrecision;
  */
 public class SetGetInterDCStreamThroughputTest extends CQLTester
 {
+    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES = DataRateSpec
+                                                                       .megabitsPerSecondInMebibytesPerSecond(Integer.MAX_VALUE)
+                                                                       .toMebibytesPerSecond();
+
     @BeforeClass
     public static void setup() throws Exception
     {
@@ -49,25 +54,28 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testPositive()
     {
-        assertSetGetValidThroughput(7, 7 * StreamRateLimiter.BYTES_PER_MEGABIT);
+        assertSetGetValidThroughput(7, 0.834465026855467 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+    }
+
+    @Test
+    public void testSmallPositive()
+    {
+        // As part of CASSANDRA-15234 we had to do some tweaks with precision. This test has to ensure no regressions
+        // happen, hopefully. Internally data rate parameters values and rate limitter are set in double. Users can set
+        // and get only integers
+        assertSetGetValidThroughput(1, 0.119209289550781 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE, Integer.MAX_VALUE * StreamRateLimiter.BYTES_PER_MEGABIT);
+        assertSetGetValidThroughput(Integer.MAX_VALUE, INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
     public void testZero()
     {
         assertSetGetValidThroughput(0, Double.MAX_VALUE);
-    }
-
-    @Test
-    public void testNegative()
-    {
-        assertSetGetValidThroughput(-7, Double.MAX_VALUE);
     }
 
     @Test
@@ -85,7 +93,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
 
         assertGetThroughput(throughput);
 
-        assertThat(StreamRateLimiter.getInterDCRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
+        assertThat(StreamRateLimiter.getInterDCRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.04));
     }
 
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
@@ -102,7 +110,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " Mb/s");
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " megabits per second");
         else
             assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
     }

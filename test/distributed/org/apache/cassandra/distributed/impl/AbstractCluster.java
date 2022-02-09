@@ -50,7 +50,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.ImmutableSet;
@@ -82,18 +81,18 @@ import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
-import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.Shared.Recursive;
 import org.apache.cassandra.utils.concurrent.Condition;
-import org.apache.cassandra.utils.FBUtilities;
 import org.reflections.Reflections;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
@@ -273,12 +272,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public boolean isShutdown()
         {
-            return isShutdown;
+            IInvokableInstance delegate = this.delegate;
+            // if the instance shuts down on its own, detect that
+            return isShutdown || (delegate != null && delegate.isShutdown());
         }
 
         private boolean isRunning()
         {
-            return !isShutdown;
+            return !isShutdown();
         }
 
         @Override
@@ -301,6 +302,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             if (isRunning())
                 throw new IllegalStateException("Can not start a instance that is already running");
             isShutdown = false;
+            // if the delegate isn't running, remove so it can be recreated
+            if (delegate != null && delegate.isShutdown())
+                delegate = null;
             if (!broadcastAddress.equals(config.broadcastAddress()))
             {
                 // previous address != desired address, so cleanup

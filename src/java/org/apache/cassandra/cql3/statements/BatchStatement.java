@@ -350,9 +350,9 @@ public class BatchStatement implements CQLStatement
             if (size > failThreshold)
             {
                 Tracing.trace(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
-                              FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
+                              FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold)");
                 logger.error(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
-                             FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
+                             FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold)");
                 throw new InvalidRequestException("Batch too large");
             }
             else if (logger.isWarnEnabled())
@@ -612,11 +612,28 @@ public class BatchStatement implements CQLStatement
             this.parsedStatements = parsedStatements;
         }
 
+        // Not doing this in the constructor since we only need this for prepared statements
+        @Override
+        public boolean isFullyQualified()
+        {
+            for (ModificationStatement.Parsed statement : parsedStatements)
+                if (!statement.isFullyQualified())
+                    return false;
+
+            return true;
+        }
+
         @Override
         public void setKeyspace(ClientState state) throws InvalidRequestException
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
                 statement.setKeyspace(state);
+        }
+
+        @Override
+        public String keyspace()
+        {
+            return null;
         }
 
         public BatchStatement prepare(ClientState state)

@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
@@ -80,10 +79,10 @@ public class MixedModeMessageForwardTest extends UpgradeTestBase
                                   .collect(Collectors.joining(","));
 
         new TestCase()
-        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK).set("request_timeout_in_ms", 30000))
+        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK).set("request_timeout", "30000ms"))
         .withBuilder(b -> b.withRacks(numDCs, 1, nodesPerDc))
         .nodes(numDCs * nodesPerDc)
-        .singleUpgrade(v30, v40)
+        .singleUpgrade(v30)
         .setup(cluster -> {
             cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE +
                 " WITH replication = {'class': 'NetworkTopologyStrategy', " + ntsArgs + " };");

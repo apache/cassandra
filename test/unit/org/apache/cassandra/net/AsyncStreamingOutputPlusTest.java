@@ -121,8 +121,8 @@ public class AsyncStreamingOutputPlusTest
     public void testWriteFileToChannelEntireSSTableNoThrottling() throws IOException
     {
         // Disable throttling by setting entire SSTable throughput and entire SSTable inter-DC throughput to 0
-        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(0);
-        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(0);
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMebibytesPerSec(0);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(0);
         StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
         StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
 
@@ -133,8 +133,8 @@ public class AsyncStreamingOutputPlusTest
     public void testWriteFileToChannelEntireSSTable() throws IOException
     {
         // Enable entire SSTable throttling by setting it to 200 Mbps
-        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(200);
-        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(200);
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMebibytesPerSec(200);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(200);
         StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
         StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
 

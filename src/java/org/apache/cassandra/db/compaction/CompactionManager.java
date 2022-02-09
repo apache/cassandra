@@ -70,7 +70,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
-import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -152,18 +151,18 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public RateLimiter getRateLimiter()
     {
-        setRate(DatabaseDescriptor.getCompactionThroughputMbPerSec());
+        setRate(DatabaseDescriptor.getCompactionThroughputMebibytesPerSec());
         return compactionRateLimiter;
     }
 
     /**
-     * Sets the rate for the rate limiter. When compaction_throughput_mb_per_sec is 0 or node is bootstrapping,
+     * Sets the rate for the rate limiter. When compaction_throughput is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
-     * @param throughPutMbPerSec throughput to set in mb per second
+     * @param throughPutMiBPerSec throughput to set in MiB/s
      */
-    public void setRate(final double throughPutMbPerSec)
+    public void setRate(final double throughPutMiBPerSec)
     {
-        double throughput = throughPutMbPerSec * 1024.0 * 1024.0;
+        double throughput = throughPutMiBPerSec * 1024.0 * 1024.0;
         // if throughput is set to 0, throttling is disabled
         if (throughput == 0 || StorageService.instance.isBootstrapMode())
             throughput = Double.MAX_VALUE;
@@ -1846,7 +1845,6 @@ public class CompactionManager implements CompactionManagerMBean
     static class CompactionExecutor extends WrappedExecutorPlus
     {
         static final ThreadGroup compactionThreadGroup = executorFactory().newThreadGroup("compaction");
-        private static final WithResources RESCHEDULE_FAILED = () -> SnapshotDeletingTask::rescheduleFailedTasks;
 
         public CompactionExecutor()
         {
@@ -1901,12 +1899,12 @@ public class CompactionManager implements CompactionManagerMBean
 
         public void execute(Runnable command)
         {
-            executor.execute(RESCHEDULE_FAILED, command);
+            executor.execute(command);
         }
 
         public <T> Future<T> submit(Callable<T> task)
         {
-            return executor.submit(RESCHEDULE_FAILED, task);
+            return executor.submit(task);
         }
 
         public <T> Future<T> submit(Runnable task, T result)

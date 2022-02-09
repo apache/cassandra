@@ -67,6 +67,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.SmallestDataStorageMebibytes;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -127,7 +128,7 @@ public abstract class CQLTester
     public static final String KEYSPACE_PER_TEST = "cql_test_keyspace_alt";
     protected static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
     protected static final boolean REUSE_PREPARED = Boolean.valueOf(System.getProperty("cassandra.test.reuse_prepared", "true"));
-    protected static final long ROW_CACHE_SIZE_IN_MB = Integer.valueOf(System.getProperty("cassandra.test.row_cache_size_in_mb", "0"));
+    protected static final long ROW_CACHE_SIZE_IN_MIB = new SmallestDataStorageMebibytes(System.getProperty("cassandra.test.row_cache_size", "0MiB")).toMebibytes();
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
     public static final String DATA_CENTER = ServerTestUtils.DATA_CENTER;
@@ -303,8 +304,8 @@ public abstract class CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        if (ROW_CACHE_SIZE_IN_MB > 0)
-            DatabaseDescriptor.setRowCacheSizeInMB(ROW_CACHE_SIZE_IN_MB);
+        if (ROW_CACHE_SIZE_IN_MIB > 0)
+            DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         // Once per-JVM is enough
@@ -1283,7 +1284,7 @@ public abstract class CQLTester
 
     protected ResultMessage.Prepared prepare(String query) throws Throwable
     {
-        return QueryProcessor.prepare(formatQuery(query), ClientState.forInternalCalls());
+        return QueryProcessor.instance.prepare(formatQuery(query), ClientState.forInternalCalls());
     }
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable

@@ -1199,7 +1199,7 @@ public class OutboundConnection
                  * is made before the endpointToVersion table is initially constructed or out
                  * of date (e.g. if outbound connections are established for gossip
                  * as a result of an inbound connection) and can result in the wrong outbound
-                 * port being selected if configured with enable_legacy_ssl_storage_port=true.
+                 * port being selected if configured with legacy_ssl_storage_port_enabled=true.
                  */
                 int knownMessagingVersion = messagingVersion();
                 if (knownMessagingVersion != messagingVersion)

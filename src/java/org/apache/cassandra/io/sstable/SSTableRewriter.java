@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 /**
- * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval_in_mb
+ * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval
  * we look in the summary we're collecting for the latest writer for the penultimate key that we know to have been fully
  * flushed to the index file, and then double check that the key is fully present in the flushed data file.
  * Then we move the starts of each reader forwards to that point, replace them in the Tracker, and attach a runnable
@@ -62,7 +62,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final ILifecycleTransaction transaction; // the readers we are rewriting (updated as they are replaced)
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
 
-    private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
+    private long currentlyOpenedEarlyAt; // the position (in MiB) in the target file we last (re)opened at
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
@@ -106,7 +106,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
     {
-        long interval = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB() * (1L << 20);
+        long interval = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB() * (1L << 20);
         if (disableEarlyOpeningForTests || !shouldOpenEarly || interval < 0)
             interval = Long.MAX_VALUE;
         return interval;
