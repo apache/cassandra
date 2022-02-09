@@ -53,10 +53,10 @@ import static org.junit.Assert.fail;
 
 public abstract class GuardrailTester extends CQLTester
 {
-    // Name used when testing CREATE TABLE that should be aborted (we need to provide it as assertAborts, which
+    // Name used when testing CREATE TABLE that should be aborted (we need to provide it as assertFails, which
     // is used to assert the failure, does not know that it is a CREATE TABLE and would thus reuse the name of the
     // previously created table, which is not what we want).
-    protected static final String ABORT_TABLE = "abort_table_creation_test";
+    protected static final String FAIL_TABLE = "abort_table_creation_test";
 
     private static final String USERNAME = "guardrail_user";
     private static final String PASSWORD = "guardrail_password";
@@ -184,12 +184,12 @@ public abstract class GuardrailTester extends CQLTester
         assertWarns(() -> execute(userClientState, query), message);
     }
 
-    protected void assertAborts(CheckedFunction function, String message) throws Throwable
+    protected void assertFails(CheckedFunction function, String message) throws Throwable
     {
-        assertAborts(function, message, true);
+        assertFails(function, message, true);
     }
 
-    protected void assertAborts(CheckedFunction function, String message, boolean thrown) throws Throwable
+    protected void assertFails(CheckedFunction function, String message, boolean thrown) throws Throwable
     {
         ClientWarn.instance.captureWarnings();
         try
@@ -214,9 +214,9 @@ public abstract class GuardrailTester extends CQLTester
         }
     }
 
-    protected void assertAborts(String message, String query) throws Throwable
+    protected void assertFails(String message, String query) throws Throwable
     {
-        assertAborts(() -> execute(userClientState, query), message);
+        assertFails(() -> execute(userClientState, query), message);
     }
 
     private void assertWarnings(String message)

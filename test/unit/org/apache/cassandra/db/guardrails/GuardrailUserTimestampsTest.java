@@ -41,7 +41,7 @@ public class GuardrailUserTimestampsTest extends GuardrailTester
     public void testInsertWithDisabledUserTimestamps() throws Throwable
     {
         setGuardrail(false);
-        assertAborts("INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') USING TIMESTAMP 1");
+        assertFails("INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') USING TIMESTAMP 1");
     }
 
     @Test
@@ -55,7 +55,7 @@ public class GuardrailUserTimestampsTest extends GuardrailTester
     public void testUpdateWithDisabledUserTimestamps() throws Throwable
     {
         setGuardrail(false);
-        assertAborts("UPDATE %s USING TIMESTAMP 1 SET v = 'val2' WHERE k = 1 and c = 2");
+        assertFails("UPDATE %s USING TIMESTAMP 1 SET v = 'val2' WHERE k = 1 and c = 2");
     }
 
     @Test
@@ -69,7 +69,7 @@ public class GuardrailUserTimestampsTest extends GuardrailTester
     public void testDeleteWithDisabledUserTimestamps() throws Throwable
     {
         setGuardrail(false);
-        assertAborts("DELETE FROM %s USING TIMESTAMP 1 WHERE k=1");
+        assertFails("DELETE FROM %s USING TIMESTAMP 1 WHERE k=1");
     }
 
     @Test
@@ -86,9 +86,9 @@ public class GuardrailUserTimestampsTest extends GuardrailTester
         assertValid("BEGIN BATCH USING TIMESTAMP 1 " +
                     "INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') " +
                     "APPLY BATCH");
-        assertAborts("BEGIN BATCH " +
-                     "INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') USING TIMESTAMP 1 " +
-                     "APPLY BATCH");
+        assertFails("BEGIN BATCH " +
+                    "INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') USING TIMESTAMP 1 " +
+                    "APPLY BATCH");
     }
 
     @Test
@@ -117,8 +117,8 @@ public class GuardrailUserTimestampsTest extends GuardrailTester
         }
     }
 
-    private void assertAborts(String query) throws Throwable
+    private void assertFails(String query) throws Throwable
     {
-        assertAborts("User provided timestamps (USING TIMESTAMP) is not allowed", query);
+        assertFails("User provided timestamps (USING TIMESTAMP) is not allowed", query);
     }
 }

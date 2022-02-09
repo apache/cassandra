@@ -34,22 +34,22 @@ import org.apache.cassandra.service.ClientState;
 public class Threshold extends Guardrail
 {
     private final ToLongFunction<ClientState> warnThreshold;
-    private final ToLongFunction<ClientState> abortThreshold;
+    private final ToLongFunction<ClientState> failThreshold;
     private final ErrorMessageProvider messageProvider;
 
     /**
      * Creates a new threshold guardrail.
      *
      * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
-     * @param abortThreshold  a {@link ClientState}-based provider of the value above which the operation should be aborted.
+     * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
     public Threshold(ToLongFunction<ClientState> warnThreshold,
-                     ToLongFunction<ClientState> abortThreshold,
+                     ToLongFunction<ClientState> failThreshold,
                      ErrorMessageProvider messageProvider)
     {
         this.warnThreshold = warnThreshold;
-        this.abortThreshold = abortThreshold;
+        this.failThreshold = failThreshold;
         this.messageProvider = messageProvider;
     }
 
@@ -61,10 +61,10 @@ public class Threshold extends Guardrail
                                              thresholdValue);
     }
 
-    private long abortValue(ClientState state)
+    private long failValue(ClientState state)
     {
-        long abortValue = abortThreshold.applyAsLong(state);
-        return abortValue < 0 ? Long.MAX_VALUE : abortValue;
+        long failValue = failThreshold.applyAsLong(state);
+        return failValue < 0 ? Long.MAX_VALUE : failValue;
     }
 
     private long warnValue(ClientState state)
@@ -79,11 +79,11 @@ public class Threshold extends Guardrail
         if (!super.enabled(state))
             return false;
 
-        return abortThreshold.applyAsLong(state) >= 0 || warnThreshold.applyAsLong(state) >= 0;
+        return failThreshold.applyAsLong(state) >= 0 || warnThreshold.applyAsLong(state) >= 0;
     }
 
     /**
-     * Apply the guardrail to the provided value, warning or aborting if appropriate.
+     * Apply the guardrail to the provided value, warning or failing if appropriate.
      *
      * @param value The value to check.
      * @param what  A string describing what {@code value} is a value of. This is used in the error message if the
@@ -97,10 +97,10 @@ public class Threshold extends Guardrail
         if (!enabled(state))
             return;
 
-        long abortValue = abortValue(state);
-        if (value > abortValue)
+        long failValue = failValue(state);
+        if (value > failValue)
         {
-            triggerAbort(value, abortValue, what);
+            triggerFail(value, failValue, what);
             return;
         }
 
@@ -109,9 +109,9 @@ public class Threshold extends Guardrail
             triggerWarn(value, warnValue, what);
     }
 
-    private void triggerAbort(long value, long abortValue, String what)
+    private void triggerFail(long value, long failValue, String what)
     {
-        abort(errMsg(false, what, value, abortValue));
+        fail(errMsg(false, what, value, failValue));
     }
 
     private void triggerWarn(long value, long warnValue, String what)
@@ -127,7 +127,7 @@ public class Threshold extends Guardrail
         /**
          * Called when the guardrail is triggered to build the corresponding error message.
          *
-         * @param isWarning Whether the trigger is a warning one; otherwise it is an abort one.
+         * @param isWarning Whether the trigger is a warning one; otherwise it is a failure one.
          * @param what      A string, provided by the call to the {@link #guard} method, describing what the guardrail
          *                  has been applied to (and that has triggered it).
          * @param value     The value that triggered the guardrail (as a string).

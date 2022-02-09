@@ -26,9 +26,9 @@ import java.util.Set;
  * This is different to just exposing {@link GuardrailsConfig} in that the methods here should be JMX-friendly.
  *
  * <p>For consistency, guardrails based on a simple numeric threshold should use the naming scheme
- * {@code <whatIsGuarded>WarnThreshold} for soft limits and {@code <whatIsGuarded>AbortThreshold} for hard
+ * {@code <whatIsGuarded>WarnThreshold} for soft limits and {@code <whatIsGuarded>FailThreshold} for hard
  * ones, and if the value has a unit, that unit should be added at the end (for instance,
- * {@code <whatIsGuarded>AbortThresholdInKb}). For "boolean" guardrails that disable a feature, use
+ * {@code <whatIsGuarded>FailThresholdInKb}). For "boolean" guardrails that disable a feature, use
  * {@code <whatIsGuardedEnabled}. Other type of guardrails can use appropriate suffixes but should start with
  * {@code <whatIsGuarded>}.
  */
@@ -58,13 +58,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent creating more user keyspaces than threshold.
      * -1 means disabled.
      */
-    int getKeyspacesAbortThreshold();
+    int getKeyspacesFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more user keyspaces than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more user keyspaces than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more user keyspaces than threshold. -1 means disabled.
      */
-    void setKeyspacesThreshold(int warn, int abort);
+    void setKeyspacesThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when creating more tables than threshold.
@@ -76,13 +76,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent creating more tables than threshold.
      * -1 means disabled.
      */
-    int getTablesAbortThreshold();
+    int getTablesFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more tables than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more tables than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more tables than threshold. -1 means disabled.
      */
-    void setTablesThreshold(int warn, int abort);
+    void setTablesThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when having more columns per table than threshold.
@@ -93,13 +93,13 @@ public interface GuardrailsMBean
     /**
      * @return The threshold to prevent having more columns per table than threshold. -1 means disabled.
      */
-    int getColumnsPerTableAbortThreshold();
+    int getColumnsPerTableFailThreshold();
 
     /**
      * @param warn The threshold to warn when having more columns per table than threshold. -1 means disabled.
-     * @param abort The threshold to prevent having more columns per table than threshold. -1 means disabled.
+     * @param fail The threshold to prevent having more columns per table than threshold. -1 means disabled.
      */
-    void setColumnsPerTableThreshold(int warn, int abort);
+    void setColumnsPerTableThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when creating more secondary indexes per table than threshold. -1 means disabled.
@@ -109,13 +109,13 @@ public interface GuardrailsMBean
     /**
      * @return The threshold to prevent creating more secondary indexes per table than threshold. -1 means disabled.
      */
-    int getSecondaryIndexesPerTableAbortThreshold();
+    int getSecondaryIndexesPerTableFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more secondary indexes per table than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more secondary indexes per table than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more secondary indexes per table than threshold. -1 means disabled.
      */
-    void setSecondaryIndexesPerTableThreshold(int warn, int abort);
+    void setSecondaryIndexesPerTableThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
@@ -127,13 +127,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent creating more materialized views per table than threshold.
      * -1 means disabled.
      */
-    int getMaterializedViewsPerTableAbortThreshold();
+    int getMaterializedViewsPerTableFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more materialized views per table than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more materialized views per table than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more materialized views per table than threshold. -1 means disabled.
      */
-    void setMaterializedViewsPerTableThreshold(int warn, int abort);
+    void setMaterializedViewsPerTableThreshold(int warn, int fail);
 
     /**
      * @return properties that are not allowed when creating or altering a table.
@@ -199,13 +199,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent requesting page with more elements than threshold.
      * -1 means disabled.
      */
-    int getPageSizeAbortThreshold();
+    int getPageSizeFailThreshold();
 
     /**
      * @param warn The threshold to warn when the requested page size is greater than threshold. -1 means disabled.
-     * @param abort The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
+     * @param fail The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
      */
-    void setPageSizeThreshold(int warn, int abort);
+    void setPageSizeThreshold(int warn, int fail);
 
     /**
      * Returns whether list operations that require read before write are allowed.
