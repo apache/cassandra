@@ -2645,7 +2645,7 @@ public class DatabaseDescriptor
 
     public static void setMaxHintsSizePerHostInMb(int value)
     {
-        conf.max_hints_size_per_host = SmallestDataStorageMebibytes.inMebibytes(value);
+        conf.max_hints_size_per_host = DataStorageSpec.inMebibytes(value);
     }
 
     public static int getMaxHintsSizePerHostInMb()
