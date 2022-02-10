@@ -40,6 +40,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -156,7 +157,6 @@ public class SASIIndexTest
             data.put(UUID.randomUUID().toString(), Pair.create(UUID.randomUUID().toString(), r.nextInt()));
 
         ColumnFamilyStore store = loadData(data, true);
-        store.forceMajorCompaction();
 
         Set<SSTableReader> ssTableReaders = store.getLiveSSTables();
         Set<Component> sasiComponents = new HashSet<>();
@@ -170,6 +170,10 @@ public class SASIIndexTest
         try
         {
             store.snapshot(snapshotName);
+            // Compact to make true snapshot size != 0
+            store.forceMajorCompaction();
+            LifecycleTransaction.waitForDeletions();
+
             FileReader reader = new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName));
             JSONObject manifest = (JSONObject) new JSONParser().parse(reader);
             JSONArray files = (JSONArray) manifest.get("files");
@@ -202,8 +206,7 @@ public class SASIIndexTest
 
                 for (Component c : components)
                 {
-                    Path componentPath = Paths.get(sstable.descriptor + "-" + c.name);
-                    long componentSize = Files.size(componentPath);
+                    long componentSize = Files.size(Paths.get(snapshotSSTable.filenameFor(c)));
                     if (Component.Type.fromRepresentation(c.name) == Component.Type.SECONDARY_INDEX)
                         indexSize += componentSize;
                     else
@@ -214,7 +217,7 @@ public class SASIIndexTest
             Map<String, Pair<Long, Long>> details = store.getSnapshotDetails();
 
             // check that SASI components are included in the computation of snapshot size
-            Assert.assertEquals((long) details.get(snapshotName).right, tableSize + indexSize);
+            Assert.assertEquals(tableSize + indexSize, (long) details.get(snapshotName).right);
         }
         finally
         {
