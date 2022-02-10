@@ -81,7 +81,6 @@ public class Config
     public boolean auto_bootstrap = true;
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
-    public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
     @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
     public volatile SmallestDurationMilliseconds max_hint_window = new SmallestDurationMilliseconds("3h");
     public String hints_directory;
