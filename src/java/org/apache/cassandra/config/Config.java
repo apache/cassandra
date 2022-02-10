@@ -366,7 +366,7 @@ public class Config
     public SmallestDurationMilliseconds hints_flush_period = new SmallestDurationMilliseconds("10s");
     @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE, deprecated = true)
     public SmallestDataStorageMebibytes max_hints_file_size = new SmallestDataStorageMebibytes("128MiB");
-    public volatile SmallestDataStorageMebibytes max_hints_size_per_host = new SmallestDataStorageMebibytes("0MiB"); // 0 means disabled
+    public volatile DataStorageSpec max_hints_size_per_host = new DataStorageSpec("0B"); // 0 means disabled
 
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
