@@ -134,11 +134,11 @@ public final class Guardrails implements GuardrailsMBean
     new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
                   (isWarning, what, value, threshold) ->
-                  isWarning ? format("Query with %s, with number of partition keys %s exceeds " +
-                                     "warning threshold of %s.",
+                  isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
+                                     "partition keys %s exceeds warning threshold of %s.",
                                      what, value, threshold)
-                            : format("Aborting query with %s, number of partition keys %s " +
-                                     "exceeds abort threshold of %s.",
+                            : format("Aborting query with partition keys in IN clause on table %s, " +
+                                     "number of partition keys %s exceeds abort threshold of %s.",
                                      what, value, threshold));
 
     /**

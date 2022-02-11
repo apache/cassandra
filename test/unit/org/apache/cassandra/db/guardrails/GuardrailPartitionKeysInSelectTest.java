@@ -25,6 +25,7 @@ public class GuardrailPartitionKeysInSelectTest extends ThresholdTester
 {
     private static final int PARTITION_KEYS_SELECT_WARN_THRESHOLD = 3;
     private static final int PARTITION_KEYS_SELECT_ABORT_THRESHOLD = 5;
+    private String tableName;
 
     public GuardrailPartitionKeysInSelectTest()
     {
@@ -39,35 +40,33 @@ public class GuardrailPartitionKeysInSelectTest extends ThresholdTester
     @Before
     public void setupTest()
     {
-        createKeyspace("CREATE KEYSPACE IF NOT EXISTS partition_keys_in_select_test_ks " +
-                       "with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } " +
-                       "and durable_writes = false");
-        createTable("CREATE TABLE IF NOT EXISTS partition_keys_in_select_test_ks.partition_keys_in_select_test " +
-                    "(k INT, c INT, v TEXT, PRIMARY KEY(k, c))");
+        tableName = createTable("CREATE TABLE %s (k INT, c INT, v TEXT, PRIMARY KEY(k, c))");
     }
 
     @Test
     public void testSelectStatementAgainstInClausePartitionKeys() throws Throwable
     {
-        assertValid("SELECT k, c, v FROM partition_keys_in_select_test_ks.partition_keys_in_select_test " +
-                    "WHERE k=10");
+        assertValid("SELECT k, c, v FROM %s WHERE k=10");
 
-        assertValid("SELECT k, c, v FROM partition_keys_in_select_test_ks.partition_keys_in_select_test " +
-                    "WHERE k IN (2, 3)");
+        assertValid("SELECT k, c, v FROM %s WHERE k IN (2, 3)");
 
-        assertValid("SELECT k, c, v FROM partition_keys_in_select_test_ks.partition_keys_in_select_test " +
-                    "WHERE k = 2 and c IN (2, 3, 4, 5, 6, 7)");
+        assertValid("SELECT k, c, v FROM %s WHERE k = 2 and c IN (2, 3, 4, 5, 6, 7)");
 
-        assertWarns("Query with partition keys in IN clause on table partition_keys_in_select_test, " +
-                    "with number of partition keys 4 exceeds warning threshold of 3.",
-                    "SELECT k, c, v FROM partition_keys_in_select_test_ks.partition_keys_in_select_test " +
-                        "WHERE k IN (2, 3, 4, 5)");
+        assertWarns(String.format("Query with partition keys in IN clause on table %s, with " +
+                    "number of partition keys 4 exceeds warning threshold of 3.", tableName),
+                    "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5)");
 
-        assertFails("Aborting query with partition keys in IN clause on table partition_keys_in_select_test, " +
-                     "number of partition keys 6 exceeds abort threshold of 5." ,
-                     "SELECT k, c, v FROM partition_keys_in_select_test_ks.partition_keys_in_select_test " +
-                     "WHERE k IN (2, 3, 4, 5, 6, 7)"
+        assertFails(String.format("Aborting query with partition keys in IN clause on table %s, " +
+                     "number of partition keys 6 exceeds abort threshold of 5.", tableName) ,
+                     "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5, 6, 7)"
                      );
+    }
+
+    @Test
+    public void testExcludedUsers() throws Throwable
+    {
+        testExcludedUsers(() -> "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5)",
+                          () -> "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5, 6, 7)");
     }
 
     protected long currentValue()
