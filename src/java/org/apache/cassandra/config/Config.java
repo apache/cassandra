@@ -805,6 +805,8 @@ public class Config
     public volatile DataStorageSpec collection_size_fail_threshold = DISABLED_SIZE_GUARDRAIL;
     public volatile int items_per_collection_warn_threshold = DISABLED_GUARDRAIL;
     public volatile int items_per_collection_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int fields_per_udt_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int fields_per_udt_fail_threshold = DISABLED_GUARDRAIL;
 
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
     public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);

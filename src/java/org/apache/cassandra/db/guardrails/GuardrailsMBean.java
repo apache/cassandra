@@ -394,4 +394,20 @@ public interface GuardrailsMBean
      * @param fail The threshold to prevent collectiosn with more elements than threshold.
      */
     void setItemsPerCollectionThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when creating a UDT with more fields than threshold. -1 means disabled.
+     */
+    int getFieldsPerUDTWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a UDT with more fields than threshold. -1 means disabled.
+     */
+    int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating a UDT with more fields than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating a UDT with more fields than threshold. -1 means disabled.
+     */
+    void setFieldsPerUDTThreshold(int warn, int fail);
 }
