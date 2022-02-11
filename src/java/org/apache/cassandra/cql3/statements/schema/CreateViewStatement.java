@@ -70,7 +70,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private QueryState state;
 
-    public CreateViewStatement(String keyspaceName,
+    public CreateViewStatement(String queryString,
+                               String keyspaceName,
                                String tableName,
                                String viewName,
 
@@ -85,7 +86,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
                                boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
         this.viewName = viewName;
 
@@ -419,7 +420,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
             if (null == partitionKeyColumns)
                 throw ire("No PRIMARY KEY specifed for view '%s' (exactly one required)", viewName);
 
-            return new CreateViewStatement(keyspaceName,
+            return new CreateViewStatement(rawCQLStatement,
+                                           keyspaceName,
                                            tableName.getName(),
                                            viewName.getName(),
 

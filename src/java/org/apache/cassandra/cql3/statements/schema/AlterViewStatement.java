@@ -37,9 +37,10 @@ public final class AlterViewStatement extends AlterSchemaStatement
     private final TableAttributes attrs;
     private QueryState state;
 
-    public AlterViewStatement(String keyspaceName, String viewName, TableAttributes attrs)
+    public AlterViewStatement(String queryString, String keyspaceName, String viewName,
+            TableAttributes attrs)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.viewName = viewName;
         this.attrs = attrs;
     }
@@ -126,7 +127,7 @@ public final class AlterViewStatement extends AlterSchemaStatement
         public AlterViewStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new AlterViewStatement(keyspaceName, name.getName(), attrs);
+            return new AlterViewStatement(rawCQLStatement, keyspaceName, name.getName(), attrs);
         }
     }
 }

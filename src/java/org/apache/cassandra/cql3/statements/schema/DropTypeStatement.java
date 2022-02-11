@@ -47,9 +47,10 @@ public final class DropTypeStatement extends AlterSchemaStatement
     private final String typeName;
     private final boolean ifExists;
 
-    public DropTypeStatement(String keyspaceName, String typeName, boolean ifExists)
+    public DropTypeStatement(String queryString, String keyspaceName, String typeName,
+                             boolean ifExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.typeName = typeName;
         this.ifExists = ifExists;
     }
@@ -148,7 +149,8 @@ public final class DropTypeStatement extends AlterSchemaStatement
         public DropTypeStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new DropTypeStatement(keyspaceName, name.getStringTypeName(), ifExists);
+            return new DropTypeStatement(rawCQLStatement, keyspaceName, name.getStringTypeName(),
+                                         ifExists);
         }
     }
 }

@@ -440,10 +440,7 @@ public class QueryProcessor implements QueryHandler
         CQLStatement statement = raw.prepare(clientState);
         statement.validate(new QueryState(clientState));
 
-        if (isInternal)
-            return new Prepared(statement, "", fullyQualified, keyspace);
-        else
-            return new Prepared(statement, query, fullyQualified, keyspace);
+        return new Prepared(statement, fullyQualified, keyspace);
     }
 
     public static UntypedResultSet executeInternal(String query, Object... values)
@@ -681,8 +678,8 @@ public class QueryProcessor implements QueryHandler
         if (existing == null)
             return null;
 
-        checkTrue(queryString.equals(existing.rawCQLStatement),
-                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+        checkTrue(queryString.equals(existing.statement.getRawCQLStatement()),
+                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.statement.getRawCQLStatement()));
 
         return createResultMessage(statementId, existing);
     }
@@ -805,7 +802,9 @@ public class QueryProcessor implements QueryHandler
     {
         try
         {
-            return CQLFragmentParser.parseAnyUnhandled(CqlParser::query, queryStr);
+            CQLStatement.Raw stmt = CQLFragmentParser.parseAnyUnhandled(CqlParser::query, queryStr);
+            stmt.setRawCQLStatement(queryStr);
+            return stmt;
         }
         catch (CassandraException ce)
         {

@@ -116,9 +116,9 @@ public class BatchStatementBench
         {
             modifications.add((ModificationStatement) prepared.statement);
             parameters.add(Lists.newArrayList(bytes(uniquePartition ? i : 1), bytes(i), bytes(i)));
-            queryOrIdList.add(prepared.rawCQLStatement);
+            queryOrIdList.add(prepared.statement.getRawCQLStatement());
         }
-        bs = new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), modifications, Attributes.none());
+        bs = new BatchStatement(null, BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), modifications, Attributes.none());
         bqo = BatchQueryOptions.withPerStatementVariables(QueryOptions.DEFAULT, parameters, queryOrIdList);
     }
 

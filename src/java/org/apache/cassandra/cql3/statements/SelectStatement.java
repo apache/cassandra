@@ -95,6 +95,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
 
+    private final String rawCQLStatement;
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
     public final Parameters parameters;
@@ -123,7 +124,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                                                        false,
                                                                        false);
 
-    public SelectStatement(TableMetadata table,
+    public SelectStatement(String queryString,
+                           TableMetadata table,
                            VariableSpecifications bindVariables,
                            Parameters parameters,
                            Selection selection,
@@ -134,6 +136,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                            Term limit,
                            Term perPartitionLimit)
     {
+        this.rawCQLStatement = queryString;
         this.table = table;
         this.bindVariables = bindVariables;
         this.selection = selection;
@@ -144,6 +147,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         this.parameters = parameters;
         this.limit = limit;
         this.perPartitionLimit = perPartitionLimit;
+    }
+
+    @Override
+    public String getRawCQLStatement()
+    {
+        return rawCQLStatement;
     }
 
     @Override
@@ -192,7 +201,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     // queried data through processColumnFamily.
     static SelectStatement forSelection(TableMetadata table, Selection selection)
     {
-        return new SelectStatement(table,
+        return new SelectStatement(null,
+                                   table,
                                    VariableSpecifications.empty(),
                                    defaultParameters,
                                    selection,
@@ -1036,7 +1046,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             checkNeedsFiltering(table, restrictions);
 
-            return new SelectStatement(table,
+            return new SelectStatement(rawCQLStatement,
+                                       table,
                                        bindVariables,
                                        parameters,
                                        selection,

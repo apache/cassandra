@@ -65,7 +65,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
     private final boolean orReplace;
     private final boolean ifNotExists;
 
-    public CreateAggregateStatement(String keyspaceName,
+    public CreateAggregateStatement(String queryString,
+                                    String keyspaceName,
                                     String aggregateName,
                                     List<CQL3Type.Raw> rawArgumentTypes,
                                     CQL3Type.Raw rawStateType,
@@ -75,7 +76,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
                                     boolean orReplace,
                                     boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.aggregateName = aggregateName;
         this.rawArgumentTypes = rawArgumentTypes;
         this.rawStateType = rawStateType;
@@ -320,7 +321,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         {
             String keyspaceName = aggregateName.hasKeyspace() ? aggregateName.keyspace : state.getKeyspace();
 
-            return new CreateAggregateStatement(keyspaceName,
+            return new CreateAggregateStatement(rawCQLStatement,
+                                                keyspaceName,
                                                 aggregateName.name,
                                                 rawArgumentTypes,
                                                 rawStateType,

@@ -71,14 +71,15 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         "com.datastax.bdp.search.solr.Cql3SolrSecondaryIndex"
     );
 
-    public CreateIndexStatement(String keyspaceName,
+    public CreateIndexStatement(String queryString,
+                                String keyspaceName,
                                 String tableName,
                                 String indexName,
                                 List<IndexTarget.Raw> rawIndexTargets,
                                 IndexAttributes attrs,
                                 boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
         this.indexName = indexName;
         this.rawIndexTargets = rawIndexTargets;
@@ -330,7 +331,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             if (indexName.hasKeyspace() && !keyspaceName.equals(indexName.getKeyspace()))
                 throw ire("Keyspace name '%s' doesn't match index name '%s'", keyspaceName, tableName);
 
-            return new CreateIndexStatement(keyspaceName, tableName.getName(), indexName.getName(), rawIndexTargets, attrs, ifNotExists);
+            return new CreateIndexStatement(rawCQLStatement, keyspaceName, tableName.getName(),
+                                            indexName.getName(), rawIndexTargets, attrs, ifNotExists);
         }
     }
 
