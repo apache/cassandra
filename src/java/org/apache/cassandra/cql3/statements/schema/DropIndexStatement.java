@@ -37,7 +37,7 @@ public final class DropIndexStatement extends AlterSchemaStatement
     private final boolean ifExists;
 
     public DropIndexStatement(String queryString, String keyspaceName, String indexName,
-            boolean ifExists)
+                              boolean ifExists)
     {
         super(queryString, keyspaceName);
         this.indexName = indexName;

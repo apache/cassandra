@@ -138,7 +138,7 @@ public class ExecuteMessage extends Message.Request
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
 
             QueryEvents.instance.notifyExecuteSuccess(prepared.statement, options, state,
-                    requestStartTime, response);
+                                                      requestStartTime, response);
 
             if (response instanceof ResultMessage.Rows)
             {

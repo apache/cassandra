@@ -100,13 +100,13 @@ public abstract class ModificationStatement implements CQLStatement
     private final RegularAndStaticColumns requiresRead;
 
     public ModificationStatement(String queryString,
-            StatementType type,
-            VariableSpecifications bindVariables,
-            TableMetadata metadata,
-            Operations operations,
-            StatementRestrictions restrictions,
-            Conditions conditions,
-            Attributes attrs)
+                                 StatementType type,
+                                 VariableSpecifications bindVariables,
+                                 TableMetadata metadata,
+                                 Operations operations,
+                                 StatementRestrictions restrictions,
+                                 Conditions conditions,
+                                 Attributes attrs)
     {
         this.rawCQLStatement = queryString;
         this.type = type;

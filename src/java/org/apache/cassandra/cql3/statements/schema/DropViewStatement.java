@@ -35,7 +35,7 @@ public final class DropViewStatement extends AlterSchemaStatement
     private final boolean ifExists;
 
     public DropViewStatement(String queryString, String keyspaceName, String viewName,
-            boolean ifExists)
+                             boolean ifExists)
     {
         super(queryString, keyspaceName);
         this.viewName = viewName;

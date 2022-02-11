@@ -35,7 +35,7 @@ public final class DropTriggerStatement extends AlterSchemaStatement
     private final boolean ifExists;
 
     public DropTriggerStatement(String queryString, String keyspaceName, String tableName,
-            String triggerName, boolean ifExists)
+                                String triggerName, boolean ifExists)
     {
         super(queryString, keyspaceName);
         this.tableName = tableName;
@@ -105,7 +105,7 @@ public final class DropTriggerStatement extends AlterSchemaStatement
         {
             String keyspaceName = tableName.hasKeyspace() ? tableName.getKeyspace() : state.getKeyspace();
             return new DropTriggerStatement(rawCQLStatement, keyspaceName, tableName.getName(),
-                    triggerName, ifExists);
+                                            triggerName, ifExists);
         }
     }
 }

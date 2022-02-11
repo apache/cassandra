@@ -53,11 +53,11 @@ public final class CreateTypeStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
 
     public CreateTypeStatement(String queryString,
-            String keyspaceName,
-            String typeName,
-            List<FieldIdentifier> fieldNames,
-            List<CQL3Type.Raw> rawFieldTypes,
-            boolean ifNotExists)
+                               String keyspaceName,
+                               String typeName,
+                               List<FieldIdentifier> fieldNames,
+                               List<CQL3Type.Raw> rawFieldTypes,
+                               boolean ifNotExists)
     {
         super(queryString, keyspaceName);
         this.typeName = typeName;
@@ -186,8 +186,8 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
             return new CreateTypeStatement(rawCQLStatement, keyspaceName,
-                    name.getStringTypeName(), fieldNames,
-                    rawFieldTypes, ifNotExists);
+                                           name.getStringTypeName(), fieldNames,
+                                           rawFieldTypes, ifNotExists);
         }
 
         public void addField(FieldIdentifier name, CQL3Type.Raw type)

@@ -61,16 +61,16 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
 
     public CreateFunctionStatement(String queryString,
-            String keyspaceName,
-            String functionName,
-            List<ColumnIdentifier> argumentNames,
-            List<CQL3Type.Raw> rawArgumentTypes,
-            CQL3Type.Raw rawReturnType,
-            boolean calledOnNullInput,
-            String language,
-            String body,
-            boolean orReplace,
-            boolean ifNotExists)
+                                   String keyspaceName,
+                                   String functionName,
+                                   List<ColumnIdentifier> argumentNames,
+                                   List<CQL3Type.Raw> rawArgumentTypes,
+                                   CQL3Type.Raw rawReturnType,
+                                   boolean calledOnNullInput,
+                                   String language,
+                                   String body,
+                                   boolean orReplace,
+                                   boolean ifNotExists)
     {
         super(queryString, keyspaceName);
         this.functionName = functionName;
@@ -242,16 +242,16 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
             String keyspaceName = name.hasKeyspace() ? name.keyspace : state.getKeyspace();
 
             return new CreateFunctionStatement(rawCQLStatement,
-                    keyspaceName,
-                    name.name,
-                    argumentNames,
-                    rawArgumentTypes,
-                    rawReturnType,
-                    calledOnNullInput,
-                    language,
-                    body,
-                    orReplace,
-                    ifNotExists);
+                                               keyspaceName,
+                                               name.name,
+                                               argumentNames,
+                                               rawArgumentTypes,
+                                               rawReturnType,
+                                               calledOnNullInput,
+                                               language,
+                                               body,
+                                               orReplace,
+                                               ifNotExists);
         }
     }
 }

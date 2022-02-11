@@ -52,11 +52,11 @@ public final class DropAggregateStatement extends AlterSchemaStatement
     private final boolean ifExists;
 
     public DropAggregateStatement(String queryString,
-            String keyspaceName,
-            String aggregateName,
-            List<CQL3Type.Raw> arguments,
-            boolean argumentsSpeficied,
-            boolean ifExists)
+                                  String keyspaceName,
+                                  String aggregateName,
+                                  List<CQL3Type.Raw> arguments,
+                                  boolean argumentsSpeficied,
+                                  boolean ifExists)
     {
         super(queryString, keyspaceName);
         this.aggregateName = aggregateName;
@@ -175,7 +175,7 @@ public final class DropAggregateStatement extends AlterSchemaStatement
         {
             String keyspaceName = name.hasKeyspace() ? name.keyspace : state.getKeyspace();
             return new DropAggregateStatement(rawCQLStatement, keyspaceName, name.name,
-                    arguments, argumentsSpecified, ifExists);
+                                              arguments, argumentsSpecified, ifExists);
         }
     }
 }

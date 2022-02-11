@@ -40,7 +40,7 @@ public final class DropTableStatement extends AlterSchemaStatement
     private final boolean ifExists;
 
     public DropTableStatement(String queryString, String keyspaceName, String tableName,
-            boolean ifExists)
+                              boolean ifExists)
     {
         super(queryString, keyspaceName);
         this.tableName = tableName;

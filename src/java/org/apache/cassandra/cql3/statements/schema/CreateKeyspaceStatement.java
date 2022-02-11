@@ -53,7 +53,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
 
     public CreateKeyspaceStatement(String queryString, String keyspaceName,
-            KeyspaceAttributes attrs, boolean ifNotExists)
+                                   KeyspaceAttributes attrs, boolean ifNotExists)
     {
         super(queryString, keyspaceName);
         this.attrs = attrs;

@@ -49,13 +49,13 @@ public class UpdateStatement extends ModificationStatement
     private static final Constants.Value EMPTY = new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
     private UpdateStatement(String queryString,
-            StatementType type,
-            VariableSpecifications bindVariables,
-            TableMetadata metadata,
-            Operations operations,
-            StatementRestrictions restrictions,
-            Conditions conditions,
-            Attributes attrs)
+                            StatementType type,
+                            VariableSpecifications bindVariables,
+                            TableMetadata metadata,
+                            Operations operations,
+                            StatementRestrictions restrictions,
+                            Conditions conditions,
+                            Attributes attrs)
     {
         super(queryString, type, bindVariables, metadata, operations, restrictions, conditions, attrs);
     }
@@ -186,13 +186,13 @@ public class UpdateStatement extends ModificationStatement
                                                                               false);
 
             return new UpdateStatement(rawCQLStatement,
-                    type,
-                    bindVariables,
-                    metadata,
-                    operations,
-                    restrictions,
-                    conditions,
-                    attrs);
+                                       type,
+                                       bindVariables,
+                                       metadata,
+                                       operations,
+                                       restrictions,
+                                       conditions,
+                                       attrs);
         }
     }
 
@@ -255,13 +255,13 @@ public class UpdateStatement extends ModificationStatement
                                                                               false);
 
             return new UpdateStatement(rawCQLStatement,
-                    type,
-                    bindVariables,
-                    metadata,
-                    operations,
-                    restrictions,
-                    conditions,
-                    attrs);
+                                       type,
+                                       bindVariables,
+                                       metadata,
+                                       operations,
+                                       restrictions,
+                                       conditions,
+                                       attrs);
         }
     }
 
@@ -319,13 +319,13 @@ public class UpdateStatement extends ModificationStatement
                                                                  conditions);
 
             return new UpdateStatement(rawCQLStatement,
-                    type,
-                    bindVariables,
-                    metadata,
-                    operations,
-                    restrictions,
-                    conditions,
-                    attrs);
+                                       type,
+                                       bindVariables,
+                                       metadata,
+                                       operations,
+                                       restrictions,
+                                       conditions,
+                                       attrs);
         }
     }
     

@@ -119,7 +119,7 @@ public class BatchStatement implements CQLStatement
      * @param attrs      additional attributes for statement (CL, timestamp, timeToLive)
      */
     public BatchStatement(String queryString, Type type, VariableSpecifications bindVariables,
-            List<ModificationStatement> statements, Attributes attrs)
+                          List<ModificationStatement> statements, Attributes attrs)
     {
         this.rawCQLStatement = queryString;
         this.type = type;

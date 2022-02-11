@@ -216,7 +216,7 @@ public class BatchMessage extends Message.Request
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(null, batchType,
-                    VariableSpecifications.empty(), statements, Attributes.none());
+                                                      VariableSpecifications.empty(), statements, Attributes.none());
 
             long queryTime = System.currentTimeMillis();
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);

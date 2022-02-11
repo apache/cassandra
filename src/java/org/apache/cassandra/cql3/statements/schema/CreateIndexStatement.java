@@ -72,12 +72,12 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     );
 
     public CreateIndexStatement(String queryString,
-            String keyspaceName,
-            String tableName,
-            String indexName,
-            List<IndexTarget.Raw> rawIndexTargets,
-            IndexAttributes attrs,
-            boolean ifNotExists)
+                                String keyspaceName,
+                                String tableName,
+                                String indexName,
+                                List<IndexTarget.Raw> rawIndexTargets,
+                                IndexAttributes attrs,
+                                boolean ifNotExists)
     {
         super(queryString, keyspaceName);
         this.tableName = tableName;
@@ -332,7 +332,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
                 throw ire("Keyspace name '%s' doesn't match index name '%s'", keyspaceName, tableName);
 
             return new CreateIndexStatement(rawCQLStatement, keyspaceName, tableName.getName(),
-                    indexName.getName(), rawIndexTargets, attrs, ifNotExists);
+                                            indexName.getName(), rawIndexTargets, attrs, ifNotExists);
         }
     }
 

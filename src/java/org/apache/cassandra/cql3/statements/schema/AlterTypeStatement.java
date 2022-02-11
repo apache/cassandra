@@ -102,7 +102,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private QueryState state;
 
         private AddField(String queryString, String keyspaceName, String typeName,
-                FieldIdentifier fieldName, CQL3Type.Raw type)
+                         FieldIdentifier fieldName, CQL3Type.Raw type)
         {
             super(queryString, keyspaceName, typeName);
             this.fieldName = fieldName;
@@ -159,7 +159,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private final Map<FieldIdentifier, FieldIdentifier> renamedFields;
 
         private RenameFields(String queryString, String keyspaceName, String typeName,
-                Map<FieldIdentifier, FieldIdentifier> renamedFields)
+                             Map<FieldIdentifier, FieldIdentifier> renamedFields)
         {
             super(queryString, keyspaceName, typeName);
             this.renamedFields = renamedFields;

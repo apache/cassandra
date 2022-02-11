@@ -66,15 +66,15 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
 
     public CreateAggregateStatement(String queryString,
-            String keyspaceName,
-            String aggregateName,
-            List<CQL3Type.Raw> rawArgumentTypes,
-            CQL3Type.Raw rawStateType,
-            FunctionName stateFunctionName,
-            FunctionName finalFunctionName,
-            Term.Raw rawInitialValue,
-            boolean orReplace,
-            boolean ifNotExists)
+                                    String keyspaceName,
+                                    String aggregateName,
+                                    List<CQL3Type.Raw> rawArgumentTypes,
+                                    CQL3Type.Raw rawStateType,
+                                    FunctionName stateFunctionName,
+                                    FunctionName finalFunctionName,
+                                    Term.Raw rawInitialValue,
+                                    boolean orReplace,
+                                    boolean ifNotExists)
     {
         super(queryString, keyspaceName);
         this.aggregateName = aggregateName;
@@ -322,15 +322,15 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             String keyspaceName = aggregateName.hasKeyspace() ? aggregateName.keyspace : state.getKeyspace();
 
             return new CreateAggregateStatement(rawCQLStatement,
-                    keyspaceName,
-                    aggregateName.name,
-                    rawArgumentTypes,
-                    rawStateType,
-                    new FunctionName(keyspaceName, stateFunctionName),
-                    null != finalFunctionName ? new FunctionName(keyspaceName, finalFunctionName) : null,
-                    rawInitialValue,
-                    orReplace,
-                    ifNotExists);
+                                                keyspaceName,
+                                                aggregateName.name,
+                                                rawArgumentTypes,
+                                                rawStateType,
+                                                new FunctionName(keyspaceName, stateFunctionName),
+                                                null != finalFunctionName ? new FunctionName(keyspaceName, finalFunctionName) : null,
+                                                rawInitialValue,
+                                                orReplace,
+                                                ifNotExists);
         }
     }
 }

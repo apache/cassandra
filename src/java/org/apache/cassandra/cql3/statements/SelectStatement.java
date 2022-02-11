@@ -125,16 +125,16 @@ public class SelectStatement implements CQLStatement
                                                                        false);
 
     public SelectStatement(String queryString,
-            TableMetadata table,
-            VariableSpecifications bindVariables,
-            Parameters parameters,
-            Selection selection,
-            StatementRestrictions restrictions,
-            boolean isReversed,
-            AggregationSpecification aggregationSpec,
-            Comparator<List<ByteBuffer>> orderingComparator,
-            Term limit,
-            Term perPartitionLimit)
+                           TableMetadata table,
+                           VariableSpecifications bindVariables,
+                           Parameters parameters,
+                           Selection selection,
+                           StatementRestrictions restrictions,
+                           boolean isReversed,
+                           AggregationSpecification aggregationSpec,
+                           Comparator<List<ByteBuffer>> orderingComparator,
+                           Term limit,
+                           Term perPartitionLimit)
     {
         this.rawCQLStatement = queryString;
         this.table = table;
@@ -202,16 +202,16 @@ public class SelectStatement implements CQLStatement
     static SelectStatement forSelection(TableMetadata table, Selection selection)
     {
         return new SelectStatement(null,
-                table,
-                VariableSpecifications.empty(),
-                defaultParameters,
-                selection,
-                StatementRestrictions.empty(table),
-                false,
-                null,
-                null,
-                null,
-                null);
+                                   table,
+                                   VariableSpecifications.empty(),
+                                   defaultParameters,
+                                   selection,
+                                   StatementRestrictions.empty(table),
+                                   false,
+                                   null,
+                                   null,
+                                   null,
+                                   null);
     }
 
     public ResultSet.ResultMetadata getResultMetadata()
@@ -1046,16 +1046,16 @@ public class SelectStatement implements CQLStatement
             checkNeedsFiltering(table, restrictions);
 
             return new SelectStatement(rawCQLStatement,
-                    table,
-                    bindVariables,
-                    parameters,
-                    selection,
-                    restrictions,
-                    isReversed,
-                    aggregationSpec,
-                    orderingComparator,
-                    prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
-                    prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
+                                       table,
+                                       bindVariables,
+                                       parameters,
+                                       selection,
+                                       restrictions,
+                                       isReversed,
+                                       aggregationSpec,
+                                       orderingComparator,
+                                       prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
+                                       prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
         }
 
         private Selection prepareSelection(TableMetadata table,
