@@ -95,6 +95,7 @@ public class SelectStatement implements CQLStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
 
+    private final String rawCQLStatement;
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
     public final Parameters parameters;
@@ -123,17 +124,19 @@ public class SelectStatement implements CQLStatement
                                                                        false,
                                                                        false);
 
-    public SelectStatement(TableMetadata table,
-                           VariableSpecifications bindVariables,
-                           Parameters parameters,
-                           Selection selection,
-                           StatementRestrictions restrictions,
-                           boolean isReversed,
-                           AggregationSpecification aggregationSpec,
-                           Comparator<List<ByteBuffer>> orderingComparator,
-                           Term limit,
-                           Term perPartitionLimit)
+    public SelectStatement(String queryString,
+            TableMetadata table,
+            VariableSpecifications bindVariables,
+            Parameters parameters,
+            Selection selection,
+            StatementRestrictions restrictions,
+            boolean isReversed,
+            AggregationSpecification aggregationSpec,
+            Comparator<List<ByteBuffer>> orderingComparator,
+            Term limit,
+            Term perPartitionLimit)
     {
+        this.rawCQLStatement = queryString;
         this.table = table;
         this.bindVariables = bindVariables;
         this.selection = selection;
@@ -144,6 +147,12 @@ public class SelectStatement implements CQLStatement
         this.parameters = parameters;
         this.limit = limit;
         this.perPartitionLimit = perPartitionLimit;
+    }
+
+    @Override
+    public String getRawCQLStatement()
+    {
+        return rawCQLStatement;
     }
 
     @Override
@@ -192,16 +201,17 @@ public class SelectStatement implements CQLStatement
     // queried data through processColumnFamily.
     static SelectStatement forSelection(TableMetadata table, Selection selection)
     {
-        return new SelectStatement(table,
-                                   VariableSpecifications.empty(),
-                                   defaultParameters,
-                                   selection,
-                                   StatementRestrictions.empty(table),
-                                   false,
-                                   null,
-                                   null,
-                                   null,
-                                   null);
+        return new SelectStatement(null,
+                table,
+                VariableSpecifications.empty(),
+                defaultParameters,
+                selection,
+                StatementRestrictions.empty(table),
+                false,
+                null,
+                null,
+                null,
+                null);
     }
 
     public ResultSet.ResultMetadata getResultMetadata()
@@ -1035,16 +1045,17 @@ public class SelectStatement implements CQLStatement
 
             checkNeedsFiltering(table, restrictions);
 
-            return new SelectStatement(table,
-                                       bindVariables,
-                                       parameters,
-                                       selection,
-                                       restrictions,
-                                       isReversed,
-                                       aggregationSpec,
-                                       orderingComparator,
-                                       prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
-                                       prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
+            return new SelectStatement(rawCQLStatement,
+                    table,
+                    bindVariables,
+                    parameters,
+                    selection,
+                    restrictions,
+                    isReversed,
+                    aggregationSpec,
+                    orderingComparator,
+                    prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
+                    prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
         }
 
         private Selection prepareSelection(TableMetadata table,

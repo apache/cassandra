@@ -36,11 +36,19 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformation
 {
+    private final String rawCQLStatement;
     protected final String keyspaceName; // name of the keyspace affected by the statement
 
-    protected AlterSchemaStatement(String keyspaceName)
+    protected AlterSchemaStatement(String queryString, String keyspaceName)
     {
+        this.rawCQLStatement = queryString;
         this.keyspaceName = keyspaceName;
+    }
+
+    @Override
+    public String getRawCQLStatement()
+    {
+        return rawCQLStatement;
     }
 
     @Override

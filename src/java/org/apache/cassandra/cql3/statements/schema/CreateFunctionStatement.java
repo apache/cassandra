@@ -60,18 +60,19 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
     private final boolean orReplace;
     private final boolean ifNotExists;
 
-    public CreateFunctionStatement(String keyspaceName,
-                                   String functionName,
-                                   List<ColumnIdentifier> argumentNames,
-                                   List<CQL3Type.Raw> rawArgumentTypes,
-                                   CQL3Type.Raw rawReturnType,
-                                   boolean calledOnNullInput,
-                                   String language,
-                                   String body,
-                                   boolean orReplace,
-                                   boolean ifNotExists)
+    public CreateFunctionStatement(String queryString,
+            String keyspaceName,
+            String functionName,
+            List<ColumnIdentifier> argumentNames,
+            List<CQL3Type.Raw> rawArgumentTypes,
+            CQL3Type.Raw rawReturnType,
+            boolean calledOnNullInput,
+            String language,
+            String body,
+            boolean orReplace,
+            boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.functionName = functionName;
         this.argumentNames = argumentNames;
         this.rawArgumentTypes = rawArgumentTypes;
@@ -240,16 +241,17 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
         {
             String keyspaceName = name.hasKeyspace() ? name.keyspace : state.getKeyspace();
 
-            return new CreateFunctionStatement(keyspaceName,
-                                               name.name,
-                                               argumentNames,
-                                               rawArgumentTypes,
-                                               rawReturnType,
-                                               calledOnNullInput,
-                                               language,
-                                               body,
-                                               orReplace,
-                                               ifNotExists);
+            return new CreateFunctionStatement(rawCQLStatement,
+                    keyspaceName,
+                    name.name,
+                    argumentNames,
+                    rawArgumentTypes,
+                    rawReturnType,
+                    calledOnNullInput,
+                    language,
+                    body,
+                    orReplace,
+                    ifNotExists);
         }
     }
 }

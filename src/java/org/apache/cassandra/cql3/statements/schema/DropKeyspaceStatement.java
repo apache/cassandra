@@ -31,9 +31,9 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
 {
     private final boolean ifExists;
 
-    public DropKeyspaceStatement(String keyspaceName, boolean ifExists)
+    public DropKeyspaceStatement(String queryString, String keyspaceName, boolean ifExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.ifExists = ifExists;
     }
 
@@ -82,7 +82,7 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
 
         public DropKeyspaceStatement prepare(ClientState state)
         {
-            return new DropKeyspaceStatement(keyspaceName, ifExists);
+            return new DropKeyspaceStatement(rawCQLStatement, keyspaceName, ifExists);
         }
     }
 }

@@ -441,7 +441,7 @@ public class QueryProcessor implements QueryHandler
             return existing;
 
         CQLStatement statement = getStatement(queryString, clientState);
-        Prepared prepared = new Prepared(statement, queryString);
+        Prepared prepared = new Prepared(statement);
 
         int boundTerms = statement.getBindVariables().size();
         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -464,8 +464,8 @@ public class QueryProcessor implements QueryHandler
         if (existing == null)
             return null;
 
-        checkTrue(queryString.equals(existing.rawCQLStatement),
-                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+        checkTrue(queryString.equals(existing.statement.getRawCQLStatement()),
+                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.statement.getRawCQLStatement()));
 
         ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(existing.statement);
         ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(existing.statement);
@@ -578,7 +578,9 @@ public class QueryProcessor implements QueryHandler
     {
         try
         {
-            return CQLFragmentParser.parseAnyUnhandled(CqlParser::query, queryStr);
+            CQLStatement.Raw stmt = CQLFragmentParser.parseAnyUnhandled(CqlParser::query, queryStr);
+            stmt.setRawCQLStatement(queryStr);
+            return stmt;
         }
         catch (CassandraException ce)
         {

@@ -48,15 +48,16 @@ public class UpdateStatement extends ModificationStatement
 {
     private static final Constants.Value EMPTY = new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
-    private UpdateStatement(StatementType type,
-                            VariableSpecifications bindVariables,
-                            TableMetadata metadata,
-                            Operations operations,
-                            StatementRestrictions restrictions,
-                            Conditions conditions,
-                            Attributes attrs)
+    private UpdateStatement(String queryString,
+            StatementType type,
+            VariableSpecifications bindVariables,
+            TableMetadata metadata,
+            Operations operations,
+            StatementRestrictions restrictions,
+            Conditions conditions,
+            Attributes attrs)
     {
-        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs);
+        super(queryString, type, bindVariables, metadata, operations, restrictions, conditions, attrs);
     }
 
     @Override
@@ -184,13 +185,14 @@ public class UpdateStatement extends ModificationStatement
                                                                               false,
                                                                               false);
 
-            return new UpdateStatement(type,
-                                       bindVariables,
-                                       metadata,
-                                       operations,
-                                       restrictions,
-                                       conditions,
-                                       attrs);
+            return new UpdateStatement(rawCQLStatement,
+                    type,
+                    bindVariables,
+                    metadata,
+                    operations,
+                    restrictions,
+                    conditions,
+                    attrs);
         }
     }
 
@@ -252,13 +254,14 @@ public class UpdateStatement extends ModificationStatement
                                                                               false,
                                                                               false);
 
-            return new UpdateStatement(type,
-                                       bindVariables,
-                                       metadata,
-                                       operations,
-                                       restrictions,
-                                       conditions,
-                                       attrs);
+            return new UpdateStatement(rawCQLStatement,
+                    type,
+                    bindVariables,
+                    metadata,
+                    operations,
+                    restrictions,
+                    conditions,
+                    attrs);
         }
     }
 
@@ -315,13 +318,14 @@ public class UpdateStatement extends ModificationStatement
                                                                  whereClause,
                                                                  conditions);
 
-            return new UpdateStatement(type,
-                                       bindVariables,
-                                       metadata,
-                                       operations,
-                                       restrictions,
-                                       conditions,
-                                       attrs);
+            return new UpdateStatement(rawCQLStatement,
+                    type,
+                    bindVariables,
+                    metadata,
+                    operations,
+                    restrictions,
+                    conditions,
+                    attrs);
         }
     }
     

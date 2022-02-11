@@ -70,22 +70,23 @@ public final class CreateViewStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private QueryState state;
 
-    public CreateViewStatement(String keyspaceName,
-                               String tableName,
-                               String viewName,
+    public CreateViewStatement(String queryString,
+            String keyspaceName,
+            String tableName,
+            String viewName,
 
-                               List<RawSelector> rawColumns,
-                               List<ColumnIdentifier> partitionKeyColumns,
-                               List<ColumnIdentifier> clusteringColumns,
+            List<RawSelector> rawColumns,
+            List<ColumnIdentifier> partitionKeyColumns,
+            List<ColumnIdentifier> clusteringColumns,
 
-                               WhereClause whereClause,
+            WhereClause whereClause,
 
-                               LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
-                               TableAttributes attrs,
+            LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
+            TableAttributes attrs,
 
-                               boolean ifNotExists)
+            boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
         this.viewName = viewName;
 
@@ -415,20 +416,21 @@ public final class CreateViewStatement extends AlterSchemaStatement
             if (null == partitionKeyColumns)
                 throw ire("No PRIMARY KEY specifed for view '%s' (exactly one required)", viewName);
 
-            return new CreateViewStatement(keyspaceName,
-                                           tableName.getName(),
-                                           viewName.getName(),
+            return new CreateViewStatement(rawCQLStatement,
+                    keyspaceName,
+                    tableName.getName(),
+                    viewName.getName(),
 
-                                           rawColumns,
-                                           partitionKeyColumns,
-                                           clusteringColumns,
+                    rawColumns,
+                    partitionKeyColumns,
+                    clusteringColumns,
 
-                                           whereClause,
+                    whereClause,
 
-                                           clusteringOrder,
-                                           attrs,
+                    clusteringOrder,
+                    attrs,
 
-                                           ifNotExists);
+                    ifNotExists);
         }
 
         public void setPartitionKeyColumns(List<ColumnIdentifier> columns)

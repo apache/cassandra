@@ -54,9 +54,9 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
 
-    public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs)
+    public AlterKeyspaceStatement(String queryString, String keyspaceName, KeyspaceAttributes attrs)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.attrs = attrs;
     }
 
@@ -205,7 +205,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         public AlterKeyspaceStatement prepare(ClientState state)
         {
-            return new AlterKeyspaceStatement(keyspaceName, attrs);
+            return new AlterKeyspaceStatement(rawCQLStatement, keyspaceName, attrs);
         }
     }
 }

@@ -65,21 +65,22 @@ public final class CreateTableStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private final boolean useCompactStorage;
 
-    public CreateTableStatement(String keyspaceName,
-                                String tableName,
+    public CreateTableStatement(String queryString,
+            String keyspaceName,
+            String tableName,
 
-                                Map<ColumnIdentifier, CQL3Type.Raw> rawColumns,
-                                Set<ColumnIdentifier> staticColumns,
-                                List<ColumnIdentifier> partitionKeyColumns,
-                                List<ColumnIdentifier> clusteringColumns,
+            Map<ColumnIdentifier, CQL3Type.Raw> rawColumns,
+            Set<ColumnIdentifier> staticColumns,
+            List<ColumnIdentifier> partitionKeyColumns,
+            List<ColumnIdentifier> clusteringColumns,
 
-                                LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
-                                TableAttributes attrs,
+            LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
+            TableAttributes attrs,
 
-                                boolean ifNotExists,
-                                boolean useCompactStorage)
+            boolean ifNotExists,
+            boolean useCompactStorage)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
 
         this.rawColumns = rawColumns;
@@ -525,19 +526,20 @@ public final class CreateTableStatement extends AlterSchemaStatement
             if (null == partitionKeyColumns)
                 throw ire("No PRIMARY KEY specifed for table '%s' (exactly one required)", name);
 
-            return new CreateTableStatement(keyspaceName,
-                                            name.getName(),
+            return new CreateTableStatement(rawCQLStatement,
+                    keyspaceName,
+                    name.getName(),
 
-                                            rawColumns,
-                                            staticColumns,
-                                            partitionKeyColumns,
-                                            clusteringColumns,
+                    rawColumns,
+                    staticColumns,
+                    partitionKeyColumns,
+                    clusteringColumns,
 
-                                            clusteringOrder,
-                                            attrs,
+                    clusteringOrder,
+                    attrs,
 
-                                            ifNotExists,
-                                            useCompactStorage);
+                    ifNotExists,
+                    useCompactStorage);
         }
 
         public String keyspace()
