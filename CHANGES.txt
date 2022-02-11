@@ -1,4 +1,11 @@
 4.1
+ * Add support for string concatenations through the + operator (CASSANDRA-17190)
+ * Limit the maximum hints size per host (CASSANDRA-17142)
+ * Add a virtual table for exposing batch metrics (CASSANDRA-17225)
+ * Flatten guardrails config (CASSANDRA-17353)
+ * Instance failed to start up due to NPE in StartupClusterConnectivityChecker (CASSANDRA-17347)
+ * add the shorter version of version flag (-v) in cqlsh (CASSANDRA-17236)
+ * Make vtables accessible via internode messaging (CASSANDRA-17295)
  * Add support for PEM based key material for SSL (CASSANDRA-17031)
  * Standardize storage configuration parameters' names. Support unit suffixes. (CASSANDRA-15234)
  * Remove support for Windows (CASSANDRA-16956)
@@ -82,9 +89,9 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
-
 Merged from 4.0:
-=======
+ * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
+
 4.0.2
  * Full Java 11 support (CASSANDRA-16894)
  * Remove unused 'geomet' package from cqlsh path (CASSANDRA-17271)

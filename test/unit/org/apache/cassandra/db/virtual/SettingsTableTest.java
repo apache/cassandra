@@ -59,6 +59,7 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options.applyConfig();
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+        disablePreparedReuseForTest();
     }
 
     private String getValue(Field f)

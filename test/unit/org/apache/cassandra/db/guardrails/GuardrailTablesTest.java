@@ -20,7 +20,6 @@ package org.apache.cassandra.db.guardrails;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 
 import static java.lang.String.format;
@@ -31,16 +30,16 @@ import static java.lang.String.format;
 public class GuardrailTablesTest extends ThresholdTester
 {
     private static final int TABLES_LIMIT_WARN_THRESHOLD = 1;
-    private static final int TABLES_LIMIT_ABORT_THRESHOLD = 2;
+    private static final int TABLES_LIMIT_FAIL_THRESHOLD = 2;
 
     public GuardrailTablesTest()
     {
         super(TABLES_LIMIT_WARN_THRESHOLD,
-              TABLES_LIMIT_ABORT_THRESHOLD,
-              DatabaseDescriptor.getGuardrailsConfig().getTables(),
+              TABLES_LIMIT_FAIL_THRESHOLD,
+              "tables",
               Guardrails::setTablesThreshold,
               Guardrails::getTablesWarnThreshold,
-              Guardrails::getTablesAbortThreshold);
+              Guardrails::getTablesFailThreshold);
     }
 
     @Override
@@ -52,22 +51,22 @@ public class GuardrailTablesTest extends ThresholdTester
     @Test
     public void testCreateTable() throws Throwable
     {
-        // create tables until hitting the two warn/abort thresholds
+        // create tables until hitting the two warn/fail thresholds
         String t1 = assertCreateTableValid();
         String t2 = assertCreateTableWarns();
-        assertCreateTableAborts();
+        assertCreateTableFails();
 
-        // drop a table and hit the warn/abort threshold again
+        // drop a table and hit the warn/fail threshold again
         dropTable(t2);
         String t3 = assertCreateTableWarns();
-        assertCreateTableAborts();
+        assertCreateTableFails();
 
-        // drop two tables and hit the warn/abort threshold again
+        // drop two tables and hit the warn/fail threshold again
         dropTable(t1);
         dropTable(t3);
         assertCreateTableValid();
         assertCreateTableWarns();
-        assertCreateTableAborts();
+        assertCreateTableFails();
 
         // test excluded users
         testExcludedUsers(this::createTableQuery,
@@ -96,11 +95,11 @@ public class GuardrailTablesTest extends ThresholdTester
         return tableName;
     }
 
-    private void assertCreateTableAborts() throws Throwable
+    private void assertCreateTableFails() throws Throwable
     {
         String tableName = createTableName();
-        assertThresholdAborts(format("Cannot have more than 2 tables, aborting the creation of table %s", tableName),
-                              createTableQuery(tableName));
+        assertThresholdFails(format("Cannot have more than 2 tables, aborting the creation of table %s", tableName),
+                             createTableQuery(tableName));
     }
 
     private String createTableQuery()

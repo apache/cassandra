@@ -108,7 +108,7 @@ public class HintsReaderTest
     {
         long baseTimestamp = descriptor.timestamp;
         int index = 0;
-        try (HintsReader reader = HintsReader.open(new File(directory, descriptor.fileName())))
+        try (HintsReader reader = HintsReader.open(descriptor.file(directory)))
         {
             for (HintsReader.Page page : reader)
             {

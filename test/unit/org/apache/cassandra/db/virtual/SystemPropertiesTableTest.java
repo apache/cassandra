@@ -56,6 +56,7 @@ public class SystemPropertiesTableTest extends CQLTester
     {
         table = new SystemPropertiesTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+        disablePreparedReuseForTest();
     }
 
     @Test

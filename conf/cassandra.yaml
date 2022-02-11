@@ -86,6 +86,11 @@ hints_flush_period: 10000ms
 # Maximum size for a single hints file, in megabytes.
 max_hints_file_size: 128MiB
 
+# The file size limit to store hints for an unreachable host, in megabytes.
+# Once the local hints files have reached the limit, no more new hints will be created.
+# Set a non-positive value will disable the size limit.
+# max_hints_size_per_host: 0MiB
+
 # Enable / disable automatic cleanup for the expired and orphaned hints file.
 # Disable the option in order to preserve those hints on the disk.
 auto_hints_cleanup_enabled: false
@@ -1510,7 +1515,7 @@ report_unconfirmed_repaired_data_mismatches: false
 # Having many tables and/or keyspaces negatively affects performance of many operations in the
 # cluster. When the number of tables/keyspaces in the cluster exceeds the following thresholds
 # a client warning will be sent back to the user when creating a table or keyspace.
-# As of cassandra 4.1, these properties are deprecated in favor of guardrails.keyspaces and guardrails.tables
+# As of cassandra 4.1, these properties are deprecated in favor of keyspaces_warn_threshold and tables_warn_threshold
 # table_count_warn_threshold: 150
 # keyspace_count_warn_threshold: 40
 
@@ -1577,46 +1582,37 @@ drop_compact_storage_enabled: false
 #         warn_threshold_kb: 0
 #         abort_threshold_kb: 0
 
-# Guardrails settings.
-# guardrails:
 # Whether guardrails are enabled or not. Guardrails are disabled by default.
-# enabled: false
-# Guardrail to warn or abort when creating more user keyspaces than threshold.
+# guardrails_enabled: true
+# Guardrail to warn or fail when creating more user keyspaces than threshold.
 # The two thresholds default to -1 to disable.
-#     keyspaces:
-#         warn_threshold: -1
-#         abort_threshold: -1
-# Guardrail to warn or abort when creating more user tables than threshold.
+# keyspaces_warn_threshold: -1
+# keyspaces_fail_threshold: -1
+# Guardrail to warn or fail when creating more user tables than threshold.
 # The two thresholds default to -1 to disable.
-#     tables:
-#         warn_threshold: -1
-#         abort_threshold: -1
-# Guardrail to warn or abort when creating/altering a table with more columns per table than threshold.
+# tables_warn_threshold: -1
+# tables_fail_threshold: -1
+# Guardrail to warn or fail when creating/altering a table with more columns per table than threshold.
 # The two thresholds default to -1 to disable.
-#     columns_per_table:
-#         warn_threshold: -1
-#         abort_threshold: -1
-# Guardrail to warn or abort when creating more secondary indexes per table than threshold.
+# columns_per_table_warn_threshold: -1
+# columns_per_table_fail_threshold: -1
+# Guardrail to warn or fail when creating more secondary indexes per table than threshold.
 # The two thresholds default to -1 to disable.
-#     secondary_indexes_per_table:
-#         warn_threshold: -1
-#         abort_threshold: -1
-# Guardrail to warn or abort when creating more materialized views per table than threshold.
+# secondary_indexes_per_table_warn_threshold: -1
+# secondary_indexes_per_table_fail_threshold: -1
+# Guardrail to warn or fail when creating more materialized views per table than threshold.
 # The two thresholds default to -1 to disable.
-#     materialized_views_per_table:
-#         warn_threshold: -1
-#         abort_threshold: -1
+# materialized_views_per_table_warn_threshold: -1
+# materialized_views_per_table_fail_threshold: -1
 # Guardrail to ignore or reject properties when creating tables. By default all properties are allowed.
-#     table_properties:
-#         ignored: []
-#         disallowed: []
+# table_properties_ignored: []
+# table_properties_disallowed: []
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
-#     user_timestamps_enabled: true
-# Guardrail to warn or abort when using a page size greater than threshold.
+# user_timestamps_enabled: true
+# Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
-#     page_size:
-#       warn_threshold: -1
-#       abort_threshold: -1
+# page_size_warn_threshold: -1
+# page_size_fail_threshold: -1
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.
-#     read_before_write_list_operations_enabled: true
+# read_before_write_list_operations_enabled: true

@@ -155,6 +155,9 @@ public class DatabaseDescriptor
 
     public static volatile boolean allowUnlimitedConcurrentValidations = Boolean.getBoolean("cassandra.allow_unlimited_concurrent_validations");
 
+    /** The configuration for guardrails. */
+    private static GuardrailsOptions guardrails;
+
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                        : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
@@ -879,14 +882,14 @@ public class DatabaseDescriptor
 
     public static GuardrailsOptions getGuardrailsConfig()
     {
-        return conf.guardrails;
+        return guardrails;
     }
 
     private static void applyGuardrails()
     {
         try
         {
-            conf.guardrails.validate();
+            guardrails = new GuardrailsOptions(conf);
         }
         catch (IllegalArgumentException e)
         {
@@ -2638,6 +2641,21 @@ public class DatabaseDescriptor
     public static int getMaxHintWindow()
     {
         return conf.max_hint_window.toMillisecondsAsInt();
+    }
+
+    public static void setMaxHintsSizePerHostInMb(int value)
+    {
+        conf.max_hints_size_per_host = DataStorageSpec.inMebibytes(value);
+    }
+
+    public static int getMaxHintsSizePerHostInMb()
+    {
+        return conf.max_hints_size_per_host.toMebibytesAsInt();
+    }
+
+    public static long getMaxHintsSizePerHost()
+    {
+        return conf.max_hints_size_per_host.toBytes();
     }
 
     public static File getHintsDirectory()

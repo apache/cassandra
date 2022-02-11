@@ -21,8 +21,6 @@ package org.apache.cassandra.db.guardrails;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import static java.lang.String.format;
 
 /**
@@ -31,7 +29,7 @@ import static java.lang.String.format;
 public class GuardrailViewsPerTableTest extends ThresholdTester
 {
     private static final int VIEWS_PER_TABLE_WARN_THRESHOLD = 1;
-    private static final int VIEWS_PER_TABLE_ABORT_THRESHOLD = 3;
+    private static final int VIEWS_PER_TABLE_FAIL_THRESHOLD = 3;
 
     private static final String CREATE_TABLE = "CREATE TABLE %s (k int PRIMARY KEY, v int)";
     private static final String CREATE_VIEW = "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s " +
@@ -40,11 +38,11 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
     public GuardrailViewsPerTableTest()
     {
         super(VIEWS_PER_TABLE_WARN_THRESHOLD,
-              VIEWS_PER_TABLE_ABORT_THRESHOLD,
-              DatabaseDescriptor.getGuardrailsConfig().getMaterializedViewsPerTable(),
+              VIEWS_PER_TABLE_FAIL_THRESHOLD,
+              "materialized_views_per_table",
               Guardrails::setMaterializedViewsPerTableThreshold,
               Guardrails::getMaterializedViewsPerTableWarnThreshold,
-              Guardrails::getMaterializedViewsPerTableAbortThreshold);
+              Guardrails::getMaterializedViewsPerTableFailThreshold);
     }
 
     @Override
@@ -68,14 +66,14 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
 
         assertCreateViewWarns();
         assertCreateViewWarns();
-        assertCreateViewAborts();
+        assertCreateViewFails();
         assertCurrentValue(3);
 
         // drop the first view, we should be able to create new MV again
         dropView(view1);
         assertCurrentValue(2);
         assertCreateViewWarns();
-        assertCreateViewAborts();
+        assertCreateViewFails();
         assertCurrentValue(3);
 
         // previous guardrail should not apply to another base table
@@ -83,7 +81,7 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
         assertCreateViewSucceeds();
         assertCreateViewWarns();
         assertCreateViewWarns();
-        assertCreateViewAborts();
+        assertCreateViewFails();
         assertCurrentValue(3);
     }
 
@@ -115,11 +113,11 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
                              format(CREATE_VIEW, viewName));
     }
 
-    private void assertCreateViewAborts() throws Throwable
+    private void assertCreateViewFails() throws Throwable
     {
         String viewName = createViewName();
-        assertThresholdAborts(format("aborting the creation of materialized view %s on table %s",
-                                     viewName, currentTable()),
-                              format(CREATE_VIEW, viewName));
+        assertThresholdFails(format("aborting the creation of materialized view %s on table %s",
+                                    viewName, currentTable()),
+                             format(CREATE_VIEW, viewName));
     }
 }

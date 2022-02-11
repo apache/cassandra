@@ -69,6 +69,7 @@ public class RolesCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         Roles.cache.invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
