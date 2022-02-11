@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.function.UnaryOperator;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -69,7 +71,7 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
         return String.format("%s (%s)", getClass().getSimpleName(), keyspaceName);
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<DropKeyspaceStatement>
     {
         private final String keyspaceName;
         private final boolean ifExists;
@@ -80,9 +82,10 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
             this.ifExists = ifExists;
         }
 
-        public DropKeyspaceStatement prepare(ClientState state)
+        @Override
+        public DropKeyspaceStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            return new DropKeyspaceStatement(rawCQLStatement, keyspaceName, ifExists);
+            return new DropKeyspaceStatement(rawCQLStatement, keyspaceMapper.apply(keyspaceName), ifExists);
         }
     }
 }

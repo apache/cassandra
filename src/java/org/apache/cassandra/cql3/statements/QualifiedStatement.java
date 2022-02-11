@@ -27,7 +27,7 @@ import org.apache.cassandra.service.ClientState;
 /**
  * Abstract class for statements that work on sub-keyspace level (tables, views, indexes, functions, etc.)
  */
-public abstract class QualifiedStatement extends CQLStatement.Raw
+public abstract class QualifiedStatement<R extends CQLStatement.SingleKeyspaceCqlStatement> extends RawKeyspaceAwareStatement<R>
 {
     final QualifiedName qualifiedName;
 
@@ -72,7 +72,7 @@ public abstract class QualifiedStatement extends CQLStatement.Raw
     {
         return qualifiedName.getName();
     }
-    
+
     @Override
     public String toString()
     {

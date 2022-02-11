@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -137,6 +138,15 @@ public class ResultSet
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public ResultSet withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+    {
+        if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+            return this;
+
+        ResultMetadata newMetadata = metadata.withOverriddenKeyspace(keyspaceMapper);
+        return metadata == newMetadata ? this : new ResultSet(newMetadata, rows);
     }
 
     public static class Codec implements CBCodec<ResultSet>
@@ -366,6 +376,23 @@ public class ResultSet
             return sb.toString();
         }
 
+        public ResultMetadata withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+        {
+            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+                return this;
+
+            boolean changed = false;
+            List<ColumnSpecification> newNames = new ArrayList<>(names.size());
+            for (ColumnSpecification cs : names)
+            {
+                ColumnSpecification newColumnSpecification = cs.withOverriddenKeyspace(keyspaceMapper);
+                newNames.add(newColumnSpecification);
+                if (newColumnSpecification != cs)
+                    changed = true;
+            }
+            return changed ? new ResultMetadata(resultMetadataId, EnumSet.copyOf(flags), newNames, columnCount, pagingState) : this;
+        }
+
         private static class Codec implements CBCodec<ResultMetadata>
         {
             public ResultMetadata decode(ByteBuf body, ProtocolVersion version)
@@ -576,6 +603,23 @@ public class ResultSet
         public static PreparedMetadata fromPrepared(CQLStatement statement)
         {
             return new PreparedMetadata(statement.getBindVariables(), statement.getPartitionKeyBindVariableIndexes());
+        }
+
+        public PreparedMetadata withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+        {
+            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+                return this;
+
+            boolean changed = false;
+            List<ColumnSpecification> newNames = new ArrayList<>(names.size());
+            for (ColumnSpecification cs : names)
+            {
+                ColumnSpecification newColumnSpecification = cs.withOverriddenKeyspace(keyspaceMapper);
+                newNames.add(newColumnSpecification);
+                if (newColumnSpecification != cs)
+                    changed = true;
+            }
+            return changed ? new PreparedMetadata(EnumSet.copyOf(flags), newNames, Arrays.copyOf(partitionKeyBindIndexes, partitionKeyBindIndexes.length)) : this;
         }
 
         private static class Codec implements CBCodec<PreparedMetadata>
