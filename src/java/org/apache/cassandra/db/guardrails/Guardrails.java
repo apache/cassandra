@@ -138,7 +138,7 @@ public final class Guardrails implements GuardrailsMBean
                                      "partition keys %s exceeds warning threshold of %s.",
                                      what, value, threshold)
                             : format("Aborting query with partition keys in IN clause on table %s, " +
-                                     "number of partition keys %s exceeds abort threshold of %s.",
+                                     "number of partition keys %s exceeds fail threshold of %s.",
                                      what, value, threshold));
 
     /**
