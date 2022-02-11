@@ -63,6 +63,9 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.net.ConsistencyLevelStartupConnectivityChecker;
+import org.apache.cassandra.net.StartupConnectivityChecker;
+import org.apache.cassandra.net.StrictStartupConnectivityChecker;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -75,11 +78,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
+import static org.apache.cassandra.net.ConsistencyLevelStartupConnectivityChecker.DEFAULT_CONSISTENCY_LEVEL;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
@@ -144,6 +147,8 @@ public class DatabaseDescriptor
     private static boolean clientInitialized;
     private static boolean toolInitialized;
     private static boolean daemonInitialized;
+
+    private static StartupConnectivityChecker startupConnectivityChecker;
 
     private static final int searchConcurrencyFactor = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "search_concurrency_factor", "1"));
 
@@ -369,6 +374,8 @@ public class DatabaseDescriptor
         applySslContext();
 
         applyGuardrails();
+
+        applyStartupConnectivityChecker();
     }
 
     private static void applySimpleConfig()
@@ -1046,6 +1053,52 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Failed to initialize SSL", e);
         }
+    }
+
+    public static void applyStartupConnectivityChecker()
+    {
+        applyStartupConnectivityChecker(conf);
+    }
+
+    @VisibleForTesting
+    static void applyStartupConnectivityChecker(Config conf)
+    {
+        StartupConnectivityChecker startupConnectivityChecker;
+
+        /* Startup cluster connectivity checker backend, implementing StartupClusterConnectivityChecker */
+        if (conf.startup_connectivity_checker != null)
+        {
+            // A ConfigurationException is thrown if the class is not found
+            startupConnectivityChecker = FBUtilities.newStartupConnectivityChecker(conf.startup_connectivity_checker);
+        }
+        else
+        {
+            startupConnectivityChecker = new StrictStartupConnectivityChecker();
+        }
+
+        // the configuration option block_for_peers_in_remote_dcs is only guaranteed
+        // to work with StrictStartupClusterConnectivityChecker, so log a message if
+        // some other startup cluster connectivity checker is in use and the non-default
+        // value is detected
+        if (!(startupConnectivityChecker instanceof StrictStartupConnectivityChecker)
+            && conf.block_for_peers_in_remote_dcs)
+        {
+            logger.info("Configuration option block_for_peers_in_remote_dcs={} is not applicable for the configured startup cluster connectivity checker ({})",
+                        conf.block_for_peers_in_remote_dcs, startupConnectivityChecker.getClass().getName());
+        }
+
+        // the configuration option block_for_peers_consistency_level is only guaranteed
+        // to work with ConsistencyLevelStartupClusterConnectivityChecker, so log a message
+        // if some other startup cluster connectivity checker is in use and the non-default
+        // value is detected
+        if (!(startupConnectivityChecker instanceof ConsistencyLevelStartupConnectivityChecker)
+            && !DEFAULT_CONSISTENCY_LEVEL.equals(conf.block_for_peers_consistency_level))
+        {
+            logger.info("Configuration option block_for_peers_consistency_level={} is not applicable for the configured startup cluster connectivity checker ({})",
+                        conf.block_for_peers_consistency_level, startupConnectivityChecker.getClass().getName());
+        }
+
+        DatabaseDescriptor.setStartupConnectivityChecker(startupConnectivityChecker);
     }
 
     public static void applySeedProvider()
@@ -3321,7 +3374,12 @@ public class DatabaseDescriptor
 
     public static int getBlockForPeersTimeoutInSeconds()
     {
-        return conf.block_for_peers_timeout_in_secs;
+        return conf.block_for_peers_timeout.toSecondsAsInt();
+    }
+
+    public static ConsistencyLevel getBlockForPeersConsistencyLevel()
+    {
+        return ConsistencyLevel.valueOf(conf.block_for_peers_consistency_level);
     }
 
     public static boolean automaticSSTableUpgrade()
@@ -3867,5 +3925,15 @@ public class DatabaseDescriptor
             logger.info("Setting force_new_prepared_statement_behaviour to {}", value);
             conf.force_new_prepared_statement_behaviour = value;
         }
+    }
+
+    public static StartupConnectivityChecker getStartupConnectivityChecker()
+    {
+        return startupConnectivityChecker;
+    }
+
+    public static void setStartupConnectivityChecker(StartupConnectivityChecker startupConnectivityChecker)
+    {
+        DatabaseDescriptor.startupConnectivityChecker = startupConnectivityChecker;
     }
 }

@@ -149,6 +149,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.fql.FullQueryLoggerOptions",
     "org.apache.cassandra.gms.IFailureDetector",
     "org.apache.cassandra.locator.IEndpointSnitch",
+    "org.apache.cassandra.net.StartupConnectivityChecker",
     "org.apache.cassandra.io.FSWriteError",
     "org.apache.cassandra.io.FSError",
     "org.apache.cassandra.io.compress.ICompressor",

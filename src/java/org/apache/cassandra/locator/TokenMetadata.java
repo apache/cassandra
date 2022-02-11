@@ -1375,6 +1375,21 @@ public class TokenMetadata
         }
     }
 
+    public Map<Token, InetAddressAndPort> getNormalTokenToEndpointMap()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Map<Token, InetAddressAndPort> map = new HashMap<>(tokenToEndpointMap.size());
+            map.putAll(tokenToEndpointMap);
+            return map;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     /**
      * @return a (stable copy, won't be modified) datacenter to Endpoint map for all the nodes in the cluster.
      */
