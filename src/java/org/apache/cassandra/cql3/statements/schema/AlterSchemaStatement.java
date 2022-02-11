@@ -26,6 +26,8 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
+import org.apache.cassandra.cql3.statements.SingleKeyspaceStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -34,7 +36,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformation
+public abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformation, SingleKeyspaceStatement
 {
     private final String rawCQLStatement;
     protected final String keyspaceName; // name of the keyspace affected by the statement
@@ -128,6 +130,12 @@ abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformatio
         return new ResultMessage.SchemaChange(schemaChangeEvent(result.diff));
     }
 
+    @Override
+    public String keyspace()
+    {
+        return keyspaceName;
+    }
+
     private void validateKeyspaceName()
     {
         if (!SchemaConstants.isValidName(keyspaceName))
@@ -157,5 +165,9 @@ abstract class AlterSchemaStatement implements CQLStatement, SchemaTransformatio
     static InvalidRequestException ire(String format, Object... args)
     {
         return new InvalidRequestException(String.format(format, args));
+    }
+
+    public static abstract class Raw<R extends AlterSchemaStatement> extends RawKeyspaceAwareStatement<R>
+    {
     }
 }

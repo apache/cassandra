@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.UnaryOperator;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -91,7 +92,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
  * QueryHandler implementations, so before reducing their accessibility
  * due consideration should be given.
  */
-public class SelectStatement implements CQLStatement
+public class SelectStatement implements CQLStatement, SingleKeyspaceStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
 
@@ -525,6 +526,7 @@ public class SelectStatement implements CQLStatement
         return process(partitions, options, selectors, nowInSec, getLimit(options));
     }
 
+    @Override
     public String keyspace()
     {
         return table.keyspace;
@@ -965,7 +967,7 @@ public class SelectStatement implements CQLStatement
         Collections.sort(cqlRows.rows, orderingComparator);
     }
 
-    public static class RawStatement extends QualifiedStatement
+    public static class RawStatement extends QualifiedStatement<SelectStatement>
     {
         public final Parameters parameters;
         public final List<RawSelector> selectClause;
@@ -988,14 +990,17 @@ public class SelectStatement implements CQLStatement
             this.perPartitionLimit = perPartitionLimit;
         }
 
-        public SelectStatement prepare(ClientState state)
+        @Override
+        public SelectStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            return prepare(false);
+            setKeyspace(state);
+            return prepare(false, keyspaceMapper);
         }
 
-        public SelectStatement prepare(boolean forView) throws InvalidRequestException
+        public SelectStatement prepare(boolean forView, UnaryOperator<String> keyspaceMapper) throws InvalidRequestException
         {
-            TableMetadata table = SchemaManager.instance.validateTable(keyspace(), name());
+            String ks = keyspaceMapper.apply(keyspace());
+            TableMetadata table = SchemaManager.instance.validateTable(ks, name());
 
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
@@ -1054,8 +1059,8 @@ public class SelectStatement implements CQLStatement
                                        isReversed,
                                        aggregationSpec,
                                        orderingComparator,
-                                       prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
-                                       prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
+                                       prepareLimit(bindVariables, limit, ks, limitReceiver()),
+                                       prepareLimit(bindVariables, perPartitionLimit, ks, perPartitionLimitReceiver()));
         }
 
         private Selection prepareSelection(TableMetadata table,
@@ -1434,7 +1439,7 @@ public class SelectStatement implements CQLStatement
             return 0;
         }
     }
-    
+
     @Override
     public String toString()
     {

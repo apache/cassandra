@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -542,6 +543,8 @@ public interface CQL3Type
             return null;
         }
 
+        public abstract void forEachUserType(Consumer<UTName> userTypeNameConsumer);
+
         public Raw freeze()
         {
             String message = String.format("frozen<> is only allowed on collections, tuples, and user-defined types (got %s)", this);
@@ -626,6 +629,12 @@ public interface CQL3Type
             public boolean isDuration()
             {
                 return type == Native.DURATION;
+            }
+
+            @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                // no-op
             }
 
             @Override
@@ -739,6 +748,15 @@ public interface CQL3Type
             }
 
             @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                if (keys != null)
+                    keys.forEachUserType(userTypeNameConsumer);
+                if (values != null)
+                    values.forEachUserType(userTypeNameConsumer);
+            }
+
+            @Override
             public String toString()
             {
                 String start = frozen? "frozen<" : "";
@@ -766,6 +784,12 @@ public interface CQL3Type
             public String keyspace()
             {
                 return name.getKeyspace();
+            }
+
+            @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                userTypeNameConsumer.accept(name);
             }
 
             @Override
@@ -868,6 +892,12 @@ public interface CQL3Type
             public boolean referencesUserType(String name)
             {
                 return types.stream().anyMatch(t -> t.referencesUserType(name));
+            }
+
+            @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                types.forEach(t -> t.forEachUserType(userTypeNameConsumer));
             }
 
             @Override

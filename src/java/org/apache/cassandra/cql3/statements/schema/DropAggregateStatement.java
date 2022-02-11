@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.audit.AuditLogContext;
@@ -27,10 +28,11 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -153,7 +155,7 @@ public final class DropAggregateStatement extends AlterSchemaStatement
                         .collect(toList());
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<DropAggregateStatement>
     {
         private final FunctionName name;
         private final List<CQL3Type.Raw> arguments;
@@ -171,9 +173,12 @@ public final class DropAggregateStatement extends AlterSchemaStatement
             this.ifExists = ifExists;
         }
 
-        public DropAggregateStatement prepare(ClientState state)
+        @Override
+        public DropAggregateStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            String keyspaceName = name.hasKeyspace() ? name.keyspace : state.getKeyspace();
+            String keyspaceName = keyspaceMapper.apply(name.hasKeyspace() ? name.keyspace : state.getKeyspace());
+            if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
+                arguments.forEach(t -> t.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper)));
             return new DropAggregateStatement(rawCQLStatement, keyspaceName, name.name,
                                               arguments, argumentsSpecified, ifExists);
         }

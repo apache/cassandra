@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
+import java.util.function.UnaryOperator;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -31,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.MapType;
@@ -298,7 +300,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, indexName);
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<CreateIndexStatement>
     {
         private final QualifiedName tableName;
         private final QualifiedName indexName;
@@ -319,7 +321,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             this.ifNotExists = ifNotExists;
         }
 
-        public CreateIndexStatement prepare(ClientState state)
+        @Override
+        public CreateIndexStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
             String keyspaceName = tableName.hasKeyspace()
                                 ? tableName.getKeyspace()
@@ -331,7 +334,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             if (indexName.hasKeyspace() && !keyspaceName.equals(indexName.getKeyspace()))
                 throw ire("Keyspace name '%s' doesn't match index name '%s'", keyspaceName, tableName);
 
-            return new CreateIndexStatement(rawCQLStatement, keyspaceName, tableName.getName(),
+            return new CreateIndexStatement(rawCQLStatement, keyspaceMapper.apply(keyspaceName), tableName.getName(),
                                             indexName.getName(), rawIndexTargets, attrs, ifNotExists);
         }
     }
