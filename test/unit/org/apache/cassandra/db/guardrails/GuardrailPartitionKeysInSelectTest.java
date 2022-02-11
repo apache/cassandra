@@ -24,7 +24,7 @@ import org.junit.Test;
 public class GuardrailPartitionKeysInSelectTest extends ThresholdTester
 {
     private static final int PARTITION_KEYS_SELECT_WARN_THRESHOLD = 3;
-    private static final int PARTITION_KEYS_SELECT_ABORT_THRESHOLD = 5;
+    private static final int PARTITION_KEYS_SELECT_FAIL_THRESHOLD = 5;
     private String tableName;
 
     public GuardrailPartitionKeysInSelectTest()
