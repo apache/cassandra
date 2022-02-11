@@ -50,13 +50,14 @@ public final class DropFunctionStatement extends AlterSchemaStatement
     private final boolean argumentsSpeficied;
     private final boolean ifExists;
 
-    public DropFunctionStatement(String keyspaceName,
+    public DropFunctionStatement(String queryString,
+                                 String keyspaceName,
                                  String functionName,
                                  Collection<CQL3Type.Raw> arguments,
                                  boolean argumentsSpeficied,
                                  boolean ifExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.functionName = functionName;
         this.arguments = arguments;
         this.argumentsSpeficied = argumentsSpeficied;
@@ -181,7 +182,8 @@ public final class DropFunctionStatement extends AlterSchemaStatement
         public DropFunctionStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.keyspace : state.getKeyspace();
-            return new DropFunctionStatement(keyspaceName, name.name, arguments, argumentsSpecified, ifExists);
+            return new DropFunctionStatement(rawCQLStatement, keyspaceName, name.name, arguments,
+                                             argumentsSpecified, ifExists);
         }
     }
 }

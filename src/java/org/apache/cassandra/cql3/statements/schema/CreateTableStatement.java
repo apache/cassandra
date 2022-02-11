@@ -66,7 +66,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private final boolean useCompactStorage;
 
-    public CreateTableStatement(String keyspaceName,
+    public CreateTableStatement(String queryString,
+                                String keyspaceName,
                                 String tableName,
 
                                 Map<ColumnIdentifier, CQL3Type.Raw> rawColumns,
@@ -80,7 +81,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                 boolean ifNotExists,
                                 boolean useCompactStorage)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
 
         this.rawColumns = rawColumns;
@@ -531,7 +532,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
             if (null == partitionKeyColumns)
                 throw ire("No PRIMARY KEY specifed for table '%s' (exactly one required)", name);
 
-            return new CreateTableStatement(keyspaceName,
+            return new CreateTableStatement(rawCQLStatement,
+                                            keyspaceName,
                                             name.getName(),
 
                                             rawColumns,

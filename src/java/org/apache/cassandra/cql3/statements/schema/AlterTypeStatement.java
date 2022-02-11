@@ -52,9 +52,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 {
     protected final String typeName;
 
-    public AlterTypeStatement(String keyspaceName, String typeName)
+    public AlterTypeStatement(String queryString, String keyspaceName, String typeName)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.typeName = typeName;
     }
 
@@ -101,9 +101,10 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private final CQL3Type.Raw type;
         private QueryState state;
 
-        private AddField(String keyspaceName, String typeName, FieldIdentifier fieldName, CQL3Type.Raw type)
+        private AddField(String queryString, String keyspaceName, String typeName,
+                         FieldIdentifier fieldName, CQL3Type.Raw type)
         {
-            super(keyspaceName, typeName);
+            super(queryString, keyspaceName, typeName);
             this.fieldName = fieldName;
             this.type = type;
         }
@@ -157,9 +158,10 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
     {
         private final Map<FieldIdentifier, FieldIdentifier> renamedFields;
 
-        private RenameFields(String keyspaceName, String typeName, Map<FieldIdentifier, FieldIdentifier> renamedFields)
+        private RenameFields(String queryString, String keyspaceName, String typeName,
+                             Map<FieldIdentifier, FieldIdentifier> renamedFields)
         {
-            super(keyspaceName, typeName);
+            super(queryString, keyspaceName, typeName);
             this.renamedFields = renamedFields;
         }
 
@@ -201,9 +203,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
     private static final class AlterField extends AlterTypeStatement
     {
-        private AlterField(String keyspaceName, String typeName)
+        private AlterField(String queryString, String keyspaceName, String typeName)
         {
-            super(keyspaceName, typeName);
+            super(queryString, keyspaceName, typeName);
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
@@ -242,9 +244,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case     ADD_FIELD: return new AddField(keyspaceName, typeName, newFieldName, newFieldType);
-                case RENAME_FIELDS: return new RenameFields(keyspaceName, typeName, renamedFields);
-                case   ALTER_FIELD: return new AlterField(keyspaceName, typeName);
+                case     ADD_FIELD: return new AddField(rawCQLStatement, keyspaceName, typeName, newFieldName, newFieldType);
+                case RENAME_FIELDS: return new RenameFields(rawCQLStatement, keyspaceName, typeName, renamedFields);
+                case   ALTER_FIELD: return new AlterField(rawCQLStatement, keyspaceName, typeName);
             }
 
             throw new AssertionError();

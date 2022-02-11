@@ -34,9 +34,10 @@ public final class DropViewStatement extends AlterSchemaStatement
     private final String viewName;
     private final boolean ifExists;
 
-    public DropViewStatement(String keyspaceName, String viewName, boolean ifExists)
+    public DropViewStatement(String queryString, String keyspaceName, String viewName,
+                             boolean ifExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.viewName = viewName;
         this.ifExists = ifExists;
     }
@@ -97,7 +98,7 @@ public final class DropViewStatement extends AlterSchemaStatement
         public DropViewStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new DropViewStatement(keyspaceName, name.getName(), ifExists);
+            return new DropViewStatement(rawCQLStatement, keyspaceName, name.getName(), ifExists);
         }
     }
 }

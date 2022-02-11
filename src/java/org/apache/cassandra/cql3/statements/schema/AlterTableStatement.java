@@ -77,9 +77,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     protected final String tableName;
 
-    public AlterTableStatement(String keyspaceName, String tableName)
+    public AlterTableStatement(String queryString, String keyspaceName, String tableName)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
     }
 
@@ -135,9 +135,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
      */
     public static class AlterColumn extends AlterTableStatement
     {
-        AlterColumn(String keyspaceName, String tableName)
+        AlterColumn(String queryString, String keyspaceName, String tableName)
         {
-            super(keyspaceName, tableName);
+            super(queryString, keyspaceName, tableName);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
@@ -179,9 +179,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.queryState = state;
         }
 
-        private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns)
+        private AddColumns(String queryString, String keyspaceName, String tableName, Collection<Column> newColumns)
         {
-            super(keyspaceName, tableName);
+            super(queryString, keyspaceName, tableName);
             this.newColumns = newColumns;
         }
 
@@ -273,9 +273,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private final Set<ColumnIdentifier> removedColumns;
         private final Long timestamp;
 
-        private DropColumns(String keyspaceName, String tableName, Set<ColumnIdentifier> removedColumns, Long timestamp)
+        private DropColumns(String queryString, String keyspaceName, String tableName, Set<ColumnIdentifier> removedColumns, Long timestamp)
         {
-            super(keyspaceName, tableName);
+            super(queryString, keyspaceName, tableName);
             this.removedColumns = removedColumns;
             this.timestamp = timestamp;
         }
@@ -336,9 +336,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private final Map<ColumnIdentifier, ColumnIdentifier> renamedColumns;
 
-        private RenameColumns(String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns)
+        private RenameColumns(String queryString, String keyspaceName, String tableName, Map<ColumnIdentifier, ColumnIdentifier> renamedColumns)
         {
-            super(keyspaceName, tableName);
+            super(queryString, keyspaceName, tableName);
             this.renamedColumns = renamedColumns;
         }
 
@@ -402,9 +402,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private final TableAttributes attrs;
 
-        private AlterOptions(String keyspaceName, String tableName, TableAttributes attrs)
+        private AlterOptions(String queryString, String keyspaceName, String tableName, TableAttributes attrs)
         {
-            super(keyspaceName, tableName);
+            super(queryString, keyspaceName, tableName);
             this.attrs = attrs;
         }
 
@@ -457,9 +457,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         private static final Logger logger = LoggerFactory.getLogger(AlterTableStatement.class);
         private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
-        private DropCompactStorage(String keyspaceName, String tableName)
+        private DropCompactStorage(String queryString, String keyspaceName, String tableName)
         {
-            super(keyspaceName, tableName);
+            super(queryString, keyspaceName, tableName);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
@@ -585,12 +585,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case          ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName);
-                case           ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns);
-                case          DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, dropTimestamp);
-                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns);
-                case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs);
-                case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName);
+                case          ALTER_COLUMN: return new AlterColumn(rawCQLStatement, keyspaceName, tableName);
+                case           ADD_COLUMNS: return new AddColumns(rawCQLStatement, keyspaceName, tableName, addedColumns);
+                case          DROP_COLUMNS: return new DropColumns(rawCQLStatement, keyspaceName, tableName, droppedColumns, dropTimestamp);
+                case        RENAME_COLUMNS: return new RenameColumns(rawCQLStatement, keyspaceName, tableName, renamedColumns);
+                case         ALTER_OPTIONS: return new AlterOptions(rawCQLStatement, keyspaceName, tableName, attrs);
+                case  DROP_COMPACT_STORAGE: return new DropCompactStorage(rawCQLStatement, keyspaceName, tableName);
             }
 
             throw new AssertionError();

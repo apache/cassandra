@@ -29,6 +29,14 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public interface CQLStatement
 {
     /**
+     * The query string that produced that statement, if available.
+     *
+     * @return the raw query string that produced that statement, or {@code null} if said string is not available
+     * (typically because the statement has not be built from a string). Note that said string may contain bind markers.
+     */
+    public String getRawCQLStatement();
+
+    /**
      * Returns all bind variables for the statement
      */
     default List<ColumnSpecification> getBindVariables()
@@ -101,7 +109,18 @@ public interface CQLStatement
 
     public static abstract class Raw
     {
+        protected String rawCQLStatement;
         protected VariableSpecifications bindVariables;
+
+        public void setRawCQLStatement(String queryString)
+        {
+            this.rawCQLStatement = queryString;
+        }
+
+        public String getRawCQLStatement()
+        {
+            return rawCQLStatement;
+        }
 
         public void setBindVariables(List<ColumnIdentifier> variables)
         {

@@ -36,9 +36,10 @@ public final class DropIndexStatement extends AlterSchemaStatement
     private final String indexName;
     private final boolean ifExists;
 
-    public DropIndexStatement(String keyspaceName, String indexName, boolean ifExists)
+    public DropIndexStatement(String queryString, String keyspaceName, String indexName,
+                              boolean ifExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.indexName = indexName;
         this.ifExists = ifExists;
     }
@@ -109,7 +110,7 @@ public final class DropIndexStatement extends AlterSchemaStatement
         public DropIndexStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new DropIndexStatement(keyspaceName, name.getName(), ifExists);
+            return new DropIndexStatement(rawCQLStatement, keyspaceName, name.getName(), ifExists);
         }
     }
 }

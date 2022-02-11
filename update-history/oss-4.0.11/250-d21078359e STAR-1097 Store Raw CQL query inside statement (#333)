@@ -1,0 +1,17 @@
+--- a/src/java/org/apache/cassandra/cql3/QueryProcessor.java
++++ b/src/java/org/apache/cassandra/cql3/QueryProcessor.java
+@@ -678,14 +678,8 @@
+         if (existing == null)
+             return null;
+ 
+-<<<<<<<
+-        checkTrue(queryString.equals(existing.rawCQLStatement),
+-                  "MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'",
+-                  existing.rawCQLStatement);
+-=======
+         checkTrue(queryString.equals(existing.statement.getRawCQLStatement()),
+                 String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.statement.getRawCQLStatement()));
+->>>>>>>
+ 
+         return createResultMessage(statementId, existing);
+     }

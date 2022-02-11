@@ -308,7 +308,7 @@ public class UFIdentificationTest extends CQLTester
         statements.add(modificationStatement(cql("INSERT INTO %s (key, i_cc, t_cc) VALUES (2, 2, %s)",
                                                  functionCall(tFunc, "'foo'"))));
 
-        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
+        BatchStatement batch = new BatchStatement(null, BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertFunctions(batch, iFunc, iFunc2, tFunc);
     }
 
@@ -321,7 +321,7 @@ public class UFIdentificationTest extends CQLTester
         statements.add(modificationStatement(cql("UPDATE %s SET i_val = %s WHERE key=0 AND i_cc=1 and t_cc='foo' IF s_val = %s",
                                                  functionCall(iFunc, "0"), functionCall(sFunc, "{1}"))));
 
-        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
+        BatchStatement batch = new BatchStatement(null, BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertFunctions(batch, iFunc, lFunc, sFunc);
     }
 

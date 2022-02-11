@@ -151,7 +151,7 @@ public class CustomNowInSecondsTest extends CQLTester
             statements.add((ModificationStatement) QueryProcessor.parseStatement(query, cs));
 
         BatchStatement batch =
-            new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), statements, Attributes.none());
+            new BatchStatement(null, BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), statements, Attributes.none());
 
         // execute an BATCH message with now set to [now + 1 day], with ttl = 1, making its effective ttl = 1 day + 1.
         QueryProcessor.instance.processBatch(batch, qs, batchQueryOptions(now + day), Collections.emptyMap(), System.nanoTime());

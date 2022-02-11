@@ -39,7 +39,6 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -69,9 +68,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 
@@ -88,6 +85,7 @@ public class BatchStatement implements CQLStatement
         LOGGED, UNLOGGED, COUNTER
     }
 
+    private final String rawCQLStatement;
     public final Type type;
     private final VariableSpecifications bindVariables;
     private final List<ModificationStatement> statements;
@@ -120,8 +118,10 @@ public class BatchStatement implements CQLStatement
      * @param statements the list of statements in the batch
      * @param attrs      additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public BatchStatement(Type type, VariableSpecifications bindVariables, List<ModificationStatement> statements, Attributes attrs)
+    public BatchStatement(String queryString, Type type, VariableSpecifications bindVariables,
+                          List<ModificationStatement> statements, Attributes attrs)
     {
+        this.rawCQLStatement = queryString;
         this.type = type;
         this.bindVariables = bindVariables;
         this.statements = statements;
@@ -153,6 +153,12 @@ public class BatchStatement implements CQLStatement
         this.updatesStaticRow = updateStatic;
         this.hasConditions = hasConditions;
         this.updatesVirtualTables = updatesVirtualTables;
+    }
+
+    @Override
+    public String getRawCQLStatement()
+    {
+        return rawCQLStatement;
     }
 
     @Override
@@ -660,7 +666,7 @@ public class BatchStatement implements CQLStatement
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
             prepAttrs.collectMarkerSpecification(bindVariables);
 
-            BatchStatement batchStatement = new BatchStatement(type, bindVariables, statements, prepAttrs);
+            BatchStatement batchStatement = new BatchStatement(rawCQLStatement, type, bindVariables, statements, prepAttrs);
             batchStatement.validate();
 
             return batchStatement;

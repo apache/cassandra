@@ -43,14 +43,15 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
  */
 public class DeleteStatement extends ModificationStatement
 {
-    private DeleteStatement(VariableSpecifications bindVariables,
+    private DeleteStatement(String queryString,
+                            VariableSpecifications bindVariables,
                             TableMetadata cfm,
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
                             Attributes attrs)
     {
-        super(StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs);
+        super(queryString, StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs);
     }
 
     @Override
@@ -168,7 +169,8 @@ public class DeleteStatement extends ModificationStatement
                                                                  whereClause,
                                                                  conditions);
 
-            DeleteStatement stmt = new DeleteStatement(bindVariables,
+            DeleteStatement stmt = new DeleteStatement(rawCQLStatement,
+                                                       bindVariables,
                                                        metadata,
                                                        operations,
                                                        restrictions,
