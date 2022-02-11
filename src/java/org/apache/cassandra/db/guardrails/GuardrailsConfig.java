@@ -204,4 +204,14 @@ public interface GuardrailsConfig
      * @return The threshold to prevent collections with more elements than threshold.
      */
     int getItemsPerCollectionFailThreshold();
+
+    /**
+     * @return The threshold to warn when creating a UDT with more fields than threshold.
+     */
+    int getFieldsPerUDTWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a UDT with more fields than threshold.
+     */
+    int getFieldsPerUDTFailThreshold();
 }

@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.UTName;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -59,6 +60,14 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         this.fieldNames = fieldNames;
         this.rawFieldTypes = rawFieldTypes;
         this.ifNotExists = ifNotExists;
+    }
+
+    @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        Guardrails.fieldsPerUDT.guard(fieldNames.size(), typeName, false, state);
     }
 
     public Keyspaces apply(Keyspaces schema)

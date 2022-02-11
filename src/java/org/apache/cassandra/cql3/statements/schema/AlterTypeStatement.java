@@ -27,6 +27,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -98,11 +99,22 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private final FieldIdentifier fieldName;
         private final CQL3Type.Raw type;
 
+        private ClientState state;
+
         private AddField(String keyspaceName, String typeName, FieldIdentifier fieldName, CQL3Type.Raw type)
         {
             super(keyspaceName, typeName);
             this.fieldName = fieldName;
             this.type = type;
+        }
+
+        @Override
+        public void validate(ClientState state)
+        {
+            super.validate(state);
+
+            // save the query state to use it for guardrails validation in #apply
+            this.state = state;
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
@@ -121,6 +133,8 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
                           fieldName, type, userType.getCqlTypeName(),
                           String.join(", ", transform(tablesWithTypeInPartitionKey, TableMetadata::toString)));
             }
+
+            Guardrails.fieldsPerUDT.guard(userType.size() + 1, userType.getNameAsString(), false, state);
 
             List<FieldIdentifier> fieldNames = new ArrayList<>(userType.fieldNames()); fieldNames.add(fieldName);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(userType.fieldTypes()); fieldTypes.add(fieldType);

@@ -226,6 +226,19 @@ public final class Guardrails implements GuardrailsMBean
                             : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
                                      what, value, threshold));
 
+    /**
+     * Guardrail on the number of fields on each UDT.
+     */
+    public static final Threshold fieldsPerUDT =
+    new Threshold("fields_per_udt",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("The user type %s has %s columns, this exceeds the warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("User types cannot have more than %s columns, but %s provided for user type %s.",
+                                     threshold, value, what));
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -638,6 +651,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels)
     {
         DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public int getFieldsPerUDTWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getFieldsPerUDTWarnThreshold();
+    }
+
+    @Override
+    public int getFieldsPerUDTFailThreshold()
+    {
+        return DEFAULT_CONFIG.getFieldsPerUDTFailThreshold();
+    }
+
+    @Override
+    public void setFieldsPerUDTThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setFieldsPerUDTThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

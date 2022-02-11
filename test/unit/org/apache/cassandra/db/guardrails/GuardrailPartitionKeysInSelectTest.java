@@ -67,10 +67,4 @@ public class GuardrailPartitionKeysInSelectTest extends ThresholdTester
         testExcludedUsers(() -> "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5)",
                           () -> "SELECT k, c, v FROM %s WHERE k IN (2, 3, 4, 5, 6, 7)");
     }
-
-    @Override
-    protected long currentValue()
-    {
-        throw new UnsupportedOperationException();
-    }
 }
