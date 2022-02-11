@@ -366,9 +366,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setPartitionKeysInSelectThreshold(int warn, int abort)
+    public void setPartitionKeysInSelectThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, abort);
+        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
     }
 
     @Override
