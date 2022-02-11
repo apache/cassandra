@@ -575,7 +575,7 @@ public class Config
      * is to _not_ wait on remote datacenters.
      */
     @Replaces(oldName = "block_for_peers_timeout_in_secs", converter = Converters.SECONDS_DURATION, deprecated = true)
-    public volatile SmallestDurationSeconds block_for_peers_timeout = new SmallestDurationSeconds("10s");
+    public SmallestDurationSeconds block_for_peers_timeout = new SmallestDurationSeconds("10s");
     public boolean block_for_peers_in_remote_dcs = false;
 
     // Using String instead of ConsistencyLevel here to keep static initialization from cascading and starting
