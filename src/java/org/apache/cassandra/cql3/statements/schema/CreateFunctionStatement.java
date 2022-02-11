@@ -60,7 +60,8 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
     private final boolean orReplace;
     private final boolean ifNotExists;
 
-    public CreateFunctionStatement(String keyspaceName,
+    public CreateFunctionStatement(String queryString,
+                                   String keyspaceName,
                                    String functionName,
                                    List<ColumnIdentifier> argumentNames,
                                    List<CQL3Type.Raw> rawArgumentTypes,
@@ -71,7 +72,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
                                    boolean orReplace,
                                    boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.functionName = functionName;
         this.argumentNames = argumentNames;
         this.rawArgumentTypes = rawArgumentTypes;
@@ -240,7 +241,8 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
         {
             String keyspaceName = name.hasKeyspace() ? name.keyspace : state.getKeyspace();
 
-            return new CreateFunctionStatement(keyspaceName,
+            return new CreateFunctionStatement(rawCQLStatement,
+                                               keyspaceName,
                                                name.name,
                                                argumentNames,
                                                rawArgumentTypes,

@@ -36,9 +36,10 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
     private final String triggerClass;
     private final boolean ifNotExists;
 
-    public CreateTriggerStatement(String keyspaceName, String tableName, String triggerName, String triggerClass, boolean ifNotExists)
+    public CreateTriggerStatement(String queryString, String keyspaceName, String tableName,
+                                  String triggerName, String triggerClass, boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
         this.triggerName = triggerName;
         this.triggerClass = triggerClass;
@@ -119,7 +120,8 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
         public CreateTriggerStatement prepare(ClientState state)
         {
             String keyspaceName = tableName.hasKeyspace() ? tableName.getKeyspace() : state.getKeyspace();
-            return new CreateTriggerStatement(keyspaceName, tableName.getName(), triggerName, triggerClass, ifNotExists);
+            return new CreateTriggerStatement(rawCQLStatement, keyspaceName, tableName.getName(),
+                                              triggerName, triggerClass, ifNotExists);
         }
     }
 }

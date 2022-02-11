@@ -52,13 +52,14 @@ public final class CreateTypeStatement extends AlterSchemaStatement
     private final List<CQL3Type.Raw> rawFieldTypes;
     private final boolean ifNotExists;
 
-    public CreateTypeStatement(String keyspaceName,
+    public CreateTypeStatement(String queryString,
+                               String keyspaceName,
                                String typeName,
                                List<FieldIdentifier> fieldNames,
                                List<CQL3Type.Raw> rawFieldTypes,
                                boolean ifNotExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.typeName = typeName;
         this.fieldNames = fieldNames;
         this.rawFieldTypes = rawFieldTypes;
@@ -184,7 +185,9 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         public CreateTypeStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new CreateTypeStatement(keyspaceName, name.getStringTypeName(), fieldNames, rawFieldTypes, ifNotExists);
+            return new CreateTypeStatement(rawCQLStatement, keyspaceName,
+                                           name.getStringTypeName(), fieldNames,
+                                           rawFieldTypes, ifNotExists);
         }
 
         public void addField(FieldIdentifier name, CQL3Type.Raw type)

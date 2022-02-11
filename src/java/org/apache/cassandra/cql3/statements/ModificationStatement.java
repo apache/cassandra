@@ -86,6 +86,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
+    private final String rawCQLStatement;
+
     protected final StatementType type;
 
     protected final VariableSpecifications bindVariables;
@@ -105,7 +107,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final RegularAndStaticColumns requiresRead;
 
-    public ModificationStatement(StatementType type,
+    public ModificationStatement(String queryString,
+                                 StatementType type,
                                  VariableSpecifications bindVariables,
                                  TableMetadata metadata,
                                  Operations operations,
@@ -113,6 +116,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                  Conditions conditions,
                                  Attributes attrs)
     {
+        this.rawCQLStatement = queryString;
         this.type = type;
         this.bindVariables = bindVariables;
         this.metadata = metadata;
@@ -158,6 +162,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         this.updatedColumns = modifiedColumns;
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
+    }
+
+    @Override
+    public String getRawCQLStatement()
+    {
+        return rawCQLStatement;
     }
 
     @Override

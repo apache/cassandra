@@ -3647,7 +3647,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         List<Pair<String, String>> statements = new ArrayList<>();
         for (Entry<MD5Digest, QueryHandler.Prepared> e : QueryProcessor.instance.getPreparedStatements().entrySet())
-            statements.add(Pair.create(e.getKey().toString(), e.getValue().rawCQLStatement));
+            statements.add(Pair.create(e.getKey().toString(), e.getValue().statement.getRawCQLStatement()));
         return statements;
     }
 

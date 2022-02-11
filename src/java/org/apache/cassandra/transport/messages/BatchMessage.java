@@ -209,7 +209,7 @@ public class BatchMessage extends Message.Request
             {
                 CQLStatement statement = prepared.get(i).statement;
                 if (queries != null)
-                    queries.add(prepared.get(i).rawCQLStatement);
+                    queries.add(statement.getRawCQLStatement());
                 batchOptions.prepareStatement(i, statement.getBindVariables());
 
                 if (!(statement instanceof ModificationStatement))
@@ -220,7 +220,8 @@ public class BatchMessage extends Message.Request
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
+            BatchStatement batch = new BatchStatement(null, batchType,
+                                                      VariableSpecifications.empty(), statements, Attributes.none());
 
             long queryTime = System.currentTimeMillis();
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);

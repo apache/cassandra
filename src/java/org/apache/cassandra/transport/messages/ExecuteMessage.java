@@ -158,7 +158,8 @@ public class ExecuteMessage extends Message.Request
 
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
 
-            QueryEvents.instance.notifyExecuteSuccess(prepared.statement, prepared.rawCQLStatement, options, state, requestStartTime, response);
+            QueryEvents.instance.notifyExecuteSuccess(prepared.statement, options, state,
+                                                      requestStartTime, response);
 
             if (response instanceof ResultMessage.Rows)
             {
@@ -213,7 +214,7 @@ public class ExecuteMessage extends Message.Request
         if (options.getSerialConsistency(state) != null)
             builder.put("serial_consistency_level", options.getSerialConsistency(state).name());
 
-        builder.put("query", prepared.rawCQLStatement);
+        builder.put("query", prepared.statement.getRawCQLStatement());
 
         for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
         {

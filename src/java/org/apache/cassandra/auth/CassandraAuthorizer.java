@@ -178,10 +178,11 @@ public class CassandraAuthorizer implements IAuthorizer
     private void executeLoggedBatch(List<CQLStatement> statements)
     throws RequestExecutionException, RequestValidationException
     {
-        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED,
-                                                  VariableSpecifications.empty(),
-                                                  Lists.newArrayList(Iterables.filter(statements, ModificationStatement.class)),
-                                                  Attributes.none());
+        BatchStatement batch = new BatchStatement(null,
+                BatchStatement.Type.LOGGED,
+                VariableSpecifications.empty(),
+                Lists.newArrayList(Iterables.filter(statements, ModificationStatement.class)),
+                Attributes.none());
         processBatch(batch);
     }
 

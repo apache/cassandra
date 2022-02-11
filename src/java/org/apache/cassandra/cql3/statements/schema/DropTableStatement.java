@@ -39,9 +39,10 @@ public final class DropTableStatement extends AlterSchemaStatement
     private final String tableName;
     private final boolean ifExists;
 
-    public DropTableStatement(String keyspaceName, String tableName, boolean ifExists)
+    public DropTableStatement(String queryString, String keyspaceName, String tableName,
+                              boolean ifExists)
     {
-        super(keyspaceName);
+        super(queryString, keyspaceName);
         this.tableName = tableName;
         this.ifExists = ifExists;
     }
@@ -111,7 +112,7 @@ public final class DropTableStatement extends AlterSchemaStatement
         public DropTableStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new DropTableStatement(keyspaceName, name.getName(), ifExists);
+            return new DropTableStatement(rawCQLStatement, keyspaceName, name.getName(), ifExists);
         }
     }
 }
