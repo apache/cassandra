@@ -247,7 +247,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int pageSize = options.getPageSize();
 
         Selectors selectors = selection.newSelectors(options);
-        ReadQuery query = getQuery(options, ClientState.forInternalCalls(), selectors.getColumnFilter(),
+        ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
                                    nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
         if (options.isTrackWarningsEnabled())
