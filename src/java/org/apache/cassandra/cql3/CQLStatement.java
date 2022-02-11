@@ -130,8 +130,14 @@ public interface CQLStatement
         public abstract CQLStatement prepare(ClientState state);
     }
 
+    /**
+     * A marker for the statements (prepared) which run against an exact keyspace.
+     */
     public static interface SingleKeyspaceCqlStatement extends CQLStatement
     {
+        /**
+         * Returns a keyspace name associated with this statement.
+         */
         public String keyspace();
     }
 }

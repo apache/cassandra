@@ -18,15 +18,18 @@
 package org.apache.cassandra.transport.messages;
 
 
+import java.util.function.UnaryOperator;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.MD5Digest;
 
-public abstract class ResultMessage extends Message.Response
+public abstract class ResultMessage<T extends ResultMessage<T>> extends Message.Response
 {
     public static final Message.Codec<ResultMessage> codec = new Message.Codec<ResultMessage>()
     {
@@ -97,7 +100,12 @@ public abstract class ResultMessage extends Message.Response
         this.kind = kind;
     }
 
-    public static class Void extends ResultMessage
+    public T withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+    {
+        return (T) this;
+    }
+
+    public static class Void extends ResultMessage<Void>
     {
         // Even though we have no specific information here, don't make a
         // singleton since as each message it has in fact a streamid and connection.
@@ -131,7 +139,7 @@ public abstract class ResultMessage extends Message.Response
         }
     }
 
-    public static class SetKeyspace extends ResultMessage
+    public static class SetKeyspace extends ResultMessage<SetKeyspace>
     {
         public final String keyspace;
 
@@ -167,9 +175,27 @@ public abstract class ResultMessage extends Message.Response
         {
             return "RESULT set keyspace " + keyspace;
         }
+
+        @Override
+        public SetKeyspace withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+        {
+            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+                return this;
+
+            String newKeyspaceName = keyspaceMapper.apply(keyspace);
+            if (keyspace.equals(newKeyspaceName))
+                return this;
+
+            SetKeyspace r = new SetKeyspace(newKeyspaceName);
+            r.setWarnings(getWarnings());
+            r.setCustomPayload(getCustomPayload());
+            r.setSource(getSource());
+            r.setStreamId(getStreamId());
+            return r;
+        }
     }
 
-    public static class Rows extends ResultMessage
+    public static class Rows extends ResultMessage<Rows>
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
@@ -206,9 +232,27 @@ public abstract class ResultMessage extends Message.Response
         {
             return "ROWS " + result;
         }
+
+        @Override
+        public Rows withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+        {
+            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+                return this;
+
+            ResultSet newResultSet = result.withOverriddenKeyspace(keyspaceMapper);
+            if (newResultSet == result)
+                return this;
+
+            Rows r = new Rows(newResultSet);
+            r.setWarnings(getWarnings());
+            r.setCustomPayload(getCustomPayload());
+            r.setSource(getSource());
+            r.setStreamId(getStreamId());
+            return r;
+        }
     }
 
-    public static class Prepared extends ResultMessage
+    public static class Prepared extends ResultMessage<Prepared>
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
@@ -284,13 +328,35 @@ public abstract class ResultMessage extends Message.Response
         }
 
         @Override
+        public Prepared withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+        {
+            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+                return this;
+
+            ResultSet.PreparedMetadata newPreparedMetadata = metadata.withOverriddenKeyspace(keyspaceMapper);
+            ResultSet.ResultMetadata newResultSetMetadata = resultMetadata.withOverriddenKeyspace(keyspaceMapper);
+            if (newPreparedMetadata == metadata && newResultSetMetadata == resultMetadata)
+                return this;
+
+            Prepared r = new Prepared(statementId,
+                                      resultMetadataId,
+                                      newPreparedMetadata,
+                                      newResultSetMetadata);
+            r.setWarnings(getWarnings());
+            r.setCustomPayload(getCustomPayload());
+            r.setSource(getSource());
+            r.setStreamId(getStreamId());
+            return r;
+        }
+
+        @Override
         public String toString()
         {
             return "RESULT PREPARED " + statementId + " " + metadata + " (resultMetadata=" + resultMetadata + ")";
         }
     }
 
-    public static class SchemaChange extends ResultMessage
+    public static class SchemaChange extends ResultMessage<SchemaChange>
     {
         public final Event.SchemaChange change;
 
@@ -321,6 +387,24 @@ public abstract class ResultMessage extends Message.Response
                 return scm.change.eventSerializedSize(version);
             }
         };
+
+        @Override
+        public SchemaChange withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
+        {
+            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+                return this;
+
+            Event.SchemaChange newEvent = change.withOverriddenKeyspace(keyspaceMapper);
+            if (change == newEvent)
+                return this;
+
+            SchemaChange r = new SchemaChange(newEvent);
+            r.setWarnings(getWarnings());
+            r.setCustomPayload(getCustomPayload());
+            r.setSource(getSource());
+            r.setStreamId(getStreamId());
+            return r;
+        }
 
         @Override
         public String toString()

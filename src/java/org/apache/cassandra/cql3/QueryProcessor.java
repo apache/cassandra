@@ -775,10 +775,6 @@ public class QueryProcessor implements QueryHandler
         Tracing.trace("Parsing {}", queryStr);
         CQLStatement.Raw statement = parseStatement(queryStr);
 
-        // Set keyspace for statement that require login
-        if (statement instanceof QualifiedStatement)
-            ((QualifiedStatement) statement).setKeyspace(clientState);
-
         Tracing.trace("Preparing statement");
         return statement.prepare(clientState);
     }

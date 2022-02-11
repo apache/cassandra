@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
@@ -434,8 +435,8 @@ public class BatchStatement implements CQLStatement
 
         if (updatesVirtualTables)
             executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
-        else    
-            executeWithoutConditions(getMutations(queryState, options, false, timestamp, nowInSeconds, queryStartNanoTime), 
+        else
+            executeWithoutConditions(getMutations(queryState, options, false, timestamp, nowInSeconds, queryStartNanoTime),
                                      queryState, cl, queryStartNanoTime);
 
         return new ResultMessage.Void();
@@ -620,7 +621,7 @@ public class BatchStatement implements CQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends QualifiedStatement
+    public static class Parsed extends RawKeyspaceAwareStatement<BatchStatement>
     {
         private final Type type;
         private final Attributes.Raw attrs;
@@ -628,40 +629,24 @@ public class BatchStatement implements CQLStatement
 
         public Parsed(Type type, Attributes.Raw attrs, List<ModificationStatement.Parsed> parsedStatements)
         {
-            super(null);
             this.type = type;
             this.attrs = attrs;
             this.parsedStatements = parsedStatements;
         }
 
-        // Not doing this in the constructor since we only need this for prepared statements
-        @Override
-        public boolean isFullyQualified()
-        {
-            for (ModificationStatement.Parsed statement : parsedStatements)
-                if (!statement.isFullyQualified())
-                    return false;
-
-            return true;
-        }
-
-        @Override
-        public void setKeyspace(ClientState state) throws InvalidRequestException
+        private void setKeyspace(ClientState state) throws InvalidRequestException
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
                 statement.setKeyspace(state);
         }
 
         @Override
-        public String keyspace()
+        public BatchStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            return null;
-        }
+            setKeyspace(state);
 
-        public BatchStatement prepare(ClientState state)
-        {
             List<ModificationStatement> statements = new ArrayList<>(parsedStatements.size());
-            parsedStatements.forEach(s -> statements.add(s.prepare(bindVariables)));
+            parsedStatements.forEach(s -> statements.add(s.prepare(bindVariables, keyspaceMapper)));
 
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
             prepAttrs.collectMarkerSpecification(bindVariables);

@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.concurrent.TimeoutException;
+import java.util.function.UnaryOperator;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -36,16 +37,21 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class TruncateStatement extends QualifiedStatement implements CQLStatement
+public class TruncateStatement extends QualifiedStatement<TruncateStatement> implements CQLStatement.SingleKeyspaceCqlStatement
 {
     public TruncateStatement(QualifiedName name)
     {
         super(name);
     }
 
-    public TruncateStatement prepare(ClientState state)
+    @Override
+    public TruncateStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
     {
-        return this;
+        setKeyspace(state);
+        String ks = keyspaceMapper.apply(keyspace());
+        if (ks.equals(keyspace()))
+            return this;
+        return new TruncateStatement(new QualifiedName(ks, name()));
     }
 
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
@@ -101,7 +107,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         }
         return null;
     }
-    
+
     @Override
     public String toString()
     {
