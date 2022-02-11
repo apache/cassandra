@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
@@ -32,6 +33,7 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.Functions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -287,7 +289,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         return format("%s(%s)", finalFunctionName, rawStateType);
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<CreateAggregateStatement>
     {
         private final FunctionName aggregateName;
         private final List<CQL3Type.Raw> rawArgumentTypes;
@@ -317,9 +319,15 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             this.ifNotExists = ifNotExists;
         }
 
-        public CreateAggregateStatement prepare(ClientState state)
+        @Override
+        public CreateAggregateStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            String keyspaceName = aggregateName.hasKeyspace() ? aggregateName.keyspace : state.getKeyspace();
+            String keyspaceName = keyspaceMapper.apply(aggregateName.hasKeyspace() ? aggregateName.keyspace : state.getKeyspace());
+            if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
+            {
+                rawArgumentTypes.forEach(t -> t.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper)));
+                rawStateType.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper));
+            }
 
             return new CreateAggregateStatement(rawCQLStatement,
                                                 keyspaceName,

@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.function.UnaryOperator;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -88,7 +90,7 @@ public final class DropTriggerStatement extends AlterSchemaStatement
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, triggerName);
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<DropTriggerStatement>
     {
         private final QualifiedName tableName;
         private final String triggerName;
@@ -101,9 +103,10 @@ public final class DropTriggerStatement extends AlterSchemaStatement
             this.ifExists = ifExists;
         }
 
-        public DropTriggerStatement prepare(ClientState state)
+        @Override
+        public DropTriggerStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            String keyspaceName = tableName.hasKeyspace() ? tableName.getKeyspace() : state.getKeyspace();
+            String keyspaceName = keyspaceMapper.apply(tableName.hasKeyspace() ? tableName.getKeyspace() : state.getKeyspace());
             return new DropTriggerStatement(rawCQLStatement, keyspaceName, tableName.getName(),
                                             triggerName, ifExists);
         }

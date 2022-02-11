@@ -29,7 +29,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class UseStatement extends CQLStatement.Raw implements CQLStatement
+public class UseStatement extends CQLStatement.Raw implements CQLStatement.SingleKeyspaceCqlStatement
 {
     private final String keyspace;
 
@@ -65,7 +65,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
         return execute(state, options, System.nanoTime());
     }
-    
+
     @Override
     public String toString()
     {
@@ -78,6 +78,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
         return new AuditLogContext(AuditLogEntryType.USE_KEYSPACE, keyspace);
     }
 
+    @Override
     public String keyspace()
     {
         return keyspace;

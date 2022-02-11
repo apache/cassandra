@@ -22,11 +22,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.guardrails.Guardrails;
@@ -214,7 +216,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         }
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<AlterTypeStatement>
     {
         private enum Kind
         {
@@ -237,14 +239,18 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             this.name = name;
         }
 
-        public AlterTypeStatement prepare(ClientState state)
+        @Override
+        public AlterTypeStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
+            String keyspaceName = keyspaceMapper.apply(name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace());
             String typeName = name.getStringTypeName();
 
             switch (kind)
             {
-                case     ADD_FIELD: return new AddField(rawCQLStatement, keyspaceName, typeName, newFieldName, newFieldType);
+                case     ADD_FIELD:
+                    if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
+                        newFieldType.forEachUserType(utName -> utName.updateKeyspaceIfDefined(keyspaceMapper));
+                    return new AddField(rawCQLStatement, keyspaceName, typeName, newFieldName, newFieldType);
                 case RENAME_FIELDS: return new RenameFields(rawCQLStatement, keyspaceName, typeName, renamedFields);
                 case   ALTER_FIELD: return new AlterField(rawCQLStatement, keyspaceName, typeName);
             }

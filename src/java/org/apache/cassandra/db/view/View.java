@@ -178,7 +178,7 @@ public class View
 
             rawSelect.setBindVariables(Collections.emptyList());
 
-            select = rawSelect.prepare(true);
+            select = rawSelect.prepare(true, Constants.IDENTITY_STRING_MAPPER);
         }
 
         return select;

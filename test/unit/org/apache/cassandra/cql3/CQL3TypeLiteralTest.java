@@ -25,6 +25,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -373,6 +375,27 @@ public class CQL3TypeLiteralTest
                 compareCqlLiteral(version, value);
             }
         }
+    }
+
+    @Test
+    public void testForEachUserType()
+    {
+        UTName name1 = new UTName(new ColumnIdentifier("ks", true), new ColumnIdentifier("name1", true));
+        UTName name2 = new UTName(new ColumnIdentifier("ks", true), new ColumnIdentifier("name2", true));
+
+        checkForEachUserType(CQL3Type.Raw.from(UTF8Type.instance.asCQL3Type()));
+        checkForEachUserType(CQL3Type.Raw.userType(name1), name1);
+        checkForEachUserType(CQL3Type.Raw.list(CQL3Type.Raw.userType(name1)), name1);
+        checkForEachUserType(CQL3Type.Raw.set(CQL3Type.Raw.userType(name1)), name1);
+        checkForEachUserType(CQL3Type.Raw.map(CQL3Type.Raw.userType(name1), CQL3Type.Raw.userType(name2)), name1, name2);
+        checkForEachUserType(CQL3Type.Raw.tuple(Arrays.asList(CQL3Type.Raw.userType(name1), CQL3Type.Raw.userType(name2))), name1, name2);
+    }
+
+    private void checkForEachUserType(CQL3Type.Raw t, UTName... expectedNames)
+    {
+        Set<UTName> collectedNames = new HashSet<>();
+        t.forEachUserType(collectedNames::add);
+        assertThat(collectedNames).hasSameElementsAs(Arrays.stream(expectedNames).collect(Collectors.toSet()));
     }
 
     static void compareCqlLiteral(ProtocolVersion version, Value value)

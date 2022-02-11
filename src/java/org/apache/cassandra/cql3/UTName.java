@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.function.UnaryOperator;
 
 public class UTName
 {
@@ -38,6 +39,12 @@ public class UTName
     public void setKeyspace(String keyspace)
     {
         this.ksName = keyspace;
+    }
+
+    public void updateKeyspaceIfDefined(UnaryOperator<String> update)
+    {
+        if (hasKeyspace())
+            setKeyspace(update.apply(getKeyspace()));
     }
 
     public String getKeyspace()

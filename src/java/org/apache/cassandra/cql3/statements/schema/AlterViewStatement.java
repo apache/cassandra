@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.function.UnaryOperator;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -113,7 +115,7 @@ public final class AlterViewStatement extends AlterSchemaStatement
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, viewName);
     }
 
-    public static final class Raw extends CQLStatement.Raw
+    public static final class Raw extends RawKeyspaceAwareStatement<AlterViewStatement>
     {
         private final QualifiedName name;
         private final TableAttributes attrs;
@@ -124,9 +126,10 @@ public final class AlterViewStatement extends AlterSchemaStatement
             this.attrs = attrs;
         }
 
-        public AlterViewStatement prepare(ClientState state)
+        @Override
+        public AlterViewStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
         {
-            String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
+            String keyspaceName = keyspaceMapper.apply(name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace());
             return new AlterViewStatement(rawCQLStatement, keyspaceName, name.getName(), attrs);
         }
     }

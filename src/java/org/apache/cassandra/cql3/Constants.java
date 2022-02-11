@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.function.UnaryOperator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,6 +118,8 @@ public abstract class Constants
     public static final UnsetLiteral UNSET_LITERAL = new UnsetLiteral();
 
     public static final Value UNSET_VALUE = new Value(ByteBufferUtil.UNSET_BYTE_BUFFER);
+
+    public static final UnaryOperator<String> IDENTITY_STRING_MAPPER = id -> id;
 
     private static class NullLiteral extends Term.Raw
     {
