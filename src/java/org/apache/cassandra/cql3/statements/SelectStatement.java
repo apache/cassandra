@@ -527,6 +527,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (keys.isEmpty())
             return ReadQuery.empty(table);
 
+        if (restrictions.keyIsInRelation())
+        {
+            Guardrails.partitionKeysInSelect.guard(keys.size(),
+                                                   String.format("partition keys in IN clause on table %s", table.name),
+                                                   null);
+        }
+
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         if (filter == null || filter.isEmpty(table.comparator))
             return ReadQuery.empty(table);

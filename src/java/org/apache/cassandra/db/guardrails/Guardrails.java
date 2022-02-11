@@ -128,6 +128,20 @@ public final class Guardrails implements GuardrailsMBean
                                      what, value, threshold));
 
     /**
+     * Guardrail on the number of partition keys in the IN clause.
+     */
+    public static final Threshold partitionKeysInSelect =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Query with %s, with number of partition keys %s exceeds " +
+                                     "warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Aborting query with %s, number of partition keys %s " +
+                                     "exceeds abort threshold of %s.",
+                                     what, value, threshold));
+
+    /**
      * Guardrail disabling operations on lists that require read before write.
      */
     public static final DisableFlag readBeforeWriteListOperationsEnabled =
@@ -349,6 +363,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setReadBeforeWriteListOperationsEnabled(enabled);
+    }
+
+    @Override
+    public void setPartitionKeysInSelectThreshold(int warn, int abort)
+    {
+        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, abort);
+    }
+
+    @Override
+    public int getPartitionKeysInSelectWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionKeysInSelectWarnThreshold();
+    }
+
+    @Override
+    public int getPartitionKeysInSelectFailThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
     }
 
     private static String toCSV(Set<String> values)
