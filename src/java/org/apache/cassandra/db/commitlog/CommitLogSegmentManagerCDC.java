@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -428,14 +430,12 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     @VisibleForTesting
     public long updateCDCTotalSize()
     {
+        long sleepTime = DatabaseDescriptor.getCDCDiskCheckInterval() + 50L;
+        // Give the update time to finish the last run if any. Therefore, avoid modifying production code only for testing purpose.
+        Uninterruptibles.sleepUninterruptibly(sleepTime, TimeUnit.MILLISECONDS);
         cdcSizeTracker.submitOverflowSizeRecalculation();
-
         // Give the update time to run
-        try
-        {
-            Thread.sleep(DatabaseDescriptor.getCDCDiskCheckInterval() + 10);
-        }
-        catch (InterruptedException e) {}
+        Uninterruptibles.sleepUninterruptibly(sleepTime, TimeUnit.MILLISECONDS);
 
         return cdcSizeTracker.getAllocatedSize();
     }
