@@ -1,3 +1,6 @@
+4.0.3
+
+
 4.0.2
  * Full Java 11 support (CASSANDRA-16894)
  * Remove unused 'geomet' package from cqlsh path (CASSANDRA-17271)
