@@ -79,6 +79,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, "collection_size");
         validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
+        validateIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
     }
 
     @Override
@@ -472,6 +473,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.items_per_collection_fail_threshold,
                                   x -> config.items_per_collection_fail_threshold = x);
+    }
+
+    @Override
+    public int getFieldsPerUDTWarnThreshold()
+    {
+        return config.fields_per_udt_warn_threshold;
+    }
+
+    @Override
+    public int getFieldsPerUDTFailThreshold()
+    {
+        return config.fields_per_udt_fail_threshold;
+    }
+
+    public void setFieldsPerUDTThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "fields_per_udt");
+        updatePropertyWithLogging("fields_per_udt_warn_threshold",
+                                  warn,
+                                  () -> config.fields_per_udt_warn_threshold,
+                                  x -> config.fields_per_udt_warn_threshold = x);
+        updatePropertyWithLogging("fields_per_udt_fail_threshold",
+                                  fail,
+                                  () -> config.fields_per_udt_fail_threshold,
+                                  x -> config.fields_per_udt_fail_threshold = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
