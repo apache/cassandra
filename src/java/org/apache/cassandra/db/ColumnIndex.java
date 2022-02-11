@@ -29,6 +29,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -115,7 +116,11 @@ public class ColumnIndex
         this.headerLength = writer.position() - initialPosition;
 
         while (iterator.hasNext())
-            add(iterator.next());
+        {
+            Unfiltered unfiltered = iterator.next();
+            SSTableWriter.guardCollectionSize(iterator.metadata(), iterator.partitionKey(), unfiltered);
+            add(unfiltered);
+        }
 
         finish();
     }

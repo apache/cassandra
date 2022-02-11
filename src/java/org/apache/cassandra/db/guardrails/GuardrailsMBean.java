@@ -259,7 +259,7 @@ public interface GuardrailsMBean
      * @param warn The threshold to warn when the number of partition keys in a select statement is greater than
      *             threshold -1 means disabled.
      * @param fail The threshold to prevent when the number of partition keys in a select statement is more than
-     *              threshold -1 means disabled.
+     *             threshold -1 means disabled.
      */
     void setPartitionKeysInSelectThreshold(int warn, int fail);
 
@@ -362,4 +362,36 @@ public interface GuardrailsMBean
      * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when writing.
      */
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
+
+    /**
+     * @return The threshold to warn when encountering larger size of collection data than threshold, in KiB.
+     */
+    long getCollectionSizeWarnThresholdInKiB();
+
+    /**
+     * @return The threshold to prevent collections with larger data size than threshold, in KiB.
+     */
+    long getCollectionSizeFailThresholdInKiB();
+
+    /**
+     * @param warnInKiB The threshold to warn when encountering larger size of collection data than threshold, in KiB.
+     * @param failInKiB The threshold to prevent collections with larger data size than threshold, in KiB.
+     */
+    void setCollectionSizeThresholdInKiB(long warnInKiB, long failInKiB);
+
+    /**
+     * @return The threshold to warn when encountering more elements in a collection than threshold.
+     */
+    int getItemsPerCollectionWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with more elements than threshold.
+     */
+    int getItemsPerCollectionFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when encountering more elements in a collection than threshold.
+     * @param fail The threshold to prevent collectiosn with more elements than threshold.
+     */
+    void setItemsPerCollectionThreshold(int warn, int fail);
 }

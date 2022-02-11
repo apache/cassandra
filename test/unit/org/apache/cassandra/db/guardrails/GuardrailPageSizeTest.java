@@ -144,10 +144,4 @@ public class GuardrailPageSizeTest extends ThresholdTester
 
         statement.executeLocally(queryState, options);
     }
-
-    //not used by page-size guardrail tests.
-    protected long currentValue()
-    {
-        throw new UnsupportedOperationException();
-    }
 }

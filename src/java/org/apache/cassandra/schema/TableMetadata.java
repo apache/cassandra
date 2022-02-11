@@ -40,6 +40,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
 
@@ -1340,6 +1341,66 @@ public class TableMetadata implements SchemaElement
                 builder.append(';');
             }
         }
+    }
+
+    /**
+     * Returns a string representation of a partition in a CQL-friendly format.
+     *
+     * For non-composite types it returns the result of {@link org.apache.cassandra.cql3.CQL3Type#toCQLLiteral}
+     * applied to the partition key.
+     * For composite types it applies {@link org.apache.cassandra.cql3.CQL3Type#toCQLLiteral} to each subkey and
+     * combines the results into a tuple.
+     *
+     * @param partitionKey a partition key
+     * @return CQL-like string representation of a partition key
+     */
+    public String partitionKeyAsCQLLiteral(ByteBuffer partitionKey)
+    {
+        return primaryKeyAsCQLLiteral(partitionKey, Clustering.EMPTY);
+    }
+
+    /**
+     * Returns a string representation of a primary key in a CQL-friendly format.
+     *
+     * @param partitionKey the partition key part of the primary key
+     * @param clustering the clustering key part of the primary key
+     * @return a CQL-like string representation of the specified primary key
+     */
+    public String primaryKeyAsCQLLiteral(ByteBuffer partitionKey, Clustering<?> clustering)
+    {
+        int clusteringSize = clustering.size();
+
+        String[] literals;
+        int i = 0;
+
+        if (partitionKeyType instanceof CompositeType)
+        {
+            List<AbstractType<?>> components = partitionKeyType.getComponents();
+            int size = components.size();
+            literals = new String[size + clusteringSize];
+            ByteBuffer[] values = ((CompositeType) partitionKeyType).split(partitionKey);
+            for (i = 0; i < size; i++)
+            {
+                literals[i] = asCQLLiteral(components.get(i), values[i]);
+            }
+        }
+        else
+        {
+            literals = new String[1 + clusteringSize];
+            literals[i++] = asCQLLiteral(partitionKeyType, partitionKey);
+        }
+
+        for (int j = 0; j < clusteringSize; j++)
+        {
+            literals[i++] = asCQLLiteral(clusteringColumns().get(j).type, clustering.bufferAt(j));
+        }
+
+        return i == 1 ? literals[0] : "(" + String.join(", ", literals) + ")";
+    }
+
+    private static String asCQLLiteral(AbstractType<?> type, ByteBuffer value)
+    {
+        return type.asCQL3Type().toCQLLiteral(value, ProtocolVersion.CURRENT);
     }
 
     public static class CompactTableMetadata extends TableMetadata
