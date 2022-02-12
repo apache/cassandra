@@ -33,6 +33,18 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.0.3
+=====
+
+New features
+------------
+
+
+Upgrading
+---------
+    - otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
+      otc_backlog_expiration_interval_ms are deprecated and will be removed at earliest with next major release.
+      otc_coalescing_strategy is disabled since 3.11.
 
 4.0.2
 =====
