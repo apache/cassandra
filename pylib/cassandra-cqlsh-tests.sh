@@ -24,21 +24,13 @@
 ################################
 
 WORKSPACE=$1
-PYTHON_VERSION=$2
 
 if [ "${WORKSPACE}" = "" ]; then
     echo "Specify Cassandra source directory"
     exit
 fi
 
-if [ "${PYTHON_VERSION}" = "" ]; then
-    PYTHON_VERSION=python3
-fi
-
-if [ "${PYTHON_VERSION}" != "python3" -a "${PYTHON_VERSION}" != "python2" ]; then
-    echo "Specify Python version python3 or python2"
-    exit
-fi
+PYTHON_VERSION=python3
 
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
@@ -126,14 +118,10 @@ ccm start --wait-for-binary-proto
 cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
-nosetests
+pytest
 RETURN="$?"
 
 ccm remove
-# hack around --xunit-prefix-with-testsuite-name not being available in nose 1.3.7
-sed -i "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/g" nosetests.xml
-sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" nosetests.xml
-mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 
 ################################
 #

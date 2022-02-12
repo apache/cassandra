@@ -20,16 +20,24 @@ import io
 import os.path
 import random
 import string
-from nose.tools import nottest
 
-from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, test_dir
+from cassandra.cluster import Cluster
+from cassandra.policies import RoundRobinPolicy
+from cassandra.metadata import maybe_escape_name as quote_name
+from cassandra.auth import PlainTextAuthProvider
+from cqlshlib.cql3handling import CqlRuleSet
+
+from .basecase import TEST_HOST, TEST_PORT, TEST_USER, TEST_PWD, cqlshlog, test_dir
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
 test_keyspace_init = os.path.join(test_dir, 'test_keyspace_init.cql')
 
 
 def get_cassandra_connection(cql_version=None):
-    conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version, load_balancing_policy=policy)
+
+    auth_provider = PlainTextAuthProvider(username=TEST_USER, password=TEST_PWD)
+    conn = Cluster((TEST_HOST,), TEST_PORT, auth_provider=auth_provider, cql_version=cql_version, load_balancing_policy=RoundRobinPolicy())
+
     # until the cql lib does this for us
     conn.cql_version = cql_version
     return conn
@@ -118,7 +126,8 @@ def cassandra_connection(cql_version=None):
     try:
         yield conn
     finally:
-        conn.close()
+        conn.shutdown()
+
 
 @contextlib.contextmanager
 def cassandra_cursor(cql_version=None, ks=''):
@@ -146,13 +155,13 @@ def cassandra_cursor(cql_version=None, ks=''):
 
 
 def cql_rule_set():
-    return cqlsh.cql3handling.CqlRuleSet
+    return CqlRuleSet
 
 
 class DEFAULTVAL: pass
 
 
-@nottest
+__TEST__ = False
 def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
@@ -161,7 +170,7 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
 
-@nottest
+__TEST__ = False
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
         keyspace = get_keyspace()
