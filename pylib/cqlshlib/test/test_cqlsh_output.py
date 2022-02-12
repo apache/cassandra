@@ -22,11 +22,10 @@ from __future__ import unicode_literals, with_statement
 import locale
 import os
 import re
-import six
-import unittest
+
 
 from .basecase import (BaseTestCase, TEST_HOST, TEST_PORT,
-                       at_a_time, cqlsh, cqlshlog, dedent)
+                       at_a_time, cqlshlog, dedent)
 from .cassconnect import (cassandra_cursor, create_db, get_keyspace,
                           quote_name, remove_db, split_cql_commands,
                           testcall_cqlsh, testrun_cqlsh)

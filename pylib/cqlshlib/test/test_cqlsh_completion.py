@@ -21,7 +21,7 @@
 import locale
 import os
 import re
-from .basecase import BaseTestCase, cqlsh
+from .basecase import BaseTestCase
 from .cassconnect import create_db, remove_db, testrun_cqlsh
 from .run_cqlsh import TimeoutError
 from cqlshlib.cql3handling import CqlRuleSet

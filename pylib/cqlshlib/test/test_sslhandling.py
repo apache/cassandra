@@ -23,6 +23,7 @@ import unittest
 import os
 import ssl
 
+
 class SslSettingsTest(unittest.TestCase):
 
     def setUp(self):
