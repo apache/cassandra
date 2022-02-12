@@ -1,4 +1,6 @@
 4.0.3
+ * Deprecate otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
+   otc_backlog_expiration_interval_ms (CASSANDRA-17377)
  * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
 
 4.0.2
