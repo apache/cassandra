@@ -22,6 +22,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 import java.util.Optional;
 import java.util.zip.CRC32;
 
@@ -246,12 +248,12 @@ public class CompressedSequentialWriter extends SequentialWriter
             compressed = compressor.preferredBufferType().allocate(chunkSize);
         }
 
-        try
+        try(FileChannel readChannel = FileChannel.open(getFile().toPath(), StandardOpenOption.READ))
         {
             compressed.clear();
             compressed.limit(chunkSize);
-            fchannel.position(chunkOffset);
-            fchannel.read(compressed);
+            readChannel.position(chunkOffset);
+            readChannel.read(compressed);
 
             try
             {
@@ -273,7 +275,7 @@ public class CompressedSequentialWriter extends SequentialWriter
             checksum.update(compressed);
 
             crcCheckBuffer.clear();
-            fchannel.read(crcCheckBuffer);
+            readChannel.read(crcCheckBuffer);
             crcCheckBuffer.flip();
             if (crcCheckBuffer.getInt() != (int) checksum.getValue())
                 throw new CorruptBlockException(getFile().toString(), chunkOffset, chunkSize);

@@ -110,11 +110,11 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         {
             if (file.exists())
             {
-                return FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                return FileChannel.open(file.toPath(), StandardOpenOption.WRITE);
             }
             else
             {
-                FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 try
                 {
                     SyncUtil.trySyncDir(file.parent());

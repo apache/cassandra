@@ -57,6 +57,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -126,22 +127,30 @@ public abstract class CommitLogTest
     private static JVMKiller oldKiller;
     private static KillerForTests testKiller;
 
-    public CommitLogTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
+    public CommitLogTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.DiskAccessMode diskAccessMode)
     {
         DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
+        if (diskAccessMode != null)
+            DatabaseDescriptor.setDiskAccessMode(diskAccessMode);
     }
 
     @Parameters()
     public static Collection<Object[]> generateData()
     {
-        return Arrays.asList(new Object[][]{
-            {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
-            {null, EncryptionContextGenerator.createContext(true)}, // Encryption
-            {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+        List<Object[]> params = new ArrayList<>();
+        for (Config.DiskAccessMode mode : Config.DiskAccessMode.values())
+        {
+            params.addAll(Arrays.asList(new Object[][]{ 
+            { null, EncryptionContextGenerator.createDisabledContext(), mode }, // No compression, no encryption
+            { null, EncryptionContextGenerator.createContext(true), mode }, // Encryption
+            { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), mode },
+            { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), mode },
+            { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), mode },
+            { new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), mode },
+            }));
+        }
+        return params;
     }
 
     public static void beforeClass() throws ConfigurationException

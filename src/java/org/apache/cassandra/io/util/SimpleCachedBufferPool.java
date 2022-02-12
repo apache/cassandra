@@ -81,6 +81,11 @@ public class SimpleCachedBufferPool
     {
         return bufferHolder.getBuffer(size);
     }
+    
+    public BufferType getPreferredReusableBufferType()
+    {
+        return preferredReusableBufferType;
+    }
 
     public void releaseBuffer(ByteBuffer buffer)
     {
