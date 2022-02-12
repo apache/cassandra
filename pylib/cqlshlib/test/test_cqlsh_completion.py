@@ -24,6 +24,7 @@ import re
 from .basecase import BaseTestCase, cqlsh
 from .cassconnect import create_db, remove_db, testrun_cqlsh
 from .run_cqlsh import TimeoutError
+from cqlshlib.cql3handling import CqlRuleSet
 
 BEL = '\x07'  # the terminal-bell character
 CTRL_C = '\x03'
@@ -152,12 +153,11 @@ class CqlshCompletionCase(BaseTestCase):
  
 
     def strategies(self):
-        return self.module.CqlRuleSet.replication_strategies
+        return CqlRuleSet.replication_strategies
 
 
 class TestCqlshCompletion(CqlshCompletionCase):
     cqlver = '3.1.6'
-    module = cqlsh.cql3handling
 
     def test_complete_on_empty_string(self):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',

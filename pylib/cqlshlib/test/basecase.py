@@ -31,10 +31,6 @@ sys.path.append(cqlsh_dir)
 
 import cqlsh
 
-cql = cqlsh.cassandra.cluster.Cluster
-policy = cqlsh.cassandra.policies.RoundRobinPolicy()
-quote_name = cqlsh.cassandra.metadata.maybe_escape_name
-
 TEST_HOST = os.environ.get('CQL_TEST_HOST', '127.0.0.1')
 TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
 
