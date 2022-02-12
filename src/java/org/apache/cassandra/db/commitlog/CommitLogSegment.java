@@ -134,9 +134,13 @@ public abstract class CommitLogSegment
     static CommitLogSegment createSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         Configuration config = commitLog.configuration;
-        CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
-                                                          : config.useCompression() ? new CompressedSegment(commitLog, manager)
-                                                                                    : new MemoryMappedSegment(commitLog, manager);
+        CommitLogSegment segment = config.useEncryption()
+                                   ? new EncryptedSegment(commitLog, manager)
+                                   : config.useCompression()
+                                     ? new CompressedSegment(commitLog, manager)
+                                     : DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard
+                                       ? new UncompressedSegment(commitLog, manager)
+                                       : new MemoryMappedSegment(commitLog, manager);
         segment.writeLogHeader();
         return segment;
     }
@@ -173,7 +177,12 @@ public abstract class CommitLogSegment
 
         try
         {
-            channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
+            // We need both READ and WRITE for Memory mapped segments (there is no write only shared mapping) but
+            // some storage type doesn't support mmapped segments
+            if (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard)
+                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+            else
+                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
             fd = INativeLibrary.instance.getfd(channel);
         }
         catch (IOException e)

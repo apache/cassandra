@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -162,9 +163,14 @@ public abstract class AbstractCommitLogSegmentManager
 
         // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
         // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        BufferType bufferType = commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
-                              ? BufferType.ON_HEAP
-                              : commitLog.configuration.getCompressor().preferredBufferType();
+        CommitLog.Configuration config = commitLog.configuration;
+        BufferType bufferType = config.useEncryption() 
+                                ? BufferType.ON_HEAP 
+                                : config.useCompression() 
+                                  ? commitLog.configuration.getCompressor().preferredBufferType() 
+                                  : DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard 
+                                    ? BufferType.OFF_HEAP 
+                                    : BufferType.ON_HEAP;
 
         this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
                                                      DatabaseDescriptor.getCommitLogSegmentSize(),
