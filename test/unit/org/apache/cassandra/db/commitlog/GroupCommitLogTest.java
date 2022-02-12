@@ -27,9 +27,9 @@ import org.apache.cassandra.security.EncryptionContext;
 
 public class GroupCommitLogTest extends CommitLogTest
 {
-    public GroupCommitLogTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
+    public GroupCommitLogTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.DiskAccessMode diskAccessMode)
     {
-        super(commitLogCompression, encryptionContext);
+        super(commitLogCompression, encryptionContext, diskAccessMode);
     }
 
     @BeforeClass
