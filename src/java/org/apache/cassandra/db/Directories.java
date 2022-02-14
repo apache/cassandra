@@ -962,7 +962,7 @@ public class Directories
                         return false;
 
                     default:
-                        throw new AssertionError();
+                        throw new AssertionError("unexpected file type: " + type + " for file " + file);
                 }
             };
         }
