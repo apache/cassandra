@@ -381,7 +381,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, viewName);
     }
 
-    public final static class Raw extends RawKeyspaceAwareStatement<CreateViewStatement>
+    public static final class Raw extends RawKeyspaceAwareStatement<CreateViewStatement>
     {
         private final QualifiedName tableName;
         private final QualifiedName viewName;

@@ -167,7 +167,4 @@ public abstract class AlterSchemaStatement implements CQLStatement, SchemaTransf
         return new InvalidRequestException(String.format(format, args));
     }
 
-    public static abstract class Raw<R extends AlterSchemaStatement> extends RawKeyspaceAwareStatement<R>
-    {
-    }
 }

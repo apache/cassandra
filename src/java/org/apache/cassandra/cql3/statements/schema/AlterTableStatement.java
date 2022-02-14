@@ -594,7 +594,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 case          ALTER_COLUMN: return new AlterColumn(rawCQLStatement, keyspaceName, tableName);
                 case           ADD_COLUMNS:
                     if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
-                        addedColumns.forEach(c -> c.type.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper)));
+                        addedColumns.forEach(c -> c.type.forEachUserType(utName -> utName.updateKeyspaceIfDefined(keyspaceMapper)));
                     return new AddColumns(rawCQLStatement, keyspaceName, tableName, addedColumns);
                 case          DROP_COLUMNS: return new DropColumns(rawCQLStatement, keyspaceName, tableName, droppedColumns, dropTimestamp);
                 case        RENAME_COLUMNS: return new RenameColumns(rawCQLStatement, keyspaceName, tableName, renamedColumns);

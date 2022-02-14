@@ -249,7 +249,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             {
                 case     ADD_FIELD:
                     if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
-                        newFieldType.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper));
+                        newFieldType.forEachUserType(utName -> utName.updateKeyspaceIfDefined(keyspaceMapper));
                     return new AddField(rawCQLStatement, keyspaceName, typeName, newFieldName, newFieldType);
                 case RENAME_FIELDS: return new RenameFields(rawCQLStatement, keyspaceName, typeName, renamedFields);
                 case   ALTER_FIELD: return new AlterField(rawCQLStatement, keyspaceName, typeName);

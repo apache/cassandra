@@ -189,7 +189,7 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         {
             String keyspaceName = keyspaceMapper.apply(name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace());
             if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
-                rawFieldTypes.forEach(t -> t.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper)));
+                rawFieldTypes.forEach(t -> t.forEachUserType(utName -> utName.updateKeyspaceIfDefined(keyspaceMapper)));
             return new CreateTypeStatement(rawCQLStatement, keyspaceName,
                                            name.getStringTypeName(), fieldNames,
                                            rawFieldTypes, ifNotExists);

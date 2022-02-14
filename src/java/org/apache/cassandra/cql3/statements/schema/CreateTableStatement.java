@@ -500,7 +500,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
                          .builder(types);
     }
 
-    public final static class Raw extends RawKeyspaceAwareStatement<CreateTableStatement>
+    public static final class Raw extends RawKeyspaceAwareStatement<CreateTableStatement>
     {
         private final QualifiedName name;
         private final boolean ifNotExists;
@@ -527,7 +527,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             String keyspaceName = keyspaceMapper.apply(name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace());
 
             if (keyspaceMapper != Constants.IDENTITY_STRING_MAPPER)
-                rawColumns.values().forEach(t -> t.forEachUserType(name -> name.updateKeyspaceIfDefined(keyspaceMapper)));
+                rawColumns.values().forEach(t -> t.forEachUserType(utName -> utName.updateKeyspaceIfDefined(keyspaceMapper)));
 
             if (null == partitionKeyColumns)
                 throw ire("No PRIMARY KEY specifed for table '%s' (exactly one required)", name);
