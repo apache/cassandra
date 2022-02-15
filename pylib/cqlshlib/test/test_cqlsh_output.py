@@ -23,7 +23,6 @@ import locale
 import os
 import re
 
-
 from .basecase import (BaseTestCase, TEST_HOST, TEST_PORT,
                        at_a_time, cqlshlog, dedent)
 from .cassconnect import (cassandra_cursor, create_db, get_keyspace,
@@ -366,20 +365,20 @@ class TestCqlshOutput(BaseTestCase):
             ('''select decimalcol, doublecol, floatcol \
                   from has_all_types \
                  where num in (0, 1, 2, 3, 4);''', """
-             decimalcol       | doublecol               | floatcol
-             MMMMMMMMMM         MMMMMMMMM                 MMMMMMMM
-            ------------------+-------------------------+----------
+             decimalcol       | doublecol | floatcol
+             MMMMMMMMMM         MMMMMMMMM   MMMMMMMM
+            ------------------+-----------+----------
 
-                  19952.11882 |                       1 |     -2.1
-             GGGGGGGGGGGGGGGG                   GGGGGGG      GGGGG
-                        1E-14 | 9999999.998999999836087 |    1e+05
-             GGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGG      GGGGG
-                          0.0 |                       0 |        0
-             GGGGGGGGGGGGGGGG                   GGGGGGG      GGGGG
-             10.0000000000000 |   -1004.100000000000023 |    1e+08
-             GGGGGGGGGGGGGGGG     GGGGGGGGGGGGGGGGGGGGG      GGGGG
-                              |                         |
-             nnnnnnnnnnnnnnnn                   nnnnnnn      nnnnn
+                  19952.11882 |         1 |     -2.1
+             GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
+                        1E-14 |     1e+07 |    1e+05
+             GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
+                          0.0 |         0 |        0
+             GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
+             10.0000000000000 |   -1004.1 |    1e+08
+             GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
+                              |           |
+             nnnnnnnnnnnnnnnn     nnnnnnn      nnnnn
 
 
             (5 rows)
