@@ -40,6 +40,8 @@ import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
  *  for a v1, but will make testing slightly inconvenient, since they use BOP by default.
  *  We could address split in accord core by sharding on the token hash, instead of dividing ranges. And we could address
  *  getMaximumToken with min/max sentinel tokens.
+ *
+ * FIXME: updating accord to internally partitioning keys by hash would fix this issue
  */
 public class TokenRange extends KeyRange.EndInclusive<AccordKey>
 {
