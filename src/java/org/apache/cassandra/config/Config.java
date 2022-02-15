@@ -283,6 +283,12 @@ public class Config
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
+    /**
+     * @deprecated retry support removed on CASSANDRA-10992
+     */
+    @Deprecated
+    public int max_streaming_retries = 3;
+
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec stream_throughput_outbound = new DataRateSpec("24MiB/s");
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
@@ -521,17 +527,19 @@ public class Config
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    //No need of unit conversion as this parameter is not exposed in the yaml file
-    public long user_defined_function_warn_timeout_in_ms = 500;
+    //TO DO: transfer below parameter to the new config framework (DurationSpec)
+    //Below parameter is in ms
+    public long user_defined_function_warn_timeout = 500;
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
      * user_function_timeout_policy will take place.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    //No need of unit conversion as this parameter is not exposed in the yaml file
-    public long user_defined_function_fail_timeout_in_ms = 1500;
+    //TO DO: transfer below parameter to the new config framework (DurationSpec)
+    //Below parameter is in ms
+    public long user_defined_function_fail_timeout = 1500;
     /**
-     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout_in_ms.
+     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout.
      * Possible options are:
      * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
      * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).

@@ -75,7 +75,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
@@ -735,13 +734,13 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity option was set incorrectly to '"
                                              + conf.index_summary_capacity.toString() + "', it should be a non-negative integer.", false);
 
-        if (conf.user_defined_function_fail_timeout_in_ms < 0)
-            throw new ConfigurationException("user_defined_function_fail_timeout_in_ms must not be negative", false);
-        if (conf.user_defined_function_warn_timeout_in_ms < 0)
-            throw new ConfigurationException("user_defined_function_warn_timeout_in_ms must not be negative", false);
+        if (conf.user_defined_function_fail_timeout < 0)
+            throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
+        if (conf.user_defined_function_warn_timeout < 0)
+            throw new ConfigurationException("user_defined_function_warn_timeout must not be negative", false);
 
-        if (conf.user_defined_function_fail_timeout_in_ms < conf.user_defined_function_warn_timeout_in_ms)
-            throw new ConfigurationException("user_defined_function_warn_timeout_in_ms must less than user_defined_function_fail_timeout_in_ms", false);
+        if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
+            throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
 
         if (!conf.allow_insecure_udfs && !conf.user_defined_functions_threads_enabled)
             throw new ConfigurationException("To be able to set enable_user_defined_functions_threads: false you need to set allow_insecure_udfs: true - this is an unsafe configuration and is not recommended.");
@@ -3130,12 +3129,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionWarnTimeout()
     {
-        return conf.user_defined_function_warn_timeout_in_ms;
+        return conf.user_defined_function_warn_timeout;
     }
 
     public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
     {
-        conf.user_defined_function_warn_timeout_in_ms = userDefinedFunctionWarnTimeout;
+        conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
     }
 
     public static boolean allowInsecureUDFs()
@@ -3191,12 +3190,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionFailTimeout()
     {
-        return conf.user_defined_function_fail_timeout_in_ms;
+        return conf.user_defined_function_fail_timeout;
     }
 
     public static void setUserDefinedFunctionFailTimeout(long userDefinedFunctionFailTimeout)
     {
-        conf.user_defined_function_fail_timeout_in_ms = userDefinedFunctionFailTimeout;
+        conf.user_defined_function_fail_timeout = userDefinedFunctionFailTimeout;
     }
 
     public static Config.UserFunctionTimeoutPolicy getUserFunctionTimeoutPolicy()
