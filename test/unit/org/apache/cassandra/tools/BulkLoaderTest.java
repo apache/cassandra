@@ -36,7 +36,9 @@ public class BulkLoaderTest extends OfflineToolUtils
         assertEquals(1, tool.getExitCode());
         assertThat(tool.getCleanedStderr(), CoreMatchers.containsString("Missing sstable directory argument"));
         
-        assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread" });
+        assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
+                                                        "Shutdown-checker",
+                                                        "cluster[0-9]-connection-reaper-[0-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -58,7 +60,11 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(new String[]{ "ObjectCleanerThread", "globalEventExecutor-[1-9]-[1-9]", "globalEventExecutor-[1-9]-[1-9]" });
+        assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
+                                                        "globalEventExecutor-[1-9]-[1-9]",
+                                                        "globalEventExecutor-[1-9]-[1-9]",
+                                                        "Shutdown-checker",
+                                                        "cluster[0-9]-connection-reaper-[0-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -82,7 +88,11 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(new String[]{ "ObjectCleanerThread", "globalEventExecutor-[1-9]-[1-9]", "globalEventExecutor-[1-9]-[1-9]" });
+        assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
+                                                        "globalEventExecutor-[1-9]-[1-9]",
+                                                        "globalEventExecutor-[1-9]-[1-9]",
+                                                        "Shutdown-checker",
+                                                        "cluster[0-9]-connection-reaper-[0-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -106,7 +116,11 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(new String[]{ "ObjectCleanerThread", "globalEventExecutor-[1-9]-[1-9]", "globalEventExecutor-[1-9]-[1-9]" });
+        assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
+                                                        "globalEventExecutor-[1-9]-[1-9]",
+                                                        "globalEventExecutor-[1-9]-[1-9]",
+                                                        "Shutdown-checker",
+                                                        "cluster[0-9]-connection-reaper-[0-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
