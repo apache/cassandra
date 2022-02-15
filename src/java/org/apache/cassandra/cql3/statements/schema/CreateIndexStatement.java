@@ -134,7 +134,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire("Secondary indexes on materialized views aren't supported");
 
-        if (Keyspace.open(table.keyspace).getReplicationStrategy().hasTransientReplicas())
+        if (keyspace.createReplicationStrategy().hasTransientReplicas())
             throw new InvalidRequestException("Secondary indexes are not supported on transiently replicated keyspaces");
 
         List<IndexTarget> indexTargets = Lists.newArrayList(transform(rawIndexTargets, t -> t.prepare(table)));
