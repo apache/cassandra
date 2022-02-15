@@ -21,7 +21,8 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.local.Node;
-import accord.messages.TxnRequestScope;
+import accord.messages.TxnRequest;
+import accord.messages.TxnRequest.Scope.KeysForEpoch;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -52,59 +53,58 @@ public class TopologySerializers
         }
     };
 
-    private static final IVersionedSerializer<TxnRequestScope.EpochRanges> epochRangesSerializer = new IVersionedSerializer<>()
+    private static final IVersionedSerializer<KeysForEpoch> keysForEpochSerializer = new IVersionedSerializer<KeysForEpoch>()
     {
         @Override
-        public void serialize(TxnRequestScope.EpochRanges ranges, DataOutputPlus out, int version) throws IOException
+        public void serialize(KeysForEpoch keysForEpoch, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(ranges.epoch);
-            KeySerializers.ranges.serialize(ranges.ranges, out, version);
-
+            out.writeLong(keysForEpoch.epoch);
+            KeySerializers.keys.serialize(keysForEpoch.keys, out, version);
         }
 
         @Override
-        public TxnRequestScope.EpochRanges deserialize(DataInputPlus in, int version) throws IOException
+        public KeysForEpoch deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TxnRequestScope.EpochRanges(in.readLong(),
-                                                   KeySerializers.ranges.deserialize(in, version));
+            return new KeysForEpoch(in.readLong(), KeySerializers.keys.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(TxnRequestScope.EpochRanges ranges, int version)
+        public long serializedSize(KeysForEpoch keysForEpoch, int version)
         {
-            return TypeSizes.sizeof(ranges.epoch) + KeySerializers.ranges.serializedSize(ranges.ranges, version);
+            return TypeSizes.sizeof(keysForEpoch.epoch)
+                 + KeySerializers.keys.serializedSize(keysForEpoch.keys, version);
         }
     };
 
-    public static final IVersionedSerializer<TxnRequestScope> requestScope = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<TxnRequest.Scope> requestScope = new IVersionedSerializer<>()
     {
 
         @Override
-        public void serialize(TxnRequestScope scope, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnRequest.Scope scope, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(scope.maxEpoch());
             out.writeInt(scope.size());
             for (int i = 0, mi = scope.size(); i < mi; i++)
-                epochRangesSerializer.serialize(scope.get(i), out, version);
+                keysForEpochSerializer.serialize(scope.get(i), out, version);
         }
 
         @Override
-        public TxnRequestScope deserialize(DataInputPlus in, int version) throws IOException
+        public TxnRequest.Scope deserialize(DataInputPlus in, int version) throws IOException
         {
             long maxEpoch = in.readLong();
-            TxnRequestScope.EpochRanges[] ranges = new TxnRequestScope.EpochRanges[in.readInt()];
+            TxnRequest.Scope.KeysForEpoch[] ranges = new TxnRequest.Scope.KeysForEpoch[in.readInt()];
             for (int i = 0; i < ranges.length; i++)
-                ranges[i] = epochRangesSerializer.deserialize(in, version);
-            return new TxnRequestScope(maxEpoch, ranges);
+                ranges[i] = keysForEpochSerializer.deserialize(in, version);
+            return new TxnRequest.Scope(maxEpoch, ranges);
         }
 
         @Override
-        public long serializedSize(TxnRequestScope scope, int version)
+        public long serializedSize(TxnRequest.Scope scope, int version)
         {
             long size = TypeSizes.sizeof(scope.maxEpoch());
             size += TypeSizes.sizeof(scope.size());
             for (int i = 0, mi = scope.size(); i < mi; i++)
-                size += epochRangesSerializer.serializedSize(scope.get(i), version);
+                size += keysForEpochSerializer.serializedSize(scope.get(i), version);
             return size;
         }
     };
