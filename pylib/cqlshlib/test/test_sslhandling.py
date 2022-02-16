@@ -66,9 +66,10 @@ class SslSettingsTest(unittest.TestCase):
     def test_ssl_version_config(self):
         ssl_ret_val = ssl_settings(self.host, os.path.join('test', 'config', 'sslhandling.config'))
         assert ssl_ret_val is not None
-        assert ssl_ret_val.get('ssl_version') == getattr(ssl, 'PROTOCOL_TLS')
+        assert ssl_ret_val.get('ssl_version') == getattr(ssl, 'PROTOCOL_TLSv1')
 
     def test_invalid_ssl_version_config(self):
-        ssl_ret_val = ssl_settings(self.host, os.path.join('test', 'config', 'sslhandling_invalid.config'))
-        assert ssl_ret_val is not None
-        assert ssl_ret_val.get('ssl_version') == getattr(ssl, 'PROTOCOL_TLS')
+        msg = "invalid_ssl is not a valid SSL protocol, please use one of TLSv1, TLSv1_1, or TLSv1_2"
+        with assert_raises(SystemExit) as error:
+            ssl_settings(self.host, os.path.join('test', 'config', 'sslhandling_invalid.config'))
+            assert msg in error.exception.message
