@@ -158,7 +158,7 @@ pipeline {
                 always {
                     warnError('missing test xml files') {
                         script {
-                            copyTestResults('cqlsh-test', cqlsh.getNumber())
+                            copyTestResults('cqlsh-tests', cqlsh.getNumber())
                         }
                     }
                 }
