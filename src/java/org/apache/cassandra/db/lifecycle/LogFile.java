@@ -68,6 +68,7 @@ final class LogFile implements AutoCloseable
 
     // The transaction records, this set must be ORDER PRESERVING
     private final Set<LogRecord> records = Collections.synchronizedSet(new LinkedHashSet<>()); // TODO: Hack until we fix CASSANDRA-14554
+    private final Set<LogRecord> onDiskRecords = Collections.synchronizedSet(new LinkedHashSet<>());
 
     // The type of the transaction
     private final OperationType type;
@@ -322,19 +323,13 @@ final class LogFile implements AutoCloseable
         assert type == Type.ADD || type == Type.REMOVE;
 
         for (SSTableReader sstable : tables)
-        {
-            File directory = sstable.descriptor.directory;
-            String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
-            replicas.maybeCreateReplica(directory, fileName, records);
-        }
+            maybeCreateReplica(sstable);
         return LogRecord.make(type, tables);
     }
 
     private LogRecord makeAddRecord(SSTable table)
     {
-        File directory = table.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
-        replicas.maybeCreateReplica(directory, fileName, records);
+        maybeCreateReplica(table);
         return LogRecord.make(Type.ADD, table);
     }
 
@@ -346,11 +341,15 @@ final class LogFile implements AutoCloseable
     private LogRecord makeRecord(Type type, SSTable table, LogRecord record)
     {
         assert type == Type.ADD || type == Type.REMOVE;
-
-        File directory = table.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
-        replicas.maybeCreateReplica(directory, fileName, records);
+        maybeCreateReplica(table);
         return record.asType(type);
+    }
+
+    private void maybeCreateReplica(SSTable sstable)
+    {
+        File directory = sstable.descriptor.directory;
+        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
+        replicas.maybeCreateReplica(directory, fileName, onDiskRecords);
     }
 
     void addRecord(LogRecord record)
@@ -364,6 +363,7 @@ final class LogFile implements AutoCloseable
         replicas.append(record);
         if (!records.add(record))
             throw new IllegalStateException("Failed to add record");
+        onDiskRecords.add(record);
     }
 
     void remove(SSTable table)
