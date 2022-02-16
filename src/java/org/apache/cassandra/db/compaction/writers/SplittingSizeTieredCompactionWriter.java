@@ -116,6 +116,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         sstableWriter.switchWriter(writer);
     }
 
+    @Override
     protected long getExpectedWriteSize()
     {
         return Math.round(totalSize * ratios[currentRatioIndex]);
