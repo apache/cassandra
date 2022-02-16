@@ -22,7 +22,13 @@ import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -33,29 +39,32 @@ import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertNull;
-import static junit.framework.Assert.fail;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class LogTransactionTest extends AbstractTransactionalTest
 {
@@ -218,6 +227,37 @@ public class LogTransactionTest extends AbstractTransactionalTest
         LogTransaction.waitForDeletions();
 
         assertFiles(dataFolder.getPath(), Collections.<String>emptySet());
+    }
+
+    @Test
+    public void testUntrackIdenticalLogFilesOnDisk() throws Throwable
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File datadir1 = Files.createTempDirectory("datadir1").toFile();
+        File datadir2 = Files.createTempDirectory("datadir2").toFile();
+        SSTableReader sstable1 = sstable(datadir1, cfs, 1, 128);
+        SSTableReader sstable2 = sstable(datadir2, cfs, 1, 128);
+
+
+        for (Consumer<LogTransaction> c : Arrays.<Consumer<LogTransaction>>asList((log) -> log.trackNew(sstable2),
+                                                                                  (log) -> log.obsoleted(sstable2),
+                                                                                  (log) -> log.txnFile().addAll(LogRecord.Type.ADD, Collections.singleton(sstable2))))
+        {
+            try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+            {
+                log.trackNew(sstable1); // creates a log file in datadir1
+                log.untrackNew(sstable1); // removes sstable1 from `records`, but still on disk & in `onDiskRecords`
+
+                c.accept(log);  // creates a log file in datadir2, based on contents in onDiskRecords
+                byte[] log1 = Files.readAllBytes(log.logFiles().get(0).toPath());
+                byte[] log2 = Files.readAllBytes(log.logFiles().get(1).toPath());
+                assertArrayEquals(log1, log2);
+            }
+        }
+        sstable1.selfRef().release();
+        sstable2.selfRef().release();
+        Thread.sleep(1);
+        LogTransaction.waitForDeletions();
     }
 
     @Test
