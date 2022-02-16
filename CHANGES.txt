@@ -1,3 +1,5 @@
+Flaky testNoSuchRepairSessionAnticompaction (CASSANDRA-17335)
+
 4.1
  * Add support for string concatenations through the + operator (CASSANDRA-17190)
  * Limit the maximum hints size per host (CASSANDRA-17142)

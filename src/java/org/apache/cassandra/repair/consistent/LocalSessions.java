@@ -828,16 +828,19 @@ public class LocalSessions
             {
                 try
                 {
-                    logger.info("Prepare phase for incremental repair session {} completed", sessionID);
-                    if (session.getState() != FAILED)
-                        setStateAndSave(session, PREPARED);
-                    else
-                        logger.info("Session {} failed before anticompaction completed", sessionID);
+                    synchronized (session)
+                    {
+                        logger.info("Prepare phase for incremental repair session {} completed", sessionID);
+                        if (session.getState() != FAILED)
+                            setStateAndSave(session, PREPARED);
+                        else
+                            logger.info("Session {} failed before anticompaction completed", sessionID);
 
-                    Message<PrepareConsistentResponse> message =
+                        Message<PrepareConsistentResponse> message =
                         Message.out(PREPARE_CONSISTENT_RSP,
                                     new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED));
-                    sendMessage(coordinator, message);
+                        sendMessage(coordinator, message);
+                    }
                 }
                 finally
                 {
