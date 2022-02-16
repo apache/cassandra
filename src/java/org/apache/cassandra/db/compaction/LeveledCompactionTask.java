@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -57,7 +56,7 @@ public class LeveledCompactionTask extends CompactionTask
     @Override
     protected boolean partialCompactionsAcceptable()
     {
-        return level == 0;
+        throw new UnsupportedOperationException("This is now handled in reduceScopeForLimitedSpace");
     }
 
     protected int getLevel()
@@ -71,7 +70,7 @@ public class LeveledCompactionTask extends CompactionTask
         if (transaction.originals().size() > 1 && level <= 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to do L0 -> L{} compaction. {}MB required, {} for compaction {}",
+            logger.warn("insufficient space to do L0 -> L{} compaction. {}MiB required, {} for compaction {}",
                         level,
                         (float) expectedSize / 1024 / 1024,
                         transaction.originals()

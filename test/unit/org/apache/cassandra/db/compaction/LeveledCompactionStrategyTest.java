@@ -475,6 +475,33 @@ public class LeveledCompactionStrategyTest
         }
     }
 
+    @Test
+    public void testNoHighLevelReduction() throws IOException
+    {
+        List<SSTableReader> sstables = new ArrayList<>();
+        int i = 1;
+        for (; i < 5; i++)
+        {
+            SSTableReader sstable = MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
+            sstable.reloadSSTableMetadata();
+            sstables.add(sstable);
+        }
+        for (; i < 10; i++)
+        {
+            SSTableReader sstable = MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 2);
+            sstable.reloadSSTableMetadata();
+            sstables.add(sstable);
+        }
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables))
+        {
+            CompactionTask task = new LeveledCompactionTask(cfs, txn, 0, 0, 1024 * 1024, false);
+            assertFalse(task.reduceScopeForLimitedSpace(0));
+            assertEquals(new HashSet<>(sstables), txn.originals());
+        }
+    }
+
     private Pair<Set<SSTableReader>, Set<SSTableReader>> groupByLevel(Iterable<SSTableReader> sstables)
     {
         Set<SSTableReader> l1after = new HashSet<>();
