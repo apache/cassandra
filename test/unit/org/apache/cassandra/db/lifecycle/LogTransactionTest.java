@@ -20,7 +20,13 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -28,23 +34,22 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-
-import org.apache.cassandra.Util;
-import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.Assert;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.MockSchema;
@@ -52,12 +57,13 @@ import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertNull;
-import static junit.framework.Assert.fail;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class LogTransactionTest extends AbstractTransactionalTest
 {
@@ -97,7 +103,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
                 assertNotNull(txnLogs);
                 assertNotNull(txnLogs.id());
-                Assert.assertEquals(OperationType.COMPACTION, txnLogs.type());
+                assertEquals(OperationType.COMPACTION, txnLogs.type());
 
                 txnLogs.trackNew(sstableNew);
                 tidier = txnLogs.obsoleted(sstableOld);
@@ -220,6 +226,37 @@ public class LogTransactionTest extends AbstractTransactionalTest
         LogTransaction.waitForDeletions();
 
         assertFiles(dataFolder.path(), Collections.<String>emptySet());
+    }
+
+    @Test
+    public void testUntrackIdenticalLogFilesOnDisk() throws Throwable
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File datadir1 = new File(Files.createTempDirectory("datadir1"));
+        File datadir2 = new File(Files.createTempDirectory("datadir2"));
+        SSTableReader sstable1 = sstable(datadir1, cfs, 1, 128);
+        SSTableReader sstable2 = sstable(datadir2, cfs, 1, 128);
+
+
+        for (Consumer<LogTransaction> c : Arrays.<Consumer<LogTransaction>>asList((log) -> log.trackNew(sstable2),
+                                                                                  (log) -> log.obsoleted(sstable2),
+                                                                                  (log) -> log.txnFile().addAll(LogRecord.Type.ADD, Collections.singleton(sstable2))))
+        {
+            try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+            {
+                log.trackNew(sstable1); // creates a log file in datadir1
+                log.untrackNew(sstable1); // removes sstable1 from `records`, but still on disk & in `onDiskRecords`
+
+                c.accept(log);  // creates a log file in datadir2, based on contents in onDiskRecords
+                byte[] log1 = Files.readAllBytes(log.logFiles().get(0).toPath());
+                byte[] log2 = Files.readAllBytes(log.logFiles().get(1).toPath());
+                assertArrayEquals(log1, log2);
+            }
+        }
+        sstable1.selfRef().release();
+        sstable2.selfRef().release();
+        Thread.sleep(1);
+        LogTransaction.waitForDeletions();
     }
 
     @Test
@@ -423,7 +460,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         sstableNew.selfRef().release();
         sstableOld.selfRef().release();
 
-        Assert.assertEquals(tmpFiles, getTemporaryFiles(sstableNew.descriptor.directory));
+        assertEquals(tmpFiles, getTemporaryFiles(sstableNew.descriptor.directory));
 
         // normally called at startup
         LogTransaction.removeUnfinishedLeftovers(cfs.metadata());
@@ -463,7 +500,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         sstableNew.selfRef().release();
         sstableOld.selfRef().release();
 
-        Assert.assertEquals(tmpFiles, getTemporaryFiles(sstableOld.descriptor.directory));
+        assertEquals(tmpFiles, getTemporaryFiles(sstableOld.descriptor.directory));
 
         // normally called at startup
         LogTransaction.removeUnfinishedLeftovers(cfs.metadata());
@@ -506,7 +543,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         log.trackNew(sstables[3]);
 
         Collection<File> logFiles = log.logFiles();
-        Assert.assertEquals(2, logFiles.size());
+        assertEquals(2, logFiles.size());
 
         // fake a commit
         log.txnFile().commit();
@@ -514,9 +551,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Arrays.stream(sstables).forEach(s -> s.selfRef().release());
 
         // test listing
-        Assert.assertEquals(sstables[0].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
+        assertEquals(sstables[0].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
                             getTemporaryFiles(dataFolder1));
-        Assert.assertEquals(sstables[2].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
+        assertEquals(sstables[2].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
                             getTemporaryFiles(dataFolder2));
 
         // normally called at startup
@@ -557,7 +594,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         log.trackNew(sstables[3]);
 
         Collection<File> logFiles = log.logFiles();
-        Assert.assertEquals(2, logFiles.size());
+        assertEquals(2, logFiles.size());
 
         // fake an abort
         log.txnFile().abort();
@@ -565,9 +602,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Arrays.stream(sstables).forEach(s -> s.selfRef().release());
 
         // test listing
-        Assert.assertEquals(sstables[1].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
+        assertEquals(sstables[1].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
                             getTemporaryFiles(dataFolder1));
-        Assert.assertEquals(sstables[3].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
+        assertEquals(sstables[3].getAllFilePaths().stream().map(File::new).collect(Collectors.toSet()),
                             getTemporaryFiles(dataFolder2));
 
         // normally called at startup
@@ -587,7 +624,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert mismatched records
             FileUtils.append(logFiles.get(0), LogRecord.makeCommit(System.currentTimeMillis()).raw);
@@ -601,7 +638,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert a full record and a partial one
             String finalRecord = LogRecord.makeCommit(System.currentTimeMillis()).raw;
@@ -617,7 +654,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert a full record and a partial one
             String finalRecord = LogRecord.makeCommit(System.currentTimeMillis()).raw;
@@ -633,7 +670,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert a partial sstable record and a full commit record
             String sstableRecord = LogRecord.make(LogRecord.Type.ADD, Collections.emptyList(), 0, "abc").raw;
@@ -652,7 +689,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert a partial sstable record and a full commit record
             String sstableRecord = LogRecord.make(LogRecord.Type.ADD, Collections.emptyList(), 0, "abc").raw;
@@ -671,7 +708,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert only one commit record
             FileUtils.append(logFiles.get(0), LogRecord.makeCommit(System.currentTimeMillis()).raw);
@@ -684,7 +721,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert only one commit record
             FileUtils.append(logFiles.get(1), LogRecord.makeCommit(System.currentTimeMillis()).raw);
@@ -697,7 +734,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         testRemoveUnfinishedLeftovers_multipleFolders_errorConditions(txn -> {
             List<File> logFiles = txn.logFiles();
-            Assert.assertEquals(2, logFiles.size());
+            assertEquals(2, logFiles.size());
 
             // insert mismatched records
             FileUtils.append(logFiles.get(0), LogRecord.makeCommit(System.currentTimeMillis()).raw);
