@@ -1619,5 +1619,5 @@ drop_compact_storage_enabled: false
 # Guardrail to warn or fail when querying with an IN restriction selecting
 # more partition keys than threshold.
 # The two thresholds default to -1 to disable. 
-partition_keys_in_select_warn_threshold: -1
-partition_keys_in_select_fail_threshold: -1
+# partition_keys_in_select_warn_threshold: -1
+# partition_keys_in_select_fail_threshold: -1

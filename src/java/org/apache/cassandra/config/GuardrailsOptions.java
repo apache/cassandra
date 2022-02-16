@@ -56,7 +56,6 @@ public class GuardrailsOptions implements GuardrailsConfig
     
     private final Config config;
 
-
     public GuardrailsOptions(Config config)
     {
         this.config = config;
