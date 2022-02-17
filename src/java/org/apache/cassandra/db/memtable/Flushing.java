@@ -41,6 +41,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.AtomicBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -116,9 +117,19 @@ public class Flushing
         SSTableFormat.Type formatType = SSTableFormat.Type.current();
         long estimatedSize = formatType.info.getWriterFactory().estimateSize(flushSet);
 
-        Descriptor descriptor = flushLocation == null
-                                ? cfs.newSSTableDescriptor(cfs.getDirectories().getWriteableLocationAsFile(estimatedSize), formatType)
-                                : cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(flushLocation), formatType);
+        Descriptor descriptor;
+        if (flushLocation == null)
+        {
+            descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getWriteableLocationAsFile(estimatedSize), formatType);
+        }
+        else
+        {
+            // exclude directory if its total writeSize does not fit to data directory
+            if (flushLocation.getAvailableSpace() < estimatedSize)
+                throw new FSDiskFullWriteError(cfs.metadata.keyspace, estimatedSize);
+
+            descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(flushLocation), formatType);
+        }
 
         SSTableMultiWriter writer = createFlushWriter(cfs,
                                                       flushSet,

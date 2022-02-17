@@ -23,12 +23,15 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.memtable.DefaultMemtableFactory;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ImmutableUtils;
 
 /**
  * Memtable types and options are specified with these parameters. Memtable classes must either contain a static FACTORY
@@ -67,6 +70,18 @@ public final class MemtableParams
     {
         this.options = ImmutableMap.copyOf(options);
         this.factory = getMemtableFactory(options);
+    }
+
+    /**
+     * Useful for testing where we can provide a factory that produces spied instances of memtable so that we can
+     * modify behaviour of certains methods.
+     */
+    @VisibleForTesting
+    public MemtableParams(Memtable.Factory factory, Map<String, String> options)
+    {
+        Preconditions.checkNotNull(factory);
+        this.factory = factory;
+        this.options = ImmutableUtils.without(ImmutableMap.copyOf(options), Option.CLASS.toString());
     }
 
     private static Memtable.Factory getMemtableFactory(Map<String, String> options)

@@ -232,7 +232,7 @@ public class CommitLog implements CommitLogMBean
     public void recoverPath(String path, boolean tolerateTruncation) throws IOException
     {
         CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
-        replayer.replayPath(new File(path), tolerateTruncation);
+        replayer.replayPath(new File(PathUtils.getPath(path)), tolerateTruncation);
         replayer.blockForWrites(STARTUP);
     }
 
