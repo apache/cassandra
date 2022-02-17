@@ -11,7 +11,7 @@ will be applied to memtables.
 
 All mutations write optimized by storing in commitlog segments, reducing
 the number of seeks needed to write to disk. Commitlog Segments are
-limited by the `commitlog_segment_size_in_mb` option, once the size is
+limited by the `commitlog_segment_size` option, once the size is
 reached, a new commitlog segment is created. Commitlog segments can be
 archived, deleted, or recycled once all its data has been flushed to
 SSTables. Commitlog segments are truncated when Cassandra has written
@@ -19,16 +19,16 @@ data older than a certain point to the SSTables. Running "nodetool
 drain" before stopping Cassandra will write everything in the memtables
 to SSTables and remove the need to sync with the commitlogs on startup.
 
-* `commitlog_segment_size_in_mb`: The default size is 32, which is
+* `commitlog_segment_size`: The default size is 32MiB, which is
 almost always fine, but if you are archiving commitlog segments (see
 commitlog_archiving.properties), then you probably want a finer
-granularity of archiving; 8 or 16 MB is reasonable. Max mutation size is
-also configurable via `max_mutation_size_in_kb` setting in `cassandra.yaml`.
-The default is half the size `commitlog_segment_size_in_mb * 1024`.
+granularity of archiving; 8 or 16 MiB is reasonable. `commitlog_segment_size`
+also determines the default value of `max_mutation_size` in cassandra.yaml.
+By default, max_mutation_size is half the size of `commitlog_segment_size`.
 
-**NOTE: If `max_mutation_size_in_kb` is set explicitly then
-`commitlog_segment_size_in_mb` must be set to at least twice the size of
-`max_mutation_size_in_kb / 1024`**.
+**NOTE: If `max_mutation_size` is set explicitly then
+`commitlog_segment_size` must be set to at least twice the size of
+`max_mutation_size`**.
 
 Commitlogs are an append only log of all mutations local to a Cassandra
 node. Any data written to Cassandra will first be written to a commit
@@ -47,11 +47,11 @@ for the same reason.
 - `commitlog_sync_batch_window_in_ms`: Time to wait between "batch"
 fsyncs _Default Value:_ 2
 ** `periodic`: In periodic mode, writes are immediately ack'ed, and the
-CommitLog is simply synced every "commitlog_sync_period_in_ms"
+CommitLog is simply synced every "commitlog_sync_period"
 milliseconds.
 +
-- `commitlog_sync_period_in_ms`: Time to wait between "periodic" fsyncs
-_Default Value:_ 10000
+- `commitlog_sync_period`: Time to wait between "periodic" fsyncs
+_Default Value:_ 10000ms
 
 _Default Value:_ batch
 
@@ -79,7 +79,7 @@ Deflate and Zstd compressors are supported.
 #     parameters:
 ----
 
-* `commitlog_total_space_in_mb`: Total space to use for commit logs on
+* `commitlog_total_space`: Total space to use for commit logs on
 disk.
 
 If space gets above this value, Cassandra will flush every dirty CF in
@@ -89,7 +89,7 @@ tend to cause more flush activity on less-active columnfamilies.
 The default value is the smaller of 8192, and 1/4 of the total space of
 the commitlog volume.
 
-_Default Value:_ 8192
+_Default Value:_ 8192MiB
 
 == Memtables
 

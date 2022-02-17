@@ -18,9 +18,9 @@ following properties on `cassandra.yaml`:
 
 * `dynamic_snitch`: whether the dynamic snitch should be enabled or
 disabled.
-* `dynamic_snitch_update_interval_in_ms`: controls how often to perform
+* `dynamic_snitch_update_interval`: 100ms, controls how often to perform
 the more expensive part of host score calculation.
-* `dynamic_snitch_reset_interval_in_ms`: if set greater than zero, this
+* `dynamic_snitch_reset_interval`: 10m, if set greater than zero, this
 will allow 'pinning' of replicas to hosts in order to increase cache
 capacity.
 * `dynamic_snitch_badness_threshold:`: The badness threshold will
