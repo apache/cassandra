@@ -18,7 +18,7 @@ By default, the use of user-defined functions is disabled by default for
 security concerns (even when enabled, the execution of user-defined
 functions is sandboxed and a "rogue" function should not be allowed to
 do evil, but no sandbox is perfect so using user-defined functions is
-opt-in). See the `enable_user_defined_functions` in `cassandra.yaml` to
+opt-in). See the `user_defined_functions_enabled` in `cassandra.yaml` to
 enable them.
 ====
 

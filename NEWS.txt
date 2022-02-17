@@ -116,6 +116,15 @@ New features
 
 Upgrading
 ---------
+    - We added new JMX methods `setStreamThroughputMbitPerSec`, `getStreamThroughputMbitPerSec`, `setInterDCStreamThroughputMbitPerSec`,
+      `getInterDCStreamThroughputMbitPerSec` to the JMX MBean `org.apache.cassandra.db:type=StorageService`. They replace the now
+      deprecated methods `setStreamThroughputMbPerSec`, `getStreamThroughputMbPerSec`, `setInterDCStreamThroughputMbPerSec`, and
+      `getInterDCStreamThroughputMbPerSec`, which will be removed in a future major release.
+    - The config property `repair_session_space_in_mb` was wrongly advertised in previous versions that it should be set in
+      megabytes when it is interpreted internally in mebibytes. To reduce the confusion we added two new JMX methods
+      `setRepairSessionSpaceInMebibytes(int sizeInMebibytes)` and `getRepairSessionSpaceInMebibytes`. They replace the now
+      deprecated methods `setRepairSessionSpaceInMegabytes(int sizeInMegabytes)` and `getRepairSessionSpaceInMegabytes`, which
+      will be removed in a future major release.
     - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
       memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
       parameters. (CASSANDRA-15234)

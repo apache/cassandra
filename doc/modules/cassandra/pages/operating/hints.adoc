@@ -39,7 +39,7 @@ replicas acknowledge the mutation the coordinator responds successfully
 to the client. If a replica node is unavailable, however, the
 coordinator stores a hint locally to the filesystem for later
 application. New hints will be retained for up to
-`max_hint_window_in_ms` of downtime (defaults to `3 hours`). If the
+`max_hint_windowin_ms` of downtime (defaults to `3 h`). If the
 unavailable replica does return to the cluster before the window
 expires, the coordinator applies any pending hinted mutations against
 the replica to ensure that eventual consistency is maintained.
@@ -87,18 +87,18 @@ application is idempotent and cannot overwrite a future mutation.
 === Hints for Timed Out Write Requests
 
 Hints are also stored for write requests that time out. The
-`write_request_timeout_in_ms` setting in `cassandra.yaml` configures the
+`write_request_timeout` setting in `cassandra.yaml` configures the
 timeout for write requests.
 
 [source,none]
 ----
-write_request_timeout_in_ms: 2000
+write_request_timeout: 2000ms
 ----
 
 The coordinator waits for the configured amount of time for write
 requests to complete, at which point it will time out and generate a
 hint for the timed out request. The lowest acceptable value for
-`write_request_timeout_in_ms` is 10 ms.
+`write_request_timeout` is 10 ms.
 
 == Configuring Hints
 
@@ -127,15 +127,15 @@ hinted_handoff_disabled_datacenters:
 
 |`unset`
 
-|`max_hint_window_in_ms` |Defines the maximum amount of time (ms) a node
-shall have hints generated after it has failed. |`10800000` # 3 hours
+|`max_hint_window` |Defines the maximum amount of time a node
+shall have hints generated after it has failed. |`3h` 
 
-|`hinted_handoff_throttle_in_kb` |Maximum throttle in KBs per second,
+|`hinted_handoff_throttle` |Maximum throttle in KiBs per second,
 per delivery thread. This will be reduced proportionally to the number
 of nodes in the cluster. (If there are two nodes in the cluster, each
 delivery thread will use the maximum rate; if there are 3, each will
 throttle to half of the maximum,since it is expected for two nodes to be
-delivering hints simultaneously.) |`1024`
+delivering hints simultaneously.) |`1024KiB`
 
 |`max_hints_delivery_threads` |Number of threads with which to deliver
 hints; Consider increasing this number when you have multi-dc
@@ -144,11 +144,11 @@ deployments, since cross-dc handoff tends to be slower |`2`
 |`hints_directory` |Directory where Cassandra stores hints.
 |`$CASSANDRA_HOME/data/hints`
 
-|`hints_flush_period_in_ms` |How often hints should be flushed from the
-internal buffers to disk. Will _not_ trigger fsync. |`10000`
+|`hints_flush_period` |How often hints should be flushed from the
+internal buffers to disk. Will _not_ trigger fsync. |`10000ms`
 
-|`max_hints_file_size_in_mb` |Maximum size for a single hints file, in
-megabytes. |`128`
+|`max_hints_file_size |Maximum size for a single hints file, in
+megabytes. |`128MiB`
 
 |`hints_compression` |Compression to apply to the hint files. If
 omitted, hints files will be written uncompressed. LZ4, Snappy, and
@@ -222,9 +222,9 @@ If you find yourself in such a situation, you may consider raising the
 === Allow a Node to be Down Longer at Runtime
 
 Sometimes a node may be down for more than the normal
-`max_hint_window_in_ms`, (default of three hours), but the hardware and
+`max_hint_window`, (default of three hours), but the hardware and
 data itself will still be accessible. In such a case you may consider
-raising the `max_hint_window_in_ms` dynamically via the
+raising the `max_hint_window` dynamically via the
 `nodetool setmaxhintwindow` command added in Cassandra 4.0
 (https://issues.apache.org/jira/browse/CASSANDRA-11720[CASSANDRA-11720]).
 This will instruct Cassandra to continue holding hints for the down
@@ -232,7 +232,7 @@ endpoint for a longer amount of time.
 
 This command should be applied on all nodes in the cluster that may be
 holding hints. If needed, the setting can be applied permanently by
-setting the `max_hint_window_in_ms` setting in `cassandra.yaml` followed
+setting the `max_hint_window` setting in `cassandra.yaml` followed
 by a rolling restart.
 
 == Monitoring Hint Delivery

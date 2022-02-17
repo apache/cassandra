@@ -107,10 +107,10 @@ Cassandra isn't optimized for large file or BLOB storage and a single
 storing small blobs (less than single digit MB) should not be a problem,
 but it is advised to manually split large blobs into smaller chunks.
 
-Please note in particular that by default, any value greater than 16MB
-will be rejected by Cassandra due the `max_mutation_size_in_kb`
+Please note in particular that by default, any value greater than 16MiB
+will be rejected by Cassandra due the `max_mutation_size`
 configuration of the `cassandra-yaml` file (which default to half of
-`commitlog_segment_size_in_mb`, which itself default to 32MB).
+`commitlog_segment_size`, which itself default to 32MiB).
 
 [[nodetool-connection-refused]]
 == Nodetool says "Connection refused to host: 127.0.1.1" for any remote host. What gives?

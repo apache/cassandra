@@ -111,10 +111,10 @@ period from when the node initially dies to when a new node completes
 the replacement process.
 
 [arabic]
-. The node is down for longer than `max_hint_window_in_ms` before being
+. The node is down for longer than `max_hint_window` before being
 replaced.
 . You are replacing using the same IP address as the dead node *and*
-replacement takes longer than `max_hint_window_in_ms`.
+replacement takes longer than `max_hint_window`.
 ====
 
 == Monitoring progress

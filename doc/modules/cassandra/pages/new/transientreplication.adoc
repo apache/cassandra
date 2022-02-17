@@ -47,7 +47,7 @@ must be enabled on each node in a cluster separately by setting the
 following configuration property in `cassandra.yaml`.
 
 ....
-enable_transient_replication: true
+transient_replication_enabled: true
 ....
 
 Transient replication may be configured with both `SimpleStrategy` and

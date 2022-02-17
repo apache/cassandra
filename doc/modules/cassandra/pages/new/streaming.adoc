@@ -83,7 +83,7 @@ eligibility for Zero Copy streaming.
 When enabled, it permits Cassandra to zero-copy stream entire eligible
 SSTables between nodes, including every component. This speeds up the
 network transfer significantly subject to throttling specified by
-`stream_throughput_outbound_megabits_per_sec`.
+`stream_throughput_outbound`.
 
 Enabling this will reduce the GC pressure on sending and receiving node.
 While this feature tries to keep the disks balanced, it cannot guarantee
@@ -93,28 +93,28 @@ is enabled. Currently this can be used with Leveled Compaction.
 === Configuring for Zero Copy Streaming
 
 Throttling would reduce the streaming speed. The
-`stream_throughput_outbound_megabits_per_sec` throttles all outbound
+`stream_throughput_outbound` throttles all outbound
 streaming file transfers on a node to the given total throughput in
-Mbps. When unset, the default is 200 Mbps or 25 MB/s.
+Mbps. When unset, the default is 200 Mbps or 24 MiB/s.
 
 ....
-stream_throughput_outbound_megabits_per_sec: 200
+stream_throughput_outbound: 24MiB/s
 ....
 
 To run any Zero Copy streaming benchmark the
-`stream_throughput_outbound_megabits_per_sec` must be set to a really
+`stream_throughput_outbound` must be set to a really
 high value otherwise, throttling will be significant and the benchmark
 results will not be meaningful.
 
-The `inter_dc_stream_throughput_outbound_megabits_per_sec` throttles all
+The `inter_dc_stream_throughput_outbound` throttles all
 streaming file transfer between the datacenters, this setting allows
 users to throttle inter dc stream throughput in addition to throttling
 all network stream traffic as configured with
-`stream_throughput_outbound_megabits_per_sec`. When unset, the default
+`stream_throughput_outbound`. When unset, the default
 is 200 Mbps or 25 MB/s.
 
 ....
-inter_dc_stream_throughput_outbound_megabits_per_sec: 200
+inter_dc_stream_throughput_outbound: 24MiB/s
 ....
 
 === SSTable Components Streamed with Zero Copy Streaming
