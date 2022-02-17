@@ -90,9 +90,8 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
-
-4.0.4
 Merged from 3.0:
+ * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
  * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
  * LeveledCompactionStrategy disk space check improvements (CASSANDRA-17272)
 
