@@ -91,7 +91,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
-            currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
+            currentBytesToWrite = getExpectedWriteSize();
             switchCompactionLocation(location);
             logger.debug("Switching writer, currentBytesToWrite = {}", currentBytesToWrite);
         }
@@ -114,5 +114,11 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                     txn);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);
+    }
+
+    @Override
+    protected long getExpectedWriteSize()
+    {
+        return Math.round(totalSize * ratios[currentRatioIndex]);
     }
 }

@@ -119,4 +119,10 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 
         sstableWriter.switchWriter(writer);
     }
+
+    @Override
+    protected long getExpectedWriteSize()
+    {
+        return Math.min(maxSSTableSize, super.getExpectedWriteSize());
+    }
 }
