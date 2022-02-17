@@ -1,4 +1,5 @@
 4.1
+ * Fix improper CDC commit log segments deletion in non-blocking mode (CASSANDRA-17233)
  * Add support for string concatenations through the + operator (CASSANDRA-17190)
  * Limit the maximum hints size per host (CASSANDRA-17142)
  * Add a virtual table for exposing batch metrics (CASSANDRA-17225)
