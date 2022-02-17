@@ -20,10 +20,13 @@ package org.apache.cassandra.schema;
 
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.FloatType;
@@ -31,6 +34,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.Memtable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -124,5 +128,24 @@ public class TableMetadataTest
 
         assertThat(metadata.primaryKeyAsCQLLiteral(composite.decompose(1, true), Clustering.EMPTY)).isEqualTo("(1, true)");
         assertThat(metadata.primaryKeyAsCQLLiteral(composite.decompose(2, true), Clustering.STATIC_CLUSTERING)).isEqualTo("(2, true)");
+    }
+
+    public static class CustomMemtableFactory implements Memtable.Factory
+    {
+        @Override
+        public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadaRef, Memtable.Owner owner)
+        {
+            return null;
+        }
+    }
+
+    @Test
+    public void testMemtableParams()
+    {
+        MemtableParams memtableParams = new MemtableParams(new CustomMemtableFactory(),
+                                                           ImmutableMap.of(MemtableParams.Option.CLASS.toString(), "a.b.c"));
+
+        assertThat(memtableParams.factory).isInstanceOf(CustomMemtableFactory.class);
+        assertThat(memtableParams.options).isEmpty();
     }
 }
