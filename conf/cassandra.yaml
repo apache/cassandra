@@ -1664,6 +1664,8 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # items_per_collection_warn_threshold: -1
 # items_per_collection_fail_threshold: -1
+# Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
+# allow_filtering_enabled: true
 # Guardrail to warn or fail when creating a user-defined-type with more fields in than threshold.
 # Default -1 to disable.
 # fields_per_udt_warn_threshold: -1

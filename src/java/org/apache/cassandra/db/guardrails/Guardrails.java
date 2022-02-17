@@ -198,6 +198,14 @@ public final class Guardrails implements GuardrailsMBean
                     "List operation requiring read before write");
 
     /**
+     * Guardrail disabling ALLOW FILTERING statement within a query
+     */
+    public static final DisableFlag allowFilteringEnabled =
+    new DisableFlag("allow_filtering",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getAllowFilteringEnabled(),
+                    "Querying with ALLOW FILTERING");
+
+    /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
      */
     public static final Threshold inSelectCartesianProduct =
@@ -511,6 +519,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setUserTimestampsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setUserTimestampsEnabled(enabled);
+    }
+
+    @Override
+    public boolean getAllowFilteringEnabled()
+    {
+        return DEFAULT_CONFIG.getAllowFilteringEnabled();
+    }
+
+    @Override
+    public void setAllowFilteringEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setAllowFilteringEnabled(enabled);
     }
 
     @Override

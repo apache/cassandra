@@ -84,6 +84,7 @@ New features
         - Whether GROUP BY queries are allowed.
         - Whether the creation of secondary indexes is allowed.
         - Whether the creation of uncompressed tables is allowed.
+        - Whether querying with ALLOW FILTERING is allowed.
     - Add support for the use of pure monotonic functions on the last attribute of the GROUP BY clause.
     - Add floor functions that can be use to group by time range.
     - Support for native transport rate limiting via native_transport_rate_limiting_enabled and 
