@@ -367,6 +367,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getAllowFilteringEnabled()
+    {
+        return config.allow_filtering_enabled;
+    }
+
+    public void setAllowFilteringEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("allow_filtering_enabled",
+                                  enabled,
+                                  () -> config.allow_filtering_enabled,
+                                  x -> config.allow_filtering_enabled = x);
+    }
+
+    @Override
     public int getInSelectCartesianProductWarnThreshold()
     {
         return config.in_select_cartesian_product_warn_threshold;

@@ -34,13 +34,11 @@ import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
-
 /**
  * Test column ranges and ordering with static column in table
  */
 public class SelectTest extends CQLTester
 {
-
     @Test
     public void testSingleClustering() throws Throwable
     {
