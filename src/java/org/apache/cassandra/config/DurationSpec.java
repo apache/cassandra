@@ -179,6 +179,17 @@ public class DurationSpec
     }
 
     /**
+     * Creates a {@code DurationSpec} of the specified amount of days.
+     *
+     * @param days the amount of days
+     * @return a duration
+     */
+    public static DurationSpec inDays(long days)
+    {
+        return new DurationSpec(days, DAYS);
+    }
+
+    /**
      * Creates a {@code DurationSpec} of the specified amount of seconds. Custom method for special cases.
      *
      * @param value which can be in the old form only presenting the quantity or the post CASSANDRA-15234 form - a

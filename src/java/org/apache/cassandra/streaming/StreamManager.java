@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
 import javax.management.NotificationFilter;
@@ -33,10 +37,16 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
+import org.apache.cassandra.utils.Clock;
 
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
@@ -45,6 +55,8 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
  */
 public class StreamManager implements StreamManagerMBean
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamManager.class);
+
     public static final StreamManager instance = new StreamManager();
 
     /**
@@ -204,6 +216,7 @@ public class StreamManager implements StreamManagerMBean
     }
 
     private final StreamEventJMXNotifier notifier = new StreamEventJMXNotifier();
+    private final CopyOnWriteArrayList<StreamListener> listeners = new CopyOnWriteArrayList<>();
 
     /*
      * Currently running streams. Removed after completion/failure.
@@ -212,6 +225,98 @@ public class StreamManager implements StreamManagerMBean
      */
     private final Map<UUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
     private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
+
+    private final Map<UUID, StreamingState> states = new NonBlockingHashMap<>();
+    private volatile ScheduledFuture<?> cleanup = null;
+
+    public StreamManager()
+    {
+        addListener(new StreamListener()
+        {
+            @Override
+            public void onRegister(StreamResultFuture result)
+            {
+                StreamingState state = new StreamingState(result);
+                StreamingState previous = states.putIfAbsent(state.getId(), state);
+                if (previous == null)
+                {
+                    state.phase.start();
+                    result.addEventListener(state);
+                }
+                else
+                {
+                    logger.warn("Duplicate streaming states detected for id {}", state.getId());
+                }
+            }
+        });
+    }
+
+    public void start()
+    {
+        this.cleanup = ScheduledExecutors.optionalTasks.scheduleAtFixedRate(this::cleanup, 0,
+                                                             DatabaseDescriptor.getStreamingStateCleanupInterval().toNanoseconds(),
+                                                             TimeUnit.NANOSECONDS);
+    }
+
+    public void stop()
+    {
+        ScheduledFuture<?> cleanup = this.cleanup;
+        if (cleanup != null)
+            cleanup.cancel(false);
+    }
+
+    public Collection<StreamingState> getStreamingStates()
+    {
+        return states.values();
+    }
+
+    public StreamingState getStreamingState(UUID id)
+    {
+        return states.get(id);
+    }
+
+    @VisibleForTesting
+    public void putStreamingState(StreamingState state)
+    {
+        StreamingState previous = states.putIfAbsent(state.getId(), state);
+        if (previous != null)
+            throw new AssertionError("StreamPlan id " + state.getId() + " already exists");
+    }
+
+    @VisibleForTesting
+    public void cleanup()
+    {
+        try
+        {
+            DurationSpec duration = DatabaseDescriptor.getStreamingStateExpires();
+            long durationNanos = duration.toNanoseconds();
+            long deadlineNanos = Clock.Global.nanoTime() - durationNanos;
+            for (StreamingState state : states.values())
+            {
+                if (state.getLastUpdatedAtNanos() < deadlineNanos)
+                {
+                    if (state.isComplete())
+                    {
+                        states.remove(state.getId());
+                    }
+                    else
+                    {
+                        logger.warn("Stream {} has been running longer than state expires window {};\n{}", state.getId(), duration, state);
+                    }
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Unexpected error cleaning up stream state", t);
+        }
+    }
+
+    @VisibleForTesting
+    public void clearStates()
+    {
+        states.clear();
+    }
 
     public Set<CompositeData> getCurrentStreams()
     {
@@ -231,6 +336,7 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> initiatorStreams.remove(result.planId));
 
         initiatorStreams.put(result.planId, result);
+        notifySafeOnRegister(result);
     }
 
     public StreamResultFuture registerFollower(final StreamResultFuture result)
@@ -240,7 +346,37 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> followerStreams.remove(result.planId));
 
         StreamResultFuture previous = followerStreams.putIfAbsent(result.planId, result);
-        return previous == null ? result : previous;
+        if (previous == null)
+        {
+            notifySafeOnRegister(result);
+            return result;
+        }
+        return previous;
+    }
+
+    public void addListener(StreamListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public void removeListener(StreamListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    private void notifySafeOnRegister(StreamResultFuture result)
+    {
+        for (StreamListener l : listeners)
+        {
+            try
+            {
+                l.onRegister(result);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to notify stream listener of new Initiator/Follower", t);
+            }
+        }
     }
 
     public StreamResultFuture getReceivingStream(UUID planId)
@@ -281,5 +417,10 @@ public class StreamManager implements StreamManagerMBean
             return null;
 
         return streamResultFuture.getSession(peer, sessionIndex);
+    }
+
+    public interface StreamListener
+    {
+        default void onRegister(StreamResultFuture result) {}
     }
 }

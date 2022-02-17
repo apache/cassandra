@@ -87,7 +87,8 @@ public class StreamEventJMXNotifier extends NotificationBroadcasterSupport imple
         Notification notif = new Notification(StreamEvent.class.getCanonicalName() + ".failure",
                                               StreamManagerMBean.OBJECT_NAME,
                                               seq.getAndIncrement());
-        notif.setUserData(t.fillInStackTrace().toString());
+//        notif.setUserData(t.fillInStackTrace().toString());
+        notif.setUserData(t.toString());
         sendNotification(notif);
     }
 }

@@ -93,7 +93,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
             plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToSync), desc.columnFamily);
         }
 
-        return plan;
+        return plan.withPlanId(desc.determanisticId());
     }
 
     /**

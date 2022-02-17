@@ -38,7 +38,7 @@ import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.str
 public class StreamPlan
 {
     private static final String[] EMPTY_COLUMN_FAMILIES = new String[0];
-    private final UUID planId = UUIDGen.getTimeUUID();
+    private final UUID planId;
     private final StreamOperation streamOperation;
     private final List<StreamEventHandler> handlers = new ArrayList<>();
     private final StreamCoordinator coordinator;
@@ -63,9 +63,26 @@ public class StreamPlan
     public StreamPlan(StreamOperation streamOperation, int connectionsPerHost,
                       boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
+        this.planId = UUIDGen.getTimeUUID();
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(),
                                                  false, connectSequentially, pendingRepair, previewKind);
+    }
+
+    private StreamPlan(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator, boolean flushBeforeTransfer)
+    {
+        this.planId = planId;
+        this.streamOperation = streamOperation;
+        this.coordinator = coordinator;
+        this.flushBeforeTransfer = flushBeforeTransfer;
+    }
+
+    /**
+     * Allows to override the stream plan id; the main user is Repair so repair streams match job ids
+     */
+    public StreamPlan withPlanId(UUID planId)
+    {
+        return new StreamPlan(planId, streamOperation, coordinator, flushBeforeTransfer);
     }
 
     /**
