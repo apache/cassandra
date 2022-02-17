@@ -71,16 +71,16 @@ public class StreamingVirtualTableTest extends CQLTester
     public void single() throws Throwable
     {
         StreamingState state = stream();
-        assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.getId(), true, Collections.emptyList(), "init", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
+        assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
+                   new Object[] { state.getId(), true, "Repair", Collections.emptyList(), "init", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
 
         state.phase.start();
-        assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] {state.getId(), true, Collections.emptyList(), "start", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
+        assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
+                   new Object[] {state.getId(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
 
         state.onSuccess(new StreamState(state.getId(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(address(127, 0, 0, 2), 1, address(127, 0, 0, 1), Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE))));
-        assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.getId(), true, Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.getLastUpdatedAtMillis()), null, null });
+        assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
+                   new Object[] { state.getId(), true, "Repair", Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.getLastUpdatedAtMillis()), null, null });
     }
 
     @Test

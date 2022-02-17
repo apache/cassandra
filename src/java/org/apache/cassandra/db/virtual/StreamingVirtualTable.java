@@ -37,6 +37,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
         super(parse("CREATE TABLE streaming (" +
                     "  id uuid,\n" +
                     "  follower boolean,\n" +
+                    "  operation text, \n" +
                     "  peers frozen<list<text>>,\n" +
                     "  status text,\n" +
                     "  progress_percentage float,\n" +
@@ -85,6 +86,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     {
         ds.row(state.getId());
         ds.column("follower", state.isFollower());
+        ds.column("operation", state.getOperation().getDescription());
         ds.column("peers", state.getPeers().stream().map(Object::toString).collect(Collectors.toList()));
         ds.column("status", state.getState().name().toLowerCase());
         ds.column("progress_percentage", round(state.getProgress() * 100));

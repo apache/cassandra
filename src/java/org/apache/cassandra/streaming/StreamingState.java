@@ -42,6 +42,7 @@ public class StreamingState implements StreamEventHandler
 
     private final UUID id;
     private final boolean follower;
+    private final StreamOperation operation;
     // TODO is this changed after init?  looks like it is based off sessions which get added later?
     private Set<InetSocketAddress> peers;
     private Sessions sessions = Sessions.EMPTY;
@@ -57,9 +58,11 @@ public class StreamingState implements StreamEventHandler
 
     public StreamingState(StreamResultFuture result)
     {
+        StreamCoordinator coordinator = result.getCoordinator();
         this.id = result.planId;
-        this.follower = result.getCoordinator().isFollower();
-        this.peers = result.getCoordinator().getPeers();
+        this.operation = result.getCurrentState().streamOperation;
+        this.follower = coordinator.isFollower();
+        this.peers = coordinator.getPeers();
         this.stateTimesNanos = new long[State.values().length];
         stateTimesNanos[0] = Clock.Global.nanoTime();
     }
@@ -72,6 +75,11 @@ public class StreamingState implements StreamEventHandler
     public boolean isFollower()
     {
         return follower;
+    }
+
+    public StreamOperation getOperation()
+    {
+        return operation;
     }
 
     public Set<InetSocketAddress> getPeers()
