@@ -1,6 +1,7 @@
 3.11.13
 Merged from 3.0:
  * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
+ * LeveledCompactionStrategy disk space check improvements (CASSANDRA-17272)
 
 
 3.11.12

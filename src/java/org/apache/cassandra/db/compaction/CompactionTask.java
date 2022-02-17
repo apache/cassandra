@@ -91,10 +91,10 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MB required, {}",
+            logger.warn("insufficient space to compact all requested files. {}MB required, {} for compaction {}",
                         (float) expectedSize / 1024 / 1024,
-                        StringUtils.join(transaction.originals(), ", "));
-
+                        StringUtils.join(transaction.originals(), ", "),
+                        transaction.opId());
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
             SSTableReader removedSSTable = cfs.getMaxSizeFile(transaction.originals());

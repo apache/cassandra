@@ -162,7 +162,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         {
             if (locationIndex < 0)
             {
-                Directories.DataDirectory defaultLocation = getWriteDirectory(nonExpiredSSTables, cfs.getExpectedCompactedFileSize(nonExpiredSSTables, OperationType.UNKNOWN));
+                Directories.DataDirectory defaultLocation = getWriteDirectory(nonExpiredSSTables, getExpectedWriteSize());
                 switchCompactionLocation(defaultLocation);
                 locationIndex = 0;
             }
@@ -238,5 +238,10 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         this.sstableWriter.setRepairedAt(repairedAt);
         return this;
+    }
+
+    protected long getExpectedWriteSize()
+    {
+        return cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
     }
 }

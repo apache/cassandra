@@ -15,22 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.compaction;
+package org.apache.cassandra.db.compaction.writers;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.primitives.Longs;
 import org.junit.*;
 
+import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
-import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
-import org.apache.cassandra.db.compaction.writers.MajorLeveledCompactionWriter;
-import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
-import org.apache.cassandra.db.compaction.writers.SplittingSizeTieredCompactionWriter;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionIterator;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
@@ -163,6 +164,41 @@ public class CompactionAwareWriterTest extends CQLTester
             assertEquals(0, levelCounts[i]);
         validateData(cfs, rowCount);
         cfs.truncateBlocking();
+    }
+
+    @Test
+    public void testMultiDatadirCheck()
+    {
+        createTable("create table %s (id int primary key)");
+        Directories.DataDirectory [] dataDirs = new Directories.DataDirectory[] {
+        new MockDataDirectory(new File("/tmp/1")),
+        new MockDataDirectory(new File("/tmp/2")),
+        new MockDataDirectory(new File("/tmp/3")),
+        new MockDataDirectory(new File("/tmp/4")),
+        new MockDataDirectory(new File("/tmp/5"))
+        };
+        Set<SSTableReader> sstables = new HashSet<>();
+        for (int i = 0; i < 100; i++)
+            sstables.add(MockSchema.sstable(i, 1000, getCurrentColumnFamilyStore()));
+
+        Directories dirs = new Directories(getCurrentColumnFamilyStore().metadata, dataDirs);
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables);
+        CompactionAwareWriter writer = new MaxSSTableSizeWriter(getCurrentColumnFamilyStore(), dirs, txn, sstables, 2000, 1);
+        // init case
+        writer.maybeSwitchWriter(null);
+    }
+
+    private static class MockDataDirectory extends Directories.DataDirectory
+    {
+        public MockDataDirectory(File location)
+        {
+            super(location);
+        }
+
+        public long getAvailableSpace()
+        {
+            return 5000;
+        }
     }
 
     private int compact(ColumnFamilyStore cfs, LifecycleTransaction txn, CompactionAwareWriter writer)
