@@ -19,6 +19,8 @@
 
 from __future__ import with_statement
 
+import locale
+import os
 import re
 from itertools import izip
 from .basecase import (BaseTestCase, cqlshlog, dedent, at_a_time, cqlsh,
@@ -36,7 +38,14 @@ CONTROL_D = '\x04'
 class TestCqlshOutput(BaseTestCase):
 
     def setUp(self):
-        pass
+        env = os.environ.copy()
+        env['COLUMNS'] = '100000'
+        # carry forward or override locale LC_CTYPE for UTF-8 encoding
+        if (locale.getpreferredencoding() != 'UTF-8'):
+            env['LC_CTYPE'] = 'en_US.utf8'
+        else:
+            env['LC_CTYPE'] = os.environ.get('LC_CTYPE', 'en_US.utf8')
+        self.default_env = env
 
     def tearDown(self):
         pass
@@ -67,12 +76,14 @@ class TestCqlshOutput(BaseTestCase):
                                  'Actually got:      %s\ncolor code:        %s'
                                  % (tags, coloredtext.colored_version(), coloredtext.colortags()))
 
-    def assertQueriesGiveColoredOutput(self, queries_and_expected_outputs, **kwargs):
+    def assertQueriesGiveColoredOutput(self, queries_and_expected_outputs, env=None, **kwargs):
         """
         Allow queries and expected output to be specified in structured tuples,
         along with expected color information.
         """
-        with testrun_cqlsh(tty=True, **kwargs) as c:
+        if env is None:
+            env = self.default_env
+        with testrun_cqlsh(tty=True, env=env, **kwargs) as c:
             for query, expected in queries_and_expected_outputs:
                 cqlshlog.debug('Testing %r' % (query,))
                 output = c.cmd_and_response(query).lstrip("\r\n")
@@ -84,9 +95,11 @@ class TestCqlshOutput(BaseTestCase):
                     self.assertColorFromTags(outputline, colorcodes)
 
     def test_no_color_output(self):
+        env = self.default_env
         for termname in ('', 'dumb', 'vt100'):
             cqlshlog.debug('TERM=%r' % termname)
-            with testrun_cqlsh(tty=True, env={'TERM': termname},
+            env['TERM'] = termname
+            with testrun_cqlsh(tty=True, env=env,
                                win_force_colors=False) as c:
                 c.send('select * from has_all_types;\n')
                 self.assertNoHasColors(c.read_to_next_prompt())
@@ -96,10 +109,12 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(c.read_to_next_prompt())
 
     def test_no_prompt_or_colors_output(self):
+        env = self.default_env
         for termname in ('', 'dumb', 'vt100', 'xterm'):
             cqlshlog.debug('TERM=%r' % termname)
+            env['TERM'] = termname
             query = 'select * from has_all_types limit 1;'
-            output, result = testcall_cqlsh(prompt=None, env={'TERM': termname},
+            output, result = testcall_cqlsh(prompt=None, env=env,
                                             tty=False, input=query + '\n')
             output = output.splitlines()
             for line in output:
@@ -115,9 +130,12 @@ class TestCqlshOutput(BaseTestCase):
             self.assertEqual(output[5].strip(), '(1 rows)')
 
     def test_color_output(self):
+        env = self.default_env
         for termname in ('xterm', 'unknown-garbage'):
             cqlshlog.debug('TERM=%r' % termname)
-            with testrun_cqlsh(tty=True, env={'TERM': termname}) as c:
+            env['TERMNAME'] = termname
+            env['TERM'] = termname
+            with testrun_cqlsh(tty=True, env=env) as c:
                 c.send('select * from has_all_types;\n')
                 self.assertHasColors(c.read_to_next_prompt())
                 c.send('select count(*) from has_all_types;\n')
@@ -349,6 +367,8 @@ class TestCqlshOutput(BaseTestCase):
         ))
 
     def test_timestamp_output(self):
+        env = self.default_env
+        env['TZ'] = 'Etc/UTC'
         self.assertQueriesGiveColoredOutput((
             ('''select timestampcol from has_all_types where num = 0;''', """
              timestampcol
@@ -362,9 +382,10 @@ class TestCqlshOutput(BaseTestCase):
             (1 rows)
             nnnnnnnn
             """),
-        ), env={'TZ': 'Etc/UTC'})
+        ), env=env)
         try:
             import pytz  # test only if pytz is available on PYTHONPATH
+            env['TZ'] = 'America/Sao_Paulo'
             self.assertQueriesGiveColoredOutput((
                 ('''select timestampcol from has_all_types where num = 0;''', """
                  timestampcol
@@ -378,7 +399,7 @@ class TestCqlshOutput(BaseTestCase):
                 (1 rows)
                 nnnnnnnn
                 """),
-            ), env={'TZ': 'America/Sao_Paulo'})
+            ), env=env)
         except ImportError:
             pass
 
@@ -470,6 +491,8 @@ class TestCqlshOutput(BaseTestCase):
         # terminals, but the color-checking machinery here will still treat
         # it as one character, so those won't seem to line up visually either.
 
+        env = self.default_env
+        env['LANG'] = 'en_US.UTF-8'
         self.assertQueriesGiveColoredOutput((
             ("select * from utf8_with_special_chars where k in (0, 1, 2, 3, 4, 5, 6);", u"""
              k | val
@@ -495,7 +518,7 @@ class TestCqlshOutput(BaseTestCase):
             (7 rows)
             nnnnnnnn
             """.encode('utf-8')),
-        ), env={'LANG': 'en_US.UTF-8'})
+        ), env=env)
 
     def test_blob_output(self):
         self.assertQueriesGiveColoredOutput((
@@ -520,7 +543,7 @@ class TestCqlshOutput(BaseTestCase):
         ))
 
     def test_prompt(self):
-        with testrun_cqlsh(tty=True, keyspace=None) as c:
+        with testrun_cqlsh(tty=True, keyspace=None, env=self.default_env) as c:
             self.assertTrue(c.output_header.splitlines()[-1].endswith('cqlsh> '))
 
             c.send('\n')
@@ -552,7 +575,7 @@ class TestCqlshOutput(BaseTestCase):
                              "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
     def test_describe_keyspace_output(self):
-        with testrun_cqlsh(tty=True) as c:
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             ks = get_keyspace()
             qks = quote_name(ks)
             for cmd in ('describe keyspace', 'desc keyspace'):
@@ -628,7 +651,7 @@ class TestCqlshOutput(BaseTestCase):
 
         """ % quote_name(get_keyspace()))
 
-        with testrun_cqlsh(tty=True) as c:
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
                 for semicolon in (';', ''):
                     output = c.cmd_and_response('%s has_all_types%s' % (cmdword, semicolon))
@@ -646,7 +669,7 @@ class TestCqlshOutput(BaseTestCase):
 
         ks = get_keyspace()
 
-        with testrun_cqlsh(tty=True, keyspace=None) as c:
+        with testrun_cqlsh(tty=True, keyspace=None, env=self.default_env) as c:
 
             # when not in a keyspace
             for cmdword in ('DESCRIBE COLUMNFAMILIES', 'desc tables'):
@@ -697,7 +720,7 @@ class TestCqlshOutput(BaseTestCase):
             \n
         '''
 
-        with testrun_cqlsh(tty=True, keyspace=None) as c:
+        with testrun_cqlsh(tty=True, keyspace=None, env=self.default_env) as c:
 
             # not in a keyspace
             for semicolon in ('', ';'):
@@ -724,7 +747,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertRegexpMatches(output, ';\s*$')
 
     def test_show_output(self):
-        with testrun_cqlsh(tty=True) as c:
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             output = c.cmd_and_response('show version;')
             self.assertRegexpMatches(output,
                     '^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
@@ -736,7 +759,7 @@ class TestCqlshOutput(BaseTestCase):
 
     @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
-        with testrun_cqlsh(tty=True) as c:
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             c.send(CONTROL_D)
             out = c.read_lines(1)[0].replace('\r', '')
             self.assertEqual(out, '\n')
@@ -746,7 +769,7 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_exit_prints_no_newline(self):
         for semicolon in ('', ';'):
-            with testrun_cqlsh(tty=True) as c:
+            with testrun_cqlsh(tty=True, env=self.default_env) as c:
                 cmd = 'exit%s\n' % semicolon
                 c.send(cmd)
                 if c.realtty:
@@ -757,7 +780,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertIn(type(cm.exception), (EOFError, OSError))
 
     def test_help_types(self):
-        with testrun_cqlsh(tty=True) as c:
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             c.cmd_and_response('help types')
 
     def test_help(self):
