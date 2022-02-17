@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class StreamingState implements StreamEventHandler
 {
-    public enum State { INIT, START, SUCCESS, FAILURE }
+    public enum State
+    {INIT, START, SUCCESS, FAILURE}
 
     private final long createdAtMillis = Clock.Global.currentTimeMillis();
 
@@ -177,33 +179,7 @@ public class StreamingState implements StreamEventHandler
         if (stream != null)
         {
             peers = stream.getCoordinator().getPeers();
-            Set<SessionInfo> sessions = stream.getCoordinator().getAllSessionInfo();
-            long bytesToReceive = 0;
-            long bytesReceived = 0;
-            long filesToReceive = 0;
-            long filesReceived = 0;
-            long bytesToSend = 0;
-            long bytesSent = 0;
-            long filesToSend = 0;
-            long filesSent = 0;
-            for (SessionInfo session : sessions)
-            {
-                bytesToReceive += session.getTotalSizeToReceive();
-                bytesReceived += session.getTotalSizeReceived();
-
-                filesToReceive += session.getTotalFilesToReceive();
-                filesReceived += session.getTotalFilesReceived();
-
-                bytesToSend += session.getTotalSizeToSend();
-                bytesSent += session.getTotalSizeSent();
-
-                filesToSend += session.getTotalFilesToSend();
-                filesSent += session.getTotalFilesSent();
-            }
-            this.sessions = new Sessions(bytesToReceive, bytesReceived,
-                                         bytesToSend, bytesSent,
-                                         filesToReceive, filesReceived,
-                                         filesToSend, filesSent);
+            sessions = Sessions.create(stream.getCoordinator().getAllSessionInfo());
         }
         lastUpdatedAtNanos = Clock.Global.nanoTime();
     }
@@ -214,6 +190,7 @@ public class StreamingState implements StreamEventHandler
         if (state != null)
         {
             peers = state.sessions.stream().map(a -> a.peer).collect(Collectors.toSet());
+            sessions = Sessions.create(state.sessions);
         }
         updateState(State.SUCCESS);
     }
@@ -264,6 +241,36 @@ public class StreamingState implements StreamEventHandler
             this.filesReceived = filesReceived;
             this.filesToSend = filesToSend;
             this.filesSent = filesSent;
+        }
+
+        public static Sessions create(Collection<SessionInfo> sessions)
+        {
+            long bytesToReceive = 0;
+            long bytesReceived = 0;
+            long filesToReceive = 0;
+            long filesReceived = 0;
+            long bytesToSend = 0;
+            long bytesSent = 0;
+            long filesToSend = 0;
+            long filesSent = 0;
+            for (SessionInfo session : sessions)
+            {
+                bytesToReceive += session.getTotalSizeToReceive();
+                bytesReceived += session.getTotalSizeReceived();
+
+                filesToReceive += session.getTotalFilesToReceive();
+                filesReceived += session.getTotalFilesReceived();
+
+                bytesToSend += session.getTotalSizeToSend();
+                bytesSent += session.getTotalSizeSent();
+
+                filesToSend += session.getTotalFilesToSend();
+                filesSent += session.getTotalFilesSent();
+            }
+            return new Sessions(bytesToReceive, bytesReceived,
+                                bytesToSend, bytesSent,
+                                filesToReceive, filesReceived,
+                                filesToSend, filesSent);
         }
 
         public BigDecimal receivedBytesPercent()
