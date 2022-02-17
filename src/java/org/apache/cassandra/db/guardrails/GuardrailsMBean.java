@@ -209,6 +209,20 @@ public interface GuardrailsMBean
     void setUserTimestampsEnabled(boolean enabled);
 
     /**
+     * Returns whether ALLOW FILTERING property is allowed.
+     *
+     * @return {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
+     */
+    boolean getAllowFilteringEnabled();
+
+    /**
+     * Sets whether ALLOW FILTERING is allowed.
+     *
+     * @param enabled {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
+     */
+    void setAllowFilteringEnabled(boolean enabled);
+
+    /**
      * Returns whether users can disable compression on tables
      *
      * @return {@code true} if users can disable compression on a table, {@code false} otherwise.

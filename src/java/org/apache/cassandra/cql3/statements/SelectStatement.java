@@ -35,6 +35,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.cql3.*;
@@ -238,7 +239,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        // Nothing to do, all validation has been done by RawStatement.prepare()
+        if (parameters.allowFiltering && !SchemaConstants.isSystemKeyspace(table.keyspace))
+            Guardrails.allowFilteringEnabled.ensureEnabled(state);
     }
 
     public ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime)

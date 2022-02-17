@@ -171,6 +171,13 @@ public interface GuardrailsConfig
     boolean getReadBeforeWriteListOperationsEnabled();
 
     /**
+     * Returns whether ALLOW FILTERING property is allowed.
+     *
+     * @return {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
+     */
+    boolean getAllowFilteringEnabled();
+
+    /**
      * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
      * -1 means disabled.
      */
