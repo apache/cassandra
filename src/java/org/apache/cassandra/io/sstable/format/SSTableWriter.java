@@ -315,19 +315,20 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     // finalise our state on disk, including renaming
     public final void prepareToCommit()
     {
-        txnProxy.prepareToCommit();
+        try
+        {
+            txnProxy.prepareToCommit();
+        }
+        finally
+        {
+            // need to generate all index files before commit, so they will be included in txn log
+            observers.forEach(SSTableFlushObserver::complete);
+        }
     }
 
     public final Throwable commit(Throwable accumulate)
     {
-        try
-        {
-            return txnProxy.commit(accumulate);
-        }
-        finally
-        {
-            observers.forEach(SSTableFlushObserver::complete);
-        }
+        return txnProxy.commit(accumulate);
     }
 
     public final Throwable abort(Throwable accumulate)
