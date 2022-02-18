@@ -1620,3 +1620,17 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable. 
 # partition_keys_in_select_warn_threshold: -1
 # partition_keys_in_select_fail_threshold: -1
+
+# Startup Checks are executed as part of Cassandra startup process, not all of them
+# are configurable (so you can disable them) but these which are enumerated bellow.
+# Uncomment the startup checks and configure them appropriately to cover your needs.
+#
+#startup_checks:
+#  filesystem_ownership:
+#    enabled: false
+#    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
+#    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
+#  dc:
+#    enabled: true # (overriden by cassandra.ignore_dc system property)
+#  rack:
+#    enabled: true # (overriden by cassandra.ignore_rack system property)
