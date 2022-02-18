@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -766,6 +768,9 @@ public class Config
     public volatile Set<String> table_properties_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
+
+    /** The configuration of startup checks. */
+    public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();
 
     public enum PaxosVariant
     {

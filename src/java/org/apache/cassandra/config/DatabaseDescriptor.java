@@ -66,6 +66,8 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -156,6 +158,7 @@ public class DatabaseDescriptor
 
     /** The configuration for guardrails. */
     private static GuardrailsOptions guardrails;
+    private static StartupChecksOptions startupChecksOptions;
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
@@ -368,6 +371,8 @@ public class DatabaseDescriptor
         applySslContext();
 
         applyGuardrails();
+
+        applyStartupChecks();
     }
 
     private static void applySimpleConfig()
@@ -897,6 +902,16 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Invalid guardrails configuration: " + e.getMessage(), e);
         }
+    }
+
+    public static StartupChecksOptions getStartupChecksOptions()
+    {
+        return startupChecksOptions;
+    }
+
+    private static void applyStartupChecks()
+    {
+        startupChecksOptions = new StartupChecksOptions(conf.startup_checks);
     }
 
     private static String storagedirFor(String type)

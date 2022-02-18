@@ -484,7 +484,7 @@ public class CassandraDaemon
     {
         try
         {
-            startupChecks.verify();
+            startupChecks.verify(DatabaseDescriptor.getStartupChecksOptions());
         }
         catch (StartupException e)
         {
