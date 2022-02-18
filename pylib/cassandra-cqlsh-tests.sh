@@ -122,10 +122,6 @@ pytest
 RETURN="$?"
 
 ccm remove
-# hack around --xunit-prefix-with-testsuite-name not being available in nose 1.3.7
-# sed -i "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/g" nosetests.xml
-# sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" nosetests.xml
-# mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 
 ################################
 #
