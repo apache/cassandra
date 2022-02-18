@@ -75,7 +75,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     {
         InetAddressAndPort remote =  nodePair.peer;
 
-        StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
+        StreamPlan plan = new StreamPlan(desc.determanisticId(), StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null);
 
@@ -93,7 +93,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
             plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToSync), desc.columnFamily);
         }
 
-        return plan.withPlanId(desc.determanisticId());
+        return plan;
     }
 
     /**

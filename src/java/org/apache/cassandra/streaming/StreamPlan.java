@@ -63,26 +63,16 @@ public class StreamPlan
     public StreamPlan(StreamOperation streamOperation, int connectionsPerHost,
                       boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
-        this.planId = UUIDGen.getTimeUUID();
+        this(UUIDGen.getTimeUUID(), streamOperation, connectionsPerHost, connectSequentially, pendingRepair, previewKind);
+    }
+
+    public StreamPlan(UUID planId, StreamOperation streamOperation, int connectionsPerHost,
+                      boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
+    {
+        this.planId = Objects.requireNonNull(planId);
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(),
                                                  false, connectSequentially, pendingRepair, previewKind);
-    }
-
-    private StreamPlan(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator, boolean flushBeforeTransfer)
-    {
-        this.planId = planId;
-        this.streamOperation = streamOperation;
-        this.coordinator = coordinator;
-        this.flushBeforeTransfer = flushBeforeTransfer;
-    }
-
-    /**
-     * Allows to override the stream plan id; the main user is Repair so repair streams match job ids
-     */
-    public StreamPlan withPlanId(UUID planId)
-    {
-        return new StreamPlan(planId, streamOperation, coordinator, flushBeforeTransfer);
     }
 
     /**

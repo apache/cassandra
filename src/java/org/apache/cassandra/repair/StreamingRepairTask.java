@@ -58,7 +58,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
 
-    public StreamingRepairTask(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, UUID pendingRepair, PreviewKind previewKind, boolean asymmetric)
+    public StreamingRepairTask(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges,  UUID pendingRepair, PreviewKind previewKind, boolean asymmetric)
     {
         this.desc = desc;
         this.initiator = initiator;
@@ -79,7 +79,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     @VisibleForTesting
     StreamPlan createStreamPlan(InetAddressAndPort dest)
     {
-        StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
+        StreamPlan sp = new StreamPlan(desc.determanisticId(), StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                .listeners(this)
                .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
                // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
@@ -88,7 +88,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         if (!asymmetric)
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
             sp.transferRanges(dest, desc.keyspace, RangesAtEndpoint.toDummyList(ranges), desc.columnFamily); // send ranges to the remote node
-        return sp.withPlanId(desc.determanisticId());
+        return sp;
     }
 
     public void handleStreamEvent(StreamEvent event)
