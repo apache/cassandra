@@ -5,6 +5,7 @@
 
 
 3.0.26
+ * Extend operator control over the UDF threading model for CVE-2021-44521 (CASSANDRA-17352)
  * Fix conversion from megabits to bytes in streaming rate limiter (CASSANDRA-17243)
  * Upgrade logback to 1.2.9 (CASSANDRA-17204)
  * Avoid race in AbstractReplicationStrategy endpoint caching (CASSANDRA-16673)
