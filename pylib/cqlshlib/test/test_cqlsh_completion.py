@@ -19,9 +19,12 @@
 
 from __future__ import with_statement
 
+import locale
+import os
 import re
 from .basecase import BaseTestCase, cqlsh
 from .cassconnect import testrun_cqlsh
+from .run_cqlsh import TimeoutError
 import unittest
 import sys
 
@@ -42,7 +45,11 @@ completion_separation_re = re.compile(r'\s+')
 class CqlshCompletionCase(BaseTestCase):
 
     def setUp(self):
-        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env={'COLUMNS': '100000'})
+        env = os.environ.copy()
+        env['COLUMNS'] = '100000'
+        if (locale.getpreferredencoding() != 'UTF-8'):
+             env['LC_CTYPE'] = 'en_US.utf8'
+        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
     def tearDown(self):
@@ -132,8 +139,14 @@ class CqlshCompletionCase(BaseTestCase):
                                        other_choices_ok=other_choices_ok,
                                        split_completed_lines=split_completed_lines)
         finally:
-            self.cqlsh.send(CTRL_C)  # cancel any current line
-            self.cqlsh.read_to_next_prompt()
+            try:
+                self.cqlsh.send(CTRL_C)  # cancel any current line
+                self.cqlsh.read_to_next_prompt(timeout=1.0)
+            except TimeoutError:
+                # retry once
+                self.cqlsh.send(CTRL_C)
+                self.cqlsh.read_to_next_prompt(timeout=10.0)
+
 
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
