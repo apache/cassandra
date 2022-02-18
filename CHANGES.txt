@@ -10,6 +10,7 @@ Merged from 3.0:
  * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
 
 4.0.2
+ * Extend operator control over the UDF threading model for CVE-2021-44521 (CASSANDRA-17352)
  * Full Java 11 support (CASSANDRA-16894)
  * Remove unused 'geomet' package from cqlsh path (CASSANDRA-17271)
  * Removed unused 'cql' dependency (CASSANDRA-17247)

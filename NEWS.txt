@@ -18,6 +18,24 @@ CASSANDRA-14092.txt file.
 If you use or plan to use very large TTLS (10 to 20 years), read CASSANDRA-14092.txt
 for more information.
 
+PLEASE READ: CVE-2021-44521 SCRIPTED UDF SYSTEM ACCESS (CASSANDRA-17352)
+------------------------------------------------------------------------
+
+If you have enabled scripted UDFs and run without UDF threads in cassandra.yaml:
+
+    enable_user_defined_functions_threads: false
+
+an attacker could access java.lang.System methods and execute arbitrary code on
+the machine. Disabling UDF threads is still considered insecure and not recommended.
+
+To continue running without UDF threads you will need to set:
+
+    allow_insecure_udfs: true
+
+and if you need access to java.lang.System for existing UDFs, set:
+
+    allow_extra_insecure_udfs: true
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
