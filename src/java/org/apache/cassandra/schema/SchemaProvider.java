@@ -19,6 +19,7 @@
 package org.apache.cassandra.schema;
 
 import java.util.function.Supplier;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.Keyspace;
@@ -42,6 +43,7 @@ public interface SchemaProvider
     @Nullable
     TableMetadata getTableMetadata(String keyspace, String table);
 
+    @Nonnull
     default TableMetadata getExistingTableMetadata(TableId id) throws UnknownTableException
     {
         TableMetadata metadata = getTableMetadata(id);

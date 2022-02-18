@@ -54,7 +54,7 @@ import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class Mutation implements IMutation
 {
-    public static final MutationSerializer serializer = new MutationSerializer();
+    public static final MutationSerializer serializer = new MutationSerializer(PartitionUpdate.serializer);
 
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
@@ -385,6 +385,13 @@ public class Mutation implements IMutation
 
     public static class MutationSerializer implements IVersionedSerializer<Mutation>
     {
+        private final PartitionUpdate.PartitionUpdateSerializer partitionUpdateSerializer;
+
+        public MutationSerializer(PartitionUpdate.PartitionUpdateSerializer partitionUpdateSerializer)
+        {
+            this.partitionUpdateSerializer = partitionUpdateSerializer;
+        }
+
         public void serialize(Mutation mutation, DataOutputPlus out, int version) throws IOException
         {
             /* serialize the modifications in the mutation */
@@ -393,7 +400,7 @@ public class Mutation implements IMutation
 
             assert size > 0;
             for (Map.Entry<TableId, PartitionUpdate> entry : mutation.modifications.entrySet())
-                PartitionUpdate.serializer.serialize(entry.getValue(), out, version);
+                partitionUpdateSerializer.serialize(entry.getValue(), out, version);
         }
 
         public Mutation deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
@@ -401,7 +408,7 @@ public class Mutation implements IMutation
             int size = (int)in.readUnsignedVInt();
             assert size > 0;
 
-            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag);
+            PartitionUpdate update = partitionUpdateSerializer.deserialize(in, version, flag);
             if (size == 1)
                 return new Mutation(update);
 
@@ -411,7 +418,7 @@ public class Mutation implements IMutation
             modifications.put(update.metadata().id, update);
             for (int i = 1; i < size; ++i)
             {
-                update = PartitionUpdate.serializer.deserialize(in, version, flag);
+                update = partitionUpdateSerializer.deserialize(in, version, flag);
                 modifications.put(update.metadata().id, update);
             }
             return new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
@@ -426,7 +433,7 @@ public class Mutation implements IMutation
         {
             int size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
             for (Map.Entry<TableId, PartitionUpdate> entry : mutation.modifications.entrySet())
-                size += PartitionUpdate.serializer.serializedSize(entry.getValue(), version);
+                size += partitionUpdateSerializer.serializedSize(entry.getValue(), version);
 
             return size;
         }
