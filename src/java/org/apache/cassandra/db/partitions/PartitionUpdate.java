@@ -25,12 +25,14 @@ import java.util.List;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.net.MessagingService;
@@ -59,7 +61,8 @@ public class PartitionUpdate extends AbstractBTreePartition
 {
     protected static final Logger logger = LoggerFactory.getLogger(PartitionUpdate.class);
 
-    public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer();
+    @SuppressWarnings("Convert2MethodRef")
+    public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer(tableId -> SchemaManager.instance.getExistingTableMetadata(tableId));
 
     private final BTreePartitionData holder;
     private final DeletionInfo deletionInfo;
@@ -624,6 +627,13 @@ public class PartitionUpdate extends AbstractBTreePartition
 
     public static class PartitionUpdateSerializer
     {
+        private final ThrowingFunction<? super TableId, ? extends TableMetadata, ? extends UnknownTableException> tableMetadataResolver;
+
+        public PartitionUpdateSerializer(ThrowingFunction<? super TableId, ? extends TableMetadata, ? extends UnknownTableException> tableMetadataResolver)
+        {
+            this.tableMetadataResolver = tableMetadataResolver;
+        }
+
         public void serialize(PartitionUpdate update, DataOutputPlus out, int version) throws IOException
         {
             Preconditions.checkArgument(version != MessagingService.VERSION_DSE_68,
@@ -639,7 +649,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
         public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
-            TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
+            TableMetadata metadata = tableMetadataResolver.apply(TableId.deserialize(in));
             if (version == MessagingService.VERSION_DSE_68)
             {
                 // ignore maxTimestamp
