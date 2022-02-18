@@ -33,9 +33,13 @@ import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
+
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.filesystem_ownership;
 
 /**
  * Ownership markers on disk are compatible with the java property file format.
@@ -65,19 +69,15 @@ import org.apache.cassandra.io.util.File;
  * - The value of the volume_count property must be an int which must matches
  *   the number of distinct marker files found when traversing the filesystem.
  *
- * In overridden implementations, you will need to override {@link #constructTokenFromProperties()}
+ * In overridden implementations, you will need to override {@link #constructTokenFromProperties(Map)}
  * and add the related *_PROPERTY values you will want the system to check on startup to confirm ownership.
  */
 public class FileSystemOwnershipCheck implements StartupCheck
 {
     private static final Logger logger = LoggerFactory.getLogger(FileSystemOwnershipCheck.class);
 
-    // System properties
-    static final String ENABLE_FS_OWNERSHIP_CHECK_PROPERTY      = "cassandra.enable_fs_ownership_check";
-    static final String FS_OWNERSHIP_FILENAME_PROPERTY          = "cassandra.fs_ownership_filename";
-    static final String DEFAULT_FS_OWNERSHIP_FILENAME           = ".cassandra_fs_ownership";
-
-    static final String OWNERSHIP_TOKEN                         = "CassandraOwnershipToken";
+    public static final String FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN = "CassandraOwnershipToken";
+    public static final String DEFAULT_FS_OWNERSHIP_FILENAME = ".cassandra_fs_ownership";
 
     // Ownership file properties
     static final String VERSION                                 = "version";
@@ -86,7 +86,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
 
     // Error strings
     static final String ERROR_PREFIX                            = "FS ownership check failed; ";
-    static final String MISSING_SYSTEM_PROPERTY                 = "system property '%s' required for fs ownership check not supplied";
+    static final String MISSING_PROPERTY                        = "property '%s' required for fs ownership check not supplied";
     static final String NO_OWNERSHIP_FILE                       = "no file found in tree for %s";
     static final String MULTIPLE_OWNERSHIP_FILES                = "multiple files found in tree for %s";
     static final String INCONSISTENT_FILES_FOUND                = "inconsistent ownership files found on disk: %s";
@@ -112,16 +112,25 @@ public class FileSystemOwnershipCheck implements StartupCheck
         this.dirs = dirs;
     }
 
-    public void execute() throws StartupException
+    @Override
+    public StartupChecks.StartupCheckType getStartupCheckType()
     {
-        if (!Boolean.getBoolean(ENABLE_FS_OWNERSHIP_CHECK_PROPERTY))
+        return filesystem_ownership;
+    }
+
+    @Override
+    public void execute(StartupChecksOptions options) throws StartupException
+    {
+        if (!isEnabled(options))
         {
-            logger.info("Filesystem ownership check is not enabled: " + ENABLE_FS_OWNERSHIP_CHECK_PROPERTY);
+            logger.info("Filesystem ownership check is not enabled.");
             return;
         }
 
-        String expectedToken = constructTokenFromProperties();
-        String tokenFilename = System.getProperty(FS_OWNERSHIP_FILENAME_PROPERTY, DEFAULT_FS_OWNERSHIP_FILENAME);
+        Map<String, Object> config = options.getConfig(getStartupCheckType());
+
+        String expectedToken = constructTokenFromProperties(config);
+        String tokenFilename = getFsOwnershipFilename(config);
         Map<String, Integer> foundPerTargetDir = new HashMap<>();
         Map<Path, Properties> foundProperties = new HashMap<>();
 
@@ -218,11 +227,11 @@ public class FileSystemOwnershipCheck implements StartupCheck
     }
 
     /** In version 1, we check and return the ownership token. Extend this for custom ownership hierarchies. */
-    protected String constructTokenFromProperties() throws StartupException
+    protected String constructTokenFromProperties(Map<String, Object> config) throws StartupException
     {
-        String cluster = System.getProperty(OWNERSHIP_TOKEN);
+        String cluster = getOwnershipToken(config);
         if (null == cluster || cluster.isEmpty())
-            throw exception(String.format(MISSING_SYSTEM_PROPERTY, OWNERSHIP_TOKEN));
+            throw exception(String.format(MISSING_PROPERTY, FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN));
         return cluster;
     }
 
@@ -263,5 +272,47 @@ public class FileSystemOwnershipCheck implements StartupCheck
     private StartupException exception(String message)
     {
         return new StartupException(StartupException.ERR_WRONG_DISK_STATE, ERROR_PREFIX + message);
+    }
+
+    public boolean isEnabled(StartupChecksOptions options)
+    {
+        boolean enabledFromYaml = options.isEnabled(getStartupCheckType());
+        return CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getBoolean(enabledFromYaml);
+    }
+
+    public String getFsOwnershipFilename(Map<String, Object> config)
+    {
+        if (CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.isPresent())
+        {
+            logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
+                                      "use startup check configuration in cassandra.yaml",
+                                      CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getKey()));
+            return CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getString();
+        }
+        else
+        {
+            Object fsOwnershipFilename = config.get("ownership_filename");
+            return fsOwnershipFilename == null
+                   ? CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getDefaultValue()
+                   : (String) fsOwnershipFilename;
+        }
+    }
+
+    public String getOwnershipToken(Map<String, Object> config)
+    {
+        if (CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.isPresent())
+        {
+            logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
+                                      "use startup check configuration in cassandra.yaml",
+                                      CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey()));
+            return CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getString();
+        }
+        else
+        {
+            Object ownershipToken = config.get("ownership_token");
+            return ownershipToken == null
+                   ? CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getDefaultValue()
+                   : (String) ownershipToken;
+        }
     }
 }

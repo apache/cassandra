@@ -215,7 +215,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.SmallestDurationSeconds",
     "org.apache.cassandra.config.SmallestDurationMilliseconds",
     "org.apache.cassandra.config.SmallestDataStorageKibibytes",
-    "org.apache.cassandra.config.SmallestDataStorageMebibytes"
+    "org.apache.cassandra.config.SmallestDataStorageMebibytes",
+    "org.apache.cassandra.config.StartupChecksOptions",
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.io.util.File;
 import org.junit.*;
 
@@ -41,6 +42,8 @@ public class StartupChecksTest
     public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
     StartupChecks startupChecks;
     Path sstableDir;
+
+    StartupChecksOptions options = new StartupChecksOptions();
 
     @BeforeClass
     public static void setupServer()
@@ -82,14 +85,14 @@ public class StartupChecksTest
         FileUtils.deleteRecursive(new File(sstableDir));
         Path snapshotDir = sstableDir.resolve("snapshots");
         Files.createDirectories(snapshotDir);
-        copyInvalidLegacySSTables(snapshotDir); startupChecks.verify();
+        copyInvalidLegacySSTables(snapshotDir); startupChecks.verify(options);
 
         // and in a backups directory
         FileUtils.deleteRecursive(new File(sstableDir));
         Path backupDir = sstableDir.resolve("backups");
         Files.createDirectories(backupDir);
         copyInvalidLegacySSTables(backupDir);
-        startupChecks.verify();
+        startupChecks.verify(options);
     }
 
     @Test
@@ -100,7 +103,7 @@ public class StartupChecksTest
         copyLegacyNonSSTableFiles(sstableDir);
         assertFalse(new File(sstableDir).tryList().length == 0);
 
-        startupChecks.verify();
+        startupChecks.verify(options);
     }
 
     @Test
@@ -109,7 +112,7 @@ public class StartupChecksTest
         // This test just validates if the verify function
         // doesn't throw any exceptions
         startupChecks = startupChecks.withTest(StartupChecks.checkReadAheadKbSetting);
-        startupChecks.verify();
+        startupChecks.verify(options);
     }
 
     @Test
@@ -132,7 +135,7 @@ public class StartupChecksTest
     public void maxMapCountCheck() throws Exception
     {
         startupChecks = startupChecks.withTest(StartupChecks.checkMaxMapCount);
-        startupChecks.verify();
+        startupChecks.verify(options);
     }
 
     private void copyLegacyNonSSTableFiles(Path targetDir) throws IOException
@@ -161,7 +164,7 @@ public class StartupChecksTest
     {
         try
         {
-            tests.verify();
+            tests.verify(options);
             fail("Expected a startup exception but none was thrown");
         }
         catch (StartupException e)
