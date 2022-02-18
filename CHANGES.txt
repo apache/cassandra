@@ -6,6 +6,7 @@ Merged from 3.0:
 
 
 3.11.12
+ * Extend operator control over the UDF threading model for CVE-2021-44521 (CASSANDRA-17352)
  * Upgrade snakeyaml to 1.26 in 3.11 (CASSANDRA=17028)
  * Add key validation to ssstablescrub (CASSANDRA-16969)
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
