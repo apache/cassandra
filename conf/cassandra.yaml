@@ -1226,13 +1226,54 @@ server_encryption_options:
     # If enabled, will open up an encrypted listening socket on ssl_storage_port. Should only be used
     # during upgrade to 4.0; otherwise, set to false.
     enable_legacy_ssl_storage_port: false
+    #
+    # For PEM encoded keys/certificates or other SSL context customization requirements use below configuration
+    # ssl_context_factory:
+    # Class implementing org.apache.cassandra.security.ISslContextFactory interface
+    # Default value is org.apache.cassandra.security.DefaultSslContextFactory
+    # Please see https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/security/ISslContextFactory.java
+    # to understand the interface for pluggability
+    #
+    # For PEM encoded keys/certificates please use class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+    # class_name: org.apache.cassandra.security.MySslContextFactoryImpl
+    #
+    # Optional, impelmentation specific key-value pairs for the configuration for your customized SSL context creation
+    # The key names and values both are implementation specific
+    # parameters:
+    #  key1: "value1"
+    #  key2: "value2"
+    #  key3: "value3"
+    #
+    #  For PEM encoded keys/certificates, use the following parameters for specifiying the PEM content in-line to the
+    #  configuration. For file based PEM content please see the documentation for existing
+    #  `keystore` and `truststore` configurations
+    #  Private key in PEM format (use `|` as recommended by YAML for multi-line value)
+    #  Cassandra's PEM implementation expects the private key in PKCS#8 format and the associated X.509 certificate-chain
+    #  to be included in a single value
+    #  Private key and the certificate-chain can be easily concatenated to have a single value via simple text editor
+    #  private_key:
+    #
+    #  Password for the private key if it is encrypted
+    #  private_key_password:
+    #
+    #  trusted certificates in PEM format (use `|` as recommended by YAML for multi-line value)
+    #  These certificates must comply to X.509 standard
+    #  trusted_certificates:
+    #
     # Set to a valid keystore if internode_encryption is dc, rack or all
+    # The keystore file can be in JKS or PEM encoded (PKCS#8 formatted)
     keystore: conf/.keystore
+    # Password for the Java keystore or encrypted PEM encoded private key
+    # For in-line PEM content configuration described priorly ignore this configuration and use the
+    # `private_key_password` configuration instead
     keystore_password: cassandra
     # Verify peer server certificates
     require_client_auth: false
     # Set to a valid trustore if require_client_auth is true
+    # The truststore file can be in JKS format or have PEM encoded X.509 certificates
     truststore: conf/.truststore
+    # Password for the Java truststore
+    # For PEM encoded trusted certificates ignore truststore password configuration since that data is not encrypted
     truststore_password: cassandra
     # Verify that the host name in the certificate matches the connected host
     require_endpoint_verification: false
@@ -1251,7 +1292,8 @@ server_encryption_options:
 # **NOTE** this default configuration is an insecure configuration. If you need to
 # enable client-to-server encryption generate server keystores (and truststores for mutual
 # authentication) per:
-# http://download.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore
+# http://download.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore or
+# have your PEM encoded keys/certificates ready
 # Then perform the following configuration changes:
 #
 # Step 1: Set enabled=true and explicitly set optional=true. Restart all nodes
@@ -1265,13 +1307,55 @@ client_encryption_options:
     # This should _only be true_ while in unencrypted or transitional operation
     # optional defaults to true when enabled is false, and false when enabled is true.
     # optional: true
+    #
+    # For PEM encoded keys/certificates or other SSL context customization requirements use below configuration
+    # ssl_context_factory:
+    # Class implementing org.apache.cassandra.security.ISslContextFactory interface
+    # Default value is org.apache.cassandra.security.DefaultSslContextFactory
+    # Please see https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/security/ISslContextFactory.java
+    # to understand the interface for pluggability
+    #
+    # For PEM encoded keys/certificates please use class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+    # class_name: org.apache.cassandra.security.MySslContextFactoryImpl
+    #
+    # Optional, impelmentation specific key-value pairs for the configuration for your customized SSL context creation
+    # The key names and values both are implementation specific
+    # parameters:
+    #  key1: "value1"
+    #  key2: "value2"
+    #  key3: "value3"
+    #
+    #  For PEM encoded keys/certificates, use the following parameters for specifiying the PEM content in-line to the
+    #  configuration. For file based PEM content please see the documentation for existing
+    #  `keystore` and `truststore` configurations
+    #  Private key in PEM format (use `|` as recommended by YAML for multi-line value)
+    #  Cassandra's PEM implementation expects the private key in PKCS#8 format and the associated X.509 certificate-chain
+    #  to be included in a single value
+    #  Private key and the certificate-chain can be easily concatenated to have a single value via simple text editor
+    #  private_key:
+    #
+    #  Password for the private key if it is encrypted
+    #  private_key_password:
+    #
+    #  trusted certificates in PEM format (use `|` as recommended by YAML for multi-line value)
+    #  These certificates must comply to X.509 standard
+    #  trusted_certificates:
+    #
     # Set keystore and keystore_password to valid keystores if enabled is true
+    # The keystore file can be in JKS or PEM encoded (PKCS#8 formatted)
     keystore: conf/.keystore
+    # Password for the Java keystore or encrypted PEM encoded private key
+    # Please note that if you use in-line PEM content configuration described priorly, you can ignore this configuration
+    # and use the `private_key_password` configuration instead
     keystore_password: cassandra
     # Verify client certificates
     require_client_auth: false
     # Set trustore and truststore_password if require_client_auth is true
+    # Set to a valid trustore if require_client_auth is true
+    # The truststore file can be in JKS format or have PEM encoded X.509 certificates
     # truststore: conf/.truststore
+    # Password for the Java truststore
+    # For PEM encoded trusted certificates ignore truststore password configuration since that data is not encrypted
     # truststore_password: cassandra
     # More advanced defaults:
     # protocol: TLS
