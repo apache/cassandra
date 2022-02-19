@@ -11,8 +11,6 @@ decorator
 docopt
 flaky
 mock
-nose
-nose-test-select
 parse
 psutil
 pycodestyle
