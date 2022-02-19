@@ -1,5 +1,6 @@
 4.0.4
 Merged from 3.0:
+ * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
  * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
  * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
  * LeveledCompactionStrategy disk space check improvements (CASSANDRA-17272)
@@ -186,7 +187,7 @@ Merged from 3.0:
  * Promote protocol V5 out of beta (CASSANDRA-14973)
  * Fix incorrect encoding for strings can be UTF8 (CASSANDRA-16429)
  * Fix node unable to join when RF > N in multi-DC with added warning (CASSANDRA-16296)
- * Add an option to nodetool tablestats to check sstable location correctness (CASSANDRA-16344) 
+ * Add an option to nodetool tablestats to check sstable location correctness (CASSANDRA-16344)
  * Unable to ALTER KEYSPACE while decommissioned/assassinated nodes are in gossip (CASSANDRA-16422)
  * Metrics backward compatibility restored after CASSANDRA-15066 (CASSANDRA-16083)
  * Reduce new reserved keywords introduced since 3.0 (CASSANDRA-16439)
@@ -726,7 +727,7 @@ Merged from 3.0:
  * Use standard Amazon naming for datacenter and rack in Ec2Snitch (CASSANDRA-7839)
  * Abstract write path for pluggable storage (CASSANDRA-14118)
  * nodetool describecluster should be more informative (CASSANDRA-13853)
- * Compaction performance improvements (CASSANDRA-14261) 
+ * Compaction performance improvements (CASSANDRA-14261)
  * Refactor Pair usage to avoid boxing ints/longs (CASSANDRA-14260)
  * Add options to nodetool tablestats to sort and limit output (CASSANDRA-13889)
  * Rename internals to reflect CQL vocabulary (CASSANDRA-14354)
@@ -1111,7 +1112,8 @@ Merged from 2.1:
 3.11.2
  * Fix ReadCommandTest (CASSANDRA-14234)
  * Remove trailing period from latency reports at keyspace level (CASSANDRA-14233)
- * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173) 
+ * Backport CASSANDRA-13080: Use new token allocation for non bootstrap case as well (CASSANDRA-14212)
+ * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173)
  * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
  * Print correct snitch info from nodetool describecluster (CASSANDRA-13528)
  * Enable CDC unittest (CASSANDRA-14141)
