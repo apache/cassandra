@@ -20,7 +20,6 @@ import io
 import os.path
 import random
 import string
-from nose.tools import nottest
 
 from cassandra.cluster import Cluster
 from cassandra.policies import RoundRobinPolicy
@@ -162,7 +161,7 @@ def cql_rule_set():
 class DEFAULTVAL: pass
 
 
-@nottest
+__TEST__ = False
 def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
@@ -171,7 +170,7 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
 
-@nottest
+__TEST__ = False
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
         keyspace = get_keyspace()
