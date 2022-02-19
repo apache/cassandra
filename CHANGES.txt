@@ -1,5 +1,6 @@
 3.11.13
 Merged from 3.0:
+ * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
  * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
  * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
  * LeveledCompactionStrategy disk space check improvements (CASSANDRA-17272)
@@ -398,7 +399,7 @@ Merged from 2.1:
  * Fix ReadCommandTest (CASSANDRA-14234)
  * Remove trailing period from latency reports at keyspace level (CASSANDRA-14233)
  * Backport CASSANDRA-13080: Use new token allocation for non bootstrap case as well (CASSANDRA-14212)
- * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173) 
+ * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173)
  * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
  * Add Unittest for schema migration fix (CASSANDRA-14140)
  * Print correct snitch info from nodetool describecluster (CASSANDRA-13528)
