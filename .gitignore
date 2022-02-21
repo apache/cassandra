@@ -12,6 +12,7 @@ doc/cql3/CQL.html
 doc/build/
 lib/
 pylib/src/
+**/cqlshlib.xml
 !lib/cassandra-driver-internal-only-*.zip
 
 # C* debs
@@ -65,6 +66,7 @@ target/
 *.tmp
 .DS_Store
 Thumbs.db
+.ccm/
 
 **/.ant-targets-build.xml
 .ant_targets

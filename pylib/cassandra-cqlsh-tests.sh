@@ -118,8 +118,11 @@ ccm start --wait-for-binary-proto
 cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
-pytest
+pytest --junitxml=${WORKSPACE}/cqlshlib.xml
 RETURN="$?"
+
+sed -i "s/testsuite errors=\(\".*\"\) failures=\(\".*\"\) hostname=\(\".*\"\) name=\"pytest\"/testsuite errors=\1 failures=\2 hostname=\3 name=\"${TESTSUITE_NAME}\"/g" ${WORKSPACE}/cqlshlib.xml
+sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${WORKSPACE}/cqlshlib.xml
 
 ccm remove
 
