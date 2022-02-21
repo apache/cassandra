@@ -87,12 +87,12 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     private void updateDataSet(SimpleDataSet ds, StreamingState state)
     {
         ds.row(state.getId());
+        ds.column("last_updated_at", new Date(state.getLastUpdatedAtMillis())); // read early to see latest state
         ds.column("follower", state.isFollower());
         ds.column("operation", state.getOperation().getDescription());
         ds.column("peers", state.getPeers().stream().map(Object::toString).collect(Collectors.toList()));
         ds.column("status", state.getState().name().toLowerCase());
         ds.column("progress_percentage", round(state.getProgress() * 100));
-        ds.column("last_updated_at", new Date(state.getLastUpdatedAtMillis()));
         ds.column("duration_millis", state.getDurationMillis());
         ds.column("failure_cause", state.getFailureCause());
         ds.column("success_message", state.getSuccessMessage());
