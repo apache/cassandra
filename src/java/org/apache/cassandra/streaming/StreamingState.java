@@ -199,10 +199,7 @@ public class StreamingState implements StreamEventHandler
     {
         StreamResultFuture stream = getFuture();
         if (stream != null)
-        {
-            peers = stream.getCoordinator().getPeers();
-            sessions = Sessions.create(stream.getCoordinator().getAllSessionInfo());
-        }
+            update(stream.getCoordinator().getAllSessionInfo());
         lastUpdatedAtNanos = Clock.Global.nanoTime();
     }
 
@@ -210,18 +207,27 @@ public class StreamingState implements StreamEventHandler
     public void onSuccess(@Nullable StreamState state)
     {
         if (state != null)
-        {
-            peers = state.sessions.stream().map(a -> a.peer).collect(Collectors.toSet());
-            sessions = Sessions.create(state.sessions);
-        }
+            update(state.sessions);
         updateState(State.SUCCESS);
     }
 
     @Override
     public void onFailure(Throwable throwable)
     {
+        StreamResultFuture stream = getFuture();
+        if (stream != null)
+            update(stream.getCoordinator().getAllSessionInfo());
         completeMessage = Throwables.getStackTrace(throwable);
         updateState(State.FAILURE);
+    }
+
+    private void update(Set<SessionInfo> infos)
+    {
+        if (state != null)
+        {
+            peers = infos.stream().map(a -> a.peer).collect(Collectors.toSet());
+            sessions = Sessions.create(infos);
+        }
     }
 
     private synchronized void updateState(State state)
