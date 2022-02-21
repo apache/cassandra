@@ -62,7 +62,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
      * @param planId Stream plan ID
      * @param streamOperation Stream streamOperation
      */
-    private StreamResultFuture(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
+    public StreamResultFuture(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         this.planId = planId;
         this.streamOperation = streamOperation;

@@ -17,13 +17,12 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -32,18 +31,28 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
+import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingState;
+import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.util.Throwables;
 
 public class StreamingVirtualTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
+    private static final InetAddressAndPort PEER1 = address(127, 0, 0, 1);
+    private static final InetAddressAndPort PEER2 = address(127, 0, 0, 2);
+    private static final InetAddressAndPort PEER3 = address(127, 0, 0, 3);
     private static String TABLE_NAME;
 
     @BeforeClass
@@ -70,7 +79,7 @@ public class StreamingVirtualTableTest extends CQLTester
     @Test
     public void single() throws Throwable
     {
-        StreamingState state = stream();
+        StreamingState state = stream(true);
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
                    new Object[] { state.getId(), true, "Repair", Collections.emptyList(), "init", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
 
@@ -78,15 +87,98 @@ public class StreamingVirtualTableTest extends CQLTester
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
                    new Object[] {state.getId(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
 
-        state.onSuccess(new StreamState(state.getId(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(address(127, 0, 0, 2), 1, address(127, 0, 0, 1), Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE))));
+        state.onSuccess(new StreamState(state.getId(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE))));
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
                    new Object[] { state.getId(), true, "Repair", Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.getLastUpdatedAtMillis()), null, null });
     }
 
     @Test
+    public void progressInitiator() throws Throwable
+    {
+        progress(false);
+    }
+
+    @Test
+    public void progressFollower() throws Throwable
+    {
+        progress(true);
+    }
+
+    public void progress(boolean follower) throws Throwable
+    {
+        StreamingState state = stream(follower);
+        StreamResultFuture future = state.getFuture();
+        state.phase.start();
+
+        SessionInfo s1 = new SessionInfo(PEER2, 0, FBUtilities.getBroadcastAddressAndPort(), Arrays.asList(streamSummary()), Arrays.asList(streamSummary(), streamSummary()), StreamSession.State.STREAMING);
+        SessionInfo s2 = new SessionInfo(PEER3, 0, FBUtilities.getBroadcastAddressAndPort(), Arrays.asList(streamSummary()), Arrays.asList(streamSummary(), streamSummary()), StreamSession.State.STREAMING);
+        future.getCoordinator().addSessionInfo(s1);
+        future.getCoordinator().addSessionInfo(s2);
+
+        // since the events do not include a summary of the world, the handler actually fetches the future
+        state.handleStreamEvent(null);
+
+        long bytesToReceive = 0, bytesToSend = 0;
+        long filesToReceive = 0, filesToSend = 0;
+        for (SessionInfo s : Arrays.asList(s1, s2))
+        {
+            bytesToReceive += s.getTotalSizeToReceive();
+            bytesToSend += s.getTotalSizeToSend();
+            filesToReceive += s.getTotalFilesToReceive();
+            filesToSend += s.getTotalFilesToSend();
+        }
+        assertRows(execute(t("select id, follower, peers, status, progress_percentage, bytes_to_receive, bytes_received, bytes_to_send, bytes_sent, files_to_receive, files_received, files_to_send, files_sent from %s")),
+                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", 0F, bytesToReceive, 0L, bytesToSend, 0L, filesToReceive, 0L, filesToSend, 0L });
+
+        // update progress
+        long bytesReceived = 0, bytesSent = 0;
+        for (SessionInfo s : Arrays.asList(s1, s2))
+        {
+            long in = s.getTotalFilesToReceive() - 1;
+            long inBytes = s.getTotalSizeToReceive() - in;
+            long out = s.getTotalFilesToSend() - 1;
+            long outBytes = s.getTotalSizeToSend() - out;
+            s.updateProgress(new ProgressInfo((InetAddressAndPort) s.peer, 0, "0", ProgressInfo.Direction.IN, inBytes, inBytes));
+            s.updateProgress(new ProgressInfo((InetAddressAndPort) s.peer, 0, "0", ProgressInfo.Direction.OUT, outBytes, outBytes));
+            bytesReceived += inBytes;
+            bytesSent += outBytes;
+        }
+
+        // since the events do not include a summary of the world, the handler actually fetches the future
+        state.handleStreamEvent(null);
+        assertRows(execute(t("select id, follower, peers, status, bytes_to_receive, bytes_received, bytes_to_send, bytes_sent, files_to_receive, files_received, files_to_send, files_sent from %s")),
+                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", bytesToReceive, bytesReceived, bytesToSend, bytesSent, filesToReceive, 2L, filesToSend, 2L });
+
+        // finish
+        for (SessionInfo s : Arrays.asList(s1, s2))
+        {
+            // complete the rest
+            for (long i = 1; i < s.getTotalFilesToReceive(); i++)
+                s.updateProgress(new ProgressInfo((InetAddressAndPort) s.peer, 0, Long.toString(i), ProgressInfo.Direction.IN, 1, 1));
+            for (long i = 1; i < s.getTotalFilesToSend(); i++)
+                s.updateProgress(new ProgressInfo((InetAddressAndPort) s.peer, 0, Long.toString(i), ProgressInfo.Direction.OUT, 1, 1));
+        }
+
+        // since the events do not include a summary of the world, the handler actually fetches the future
+        state.handleStreamEvent(null);
+        assertRows(execute(t("select id, follower, peers, status, progress_percentage, bytes_to_receive, bytes_received, bytes_to_send, bytes_sent, files_to_receive, files_received, files_to_send, files_sent from %s")),
+                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", 99F, bytesToReceive, bytesToReceive, bytesToSend, bytesToSend, filesToReceive, filesToReceive, filesToSend, filesToSend });
+
+        state.onSuccess(future.getCurrentState());
+        assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
+                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "success", 100F, new Date(state.getLastUpdatedAtMillis()), null, null });
+    }
+
+    private static StreamSummary streamSummary()
+    {
+        int files = ThreadLocalRandom.current().nextInt(2, 10_000);
+        return new StreamSummary(TableId.fromUUID(UUID.randomUUID()), files, files * 1024);
+    }
+
+    @Test
     public void failed() throws Throwable
     {
-        StreamingState state = stream();
+        StreamingState state = stream(true);
         RuntimeException t = new RuntimeException("You failed!");
         state.onFailure(t);
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
@@ -98,20 +190,22 @@ public class StreamingVirtualTableTest extends CQLTester
         return String.format(query, TABLE_NAME);
     }
 
-    private static StreamingState stream()
+    private static StreamingState stream(boolean follower)
     {
-        StreamResultFuture future = new StreamResultFuture(UUID.randomUUID(), StreamOperation.REPAIR, null, null);
+        StreamResultFuture future = new StreamResultFuture(UUID.randomUUID(), StreamOperation.REPAIR, new StreamCoordinator(StreamOperation.REPAIR, 0, StreamingChannel.Factory.Global.streamingFactory(), follower, false, null, null));
         StreamingState state = new StreamingState(future);
+        if (follower) StreamManager.instance.putFollowerStream(future);
+        else StreamManager.instance.putInitiatorStream(future);
         StreamManager.instance.putStreamingState(state);
         future.addEventListener(state);
         return state;
     }
 
-    private static InetSocketAddress address(int a, int b, int c, int d)
+    private static InetAddressAndPort address(int a, int b, int c, int d)
     {
         try
         {
-            return new InetSocketAddress(InetAddress.getByAddress(new byte[] {(byte) a, (byte) b, (byte) c, (byte) d}), 42);
+            return InetAddressAndPort.getByAddress(new byte[] {(byte) a, (byte) b, (byte) c, (byte) d});
         }
         catch (UnknownHostException e)
         {

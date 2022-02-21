@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.assertj.core.util.Throwables;
@@ -92,6 +93,11 @@ public class StreamingState implements StreamEventHandler
         return state;
     }
 
+    public Sessions getSessions()
+    {
+        return sessions;
+    }
+
     public boolean isComplete()
     {
         switch (state)
@@ -104,6 +110,14 @@ public class StreamingState implements StreamEventHandler
         }
     }
 
+    public StreamResultFuture getFuture()
+    {
+        if (follower)
+            return StreamManager.instance.getReceivingStream(id);
+        else
+            return StreamManager.instance.getInitiatorStream(id);
+    }
+
     public float getProgress()
     {
         switch (state)
@@ -111,7 +125,7 @@ public class StreamingState implements StreamEventHandler
             case INIT:
                 return 0;
             case START:
-                return sessions.progress().floatValue();
+                return Math.min(0.99f, sessions.progress().floatValue());
             case SUCCESS:
             case FAILURE:
                 return 1;
@@ -183,7 +197,7 @@ public class StreamingState implements StreamEventHandler
     @Override
     public void handleStreamEvent(StreamEvent event)
     {
-        StreamResultFuture stream = StreamManager.instance.getReceivingStream(id);
+        StreamResultFuture stream = getFuture();
         if (stream != null)
         {
             peers = stream.getCoordinator().getPeers();
@@ -251,6 +265,18 @@ public class StreamingState implements StreamEventHandler
             this.filesSent = filesSent;
         }
 
+        public static String columns()
+        {
+            return "  bytes_to_receive bigint, \n" +
+                   "  bytes_received bigint, \n" +
+                   "  bytes_to_send bigint, \n" +
+                   "  bytes_sent bigint, \n" +
+                   "  files_to_receive bigint, \n" +
+                   "  files_received bigint, \n" +
+                   "  files_to_send bigint, \n" +
+                   "  files_sent bigint, \n";
+        }
+
         public static Sessions create(Collection<SessionInfo> sessions)
         {
             long bytesToReceive = 0;
@@ -281,6 +307,11 @@ public class StreamingState implements StreamEventHandler
                                 filesToSend, filesSent);
         }
 
+        public boolean isEmpty()
+        {
+            return this == EMPTY;
+        }
+
         public BigDecimal receivedBytesPercent()
         {
             return div(bytesReceived, bytesToReceive);
@@ -302,6 +333,20 @@ public class StreamingState implements StreamEventHandler
             if (b == 0)
                 return BigDecimal.ZERO;
             return BigDecimal.valueOf(a).divide(BigDecimal.valueOf(b), 4, RoundingMode.HALF_UP);
+        }
+
+        public void update(SimpleDataSet ds)
+        {
+            if (isEmpty())
+                return;
+            ds.column("bytes_to_receive", bytesToReceive)
+              .column("bytes_received", bytesReceived)
+              .column("bytes_to_send", bytesToSend)
+              .column("bytes_sent", bytesSent)
+              .column("files_to_receive", filesToReceive)
+              .column("files_received", filesReceived)
+              .column("files_to_send", filesToSend)
+              .column("files_sent", filesSent);
         }
     }
 }

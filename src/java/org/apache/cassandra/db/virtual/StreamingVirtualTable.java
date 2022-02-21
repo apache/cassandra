@@ -46,6 +46,8 @@ public class StreamingVirtualTable extends AbstractVirtualTable
                     "  failure_cause text,\n" +
                     "  success_message text,\n" +
                     "\n" +
+                    StreamingState.Sessions.columns() +
+                    "\n" +
                     stateColumns() +
                     "\n" +
                     "PRIMARY KEY ((id))" +
@@ -96,6 +98,8 @@ public class StreamingVirtualTable extends AbstractVirtualTable
         ds.column("success_message", state.getSuccessMessage());
         for (Map.Entry<StreamingState.State, Long> e : state.getStateTimesMillis().entrySet())
             ds.column("status_" + e.getKey().name().toLowerCase() + "_timestamp", new Date(e.getValue()));
+
+        state.getSessions().update(ds);
     }
 
     static float round(float value)

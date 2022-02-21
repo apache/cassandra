@@ -354,6 +354,20 @@ public class StreamManager implements StreamManagerMBean
         return previous;
     }
 
+    @VisibleForTesting
+    public void putInitiatorStream(StreamResultFuture future)
+    {
+        StreamResultFuture current = initiatorStreams.putIfAbsent(future.planId, future);
+        assert current == null: "Duplicat initiator stream for " + future.planId;
+    }
+
+    @VisibleForTesting
+    public void putFollowerStream(StreamResultFuture future)
+    {
+        StreamResultFuture current = followerStreams.putIfAbsent(future.planId, future);
+        assert current == null: "Duplicate follower stream for " + future.planId;
+    }
+
     public void addListener(StreamListener listener)
     {
         listeners.add(listener);
@@ -382,6 +396,11 @@ public class StreamManager implements StreamManagerMBean
     public StreamResultFuture getReceivingStream(UUID planId)
     {
         return followerStreams.get(planId);
+    }
+
+    public StreamResultFuture getInitiatorStream(UUID planId)
+    {
+        return initiatorStreams.get(planId);
     }
 
     public void addNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback)
