@@ -30,6 +30,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.Verb;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
@@ -69,8 +70,8 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
         .upgrades(initial, upgrade)
-        .withConfig(config -> config.set("read_request_timeout", "2s")
-                                    .set("write_request_timeout", "2s"))
+        .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(2))
+                                    .set("write_request_timeout_in_ms", SECONDS.toMillis(2)))
         .setup(c -> c.schemaChange(withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c))")))
         .runAfterNodeUpgrade((cluster, n) -> {
 
