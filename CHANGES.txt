@@ -1,5 +1,7 @@
 4.1
  * Guardrail for number of partition keys on IN queries (CASSANDRA-17186)
+ * update Python test framework from nose to pytest (CASSANDRA-17293)
+ * Fix improper CDC commit log segments deletion in non-blocking mode (CASSANDRA-17233)
  * Add support for string concatenations through the + operator (CASSANDRA-17190)
  * Limit the maximum hints size per host (CASSANDRA-17142)
  * Add a virtual table for exposing batch metrics (CASSANDRA-17225)
@@ -91,9 +93,10 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Deprecate otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
+   otc_backlog_expiration_interval_ms (CASSANDRA-17377)
  * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
-
-4.0.2
+ * Extend operator control over the UDF threading model for CVE-2021-44521 (CASSANDRA-17352)
  * Full Java 11 support (CASSANDRA-16894)
  * Remove unused 'geomet' package from cqlsh path (CASSANDRA-17271)
  * Removed unused 'cql' dependency (CASSANDRA-17247)
@@ -121,11 +124,34 @@ Merged from 4.0:
  * org.apache.cassandra.db.rows.ArrayCell#unsharedHeapSizeExcludingData includes data twice (CASSANDRA-16900)
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
+ * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)
+ * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866)
+ * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
+ * Bump zstd-jni version to 1.5.0-4 (CASSANDRA-16884)
+ * Remove assumption that all urgent messages are small (CASSANDRA-16877)
+ * ArrayClustering.unsharedHeapSize does not include the data so undercounts the heap size (CASSANDRA-16845)
+ * Improve help, doc and error messages about sstabledump -k and -x arguments (CASSANDRA-16818)
+ * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
+ * Upgrade lz4-java to 1.8.0 to add RH6 support back (CASSANDRA-16753)
+ * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
+ * Cleanup dependency scopes (CASSANDRA-16704)
+ * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
  * Add key validation to ssstablescrub (CASSANDRA-16969)
  * Update Jackson from 2.9.10 to 2.12.5 (CASSANDRA-16851)
  * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
+ * Validate SASI tokenizer options before adding index to schema (CASSANDRA-15135)
+ * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
+ * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
+ * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
+ * Optimize bytes skipping when reading SSTable files (CASSANDRA-14415)
+ * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
+ * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
+ * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
+ * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
+ * LeveledCompactionStrategy disk space check improvements (CASSANDRA-17272)
  * Fix conversion from megabits to bytes in streaming rate limiter (CASSANDRA-17243)
  * Upgrade logback to 1.2.9 (CASSANDRA-17204)
  * Avoid race in AbstractReplicationStrategy endpoint caching (CASSANDRA-16673)
@@ -146,29 +172,6 @@ Merged from 3.0:
  * Catch UnsatisfiedLinkError in WindowsTimer (CASSANDRA-16085)
  * Avoid removing batch when it's not created during view replication (CASSANDRA-16175)
  * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
-
-4.0.1
- * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)
- * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866)
- * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
- * Bump zstd-jni version to 1.5.0-4 (CASSANDRA-16884)
- * Remove assumption that all urgent messages are small (CASSANDRA-16877)
- * ArrayClustering.unsharedHeapSize does not include the data so undercounts the heap size (CASSANDRA-16845)
- * Improve help, doc and error messages about sstabledump -k and -x arguments (CASSANDRA-16818)
- * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
- * Upgrade lz4-java to 1.8.0 to add RH6 support back (CASSANDRA-16753)
- * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
- * Cleanup dependency scopes (CASSANDRA-16704)
- * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
-Merged from 3.11:
- * Validate SASI tokenizer options before adding index to schema (CASSANDRA-15135)
- * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
- * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
- * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
- * Optimize bytes skipping when reading SSTable files (CASSANDRA-14415)
- * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
- * Read only the required SSTables for single partition queries (CASSANDRA-16737)
-Merged from 3.0:
  * Make the addition of regular column to COMPACT tables throw an InvalidRequestException (CASSANDRA-14564)
  * Fix secondary indexes on primary key columns skipping some writes (CASSANDRA-16868)
  * Use JMX to validate nodetool --jobs parameter (CASSANDRA-16104)
@@ -190,8 +193,6 @@ Merged from 3.0:
  * Fix fwd to/from headers in DC write forwarding (CASSANDRA-16797)
  * Fix CassandraVersion::compareTo (CASSANDRA-16794)
  * BinLog does not close chronicle queue leaving this to GC to cleanup (CASSANDRA-16774)
-Merged from 3.11:
-Merged from 3.0:
 
 4.0-rc2
  * Improved password obfuscation (CASSANDRA-16801)
@@ -1191,6 +1192,7 @@ Merged from 2.1:
 3.11.2
  * Fix ReadCommandTest (CASSANDRA-14234)
  * Remove trailing period from latency reports at keyspace level (CASSANDRA-14233)
+ * Backport CASSANDRA-13080: Use new token allocation for non bootstrap case as well (CASSANDRA-14212)
  * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173)
  * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
  * Print correct snitch info from nodetool describecluster (CASSANDRA-13528)

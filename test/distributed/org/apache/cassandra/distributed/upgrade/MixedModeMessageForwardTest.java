@@ -79,7 +79,7 @@ public class MixedModeMessageForwardTest extends UpgradeTestBase
                                   .collect(Collectors.joining(","));
 
         new TestCase()
-        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK).set("request_timeout", "30000ms"))
+        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK).set("request_timeout_in_ms", 30000))
         .withBuilder(b -> b.withRacks(numDCs, 1, nodesPerDc))
         .nodes(numDCs * nodesPerDc)
         .singleUpgrade(v30)

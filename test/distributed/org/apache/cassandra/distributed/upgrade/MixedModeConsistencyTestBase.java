@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 
 import static java.lang.String.format;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
@@ -55,8 +56,8 @@ public class MixedModeConsistencyTestBase extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgrade(1)
         .upgrades(initial, upgrade)
-        .withConfig(config -> config.set("read_request_timeout", "30s")
-                                    .set("write_request_timeout", "30s"))
+        .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(30))
+                                    .set("write_request_timeout_in_ms", SECONDS.toMillis(30)))
         .setup(cluster -> {
             Tester.createTable(cluster);
             for (Tester tester : testers)
