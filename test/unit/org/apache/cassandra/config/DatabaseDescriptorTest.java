@@ -26,15 +26,21 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ConsistencyLevelStartupConnectivityChecker;
+import org.apache.cassandra.net.StartupConnectivityChecker;
+import org.apache.cassandra.net.StrictStartupConnectivityChecker;
 import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +81,15 @@ public class DatabaseDescriptorTest
             Config testConfig = new Config();
             testConfig.cluster_name = "ConfigurationLoader Test";
             return testConfig;
+        }
+    }
+
+    public static class TestStartupConnectivityChecker implements StartupConnectivityChecker
+    {
+        @Override
+        public boolean execute(ImmutableSet<InetAddressAndPort> peers, Function<InetAddressAndPort, String> getDatacenterSource)
+        {
+            return false;
         }
     }
 
@@ -269,12 +284,77 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testInvalidStartupConnectivityChecker()
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.startup_connectivity_checker = "NonExistentStartupConnectivityChecker";
+
+        try
+        {
+            DatabaseDescriptor.applyStartupConnectivityChecker(testConfig);
+            Assert.fail("StartupConnectivityChecker does not exist, so should fail");
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertEquals("Unable to find Startup Connectivity Checker class 'org.apache.cassandra.net.NonExistentStartupConnectivityChecker'", e.getMessage());
+            Throwable cause = Throwables.getRootCause(e);
+            Assert.assertNotNull("Unable to find root cause why partitioner was rejected", cause);
+            Assert.assertSame(ClassNotFoundException.class, cause.getClass());
+            Assert.assertEquals("org.apache.cassandra.net.NonExistentStartupConnectivityChecker", cause.getMessage());
+        }
+    }
+
+    @Test
+    public void testDefaultStartupConnectivityChecker()
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.startup_connectivity_checker = null;
+        DatabaseDescriptor.applyStartupConnectivityChecker(testConfig);
+        StartupConnectivityChecker startupConnectivityChecker = DatabaseDescriptor.getStartupConnectivityChecker();
+        Assert.assertNotNull(startupConnectivityChecker);
+        Assert.assertSame(StrictStartupConnectivityChecker.class, startupConnectivityChecker.getClass());
+    }
+
+    @Test
+    public void testFQCNStartupConnectivityChecker()
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.startup_connectivity_checker = "org.apache.cassandra.net.StrictStartupConnectivityChecker";
+        DatabaseDescriptor.applyStartupConnectivityChecker(testConfig);
+        StartupConnectivityChecker startupConnectivityChecker = DatabaseDescriptor.getStartupConnectivityChecker();
+        Assert.assertNotNull(startupConnectivityChecker);
+        Assert.assertSame(StrictStartupConnectivityChecker.class, startupConnectivityChecker.getClass());
+    }
+
+    @Test
+    public void testConsistencyLevelStartupConnectivityChecker()
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.startup_connectivity_checker = "ConsistencyLevelStartupConnectivityChecker";
+        DatabaseDescriptor.applyStartupConnectivityChecker(testConfig);
+        StartupConnectivityChecker startupConnectivityChecker = DatabaseDescriptor.getStartupConnectivityChecker();
+        Assert.assertNotNull(startupConnectivityChecker);
+        Assert.assertSame(ConsistencyLevelStartupConnectivityChecker.class, startupConnectivityChecker.getClass());
+    }
+
+    @Test
+    public void testCustomStartupConnectivityChecker()
+    {
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.startup_connectivity_checker = "org.apache.cassandra.config.DatabaseDescriptorTest$TestStartupConnectivityChecker";
+        DatabaseDescriptor.applyStartupConnectivityChecker(testConfig);
+        StartupConnectivityChecker startupConnectivityChecker = DatabaseDescriptor.getStartupConnectivityChecker();
+        Assert.assertNotNull(startupConnectivityChecker);
+        Assert.assertSame(TestStartupConnectivityChecker.class, startupConnectivityChecker.getClass());
+    }
+
+    @Test
     public void testTokensFromString()
     {
         assertTrue(DatabaseDescriptor.tokensFromString(null).isEmpty());
         Collection<String> tokens = DatabaseDescriptor.tokensFromString(" a,b ,c , d, f,g,h");
         assertEquals(7, tokens.size());
-        assertTrue(tokens.containsAll(Arrays.asList(new String[]{"a", "b", "c", "d", "f", "g", "h"})));
+        assertTrue(tokens.containsAll(Arrays.asList("a", "b", "c", "d", "f", "g", "h")));
     }
 
     @Test

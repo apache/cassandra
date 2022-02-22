@@ -1616,3 +1616,39 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.
 # read_before_write_list_operations_enabled: true
+
+
+# Startup connectivity checker backend, implementing StartupConnectivityChecker; used to determine the
+# cluster connectivity strategy used during startup.
+# When a node first starts up, it initially considers all other peers as DOWN and is disconnected from all the peers.
+# To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully
+# opened all three internode TCP connections (gossip, small, and large messages) before advertising to clients.
+# Out of the box, Cassandra provides org.apache.cassandra.net.{StrictStartupConnectivityChecker,
+# ConsistencyLevelStartupConnectivityChecker}.
+#
+# - StrictStartupConnectivityChecker waits for all but a single node to be DOWN/disconnected in the local
+#   datacenter before offering itself as a coordinator, subject to the timeout specified by
+#   block_for_peers_timeout.
+#   See CASSANDRA-13993 and CASSANDRA-14297 for more details.
+# - ConsistencyLevelStartupConnectivityChecker uses the consistency level specified by
+#   block_for_peers_timeout to determine the number of nodes to wait for in the local or remote
+#   datacenter before offering itself as a coordinator, subject to the timeout specified by
+#   block_for_peers_timeout.
+#   See CASSANDRA-17226 for more details.
+startup_connectivity_checker: StrictStartupConnectivityChecker
+
+# Controls how long this node will wait to connect to other peers. To completely disable
+# any startup connectivity checks set this to -1. To trigger the internode connections but immediately continue
+# startup, set this to 0. The default is 10 seconds.
+block_for_peers_timeout: 10s
+
+# Controls whether this node will consider remote datacenters to wait for. The default is to _not_ wait on remote
+# datacenters. This property applies to the StrictStartupConnectivityChecker.
+block_for_peers_in_remote_dcs: false
+
+# Configure the consistency level used by the ConsistencyLevelStartupConnectivityChecker to
+# determine how many peers in the local DC or remote DC to wait for before advertising to clients.
+# Supported values for block_for_peers_consistency_level are: ALL, QUORUM, LOCAL_QUORUM, and EACH_QUORUM.
+# Any other value for the consistency level will completely disable any startup connectivity checks.
+# This property applies to the ConsistencyLevelStartupConnectivityChecker.
+# block_for_peers_consistency_level: LOCAL_QUORUM

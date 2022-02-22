@@ -46,6 +46,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.net.StartupConnectivityChecker;
 import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -665,6 +666,13 @@ public class FBUtilities
         {
             throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
         }
+    }
+
+    public static StartupConnectivityChecker newStartupConnectivityChecker(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.net." + className;
+        return FBUtilities.construct(className, "Startup Connectivity Checker");
     }
 
     /**
