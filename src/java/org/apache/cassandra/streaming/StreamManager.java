@@ -227,32 +227,29 @@ public class StreamManager implements StreamManagerMBean
     private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
 
     private final Map<UUID, StreamingState> states = new NonBlockingHashMap<>();
-    private volatile ScheduledFuture<?> cleanup = null;
-
-    public StreamManager()
+    private final StreamListener listener = new StreamListener()
     {
-        addListener(new StreamListener()
+        @Override
+        public void onRegister(StreamResultFuture result)
         {
-            @Override
-            public void onRegister(StreamResultFuture result)
+            StreamingState state = new StreamingState(result);
+            StreamingState previous = states.putIfAbsent(state.getId(), state);
+            if (previous == null)
             {
-                StreamingState state = new StreamingState(result);
-                StreamingState previous = states.putIfAbsent(state.getId(), state);
-                if (previous == null)
-                {
-                    state.phase.start();
-                    result.addEventListener(state);
-                }
-                else
-                {
-                    logger.warn("Duplicate streaming states detected for id {}", state.getId());
-                }
+                state.phase.start();
+                result.addEventListener(state);
             }
-        });
-    }
+            else
+            {
+                logger.warn("Duplicate streaming states detected for id {}", state.getId());
+            }
+        }
+    };
+    private volatile ScheduledFuture<?> cleanup = null;
 
     public void start()
     {
+        addListener(listener);
         this.cleanup = ScheduledExecutors.optionalTasks.scheduleAtFixedRate(this::cleanup, 0,
                                                              DatabaseDescriptor.getStreamingStateCleanupInterval().toNanoseconds(),
                                                              TimeUnit.NANOSECONDS);
@@ -260,6 +257,7 @@ public class StreamManager implements StreamManagerMBean
 
     public void stop()
     {
+        removeListener(listener);
         ScheduledFuture<?> cleanup = this.cleanup;
         if (cleanup != null)
             cleanup.cancel(false);
