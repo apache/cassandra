@@ -1616,3 +1616,7 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.
 # read_before_write_list_operations_enabled: true
+# Guardrail to warn or fail when querying with an IN restriction selecting more partition keys than threshold.
+# The two thresholds default to -1 to disable. 
+# partition_keys_in_select_warn_threshold: -1
+# partition_keys_in_select_fail_threshold: -1

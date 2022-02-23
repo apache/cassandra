@@ -247,7 +247,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int pageSize = options.getPageSize();
 
         Selectors selectors = selection.newSelectors(options);
-        ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
+        ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
+                                   nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
         if (options.isTrackWarningsEnabled())
             query.trackWarnings();
@@ -271,6 +272,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         Selectors selectors = selection.newSelectors(options);
         return getQuery(options,
+                        ClientState.forInternalCalls(),
                         selectors.getColumnFilter(),
                         nowInSec,
                         getLimit(options),
@@ -279,6 +281,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     public ReadQuery getQuery(QueryOptions options,
+                              ClientState state,
                               ColumnFilter columnFilter,
                               int nowInSec,
                               int userLimit,
@@ -292,7 +295,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (isPartitionRangeQuery)
             return getRangeCommand(options, columnFilter, limit, nowInSec);
 
-        return getSliceCommands(options, columnFilter, limit, nowInSec);
+        return getSliceCommands(options, state, columnFilter, limit, nowInSec);
     }
 
     private ResultMessage.Rows execute(ReadQuery query,
@@ -452,7 +455,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int pageSize = options.getPageSize();
 
         Selectors selectors = selection.newSelectors(options);
-        ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
+        ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(), nowInSec, userLimit,
+                                   userPerPartitionLimit, pageSize);
 
         try (ReadExecutionController executionController = query.executionController())
         {
@@ -521,11 +525,17 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return restrictions;
     }
 
-    private ReadQuery getSliceCommands(QueryOptions options, ColumnFilter columnFilter, DataLimits limit, int nowInSec)
+    private ReadQuery getSliceCommands(QueryOptions options, ClientState state, ColumnFilter columnFilter,
+                                       DataLimits limit, int nowInSec)
     {
         Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options);
         if (keys.isEmpty())
             return ReadQuery.empty(table);
+
+        if (restrictions.keyIsInRelation())
+        {
+            Guardrails.partitionKeysInSelect.guard(keys.size(), table.name, state);
+        }
 
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         if (filter == null || filter.isEmpty(table.comparator))

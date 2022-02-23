@@ -1,4 +1,5 @@
 4.1
+ * Add guardrail for number of partition keys on IN queries (CASSANDRA-17186)
  * update Python test framework from nose to pytest (CASSANDRA-17293)
  * Fix improper CDC commit log segments deletion in non-blocking mode (CASSANDRA-17233)
  * Add support for string concatenations through the + operator (CASSANDRA-17190)

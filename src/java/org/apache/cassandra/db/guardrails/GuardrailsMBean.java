@@ -220,4 +220,25 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     void setReadBeforeWriteListOperationsEnabled(boolean enabled);
+
+
+    /**
+     * @param warn The threshold to warn when the number of partition keys in a select statement is greater than
+     *             threshold -1 means disabled.
+     * @param fail The threshold to prevent when the number of partition keys in a select statement is more than
+     *              threshold -1 means disabled.
+     */
+    void setPartitionKeysInSelectThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when the number of partition keys in a select statement greater than threshold.
+     * -1 means disabled.
+     */
+    int getPartitionKeysInSelectWarnThreshold();
+
+    /**
+     * @return The threshold to fail when the number of partition keys in a select statement greater than threshold.
+     * -1 means disabled.
+     */
+    int getPartitionKeysInSelectFailThreshold();
 }
