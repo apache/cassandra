@@ -1,3 +1,5 @@
+Fix race condition bug during local session repair (CASSANDRA-17335)
+
 4.0.4
  * Streaming tasks handle empty SSTables correctly (CASSANDRA-16349)
  * Prevent SSTableLoader from doing unnecessary work (CASSANDRA-16349)
