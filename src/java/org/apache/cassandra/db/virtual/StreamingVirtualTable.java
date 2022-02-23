@@ -59,7 +59,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     private static String stateColumns()
     {
         StringBuilder sb = new StringBuilder();
-        for (StreamingState.State state : StreamingState.State.values())
+        for (StreamingState.Status state : StreamingState.Status.values())
             sb.append("  status_").append(state.name().toLowerCase()).append("_timestamp timestamp,\n");
         return sb.toString();
     }
@@ -86,20 +86,20 @@ public class StreamingVirtualTable extends AbstractVirtualTable
 
     private void updateDataSet(SimpleDataSet ds, StreamingState state)
     {
-        ds.row(state.getId());
-        ds.column("last_updated_at", new Date(state.getLastUpdatedAtMillis())); // read early to see latest state
-        ds.column("follower", state.isFollower());
-        ds.column("operation", state.getOperation().getDescription());
-        ds.column("peers", state.getPeers().stream().map(Object::toString).collect(Collectors.toList()));
-        ds.column("status", state.getState().name().toLowerCase());
-        ds.column("progress_percentage", round(state.getProgress() * 100));
-        ds.column("duration_millis", state.getDurationMillis());
-        ds.column("failure_cause", state.getFailureCause());
-        ds.column("success_message", state.getSuccessMessage());
-        for (Map.Entry<StreamingState.State, Long> e : state.getStateTimesMillis().entrySet())
+        ds.row(state.id());
+        ds.column("last_updated_at", new Date(state.lastUpdatedAtMillis())); // read early to see latest state
+        ds.column("follower", state.follower());
+        ds.column("operation", state.operation().getDescription());
+        ds.column("peers", state.peers().stream().map(Object::toString).collect(Collectors.toList()));
+        ds.column("status", state.status().name().toLowerCase());
+        ds.column("progress_percentage", round(state.progress() * 100));
+        ds.column("duration_millis", state.durationMillis());
+        ds.column("failure_cause", state.failureCause());
+        ds.column("success_message", state.successMessage());
+        for (Map.Entry<StreamingState.Status, Long> e : state.stateTimesMillis().entrySet())
             ds.column("status_" + e.getKey().name().toLowerCase() + "_timestamp", new Date(e.getValue()));
 
-        state.getSessions().update(ds);
+        state.sessions().update(ds);
     }
 
     static float round(float value)

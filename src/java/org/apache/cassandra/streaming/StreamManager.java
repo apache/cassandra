@@ -233,7 +233,7 @@ public class StreamManager implements StreamManagerMBean
         public void onRegister(StreamResultFuture result)
         {
             StreamingState state = new StreamingState(result);
-            StreamingState previous = states.putIfAbsent(state.getId(), state);
+            StreamingState previous = states.putIfAbsent(state.id(), state);
             if (previous == null)
             {
                 state.phase.start();
@@ -241,7 +241,7 @@ public class StreamManager implements StreamManagerMBean
             }
             else
             {
-                logger.warn("Duplicate streaming states detected for id {}", state.getId());
+                logger.warn("Duplicate streaming states detected for id {}", state.id());
             }
         }
     };
@@ -276,9 +276,9 @@ public class StreamManager implements StreamManagerMBean
     @VisibleForTesting
     public void putStreamingState(StreamingState state)
     {
-        StreamingState previous = states.putIfAbsent(state.getId(), state);
+        StreamingState previous = states.putIfAbsent(state.id(), state);
         if (previous != null)
-            throw new AssertionError("StreamPlan id " + state.getId() + " already exists");
+            throw new AssertionError("StreamPlan id " + state.id() + " already exists");
     }
 
     @VisibleForTesting
@@ -291,15 +291,15 @@ public class StreamManager implements StreamManagerMBean
             long deadlineNanos = Clock.Global.nanoTime() - durationNanos;
             for (StreamingState state : states.values())
             {
-                if (state.getLastUpdatedAtNanos() < deadlineNanos)
+                if (state.lastUpdatedAtNanos() < deadlineNanos)
                 {
                     if (state.isComplete())
                     {
-                        states.remove(state.getId());
+                        states.remove(state.id());
                     }
                     else
                     {
-                        logger.warn("Stream {} has been running longer than state expires window {};\n{}", state.getId(), duration, state);
+                        logger.warn("Stream {} has been running longer than state expires window {};\n{}", state.id(), duration, state);
                     }
                 }
             }

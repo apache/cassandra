@@ -36,7 +36,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class StreamingState implements StreamEventHandler
 {
-    public enum State
+    public enum Status
     {INIT, START, SUCCESS, FAILURE}
 
     private final long createdAtMillis = Clock.Global.currentTimeMillis();
@@ -48,7 +48,7 @@ public class StreamingState implements StreamEventHandler
     private Set<InetSocketAddress> peers;
     private Sessions sessions = Sessions.EMPTY;
 
-    private State state = State.INIT;
+    private Status status = Status.INIT;
     private String completeMessage = null;
 
     private final long[] stateTimesNanos;
@@ -64,43 +64,43 @@ public class StreamingState implements StreamEventHandler
         this.operation = result.getCurrentState().streamOperation;
         this.follower = coordinator.isFollower();
         this.peers = coordinator.getPeers();
-        this.stateTimesNanos = new long[State.values().length];
+        this.stateTimesNanos = new long[Status.values().length];
         stateTimesNanos[0] = Clock.Global.nanoTime();
     }
 
-    public UUID getId()
+    public UUID id()
     {
         return id;
     }
 
-    public boolean isFollower()
+    public boolean follower()
     {
         return follower;
     }
 
-    public StreamOperation getOperation()
+    public StreamOperation operation()
     {
         return operation;
     }
 
-    public Set<InetSocketAddress> getPeers()
+    public Set<InetSocketAddress> peers()
     {
         return peers;
     }
 
-    public State getState()
+    public Status status()
     {
-        return state;
+        return status;
     }
 
-    public Sessions getSessions()
+    public Sessions sessions()
     {
         return sessions;
     }
 
     public boolean isComplete()
     {
-        switch (state)
+        switch (status)
         {
             case SUCCESS:
             case FAILURE:
@@ -110,7 +110,7 @@ public class StreamingState implements StreamEventHandler
         }
     }
 
-    public StreamResultFuture getFuture()
+    public StreamResultFuture future()
     {
         if (follower)
             return StreamManager.instance.getReceivingStream(id);
@@ -118,9 +118,9 @@ public class StreamingState implements StreamEventHandler
             return StreamManager.instance.getInitiatorStream(id);
     }
 
-    public float getProgress()
+    public float progress()
     {
-        switch (state)
+        switch (status)
         {
             case INIT:
                 return 0;
@@ -130,23 +130,23 @@ public class StreamingState implements StreamEventHandler
             case FAILURE:
                 return 1;
             default:
-                throw new AssertionError("unknown state: " + state);
+                throw new AssertionError("unknown state: " + status);
         }
     }
 
-    public EnumMap<State, Long> getStateTimesMillis()
+    public EnumMap<Status, Long> stateTimesMillis()
     {
-        EnumMap<State, Long> map = new EnumMap<>(State.class);
+        EnumMap<Status, Long> map = new EnumMap<>(Status.class);
         for (int i = 0; i < stateTimesNanos.length; i++)
         {
             long nanos = stateTimesNanos[i];
             if (nanos != 0)
-                map.put(State.values()[i], nanosToMillis(nanos));
+                map.put(Status.values()[i], nanosToMillis(nanos));
         }
         return map;
     }
 
-    public long getDurationMillis()
+    public long durationMillis()
     {
         long endNanos = lastUpdatedAtNanos;
         if (!isComplete())
@@ -154,26 +154,26 @@ public class StreamingState implements StreamEventHandler
         return TimeUnit.NANOSECONDS.toMillis(endNanos - stateTimesNanos[0]);
     }
 
-    public long getLastUpdatedAtMillis()
+    public long lastUpdatedAtMillis()
     {
         return nanosToMillis(lastUpdatedAtNanos);
     }
 
-    public long getLastUpdatedAtNanos()
+    public long lastUpdatedAtNanos()
     {
         return lastUpdatedAtNanos;
     }
 
-    public String getFailureCause()
+    public String failureCause()
     {
-        if (state == State.FAILURE)
+        if (status == Status.FAILURE)
             return completeMessage;
         return null;
     }
 
-    public String getSuccessMessage()
+    public String successMessage()
     {
-        if (state == State.SUCCESS)
+        if (status == Status.SUCCESS)
             return completeMessage;
         return null;
     }
@@ -183,13 +183,13 @@ public class StreamingState implements StreamEventHandler
     {
         TableBuilder table = new TableBuilder();
         table.add("id", id.toString());
-        table.add("status", getState().name().toLowerCase());
-        table.add("progress", (getProgress() * 100) + "%");
-        table.add("duration_ms", Long.toString(getDurationMillis()));
-        table.add("last_updated_ms", Long.toString(getLastUpdatedAtMillis()));
-        table.add("failure_cause", getFailureCause());
-        table.add("success_message", getSuccessMessage());
-        for (Map.Entry<State, Long> e : getStateTimesMillis().entrySet())
+        table.add("status", status().name().toLowerCase());
+        table.add("progress", (progress() * 100) + "%");
+        table.add("duration_ms", Long.toString(durationMillis()));
+        table.add("last_updated_ms", Long.toString(lastUpdatedAtMillis()));
+        table.add("failure_cause", failureCause());
+        table.add("success_message", successMessage());
+        for (Map.Entry<Status, Long> e : stateTimesMillis().entrySet())
             table.add("status_" + e.getKey().name().toLowerCase() + "_ms", e.toString());
         return table.toString();
     }
@@ -197,7 +197,7 @@ public class StreamingState implements StreamEventHandler
     @Override
     public void handleStreamEvent(StreamEvent event)
     {
-        StreamResultFuture stream = getFuture();
+        StreamResultFuture stream = future();
         if (stream != null)
             update(stream.getCoordinator().getAllSessionInfo());
         lastUpdatedAtNanos = Clock.Global.nanoTime();
@@ -208,31 +208,31 @@ public class StreamingState implements StreamEventHandler
     {
         if (state != null)
             update(state.sessions);
-        updateState(State.SUCCESS);
+        updateState(Status.SUCCESS);
     }
 
     @Override
     public void onFailure(Throwable throwable)
     {
-        StreamResultFuture stream = getFuture();
+        StreamResultFuture stream = future();
         if (stream != null)
             update(stream.getCoordinator().getAllSessionInfo());
         completeMessage = Throwables.getStackTrace(throwable);
-        updateState(State.FAILURE);
+        updateState(Status.FAILURE);
     }
 
     private void update(Set<SessionInfo> infos)
     {
-        if (state != null)
+        if (status != null)
         {
             peers = infos.stream().map(a -> a.peer).collect(Collectors.toSet());
             sessions = Sessions.create(infos);
         }
     }
 
-    private synchronized void updateState(State state)
+    private synchronized void updateState(Status state)
     {
-        this.state = state;
+        this.status = state;
         lastUpdatedAtNanos = Clock.Global.nanoTime();
     }
 
@@ -246,7 +246,7 @@ public class StreamingState implements StreamEventHandler
     {
         public void start()
         {
-            updateState(State.START);
+            updateState(Status.START);
         }
     }
 

@@ -81,15 +81,15 @@ public class StreamingVirtualTableTest extends CQLTester
     {
         StreamingState state = stream(true);
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.getId(), true, "Repair", Collections.emptyList(), "init", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", Collections.emptyList(), "init", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
         state.phase.start();
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] {state.getId(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.getLastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
-        state.onSuccess(new StreamState(state.getId(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE))));
+        state.onSuccess(new StreamState(state.id(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE))));
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.getId(), true, "Repair", Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.getLastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.lastUpdatedAtMillis()), null, null });
     }
 
     @Test
@@ -107,7 +107,7 @@ public class StreamingVirtualTableTest extends CQLTester
     public void progress(boolean follower) throws Throwable
     {
         StreamingState state = stream(follower);
-        StreamResultFuture future = state.getFuture();
+        StreamResultFuture future = state.future();
         state.phase.start();
 
         SessionInfo s1 = new SessionInfo(PEER2, 0, FBUtilities.getBroadcastAddressAndPort(), Arrays.asList(streamSummary()), Arrays.asList(streamSummary(), streamSummary()), StreamSession.State.STREAMING);
@@ -128,7 +128,7 @@ public class StreamingVirtualTableTest extends CQLTester
             filesToSend += s.getTotalFilesToSend();
         }
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, bytes_to_receive, bytes_received, bytes_to_send, bytes_sent, files_to_receive, files_received, files_to_send, files_sent from %s")),
-                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", 0F, bytesToReceive, 0L, bytesToSend, 0L, filesToReceive, 0L, filesToSend, 0L });
+                   new Object[] { state.id(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", 0F, bytesToReceive, 0L, bytesToSend, 0L, filesToReceive, 0L, filesToSend, 0L });
 
         // update progress
         long bytesReceived = 0, bytesSent = 0;
@@ -147,7 +147,7 @@ public class StreamingVirtualTableTest extends CQLTester
         // since the events do not include a summary of the world, the handler actually fetches the future
         state.handleStreamEvent(null);
         assertRows(execute(t("select id, follower, peers, status, bytes_to_receive, bytes_received, bytes_to_send, bytes_sent, files_to_receive, files_received, files_to_send, files_sent from %s")),
-                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", bytesToReceive, bytesReceived, bytesToSend, bytesSent, filesToReceive, 2L, filesToSend, 2L });
+                   new Object[] { state.id(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", bytesToReceive, bytesReceived, bytesToSend, bytesSent, filesToReceive, 2L, filesToSend, 2L });
 
         // finish
         for (SessionInfo s : Arrays.asList(s1, s2))
@@ -162,11 +162,11 @@ public class StreamingVirtualTableTest extends CQLTester
         // since the events do not include a summary of the world, the handler actually fetches the future
         state.handleStreamEvent(null);
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, bytes_to_receive, bytes_received, bytes_to_send, bytes_sent, files_to_receive, files_received, files_to_send, files_sent from %s")),
-                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", 99F, bytesToReceive, bytesToReceive, bytesToSend, bytesToSend, filesToReceive, filesToReceive, filesToSend, filesToSend });
+                   new Object[] { state.id(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "start", 99F, bytesToReceive, bytesToReceive, bytesToSend, bytesToSend, filesToReceive, filesToReceive, filesToSend, filesToSend });
 
         state.onSuccess(future.getCurrentState());
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.getId(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "success", 100F, new Date(state.getLastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), follower, Arrays.asList(PEER2.toString(), PEER3.toString()), "success", 100F, new Date(state.lastUpdatedAtMillis()), null, null });
     }
 
     private static StreamSummary streamSummary()
@@ -182,7 +182,7 @@ public class StreamingVirtualTableTest extends CQLTester
         RuntimeException t = new RuntimeException("You failed!");
         state.onFailure(t);
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.getId(), true, Collections.emptyList(), "failure", 100F, new Date(state.getLastUpdatedAtMillis()), Throwables.getStackTrace(t), null });
+                   new Object[] { state.id(), true, Collections.emptyList(), "failure", 100F, new Date(state.lastUpdatedAtMillis()), Throwables.getStackTrace(t), null });
     }
 
     private static String t(String query)
