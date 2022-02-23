@@ -832,8 +832,8 @@ public class LocalSessions
                     if (!prepareSessionExceptFailed(session))
                         logger.info("Session {} failed before anticompaction completed", sessionID);
                     Message<PrepareConsistentResponse> message =
-                    Message.out(PREPARE_CONSISTENT_RSP,
-                                new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED));
+                        Message.out(PREPARE_CONSISTENT_RSP,
+                                    new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED));
                     sendMessage(coordinator, message);
                 }
                 finally
