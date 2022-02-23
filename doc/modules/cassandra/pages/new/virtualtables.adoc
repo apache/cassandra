@@ -74,9 +74,11 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator writes.
 
-|cql_metrcs |Metrics specific to CQL prepared statement caching.
+|cql_metrics |Metrics specific to CQL prepared statement caching.
 
 |disk_usage |Records disk usage including disk_space, keyspace_name, and table_name, sorted by system keyspaces.
+
+|gossip_info |Lists the gossip information for the cluster.
 
 |internode_inbound |Lists information about the inbound internode messaging.
 
@@ -375,6 +377,24 @@ tasks, use the following query:
 ....
 SELECT total - progress AS remaining
 FROM system_views.sstable_tasks;
+....
+
+=== Gossip Information Virtual Table
+
+The `gossip_info` virtual table lists the Gossip information for the cluster. An example query is as follows:
+
+....
+cqlsh> select address, port, generation, heartbeat, load, dc, rack, release_version from system_views.gossip_info;
+
+ address   | port | generation | heartbeat | load    | dc          | rack  | release_version
+-----------+------+------------+-----------+---------+-------------+-------+-----------------
+ 127.0.0.1 | 7000 | 1645575140 |       312 | 70542.0 | datacenter1 | rack1 |    4.1-SNAPSHOT
+ 127.0.0.2 | 7000 | 1645575135 |       318 | 70499.0 | datacenter1 | rack1 |    4.1-SNAPSHOT
+ 127.0.0.3 | 7000 | 1645575140 |       312 | 70504.0 | datacenter1 | rack1 |    4.1-SNAPSHOT
+ 127.0.0.4 | 7000 | 1645575141 |       311 | 70502.0 | datacenter1 | rack1 |    4.1-SNAPSHOT
+ 127.0.0.5 | 7000 | 1645575136 |       315 | 70500.0 | datacenter1 | rack1 |    4.1-SNAPSHOT
+
+(5 rows)
 ....
 
 === Other Virtual Tables
