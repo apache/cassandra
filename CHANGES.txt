@@ -1,4 +1,4 @@
-Flaky testNoSuchRepairSessionAnticompaction (CASSANDRA-17335)
+Fix race condition bug during local session repair (CASSANDRA-17335)
 
 4.1
  * Add support for string concatenations through the + operator (CASSANDRA-17190)
