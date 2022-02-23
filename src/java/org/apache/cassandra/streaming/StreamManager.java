@@ -250,9 +250,9 @@ public class StreamManager implements StreamManagerMBean
     public void start()
     {
         addListener(listener);
-        this.cleanup = ScheduledExecutors.optionalTasks.scheduleAtFixedRate(this::cleanup, 0,
-                                                             DatabaseDescriptor.getStreamingStateCleanupInterval().toNanoseconds(),
-                                                             TimeUnit.NANOSECONDS);
+        this.cleanup = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(this::cleanup, 0,
+                                                                               DatabaseDescriptor.getStreamingStateCleanupInterval().toNanoseconds(),
+                                                                               TimeUnit.NANOSECONDS);
     }
 
     public void stop()
