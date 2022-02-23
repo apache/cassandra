@@ -64,6 +64,11 @@ Upgrading
       otc_backlog_expiration_interval_ms are deprecated and will be removed at earliest with next major release.
       otc_coalescing_strategy is disabled since 3.11.
 
+Deprecation
+---------
+    - JavaScript user-defined functions have been deprecated. They are planned for removal
+      in the next major release. (CASSANDRA-17280)
+
 4.0.2
 =====
 
