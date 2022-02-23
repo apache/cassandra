@@ -18,14 +18,11 @@
 package org.apache.cassandra.repair;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.UUID;
 
 import com.google.common.base.Objects;
-
-import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -36,11 +33,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDSerializer;
-
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.cassandra.utils.ByteBufferUtil.getArray;
 
 /**
  * RepairJobDesc is used from various repair processes to distinguish one RepairJob to another.
@@ -66,17 +59,6 @@ public class RepairJobDesc
         this.keyspace = keyspace;
         this.columnFamily = columnFamily;
         this.ranges = ranges;
-    }
-
-    public UUID determanisticId()
-    {
-        byte[] bytes = getArray(bytes(parentSessionId));
-        bytes = ArrayUtils.addAll(bytes, getArray(bytes(sessionId)));
-        bytes = ArrayUtils.addAll(bytes, keyspace.getBytes(StandardCharsets.UTF_8));
-        bytes = ArrayUtils.addAll(bytes, columnFamily.getBytes(StandardCharsets.UTF_8));
-        //TODO this feels unsafe... fix before merge!
-        bytes = ArrayUtils.addAll(bytes, ranges.toString().getBytes(StandardCharsets.UTF_8));
-        return UUID.nameUUIDFromBytes(bytes);
     }
 
     @Override

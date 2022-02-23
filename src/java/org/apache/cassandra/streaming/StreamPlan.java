@@ -38,7 +38,7 @@ import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.str
 public class StreamPlan
 {
     private static final String[] EMPTY_COLUMN_FAMILIES = new String[0];
-    private final UUID planId;
+    private final UUID planId = UUIDGen.getTimeUUID();
     private final StreamOperation streamOperation;
     private final List<StreamEventHandler> handlers = new ArrayList<>();
     private final StreamCoordinator coordinator;
@@ -63,13 +63,6 @@ public class StreamPlan
     public StreamPlan(StreamOperation streamOperation, int connectionsPerHost,
                       boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
-        this(UUIDGen.getTimeUUID(), streamOperation, connectionsPerHost, connectSequentially, pendingRepair, previewKind);
-    }
-
-    public StreamPlan(UUID planId, StreamOperation streamOperation, int connectionsPerHost,
-                      boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
-    {
-        this.planId = Objects.requireNonNull(planId);
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(),
                                                  false, connectSequentially, pendingRepair, previewKind);
