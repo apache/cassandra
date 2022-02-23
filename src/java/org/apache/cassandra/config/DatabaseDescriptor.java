@@ -761,6 +761,9 @@ public class DatabaseDescriptor
         if (conf.allow_extra_insecure_udfs)
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
+        if(conf.enable_scripted_user_defined_functions)
+            logger.warn("JavaScript user-defined functions have been deprecated. You can still use them but the plan is to remove them in the next major version. For more information - CASSANDRA-17280");
+
         if (conf.commitlog_segment_size_in_mb <= 0)
             throw new ConfigurationException("commitlog_segment_size_in_mb must be positive, but was "
                     + conf.commitlog_segment_size_in_mb, false);
