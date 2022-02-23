@@ -67,6 +67,8 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.table_properties_ignored = validateTableProperties(config.table_properties_ignored, "table_properties_ignored");
         config.table_properties_disallowed = validateTableProperties(config.table_properties_disallowed, "table_properties_disallowed");
         validateIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
+        validateIntThreshold(config.partition_keys_in_select_warn_threshold,
+                             config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
     }
 
     @Override
@@ -192,6 +194,31 @@ public class GuardrailsOptions implements GuardrailsConfig
     public int getMaterializedViewsPerTableWarnThreshold()
     {
         return config.materialized_views_per_table_warn_threshold;
+    }
+
+    @Override
+    public int getPartitionKeysInSelectWarnThreshold()
+    {
+        return config.partition_keys_in_select_warn_threshold;
+    }
+
+    @Override
+    public int getPartitionKeysInSelectFailThreshold()
+    {
+        return config.partition_keys_in_select_fail_threshold;
+    }
+
+    public void setPartitionKeysInSelectThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "partition_keys_in_select");
+        updatePropertyWithLogging("partition_keys_in_select_warn_threshold",
+                                  warn,
+                                  () -> config.partition_keys_in_select_warn_threshold,
+                                  x -> config.partition_keys_in_select_warn_threshold = x);
+        updatePropertyWithLogging("partition_keys_in_select_fail_threshold",
+                                  fail,
+                                  () -> config.partition_keys_in_select_fail_threshold,
+                                  x -> config.partition_keys_in_select_fail_threshold = x);
     }
 
     @Override

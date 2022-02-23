@@ -95,6 +95,17 @@ public interface GuardrailsConfig
      */
     int getMaterializedViewsPerTableWarnThreshold();
 
+
+    /**
+     * @return The threshold to warn when partition keys in select more than threshold.
+     */
+    int getPartitionKeysInSelectWarnThreshold();
+
+    /**
+     * @return The threshold to fail when partition keys in select more than threshold.
+     */
+    int getPartitionKeysInSelectFailThreshold();
+
     /**
      * @return The threshold to fail when creating more materialized views per table than threshold.
      */
