@@ -769,7 +769,7 @@ public class Config
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
-    public volatile DurationSpec streaming_state_cleanup_interval = DurationSpec.inMilliseconds(10);
+    public volatile DurationSpec streaming_state_cleanup_interval = DurationSpec.inMinutes(10);
 
     /** The configuration of startup checks. */
     public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();
