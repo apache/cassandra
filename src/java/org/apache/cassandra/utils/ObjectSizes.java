@@ -1,4 +1,3 @@
-package org.apache.cassandra.utils;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -17,9 +16,8 @@ package org.apache.cassandra.utils;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
-
+package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
@@ -31,47 +29,61 @@ import org.github.jamm.MemoryMeter;
  */
 public class ObjectSizes
 {
-    private static final MemoryMeter meter = new MemoryMeter()
-                                             .omitSharedBufferOverhead()
-                                             .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
-                                             .ignoreKnownSingletons();
+    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead()
+                                                              .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
+                                                              .ignoreKnownSingletons();
 
-    private static final long BUFFER_EMPTY_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-    private static final long BYTE_ARRAY_EMPTY_SIZE = measure(new byte[0]);
-    private static final long STRING_EMPTY_SIZE = measure("");
+    private static final long EMPTY_HEAP_BUFFER_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    private static final long EMPTY_BYTE_ARRAY_SIZE = measure(new byte[0]);
+    private static final long EMPTY_STRING_SIZE = measure("");
+
+    private static final long DIRECT_BUFFER_HEAP_SIZE = measure(ByteBuffer.allocateDirect(0));
 
     /**
      * Memory a byte array consumes
+     *
      * @param bytes byte array to get memory size
      * @return heap-size of the array
      */
     public static long sizeOfArray(byte[] bytes)
     {
+        if (bytes == null)
+            return 0;
+
         return sizeOfArray(bytes.length, 1);
     }
 
     /**
      * Memory a long array consumes
+     *
      * @param longs byte array to get memory size
      * @return heap-size of the array
      */
     public static long sizeOfArray(long[] longs)
     {
+        if (longs == null)
+            return 0;
+
         return sizeOfArray(longs.length, 8);
     }
 
     /**
      * Memory an int array consumes
+     *
      * @param ints byte array to get memory size
      * @return heap-size of the array
      */
     public static long sizeOfArray(int[] ints)
     {
+        if (ints == null)
+            return 0;
+
         return sizeOfArray(ints.length, 4);
     }
 
     /**
      * Memory a reference array consumes
+     *
      * @param length the length of the reference array
      * @return heap-size of the array
      */
@@ -82,11 +94,15 @@ public class ObjectSizes
 
     /**
      * Memory a reference array consumes itself only
+     *
      * @param objects the array to size
      * @return heap-size of the array (excluding memory retained by referenced objects)
      */
     public static long sizeOfArray(Object[] objects)
     {
+        if (objects == null)
+            return 0;
+
         return sizeOfReferenceArray(objects.length);
     }
 
@@ -96,58 +112,97 @@ public class ObjectSizes
     }
 
     /**
-     * Memory a ByteBuffer array consumes.
+     * Amount of heap memory consumed by the array of byte buffers. It sums memory consumed by the array itself
+     * and for each included byte buffer using {@link #sizeOnHeapOf(ByteBuffer)}.
      */
     public static long sizeOnHeapOf(ByteBuffer[] array)
     {
-        long allElementsSize = 0;
-        for (int i = 0; i < array.length; i++)
-            if (array[i] != null)
-                allElementsSize += sizeOnHeapOf(array[i]);
+        if (array == null)
+            return 0;
 
-        return allElementsSize + sizeOfArray(array);
-    }
+        long sum = sizeOfArray(array);
+        for (ByteBuffer buffer : array)
+            sum += sizeOnHeapOf(buffer);
 
-    public static long sizeOnHeapExcludingData(ByteBuffer[] array)
-    {
-        return BUFFER_EMPTY_SIZE * array.length + sizeOfArray(array);
+        return sum;
     }
 
     /**
-     * Memory a byte buffer consumes
-     * @param buffer ByteBuffer to calculate in memory size
-     * @return Total in-memory size of the byte buffer
+     * Amount of non-data heap memory consumed by the array of byte buffers. It sums memory consumed
+     * by the array itself and for each included byte buffer using {@link #sizeOnHeapExcludingData(ByteBuffer)}.
+     */
+    public static long sizeOnHeapExcludingData(ByteBuffer[] array)
+    {
+        if (array == null)
+            return 0;
+
+        long sum = sizeOfArray(array);
+        for (ByteBuffer b : array)
+            sum += sizeOnHeapExcludingData(b);
+
+        return sum;
+    }
+
+    /**
+     * @return heap memory consumed by the byte buffer. If it is a slice, it counts the data size, but it does not
+     * include the internal array overhead.
      */
     public static long sizeOnHeapOf(ByteBuffer buffer)
     {
+        if (buffer == null)
+            return 0;
+
         if (buffer.isDirect())
-            return BUFFER_EMPTY_SIZE;
-        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
-        // allocated, so amortized over all the allocations the overhead is negligible and better to undercount than over)
-        if (buffer.capacity() > buffer.remaining())
-            return buffer.remaining();
-        return BUFFER_EMPTY_SIZE + sizeOfArray(buffer.capacity(), 1);
+            return DIRECT_BUFFER_HEAP_SIZE;
+
+        int arrayLen = buffer.array().length;
+        int bufLen = buffer.remaining();
+
+        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it is SLAB
+        // allocated - the overhead amortized over all the allocations is negligible and better to undercount than over)
+        if (arrayLen > bufLen)
+            return EMPTY_HEAP_BUFFER_SIZE + bufLen;
+
+        return EMPTY_HEAP_BUFFER_SIZE + (arrayLen == 0 ? EMPTY_BYTE_ARRAY_SIZE : sizeOfArray(arrayLen, 1));
     }
 
-    public static long sizeOfEmptyHeapByteBuffer()
+    /**
+     * @return non-data heap memory consumed by the byte buffer. If it is a slice, it does not include the internal
+     * array overhead.
+     */
+    public static long sizeOnHeapExcludingData(ByteBuffer buffer)
     {
-        return BUFFER_EMPTY_SIZE;
-    }
+        if (buffer == null)
+            return 0;
 
-    public static long sizeOfEmptyByteArray()
-    {
-        return BYTE_ARRAY_EMPTY_SIZE;
+        if (buffer.isDirect())
+            return DIRECT_BUFFER_HEAP_SIZE;
+
+        int arrayLen = buffer.array().length;
+        int bufLen = buffer.remaining();
+
+        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it is SLAB
+        // allocated - the overhead amortized over all the allocations is negligible and better to undercount than over)
+        if (arrayLen > bufLen)
+            return EMPTY_HEAP_BUFFER_SIZE;
+
+        // If buffers are dedicated, account for byte array size and any padding overhead
+        return EMPTY_HEAP_BUFFER_SIZE + (arrayLen == 0 ? EMPTY_BYTE_ARRAY_SIZE : (sizeOfArray(arrayLen, 1) - arrayLen));
     }
 
     /**
      * Memory a String consumes
+     *
      * @param str String to calculate memory size of
      * @return Total in-memory size of the String
      */
-    //@TODO hard coding this to 2 isn't necessarily correct in Java 11
+    // TODO hard coding this to 2 isn't necessarily correct in Java 11
     public static long sizeOf(String str)
     {
-        return STRING_EMPTY_SIZE + sizeOfArray(str.length(), 2);
+        if (str == null)
+            return 0;
+
+        return EMPTY_STRING_SIZE + sizeOfArray(str.length(), Character.SIZE);
     }
 
     /**
