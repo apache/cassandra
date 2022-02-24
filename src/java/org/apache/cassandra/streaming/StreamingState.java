@@ -31,13 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
-import org.assertj.core.util.Throwables;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class StreamingState implements StreamEventHandler
@@ -289,7 +289,7 @@ public class StreamingState implements StreamEventHandler
             peers = new HashSet<>(streamProgress.keySet());
             this.streamProgress = null;
         }
-        completeMessage = Throwables.getStackTrace(throwable);
+        completeMessage = Throwables.getStackTraceAsString(throwable);
         updateState(Status.FAILURE);
     }
 
