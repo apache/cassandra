@@ -31,8 +31,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -144,8 +144,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -261,8 +261,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -378,8 +378,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -495,8 +495,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -612,8 +612,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -671,8 +671,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -828,8 +828,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -985,8 +985,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1126,8 +1126,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1280,8 +1280,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1422,8 +1422,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1563,8 +1563,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1675,8 +1675,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1791,8 +1791,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1907,8 +1907,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2023,8 +2023,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2139,8 +2139,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2197,8 +2197,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2267,8 +2267,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2382,8 +2382,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2497,8 +2497,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2637,8 +2637,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2777,8 +2777,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2889,8 +2889,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3030,8 +3030,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3170,8 +3170,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3288,8 +3288,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3430,8 +3430,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3541,8 +3541,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3682,8 +3682,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3740,8 +3740,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3798,8 +3798,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3856,8 +3856,8 @@ jobs:
     - CASS_DRIVER_NO_EXTENSIONS: true
     - CASS_DRIVER_NO_CYTHON: true
     - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: trunk
+    - DTEST_REPO: https://github.com/ekaterinadimitrova2/cassandra-dtest.git
+    - DTEST_BRANCH: CASSANDRA-15234
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
