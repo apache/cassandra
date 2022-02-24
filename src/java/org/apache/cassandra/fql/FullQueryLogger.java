@@ -52,6 +52,8 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 import org.github.jamm.MemoryLayoutSpecification;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * A logger that logs entire query contents after the query finishes (or times out).
  */
@@ -80,9 +82,7 @@ public class FullQueryLogger implements QueryEvents.Listener
     public static final String QUERIES = "queries";
     public static final String VALUES = "values";
 
-    private static final int EMPTY_BYTEBUFFER_SIZE = Ints.checkedCast(ObjectSizes.sizeOfEmptyHeapByteBuffer());
-
-    private static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList(0)));
+    private static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList<>(0)));
     private static final int EMPTY_BYTEBUF_SIZE;
 
     private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
@@ -278,11 +278,11 @@ public class FullQueryLogger implements QueryEvents.Listener
                              long batchTimeMillis,
                              Message.Response response)
     {
-        Preconditions.checkNotNull(type, "type was null");
-        Preconditions.checkNotNull(queries, "queries was null");
-        Preconditions.checkNotNull(values, "value was null");
-        Preconditions.checkNotNull(queryOptions, "queryOptions was null");
-        Preconditions.checkNotNull(queryState, "queryState was null");
+        checkNotNull(type, "type was null");
+        checkNotNull(queries, "queries was null");
+        checkNotNull(values, "value was null");
+        checkNotNull(queryOptions, "queryOptions was null");
+        checkNotNull(queryState, "queryState was null");
         Preconditions.checkArgument(batchTimeMillis > 0, "batchTimeMillis must be > 0");
 
         //Don't construct the wrapper if the log is disabled
@@ -311,9 +311,9 @@ public class FullQueryLogger implements QueryEvents.Listener
                              long queryTimeMillis,
                              Message.Response response)
     {
-        Preconditions.checkNotNull(query, "query was null");
-        Preconditions.checkNotNull(queryOptions, "queryOptions was null");
-        Preconditions.checkNotNull(queryState, "queryState was null");
+        checkNotNull(query, "query was null");
+        checkNotNull(queryOptions, "queryOptions was null");
+        checkNotNull(queryState, "queryState was null");
         Preconditions.checkArgument(queryTimeMillis > 0, "queryTimeMillis must be > 0");
 
         //Don't construct the wrapper if the log is disabled
@@ -383,18 +383,19 @@ public class FullQueryLogger implements QueryEvents.Listener
             int weight = super.weight();
 
             // weight, queries, values, batch type
-            weight += 4 +                    // cached weight
-                      2 * EMPTY_LIST_SIZE +  // queries + values lists
-                      OBJECT_REFERENCE_SIZE; // batchType reference, worst case
+            weight += Integer.BYTES +            // cached weight
+                      2 * EMPTY_LIST_SIZE +      // queries + values lists
+                      3 * OBJECT_REFERENCE_SIZE; // batchType and two lists references
 
             for (String query : queries)
-                weight += ObjectSizes.sizeOf(query);
+                weight += ObjectSizes.sizeOf(checkNotNull(query)) + OBJECT_REFERENCE_SIZE;
 
             for (List<ByteBuffer> subValues : values)
             {
-                weight += EMPTY_LIST_SIZE;
+                weight += EMPTY_LIST_SIZE + OBJECT_REFERENCE_SIZE;
+
                 for (ByteBuffer value : subValues)
-                    weight += EMPTY_BYTEBUFFER_SIZE + value.capacity();
+                    weight += ObjectSizes.sizeOnHeapOf(value) + OBJECT_REFERENCE_SIZE;
             }
 
             this.weight = weight;
@@ -511,14 +512,12 @@ public class FullQueryLogger implements QueryEvents.Listener
         public int weight()
         {
             return OBJECT_HEADER_SIZE
-                 + 8                                                  // queryStartTime
-                 + 4                                                  // protocolVersion
-                 + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
-                 + 8                                                  // generatedTimestamp
-                 + 4                                                  // generatedNowInSeconds
-                 + (keyspace != null
-                    ? Ints.checkedCast(ObjectSizes.sizeOf(keyspace))  // keyspace
-                    : OBJECT_REFERENCE_SIZE);                         // null
+                 + Long.BYTES                                                                 // queryStartTime
+                 + Integer.BYTES                                                              // protocolVersion
+                 + OBJECT_REFERENCE_SIZE + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
+                 + Long.BYTES                                                                 // generatedTimestamp
+                 + Integer.BYTES                                                              // generatedNowInSeconds
+                 + OBJECT_REFERENCE_SIZE + Ints.checkedCast(ObjectSizes.sizeOf(keyspace));    // keyspace
         }
     }
 

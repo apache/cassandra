@@ -38,6 +38,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.NativeCell;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -108,10 +109,7 @@ public class CellSpecTest
         if (value instanceof ByteBuffer)
         {
             ByteBuffer bb = (ByteBuffer) value;
-            long size = ObjectSizes.sizeOfEmptyHeapByteBuffer();
-            if (!bb.isDirect())
-                size += ObjectSizes.sizeOfArray(bb.array());
-            return size;
+            return ObjectSizes.sizeOnHeapOf(bb);
         }
         else if (value instanceof byte[])
         {
@@ -123,9 +121,9 @@ public class CellSpecTest
     private static long valuePtrSize(Object value)
     {
         if (value instanceof ByteBuffer)
-            return ObjectSizes.sizeOfEmptyHeapByteBuffer();
+            return ObjectSizes.sizeOnHeapExcludingData((ByteBuffer) value);
         else if (value instanceof byte[])
-            return ObjectSizes.sizeOfEmptyByteArray();
+            return ObjectSizes.sizeOfArray((byte[]) value) - ((byte[]) value).length;
         throw new IllegalArgumentException("Unsupported type: " + value.getClass());
     }
 
