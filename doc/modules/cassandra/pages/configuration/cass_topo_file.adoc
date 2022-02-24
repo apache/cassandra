@@ -1,5 +1,5 @@
 [[cassandra-topology]]
-cassandra-topologies.properties file ================================
+= cassandra-topologies.properties file
 
 The `PropertyFileSnitch` `snitch` option uses the
 `cassandra-topologies.properties` configuration file to determine which
