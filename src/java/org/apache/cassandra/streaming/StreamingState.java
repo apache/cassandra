@@ -48,7 +48,7 @@ public class StreamingState implements StreamEventHandler
     private Set<InetSocketAddress> peers;
     private Sessions sessions = Sessions.EMPTY;
 
-    private Status status = Status.INIT;
+    private Status status;
     private String completeMessage = null;
 
     private final long[] stateTimesNanos;
@@ -65,7 +65,7 @@ public class StreamingState implements StreamEventHandler
         this.follower = coordinator.isFollower();
         this.peers = coordinator.getPeers();
         this.stateTimesNanos = new long[Status.values().length];
-        stateTimesNanos[0] = Clock.Global.nanoTime();
+        updateState(Status.INIT);
     }
 
     public UUID id()
@@ -233,7 +233,9 @@ public class StreamingState implements StreamEventHandler
     private synchronized void updateState(Status state)
     {
         this.status = state;
-        lastUpdatedAtNanos = Clock.Global.nanoTime();
+        long now = Clock.Global.nanoTime();
+        stateTimesNanos[state.ordinal()] = now;
+        lastUpdatedAtNanos = now;
     }
 
     private long nanosToMillis(long nanos)
