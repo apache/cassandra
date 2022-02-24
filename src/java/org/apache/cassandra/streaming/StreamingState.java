@@ -21,12 +21,18 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.InetSocketAddress;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -36,16 +42,24 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class StreamingState implements StreamEventHandler
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
+
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
 
     private final long createdAtMillis = Clock.Global.currentTimeMillis();
 
+    // while streaming is running, this is a cache of StreamInfo seen with progress state
+    // the reason for the cache is that StreamSession drops data after tasks (recieve/send) complete, this makes
+    // it so that current state of a future tracks work pending rather than work done, cache solves this by not deleting
+    // when tasks complete
+    // To lower memory costs, clear this after the stream completes
+    private ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = new ConcurrentHashMap<>();
+
     private final UUID id;
     private final boolean follower;
     private final StreamOperation operation;
-    // TODO is this changed after init?  looks like it is based off sessions which get added later?
-    private Set<InetSocketAddress> peers;
+    private Set<InetSocketAddress> peers = null;
     private Sessions sessions = Sessions.EMPTY;
 
     private Status status;
@@ -63,7 +77,6 @@ public class StreamingState implements StreamEventHandler
         this.id = result.planId;
         this.operation = result.getCurrentState().streamOperation;
         this.follower = coordinator.isFollower();
-        this.peers = coordinator.getPeers();
         this.stateTimesNanos = new long[Status.values().length];
         updateState(Status.INIT);
     }
@@ -85,7 +98,13 @@ public class StreamingState implements StreamEventHandler
 
     public Set<InetSocketAddress> peers()
     {
-        return peers;
+        Set<InetSocketAddress> peers = this.peers;
+        if (peers != null)
+            return peers;
+        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
+        if (streamProgress != null)
+            return streamProgress.keySet();
+        return Collections.emptySet();
     }
 
     public Status status()
@@ -125,7 +144,7 @@ public class StreamingState implements StreamEventHandler
             case INIT:
                 return 0;
             case START:
-                return Math.min(0.99f, sessions.progress().floatValue());
+                return Math.min(0.99f, sessions().progress().floatValue());
             case SUCCESS:
             case FAILURE:
                 return 1;
@@ -195,39 +214,85 @@ public class StreamingState implements StreamEventHandler
     }
 
     @Override
-    public void handleStreamEvent(StreamEvent event)
+    public synchronized void handleStreamEvent(StreamEvent event)
     {
-        StreamResultFuture stream = future();
-        if (stream != null)
-            update(stream.getCoordinator().getAllSessionInfo());
+        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
+        if (streamProgress == null)
+        {
+            logger.warn("Got stream event {} after the stream completed", event.eventType);
+            return;
+        }
+        try
+        {
+            switch (event.eventType)
+            {
+                case STREAM_PREPARED:
+                    streamPrepared((StreamEvent.SessionPreparedEvent) event);
+                    break;
+                case STREAM_COMPLETE:
+                    // currently not taking track of state, so ignore
+                    break;
+                case FILE_PROGRESS:
+                    streamProgress((StreamEvent.ProgressEvent) event);
+                    break;
+                default:
+                    logger.warn("Unknown stream event type: {}", event.eventType);
+            }
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Unexpected exception handling stream event", t);
+        }
+        sessions = Sessions.create(streamProgress.values());
         lastUpdatedAtNanos = Clock.Global.nanoTime();
     }
 
-    @Override
-    public void onSuccess(@Nullable StreamState state)
+    private void streamPrepared(StreamEvent.SessionPreparedEvent event)
     {
-        if (state != null)
-            update(state.sessions);
-        updateState(Status.SUCCESS);
+        SessionInfo session = new SessionInfo(event.session);
+        streamProgress.putIfAbsent(session.peer, session);
+    }
+
+    private void streamProgress(StreamEvent.ProgressEvent event)
+    {
+        SessionInfo info = streamProgress.get(event.progress.peer);
+        if (info != null)
+        {
+            info.updateProgress(event.progress);
+        }
+        else
+        {
+            logger.warn("[Stream #{}} ID#{}] Recieved stream progress before prepare; peer={}", id, event.progress.sessionIndex, event.progress.peer);
+        }
     }
 
     @Override
-    public void onFailure(Throwable throwable)
+    public synchronized void onSuccess(@Nullable StreamState state)
     {
-        StreamResultFuture stream = future();
-        if (stream != null)
-            update(stream.getCoordinator().getAllSessionInfo());
+        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
+        if (streamProgress != null)
+        {
+            sessions = Sessions.create(streamProgress.values());
+            peers = new HashSet<>(streamProgress.keySet());
+            streamProgress.clear();
+            this.streamProgress = null;
+            updateState(Status.SUCCESS);
+        }
+    }
+
+    @Override
+    public synchronized void onFailure(Throwable throwable)
+    {
+        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
+        if (streamProgress != null)
+        {
+            sessions = Sessions.create(streamProgress.values());
+            peers = new HashSet<>(streamProgress.keySet());
+            streamProgress.clear();
+            this.streamProgress = null;
+        }
         completeMessage = Throwables.getStackTrace(throwable);
         updateState(Status.FAILURE);
-    }
-
-    private void update(Set<SessionInfo> infos)
-    {
-        if (status != null)
-        {
-            peers = infos.stream().map(a -> a.peer).collect(Collectors.toSet());
-            sessions = Sessions.create(infos);
-        }
     }
 
     private synchronized void updateState(Status state)
@@ -309,6 +374,8 @@ public class StreamingState implements StreamEventHandler
                 filesToSend += session.getTotalFilesToSend();
                 filesSent += session.getTotalFilesSent();
             }
+            if (0 == bytesToReceive && 0 == bytesReceived && 0 == filesToReceive && 0 == filesReceived && 0 == bytesToSend && 0 == bytesSent && 0 == filesToSend && 0 == filesSent)
+                return EMPTY;
             return new Sessions(bytesToReceive, bytesReceived,
                                 bytesToSend, bytesSent,
                                 filesToReceive, filesReceived,
