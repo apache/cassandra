@@ -274,7 +274,6 @@ public class StreamingState implements StreamEventHandler
         {
             sessions = Sessions.create(streamProgress.values());
             peers = new HashSet<>(streamProgress.keySet());
-            streamProgress.clear();
             this.streamProgress = null;
             updateState(Status.SUCCESS);
         }
@@ -288,7 +287,6 @@ public class StreamingState implements StreamEventHandler
         {
             sessions = Sessions.create(streamProgress.values());
             peers = new HashSet<>(streamProgress.keySet());
-            streamProgress.clear();
             this.streamProgress = null;
         }
         completeMessage = Throwables.getStackTrace(throwable);
