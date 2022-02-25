@@ -2645,12 +2645,12 @@ public class DatabaseDescriptor
         return conf.max_hint_window.toMillisecondsAsInt();
     }
 
-    public static void setMaxHintsSizePerHostInMb(int value)
+    public static void setMaxHintsSizePerHostInMiB(int value)
     {
         conf.max_hints_size_per_host = DataStorageSpec.inMebibytes(value);
     }
 
-    public static int getMaxHintsSizePerHostInMb()
+    public static int getMaxHintsSizePerHostInMiB()
     {
         return conf.max_hints_size_per_host.toMebibytesAsInt();
     }
