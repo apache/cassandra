@@ -29,36 +29,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static org.apache.cassandra.db.rows.RangeTombstoneBoundMarker.exclusiveClose;
 import static org.apache.cassandra.db.rows.RangeTombstoneBoundMarker.exclusiveOpen;
@@ -73,12 +77,10 @@ public class SSTableFlushObserverTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         CommitLog.instance.start();
     }
 
     private static final String KS_NAME = "test";
-    private static final String CF_NAME = "test_cf";
 
     private final long now = System.currentTimeMillis();
     private final int nowInSec = FBUtilities.nowInSeconds();
@@ -104,13 +106,13 @@ public class SSTableFlushObserverTest
                                        liveCell(metadata, "height", decompose(183L)),
                                        liveCell(metadata, "name", decompose("jack")))));
 
-        partitions.put(header(decompose("key3"), new DeletionTime(2, 20), Rows.EMPTY_STATIC_ROW),
+        partitions.put(header(decompose("key2"), new DeletionTime(2, 20), Rows.EMPTY_STATIC_ROW),
                        unfiltereds(row(Clustering.EMPTY,
                                        liveCell(metadata, "age", decompose(30)),
                                        liveCell(metadata, "height", decompose(178L)),
                                        liveCell(metadata, "name", decompose("ken")))));
 
-        partitions.put(header(decompose("key2"), new DeletionTime(3, 30), Rows.EMPTY_STATIC_ROW),
+        partitions.put(header(decompose("key3"), new DeletionTime(3, 30), Rows.EMPTY_STATIC_ROW),
                        unfiltereds(row(Clustering.EMPTY,
                                        liveCell(metadata, "age", decompose(30)),
                                        liveCell(metadata, "height", decompose(180L)),
@@ -184,7 +186,7 @@ public class SSTableFlushObserverTest
                               staticRow(liveCell(metadata, "static_2", decompose("static_2_1")))),
                        unfiltereds());
 
-        partitions.put(header(decompose("key4"), new DeletionTime(3, 30),
+        partitions.put(header(decompose("key2"), new DeletionTime(3, 30),
                               staticRow(liveCell(metadata, "static_1", decompose("static_1_4")),
                                         liveCell(metadata, "static_2", decompose("static_2_4")))),
                        unfiltereds());
@@ -197,7 +199,7 @@ public class SSTableFlushObserverTest
                                        liveCell(metadata, "age", decompose(41)),
                                        liveCell(metadata, "height", decompose(183L)))));
 
-        partitions.put(header(decompose("key2"), new DeletionTime(5, 50),
+        partitions.put(header(decompose("key4"), new DeletionTime(5, 50),
                               staticRow(liveCell(metadata, "static_1", decompose("static_1_2")),
                                         liveCell(metadata, "static_2", decompose("static_2_2")))),
                        unfiltereds(row(clustering(decompose("kim")),
@@ -231,13 +233,13 @@ public class SSTableFlushObserverTest
                                        liveCell(metadata, "height", decompose(183L)),
                                        liveCell(metadata, "name", decompose("jack")))));
 
-        partitions.put(header(decompose("key3"), new DeletionTime(2, 20), Rows.EMPTY_STATIC_ROW),
+        partitions.put(header(decompose("key2"), new DeletionTime(2, 20), Rows.EMPTY_STATIC_ROW),
                        unfiltereds(row(Clustering.EMPTY,
                                        liveCell(metadata, "age", decompose(30)),
                                        liveCell(metadata, "height", decompose(178L)),
                                        tombstone(metadata, "name"))));
 
-        partitions.put(header(decompose("key2"), new DeletionTime(3, 30), Rows.EMPTY_STATIC_ROW),
+        partitions.put(header(decompose("key3"), new DeletionTime(3, 30), Rows.EMPTY_STATIC_ROW),
                        unfiltereds(row(Clustering.EMPTY,
                                        tombstone(metadata, "age"),
                                        tombstone(metadata, "height"),
@@ -290,7 +292,7 @@ public class SSTableFlushObserverTest
         FlushObserver observer = new FlushObserver();
 
         String sstableDirectory = DatabaseDescriptor.getAllDataFileLocations()[0];
-        File directory = new File(sstableDirectory + File.pathSeparator() + KS_NAME + File.pathSeparator() + CF_NAME);
+        File directory = new File(sstableDirectory + File.pathSeparator() + metadata.keyspace + File.pathSeparator() + metadata.name);
         directory.deleteOnExit();
 
         if (!directory.exists() && !directory.tryCreateDirectories())
@@ -298,9 +300,10 @@ public class SSTableFlushObserverTest
 
         SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
 
-        BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion(),
+        BigTableWriter writer = new BigTableWriter(new Descriptor(type.info.getLatestVersion(),
                                                                   directory,
-                                                                  KS_NAME, CF_NAME,
+                                                                  metadata.keyspace,
+                                                                  metadata.name,
                                                                   0,
                                                                   sstableFormat),
                                                    10L, 0L, null, false, TableMetadataRef.forOfflineTools(metadata),
@@ -310,9 +313,7 @@ public class SSTableFlushObserverTest
                                                    transaction,
                                                    Collections.emptySet());
 
-        SSTableReader reader = null;
-        Multimap<ByteBuffer, Cell<?>> expected = ArrayListMultimap.create();
-
+        SSTableReader reader;
         try
         {
             partitions.forEach((key, rows) -> writer.append(new RowIterator(metadata, key, rows)));
