@@ -749,12 +749,15 @@ public class DatabaseDescriptor
         if (conf.allow_extra_insecure_udfs)
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
+        if(conf.scripted_user_defined_functions_enabled)
+            logger.warn("JavaScript user-defined functions have been deprecated. You can still use them but the plan is to remove them in the next major version. For more information - CASSANDRA-17280");
+
         if (conf.commitlog_segment_size.toMebibytes() == 0)
             throw new ConfigurationException("commitlog_segment_size must be positive, but was "
-                    + conf.commitlog_segment_size.toString(), false);
+                                             + conf.commitlog_segment_size.toString(), false);
         else if (conf.commitlog_segment_size.toMebibytes() >= 2048)
             throw new ConfigurationException("commitlog_segment_size must be smaller than 2048, but was "
-                    + conf.commitlog_segment_size.toString(), false);
+                                             + conf.commitlog_segment_size.toString(), false);
 
         if (conf.max_mutation_size == null)
             conf.max_mutation_size = SmallestDataStorageKibibytes.inKibibytes(conf.commitlog_segment_size.toKibibytes() / 2);

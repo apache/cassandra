@@ -242,11 +242,19 @@ For example, `bigintAsBlob(3)` returns `0x0000000000000003` and `blobAsBigint(0x
 ==== User-defined functions
 
 User-defined functions (UDFs) execute user-provided code in Cassandra. 
-By default, Cassandra supports defining functions in _Java_ and _JavaScript_. 
+By default, Cassandra supports defining functions in _Java_ and _JavaScript_.
 Support for other JSR 223 compliant scripting languages, such as Python, Ruby, and Scala, is possible by adding a JAR to the classpath.
 
 UDFs are part of the Cassandra schema, and are automatically propagated to all nodes in the cluster.  
-UDFs can be _overloaded_, so that multiple UDFs with different argument types can have the same function name. 
+UDFs can be _overloaded_, so that multiple UDFs with different argument types can have the same function name.
+
+
+[NOTE]
+.Note
+====
+_JavaScript_ user-defined functions have been deprecated. They are planned for removal
+in the next major release.
+====
 
 For example:
 
