@@ -395,7 +395,8 @@ Upgrading
 
 Deprecation
 -----------
-
+    - JavaScript user-defined functions have been deprecated. They are planned for removal
+      in the next major release. (CASSANDRA-17280)
     - The JMX MBean org.apache.cassandra.metrics:type=Streaming,name=ActiveOutboundStreams has been
       deprecated and will be removed in a subsequent major version. This metric was not updated since several version
       already.
