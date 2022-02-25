@@ -43,20 +43,91 @@ not involve changing encryption settings in cassandra.yaml. See
 https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/FIPS.html[the
 java document on FIPS] for more details.
 
-For information on generating the keystore and truststore files used in
-SSL communications, see the
+Cassandra provides flexibility of using Java based key material or
+completely customizing the SSL context. You can choose any keystore
+format supported by Java (JKS, PKCS12 etc) as well as other standards
+like PEM. You can even customize the SSL context creation to use Cloud
+Native technologies like Kuberenetes Secrets for storing the key
+material or to integrate with your in-house Key Management System.
+
+For information on generating the keystore and truststore files
+required with the Java supported keystores used in SSL communications,
+see the
 http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore[java
-documentation on creating keystores]
+documentation on creating keystores].
+
+For customizing the SSL context creation you can implement
+https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/security/ISslContextFactory.java[ISslContextCreationFactory]
+interface or extend one of its public subclasses appropriately. You
+can then use the `ssl_context_factory` setting for
+`server_encryption_options` or `client_encryption_options` sections
+appropriately. See https://github.com/apache/cassandra/tree/trunk/examples/ssl-factory[ssl-factory examples]
+for details. Refer to the below class diagram to understand the
+class hierarchy.
+
+image::cassandra_ssl_context_factory_pem.png[image]
+
+=== Using PEM based key material
+
+You can use the in-built class `PEMBasedSSLContextFactory` as the
+`ssl_context_factory` setting for the PEM based key material.
+
+You can configure this factory with either inline PEM data or with the
+files having the required PEM data as shown below,
+
+* Configuration: PEM keys/certs defined in-line (mind the spaces in the
+YAML!)
+
+....
+   client/server_encryption_options:
+     ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+        parameters:
+            private_key: |
+             -----BEGIN ENCRYPTED PRIVATE KEY----- OR -----BEGIN PRIVATE KEY-----
+             <your base64 encoded private key>
+             -----END ENCRYPTED PRIVATE KEY----- OR -----END PRIVATE KEY-----
+             -----BEGIN CERTIFICATE-----
+             <your base64 encoded certificate chain>
+             -----END CERTIFICATE-----
+
+            private_key_password: "<your password if the private key is encrypted with a password>"
+
+            trusted_certificates: |
+              -----BEGIN CERTIFICATE-----
+              <your base64 encoded certificate>
+              -----END CERTIFICATE-----
+....
+
+* Configuration: PEM keys/certs defined in files
+....
+    client/server_encryption_options:
+     ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+     keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
+     keystore_password: "<your password if the private key is encrypted with a password>"
+     truststore: <file path to the truststore file in the PEM format>
+....
 
 == SSL Certificate Hot Reloading
 
 Beginning with Cassandra 4, Cassandra supports hot reloading of SSL
-Certificates. If SSL/TLS support is enabled in Cassandra, the node
-periodically polls the Trust and Key Stores specified in cassandra.yaml.
-When the files are updated, Cassandra will reload them and use them for
-subsequent connections. Please note that the Trust & Key Store passwords
-are part of the yaml so the updated files should also use the same
-passwords. The default polling interval is 10 minutes.
+Certificates. If SSL/TLS support is enabled in Cassandra and you are
+using default file based key material, the node periodically (every
+10 minutes) polls the Trust and Key Stores specified in
+cassandra.yaml. When the files are updated, Cassandra will reload
+them and use them for subsequent connections. Please note that the
+Trust & Key Store passwords are part of the yaml so the updated files
+should also use the same passwords.
+
+If you are customizing the SSL configuration via `ssl_context_factory`
+setting, Cassandra polls (at the same periodic interval mentioned above)
+your implementation to check if the SSL certificates need to be
+reloaded. See the https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/security/ISslContextFactory.java#L90[ISslContextFactory] documentation for more details.
+If you are using one of the Cassandra's in-built SSL context factory
+class (example: PEMBasedSslContextFactory) with file based key
+material, it supports the hot reloading of the SSL certificates like
+mentioned above.
 
 Certificate Hot reloading may also be triggered using the
 `nodetool reloadssl` command. Use this if you want to Cassandra to
