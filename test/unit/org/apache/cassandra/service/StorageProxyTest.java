@@ -88,15 +88,15 @@ public class StorageProxyTest
     public void testShouldHintOnExceedingSize() throws Exception
     {
         shouldHintTest(replica -> {
-            final int originalHintsSizeLimit = DatabaseDescriptor.getMaxHintsSizePerHostInMb();
+            final int originalHintsSizeLimit = DatabaseDescriptor.getMaxHintsSizePerHostInMiB();
             try
             {
-                DatabaseDescriptor.setMaxHintsSizePerHostInMb(1);
+                DatabaseDescriptor.setMaxHintsSizePerHostInMiB(1);
                 assertThat(StorageProxy.shouldHint(replica)).isFalse();
             }
             finally
             {
-                DatabaseDescriptor.setMaxHintsSizePerHostInMb(originalHintsSizeLimit);
+                DatabaseDescriptor.setMaxHintsSizePerHostInMiB(originalHintsSizeLimit);
             }
         });
     }

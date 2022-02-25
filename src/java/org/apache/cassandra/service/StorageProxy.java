@@ -2275,14 +2275,14 @@ public class StorageProxy implements StorageProxyMBean
         DatabaseDescriptor.setMaxHintWindow(ms);
     }
 
-    public int getMaxHintsSizePerHostInMb()
+    public int getMaxHintsSizePerHostInMiB()
     {
-        return DatabaseDescriptor.getMaxHintsSizePerHostInMb();
+        return DatabaseDescriptor.getMaxHintsSizePerHostInMiB();
     }
 
-    public void setMaxHintsSizePerHostInMb(int value)
+    public void setMaxHintsSizePerHostInMiB(int value)
     {
-        DatabaseDescriptor.setMaxHintsSizePerHostInMb(value);
+        DatabaseDescriptor.setMaxHintsSizePerHostInMiB(value);
     }
 
     public static boolean shouldHint(Replica replica)
