@@ -52,6 +52,8 @@ import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 import org.github.jamm.MemoryLayoutSpecification;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * A logger that logs entire query contents after the query finishes (or times out).
  */
@@ -276,11 +278,11 @@ public class FullQueryLogger implements QueryEvents.Listener
                              long batchTimeMillis,
                              Message.Response response)
     {
-        Preconditions.checkNotNull(type, "type was null");
-        Preconditions.checkNotNull(queries, "queries was null");
-        Preconditions.checkNotNull(values, "value was null");
-        Preconditions.checkNotNull(queryOptions, "queryOptions was null");
-        Preconditions.checkNotNull(queryState, "queryState was null");
+        checkNotNull(type, "type was null");
+        checkNotNull(queries, "queries was null");
+        checkNotNull(values, "value was null");
+        checkNotNull(queryOptions, "queryOptions was null");
+        checkNotNull(queryState, "queryState was null");
         Preconditions.checkArgument(batchTimeMillis > 0, "batchTimeMillis must be > 0");
 
         //Don't construct the wrapper if the log is disabled
@@ -309,9 +311,9 @@ public class FullQueryLogger implements QueryEvents.Listener
                              long queryTimeMillis,
                              Message.Response response)
     {
-        Preconditions.checkNotNull(query, "query was null");
-        Preconditions.checkNotNull(queryOptions, "queryOptions was null");
-        Preconditions.checkNotNull(queryState, "queryState was null");
+        checkNotNull(query, "query was null");
+        checkNotNull(queryOptions, "queryOptions was null");
+        checkNotNull(queryState, "queryState was null");
         Preconditions.checkArgument(queryTimeMillis > 0, "queryTimeMillis must be > 0");
 
         //Don't construct the wrapper if the log is disabled
@@ -386,7 +388,7 @@ public class FullQueryLogger implements QueryEvents.Listener
                       3 * OBJECT_REFERENCE_SIZE; // batchType and two lists references
 
             for (String query : queries)
-                weight += ObjectSizes.sizeOf(query) + OBJECT_REFERENCE_SIZE;
+                weight += ObjectSizes.sizeOf(checkNotNull(query)) + OBJECT_REFERENCE_SIZE;
 
             for (List<ByteBuffer> subValues : values)
             {
