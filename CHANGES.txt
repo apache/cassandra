@@ -96,6 +96,14 @@
 Merged from 4.0:
  * Streaming tasks handle empty SSTables correctly (CASSANDRA-16349)
  * Prevent SSTableLoader from doing unnecessary work (CASSANDRA-16349)
+Merged from 3.0:
+ * Suppress inapplicable CVEs (CASSANDRA-17368)
+ * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
+ * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
+ * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
+ * LeveledCompactionStrategy disk space check improvements (CASSANDRA-17272)
+
+4.0.3
  * Deprecate otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
    otc_backlog_expiration_interval_ms (CASSANDRA-17377)
  * Improve start up processing of Incremental Repair information read from system.repairs (CASSANDRA-17342)
