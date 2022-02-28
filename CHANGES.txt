@@ -1,5 +1,6 @@
 3.11.13
 Merged from 3.0:
+ * Suppress inapplicable CVEs (CASSANDRA-17368)
  * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
  * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
  * Lazy transaction log replica creation allows incorrect replica content divergence during anticompaction (CASSANDRA-17273)
