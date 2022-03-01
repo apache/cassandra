@@ -297,7 +297,8 @@ public class StreamManager implements StreamManagerMBean
     @VisibleForTesting
     public void clearStates()
     {
-        states.cleanUp();
+        // states.cleanUp() doesn't clear, it looks to only run gc on things that could be removed... this method should remove all state
+        states.asMap().clear();
     }
 
     public Set<CompositeData> getCurrentStreams()
