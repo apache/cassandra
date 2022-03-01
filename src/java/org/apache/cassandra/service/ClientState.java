@@ -23,11 +23,14 @@ import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,6 +127,9 @@ public class ClientState
     private volatile String driverName;
     private volatile String driverVersion;
 
+    // Options provided by the client
+    private volatile Map<String,String> clientOptions;
+
     // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the
     // timestamp assigned are strictly monotonic on a node, which is likely what user expect intuitively (more likely,
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
@@ -155,6 +161,7 @@ public class ClientState
         this.keyspace = source.keyspace;
         this.driverName = source.driverName;
         this.driverVersion = source.driverVersion;
+        this.clientOptions = source.clientOptions;
     }
 
     /**
@@ -285,6 +292,11 @@ public class ClientState
         return Optional.ofNullable(driverVersion);
     }
 
+    public Optional<Map<String,String>> getClientOptions()
+    {
+        return Optional.ofNullable(clientOptions);
+    }
+
     public void setDriverName(String driverName)
     {
         this.driverName = driverName;
@@ -293,6 +305,11 @@ public class ClientState
     public void setDriverVersion(String driverVersion)
     {
         this.driverVersion = driverVersion;
+    }
+    
+    public void setClientOptions(Map<String,String> clientOptions)
+    {
+        this.clientOptions = ImmutableMap.copyOf(clientOptions);
     }
 
     public static QueryHandler getCQLQueryHandler()

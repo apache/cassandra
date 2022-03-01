@@ -1,4 +1,5 @@
 4.1
+ * Expose all client options via system_views.clients and nodetool clientstats (CASSANDRA-16378)
  * Expose streaming as a vtable (CASSANDRA-17390)
  * Make startup checks configurable (CASSANDRA-17220)
  * Add guardrail for number of partition keys on IN queries (CASSANDRA-17186)
