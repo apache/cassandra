@@ -38,11 +38,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class StreamingState implements StreamEventHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
+
+    public static final long ELEMENT_SIZE = ObjectSizes.measureDeep(new StreamingState(UUID.randomUUID(), StreamOperation.OTHER, false));
 
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
@@ -73,10 +76,14 @@ public class StreamingState implements StreamEventHandler
 
     public StreamingState(StreamResultFuture result)
     {
-        StreamCoordinator coordinator = result.getCoordinator();
-        this.id = result.planId;
-        this.operation = result.getCurrentState().streamOperation;
-        this.follower = coordinator.isFollower();
+        this(result.planId, result.streamOperation, result.getCoordinator().isFollower());
+    }
+
+    private StreamingState(UUID planId, StreamOperation streamOperation, boolean follower)
+    {
+        this.id = planId;
+        this.operation = streamOperation;
+        this.follower = follower;
         this.stateTimesNanos = new long[Status.values().length];
         updateState(Status.INIT);
     }

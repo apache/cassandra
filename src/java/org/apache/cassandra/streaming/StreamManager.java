@@ -22,8 +22,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
 import javax.management.NotificationFilter;
@@ -32,6 +30,8 @@ import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
@@ -40,13 +40,11 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
-import org.apache.cassandra.utils.Clock;
 
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
@@ -226,94 +224,80 @@ public class StreamManager implements StreamManagerMBean
     private final Map<UUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
     private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
 
-    private final Map<UUID, StreamingState> states = new NonBlockingHashMap<>();
+    private final Cache<UUID, StreamingState> states;
     private final StreamListener listener = new StreamListener()
     {
         @Override
         public void onRegister(StreamResultFuture result)
         {
-            StreamingState state = new StreamingState(result);
-            StreamingState previous = states.putIfAbsent(state.id(), state);
-            if (previous == null)
+            // reason for synchronized rather than states.get is to detect duplicates
+            // streaming shouldn't be producing duplicates as that would imply a planId collision
+            synchronized (states)
             {
-                state.phase.start();
-                result.addEventListener(state);
-            }
-            else
-            {
-                logger.warn("Duplicate streaming states detected for id {}", state.id());
+                StreamingState previous = states.getIfPresent(result.planId);
+                if (previous == null)
+                {
+                    StreamingState state = new StreamingState(result);
+                    states.put(state.id(), state);
+                    state.phase.start();
+                    result.addEventListener(state);
+                }
+                else
+                {
+                    logger.warn("Duplicate streaming states detected for id {}", result.planId);
+                }
             }
         }
     };
-    private volatile ScheduledFuture<?> cleanup = null;
+
+    public StreamManager()
+    {
+        DurationSpec duration = DatabaseDescriptor.getStreamingStateExpires();
+        long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
+        long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
+        logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
+        states = CacheBuilder.newBuilder()
+                             .expireAfterWrite(duration.quantity(), duration.unit())
+                             .maximumSize(numElements)
+                             .build();
+    }
 
     public void start()
     {
         addListener(listener);
-        this.cleanup = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(this::cleanup, 0,
-                                                                               DatabaseDescriptor.getStreamingStateCleanupInterval().toNanoseconds(),
-                                                                               TimeUnit.NANOSECONDS);
     }
 
     public void stop()
     {
         removeListener(listener);
-        ScheduledFuture<?> cleanup = this.cleanup;
-        if (cleanup != null)
-            cleanup.cancel(false);
     }
 
     public Collection<StreamingState> getStreamingStates()
     {
-        return states.values();
+        return states.asMap().values();
     }
 
     public StreamingState getStreamingState(UUID id)
     {
-        return states.get(id);
+        return states.getIfPresent(id);
     }
 
     @VisibleForTesting
     public void putStreamingState(StreamingState state)
     {
-        StreamingState previous = states.putIfAbsent(state.id(), state);
-        if (previous != null)
-            throw new AssertionError("StreamPlan id " + state.id() + " already exists");
-    }
-
-    @VisibleForTesting
-    public void cleanup()
-    {
-        try
+        synchronized (states)
         {
-            DurationSpec duration = DatabaseDescriptor.getStreamingStateExpires();
-            long durationNanos = duration.toNanoseconds();
-            long deadlineNanos = Clock.Global.nanoTime() - durationNanos;
-            for (StreamingState state : states.values())
-            {
-                if (state.lastUpdatedAtNanos() < deadlineNanos)
-                {
-                    if (state.isComplete())
-                    {
-                        states.remove(state.id());
-                    }
-                    else
-                    {
-                        logger.warn("Stream {} has been running longer than state expires window {};\n{}", state.id(), duration, state);
-                    }
-                }
-            }
-        }
-        catch (Throwable t)
-        {
-            logger.warn("Unexpected error cleaning up stream state", t);
+            StreamingState previous = states.getIfPresent(state.id());
+            if (previous != null)
+                throw new AssertionError("StreamPlan id " + state.id() + " already exists");
+            states.put(state.id(), state);
         }
     }
 
     @VisibleForTesting
     public void clearStates()
     {
-        states.clear();
+        states.cleanUp();
     }
 
     public Set<CompositeData> getCurrentStreams()

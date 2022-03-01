@@ -3900,17 +3900,17 @@ public class DatabaseDescriptor
         }
     }
 
-    public static DurationSpec getStreamingStateCleanupInterval()
+    public static DataStorageSpec getStreamingStateSize()
     {
-        return conf.streaming_state_cleanup_interval;
+        return conf.streaming_state_size;
     }
 
-    public static void setStreamingStateCleanupInterval(DurationSpec duration)
+    public static void setStreamingStateSize(DataStorageSpec duration)
     {
-        if (!conf.streaming_state_cleanup_interval.equals(Objects.requireNonNull(duration, "duration")))
+        if (!conf.streaming_state_size.equals(Objects.requireNonNull(duration, "duration")))
         {
-            logger.info("Setting streaming_state_cleanup_interval to {}", duration);
-            conf.streaming_state_cleanup_interval = duration;
+            logger.info("Setting streaming_state_size to {}", duration);
+            conf.streaming_state_size = duration;
         }
     }
 }
