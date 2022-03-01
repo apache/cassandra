@@ -120,6 +120,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
@@ -667,6 +668,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
                 ActiveRepairService.instance.start();
+                StreamManager.instance.start();
                 CassandraDaemon.getInstanceForTesting().completeSetup();
             }
             catch (Throwable t)
@@ -740,6 +742,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 NettyStreamingChannel::shutdown,
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
+                                () -> StreamManager.instance.stop(),
                                 () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),

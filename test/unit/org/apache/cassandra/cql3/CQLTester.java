@@ -1442,6 +1442,7 @@ public abstract class CQLTester
 
             Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d", i), expected == null ? 1 : expected.length, meta.size());
 
+            StringBuilder error = new StringBuilder();
             for (int j = 0; j < meta.size(); j++)
             {
                 ColumnSpecification column = meta.get(j);
@@ -1454,15 +1455,17 @@ public abstract class CQLTester
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
                     if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
-                        Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
-                                                  i,
-                                                  j,
-                                                  column.name,
-                                                  column.type.asCQL3Type(),
-                                                  formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
-                                                  formatValue(actualValue, column.type)));
+                        error.append(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
+                                                   i,
+                                                   j,
+                                                   column.name,
+                                                   column.type.asCQL3Type(),
+                                                   formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
+                                                   formatValue(actualValue, column.type))).append("\n");
                 }
             }
+            if (error.length() > 0)
+                Assert.fail(error.toString());
             i++;
         }
 

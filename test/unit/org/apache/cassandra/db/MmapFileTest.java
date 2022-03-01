@@ -25,14 +25,24 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.FileUtils;
 
 public class MmapFileTest
 {
+    @BeforeClass
+    public static void setup()
+    {
+        // PathUtils touches StorageService which touches StreamManager which requires configs be setup
+        DatabaseDescriptor.daemonInitialization();
+    }
+
+
     /**
      * Verifies that {@link sun.misc.Cleaner} works and that mmap'd files can be deleted.
      */

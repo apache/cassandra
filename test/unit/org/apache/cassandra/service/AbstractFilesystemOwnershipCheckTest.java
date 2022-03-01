@@ -29,10 +29,12 @@ import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
@@ -173,6 +175,13 @@ public abstract class AbstractFilesystemOwnershipCheckTest
             }
         }
         file.delete();
+    }
+
+    @BeforeClass
+    public static void setupConfig()
+    {
+        // PathUtils touches StorageService which touches StreamManager which requires configs be setup
+        DatabaseDescriptor.daemonInitialization();
     }
 
     @After
