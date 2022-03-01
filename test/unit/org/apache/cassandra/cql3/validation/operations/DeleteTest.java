@@ -165,36 +165,24 @@ public class DeleteTest extends CQLTester
     }
 
     @Test
-    public void testDeletionWithContains() throws Throwable
+    public void testDeletionWithContainsAndContainsKey() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, primary key (a, b))");
 
-        Map<Integer, Integer> testMap = new HashMap<>();
-        testMap.put(1, 1);
-        testMap.put(2, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, testMap, 3);
+        Object[] row = row(1, map(1, 1, 2, 2), 3);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", row);
 
-        assertRows(execute("SELECT * FROM %s"),
-                row(1, testMap, 3));
+        assertRows(execute("SELECT * FROM %s"), row);
+
         assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE a=1 AND b CONTAINS 1");
-    }
 
-    @Test
-    public void testDeletionWithContainsKey() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, primary key (a, b))");
-
-        Map<Integer, Integer> testMap = new HashMap<>();
-        testMap.put(1, 1);
-        testMap.put(2, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, testMap, 3);
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, testMap, 3));
+        assertRows(execute("SELECT * FROM %s"), row);
 
         assertInvalidMessage("Cannot use DELETE with CONTAINS KEY",
                              "DELETE FROM %s WHERE a=1 AND b CONTAINS KEY 1");
+
+        assertRows(execute("SELECT * FROM %s"), row);
     }
 
     /**

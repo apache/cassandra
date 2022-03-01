@@ -192,31 +192,24 @@ public class UpdateTest extends CQLTester
     }
 
     @Test
-    public void testUpdateWithContains() throws Throwable
+    public void testUpdateWithContainsAndContainsKey() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, primary key (a, b))");
-        Map<Integer, Integer> testMap = new HashMap<>();
-        testMap.put(1, 1);
-        testMap.put(2, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, testMap, 3);
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, testMap, 3));
+
+        Object[] row = row(1, map(1, 1, 2, 2), 3);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", row);
+
+        assertRows(execute("SELECT * FROM %s"), row);
+
         assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET c=3 WHERE a=1 AND b CONTAINS 1");
-    }
 
-    @Test
-    public void testUpdateWithContainsKey() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, primary key (a, b))");
-        Map<Integer, Integer> testMap = new HashMap<>();
-        testMap.put(1, 1);
-        testMap.put(2, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, testMap, 3);
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, testMap, 3));
+        assertRows(execute("SELECT * FROM %s"), row);
+
         assertInvalidMessage("Cannot use UPDATE with CONTAINS KEY",
                              "UPDATE %s SET c=3 WHERE a=1 AND b CONTAINS KEY 1");
+
+        assertRows(execute("SELECT * FROM %s"), row);
     }
 
     @Test

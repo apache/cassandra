@@ -158,6 +158,7 @@ public final class StatementRestrictions
             {
                 throw invalidRequest("Cannot use %s with %s", type, relation.operator());
             }
+
             if (relation.operator() == Operator.IS_NOT)
             {
                 if (!forView)
