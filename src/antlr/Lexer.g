@@ -150,6 +150,7 @@ K_ROLES:       R O L E S;
 K_SUPERUSER:   S U P E R U S E R;
 K_NOSUPERUSER: N O S U P E R U S E R;
 K_PASSWORD:    P A S S W O R D;
+K_HASHED:      H A S H E D;
 K_LOGIN:       L O G I N;
 K_NOLOGIN:     N O L O G I N;
 K_OPTIONS:     O P T I O N S;
