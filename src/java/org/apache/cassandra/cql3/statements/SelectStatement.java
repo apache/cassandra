@@ -956,12 +956,20 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         {
             assert def.type.isMultiCell();
             ComplexColumnData complexData = row.getComplexColumnData(def);
-            if (complexData == null)
-                result.add(null);
-            else if (def.type.isCollection())
-                result.add(((CollectionType) def.type).serializeForNativeProtocol(complexData.iterator(), protocolVersion));
-            else
-                result.add(((UserType) def.type).serializeForNativeProtocol(complexData.iterator(), protocolVersion));
+            result.add(complexData, iterator -> {
+                if (def.type.isCollection())
+                {
+                    return ((CollectionType) def.type).serializeForNativeProtocol(iterator, protocolVersion);
+                }
+                else if (def.type.isUDT())
+                {
+                    return ((UserType) def.type).serializeForNativeProtocol(iterator, protocolVersion);
+                }
+                else
+                {
+                    return null;
+                }
+            });
         }
         else
         {

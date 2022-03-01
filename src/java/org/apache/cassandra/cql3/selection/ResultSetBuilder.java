@@ -20,7 +20,10 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.ResultSet.ResultMetadata;
@@ -30,6 +33,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public final class ResultSetBuilder
@@ -114,6 +119,28 @@ public final class ResultSetBuilder
     public void add(ByteBuffer v)
     {
         current.add(v);
+    }
+
+    public void add(ComplexColumnData complexColumnData, Function<Iterator<Cell<?>>, ByteBuffer> serializer)
+    {
+        if (complexColumnData == null)
+        {
+            current.add(null);
+            return;
+        }
+
+        current.add(serializer.apply(complexColumnData.iterator()));
+
+        if (timestamps != null && selectors.collectMaxTimestamps())
+        {
+            Iterator<Cell<?>> cells = complexColumnData.iterator();
+            long max = -1L;
+            while (cells.hasNext())
+            {
+                max = Math.max(max, cells.next().timestamp());
+            }
+            timestamps[current.size() - 1] = max;
+        }
     }
 
     public void add(Cell<?> c, int nowInSec)

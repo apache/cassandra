@@ -220,6 +220,61 @@ public interface Selectable extends AssignmentTestable
         }
     }
 
+    public static class MaxWritetime implements Selectable
+    {
+        public final ColumnMetadata column;
+
+        public MaxWritetime(ColumnMetadata column)
+        {
+            this.column = column;
+        }
+
+        @Override
+        public String toString() {
+            return "maxwritetime(" +column.name + ")";
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata table,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            if (column.isPrimaryKeyColumn())
+                throw new InvalidRequestException(
+                    String.format("Cannot use selection function maxwritetime on PRIMARY KEY part %s",
+                                  column.name));
+
+            return MaxWritetimeSelector.newFactory(column, addAndGetIndex(column, defs));
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace) {
+            return LongType.instance;
+        }
+
+        @Override
+        public boolean selectColumns(Predicate<ColumnMetadata> predicate) {
+            return predicate.test(column);
+        }
+
+        public static class Raw implements Selectable.Raw
+        {
+            private final Selectable.RawIdentifier id;
+
+            public Raw(Selectable.RawIdentifier id)
+            {
+                this.id = id;
+            }
+
+            @Override
+            public MaxWritetime prepare(TableMetadata table)
+            {
+                return new MaxWritetime(id.prepare(table));
+            }
+        }
+    }
+
     public static class WritetimeOrTTL implements Selectable
     {
         public final ColumnMetadata column;

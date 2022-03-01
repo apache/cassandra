@@ -95,6 +95,17 @@ public abstract class Selector
         }
 
         /**
+         * Checks if this factory creates <code>maxwritetime</code> selector instances.
+         *
+         * @return <code>true</code> if this factory creates <code>maxwritetime</code> selectors instances,
+         * <code>false</code> otherwise
+         */
+        public boolean isMaxWritetimeSelectorFactory()
+        {
+            return false;
+        }
+
+        /**
          * Checks if this factory creates <code>TTL</code> selectors instances.
          *
          * @return <code>true</code> if this factory creates <code>TTL</code> selectors instances,
