@@ -92,6 +92,8 @@ public class ColumnFilterTest
     @BeforeClass
     public static void beforeClass()
     {
+        // Gossiper touches StorageService which touches StreamManager which requires configs be setup
+        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setSeedProvider(Arrays::asList);
         DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
         DatabaseDescriptor.setDefaultFailureDetector();

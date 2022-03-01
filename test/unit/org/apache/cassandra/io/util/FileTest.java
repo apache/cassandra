@@ -33,6 +33,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.psjava.util.Triple;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -51,6 +52,9 @@ public class FileTest
         dir = new java.io.File(parent, dirName); //checkstyle: permit this instantiation
         dir.mkdirs();
         new File(dir).deleteRecursiveOnExit();
+
+        // PathUtils touches StorageService which touches StreamManager which requires configs be setup
+        DatabaseDescriptor.daemonInitialization();
     }
 
 

@@ -768,6 +768,8 @@ public class Config
     public volatile Set<String> table_properties_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
+    public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
+    public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);
 
     /** The configuration of startup checks. */
     public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();

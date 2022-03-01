@@ -23,6 +23,7 @@ import java.util.function.Predicate;
 
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.assertj.core.api.Assertions;
 
 public class QueryResultUtil
@@ -69,21 +70,70 @@ public class QueryResultUtil
         return true;
     }
 
-    public static AssertHelper assertThat(SimpleQueryResult qr)
+    public static SimpleQueryResultAssertHelper assertThat(SimpleQueryResult qr)
     {
-        return new AssertHelper(qr);
+        return new SimpleQueryResultAssertHelper(qr);
     }
 
-    public static class AssertHelper
+    public static RowAssertHelper assertThat(Row row)
+    {
+        return new RowAssertHelper(row);
+    }
+
+    public static String expand(SimpleQueryResult qr)
+    {
+        StringBuilder sb = new StringBuilder();
+        int rowNum = 1;
+        while (qr.hasNext())
+        {
+            sb.append("@ Row ").append(rowNum).append('\n');
+            TableBuilder table = new TableBuilder('|');
+            Row next = qr.next();
+            for (String column : qr.names())
+            {
+                Object value = next.get(column);
+                table.add(column, value == null ? null : value.toString());
+            }
+            sb.append(table);
+        }
+        return sb.toString();
+    }
+
+    public static class RowAssertHelper
+    {
+        private final Row row;
+
+        public RowAssertHelper(Row row)
+        {
+            this.row = row;
+        }
+
+        public RowAssertHelper isEqualTo(String column, Object expected)
+        {
+            Object actual = row.get(column);
+            Assertions.assertThat(actual).describedAs("Column %s had unexpected value", column).isEqualTo(expected);
+            return this;
+        }
+
+        public RowAssertHelper columnsEqualTo(String first, String... others)
+        {
+            Object expected = row.get(first);
+            for (String other : others)
+                Assertions.assertThat(row.<Object>get(other)).describedAs("Columns %s and %s are not equal", first, other).isEqualTo(expected);
+            return this;
+        }
+    }
+
+    public static class SimpleQueryResultAssertHelper
     {
         private final SimpleQueryResult qr;
 
-        private AssertHelper(SimpleQueryResult qr)
+        private SimpleQueryResultAssertHelper(SimpleQueryResult qr)
         {
             this.qr = qr;
         }
 
-        public AssertHelper contains(Object... values)
+        public SimpleQueryResultAssertHelper contains(Object... values)
         {
             qr.reset();
             if (!QueryResultUtil.contains(qr, a -> QueryResultUtil.equals(a, values)))
@@ -91,7 +141,7 @@ public class QueryResultUtil
             return this;
         }
 
-        public AssertHelper contains(Row row)
+        public SimpleQueryResultAssertHelper contains(Row row)
         {
             qr.reset();
             if (!QueryResultUtil.contains(qr, a -> QueryResultUtil.equals(a, row)))
@@ -99,7 +149,7 @@ public class QueryResultUtil
             return this;
         }
 
-        public AssertHelper contains(Predicate<Row> fn)
+        public SimpleQueryResultAssertHelper contains(Predicate<Row> fn)
         {
             qr.reset();
             if (!QueryResultUtil.contains(qr, fn))
@@ -107,7 +157,7 @@ public class QueryResultUtil
             return this;
         }
 
-        public AssertHelper isEqualTo(Object... values)
+        public SimpleQueryResultAssertHelper isEqualTo(Object... values)
         {
             Assertions.assertThat(qr.toObjectArrays())
                       .hasSize(1)
@@ -115,13 +165,13 @@ public class QueryResultUtil
             return this;
         }
 
-        public AssertHelper hasSize(int size)
+        public SimpleQueryResultAssertHelper hasSize(int size)
         {
             Assertions.assertThat(qr.toObjectArrays()).hasSize(size);
             return this;
         }
 
-        public AssertHelper hasSizeGreaterThan(int size)
+        public SimpleQueryResultAssertHelper hasSizeGreaterThan(int size)
         {
             Assertions.assertThat(qr.toObjectArrays()).hasSizeGreaterThan(size);
             return this;

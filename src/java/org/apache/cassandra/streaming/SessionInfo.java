@@ -44,8 +44,8 @@ public final class SessionInfo implements Serializable
     /** Current session state */
     public final StreamSession.State state;
 
-    private final Map<String, ProgressInfo> receivingFiles;
-    private final Map<String, ProgressInfo> sendingFiles;
+    private final Map<String, ProgressInfo> receivingFiles = new ConcurrentHashMap<>();
+    private final Map<String, ProgressInfo> sendingFiles = new ConcurrentHashMap<>();
 
     public SessionInfo(InetSocketAddress peer,
                        int sessionIndex,
@@ -59,9 +59,12 @@ public final class SessionInfo implements Serializable
         this.connecting = connecting;
         this.receivingSummaries = ImmutableSet.copyOf(receivingSummaries);
         this.sendingSummaries = ImmutableSet.copyOf(sendingSummaries);
-        this.receivingFiles = new ConcurrentHashMap<>();
-        this.sendingFiles = new ConcurrentHashMap<>();
         this.state = state;
+    }
+
+    public SessionInfo(SessionInfo other)
+    {
+        this(other.peer, other.sessionIndex, other.connecting, other.receivingSummaries, other.sendingSummaries, other.state);
     }
 
     public boolean isFailed()

@@ -62,7 +62,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
      * @param planId Stream plan ID
      * @param streamOperation Stream streamOperation
      */
-    private StreamResultFuture(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
+    public StreamResultFuture(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         this.planId = planId;
         this.streamOperation = streamOperation;
@@ -208,7 +208,16 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
     {
         // delegate to listener
         for (StreamEventHandler listener : eventListeners)
-            listener.handleStreamEvent(event);
+        {
+            try
+            {
+                listener.handleStreamEvent(event);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Unexpected exception in listern while calling handleStreamEvent", t);
+            }
+        }
     }
 
     private synchronized void maybeComplete()

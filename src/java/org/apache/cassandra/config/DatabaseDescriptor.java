@@ -3885,4 +3885,32 @@ public class DatabaseDescriptor
             conf.force_new_prepared_statement_behaviour = value;
         }
     }
+
+    public static DurationSpec getStreamingStateExpires()
+    {
+        return conf.streaming_state_expires;
+    }
+
+    public static void setStreamingStateExpires(DurationSpec duration)
+    {
+        if (!conf.streaming_state_expires.equals(Objects.requireNonNull(duration, "duration")))
+        {
+            logger.info("Setting streaming_state_expires to {}", duration);
+            conf.streaming_state_expires = duration;
+        }
+    }
+
+    public static DataStorageSpec getStreamingStateSize()
+    {
+        return conf.streaming_state_size;
+    }
+
+    public static void setStreamingStateSize(DataStorageSpec duration)
+    {
+        if (!conf.streaming_state_size.equals(Objects.requireNonNull(duration, "duration")))
+        {
+            logger.info("Setting streaming_state_size to {}", duration);
+            conf.streaming_state_size = duration;
+        }
+    }
 }

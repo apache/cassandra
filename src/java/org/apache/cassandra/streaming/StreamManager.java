@@ -17,9 +17,11 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
 import javax.management.NotificationFilter;
@@ -28,12 +30,18 @@ import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -45,6 +53,8 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
  */
 public class StreamManager implements StreamManagerMBean
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamManager.class);
+
     public static final StreamManager instance = new StreamManager();
 
     /**
@@ -204,6 +214,7 @@ public class StreamManager implements StreamManagerMBean
     }
 
     private final StreamEventJMXNotifier notifier = new StreamEventJMXNotifier();
+    private final CopyOnWriteArrayList<StreamListener> listeners = new CopyOnWriteArrayList<>();
 
     /*
      * Currently running streams. Removed after completion/failure.
@@ -212,6 +223,83 @@ public class StreamManager implements StreamManagerMBean
      */
     private final Map<UUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
     private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
+
+    private final Cache<UUID, StreamingState> states;
+    private final StreamListener listener = new StreamListener()
+    {
+        @Override
+        public void onRegister(StreamResultFuture result)
+        {
+            // reason for synchronized rather than states.get is to detect duplicates
+            // streaming shouldn't be producing duplicates as that would imply a planId collision
+            synchronized (states)
+            {
+                StreamingState previous = states.getIfPresent(result.planId);
+                if (previous == null)
+                {
+                    StreamingState state = new StreamingState(result);
+                    states.put(state.id(), state);
+                    state.phase.start();
+                    result.addEventListener(state);
+                }
+                else
+                {
+                    logger.warn("Duplicate streaming states detected for id {}", result.planId);
+                }
+            }
+        }
+    };
+
+    public StreamManager()
+    {
+        DurationSpec duration = DatabaseDescriptor.getStreamingStateExpires();
+        long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
+        long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
+        logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
+        states = CacheBuilder.newBuilder()
+                             .expireAfterWrite(duration.quantity(), duration.unit())
+                             .maximumSize(numElements)
+                             .build();
+    }
+
+    public void start()
+    {
+        addListener(listener);
+    }
+
+    public void stop()
+    {
+        removeListener(listener);
+    }
+
+    public Collection<StreamingState> getStreamingStates()
+    {
+        return states.asMap().values();
+    }
+
+    public StreamingState getStreamingState(UUID id)
+    {
+        return states.getIfPresent(id);
+    }
+
+    @VisibleForTesting
+    public void putStreamingState(StreamingState state)
+    {
+        synchronized (states)
+        {
+            StreamingState previous = states.getIfPresent(state.id());
+            if (previous != null)
+                throw new AssertionError("StreamPlan id " + state.id() + " already exists");
+            states.put(state.id(), state);
+        }
+    }
+
+    @VisibleForTesting
+    public void clearStates()
+    {
+        // states.cleanUp() doesn't clear, it looks to only run gc on things that could be removed... this method should remove all state
+        states.asMap().clear();
+    }
 
     public Set<CompositeData> getCurrentStreams()
     {
@@ -231,6 +319,7 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> initiatorStreams.remove(result.planId));
 
         initiatorStreams.put(result.planId, result);
+        notifySafeOnRegister(result);
     }
 
     public StreamResultFuture registerFollower(final StreamResultFuture result)
@@ -240,12 +329,61 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> followerStreams.remove(result.planId));
 
         StreamResultFuture previous = followerStreams.putIfAbsent(result.planId, result);
-        return previous == null ? result : previous;
+        if (previous == null)
+        {
+            notifySafeOnRegister(result);
+            return result;
+        }
+        return previous;
+    }
+
+    @VisibleForTesting
+    public void putInitiatorStream(StreamResultFuture future)
+    {
+        StreamResultFuture current = initiatorStreams.putIfAbsent(future.planId, future);
+        assert current == null: "Duplicat initiator stream for " + future.planId;
+    }
+
+    @VisibleForTesting
+    public void putFollowerStream(StreamResultFuture future)
+    {
+        StreamResultFuture current = followerStreams.putIfAbsent(future.planId, future);
+        assert current == null: "Duplicate follower stream for " + future.planId;
+    }
+
+    public void addListener(StreamListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public void removeListener(StreamListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    private void notifySafeOnRegister(StreamResultFuture result)
+    {
+        for (StreamListener l : listeners)
+        {
+            try
+            {
+                l.onRegister(result);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to notify stream listener of new Initiator/Follower", t);
+            }
+        }
     }
 
     public StreamResultFuture getReceivingStream(UUID planId)
     {
         return followerStreams.get(planId);
+    }
+
+    public StreamResultFuture getInitiatorStream(UUID planId)
+    {
+        return initiatorStreams.get(planId);
     }
 
     public void addNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback)
@@ -281,5 +419,10 @@ public class StreamManager implements StreamManagerMBean
             return null;
 
         return streamResultFuture.getSession(peer, sessionIndex);
+    }
+
+    public interface StreamListener
+    {
+        default void onRegister(StreamResultFuture result) {}
     }
 }
