@@ -28,9 +28,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -59,6 +61,13 @@ public class BinLogTest
 
     private BinLog binLog;
     private Path path;
+
+    @BeforeClass
+    public static void setup()
+    {
+        // PathUtils touches StorageService which touches StreamManager which requires configs be setup
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Before
     public void setUp() throws Exception
