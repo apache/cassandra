@@ -1,4 +1,5 @@
 3.11.13
+ * Validate existence of DCs when repairing (CASSANDRA-17407)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
 Merged from 3.0:
  * filter out NULL_VERSION entries from peers table in ConfiguredLimit (CASSANDRA-16518)
