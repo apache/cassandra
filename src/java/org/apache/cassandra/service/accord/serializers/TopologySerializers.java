@@ -32,7 +32,7 @@ public class TopologySerializers
 {
     private TopologySerializers() {}
 
-    public static final IVersionedSerializer<Node.Id> nodeId = new IVersionedSerializer<Node.Id>()
+    public static final IVersionedSerializer<Node.Id> nodeId = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Node.Id id, DataOutputPlus out, int version) throws IOException
@@ -53,7 +53,7 @@ public class TopologySerializers
         }
     };
 
-    private static final IVersionedSerializer<KeysForEpoch> keysForEpochSerializer = new IVersionedSerializer<KeysForEpoch>()
+    private static final IVersionedSerializer<KeysForEpoch> keysForEpochSerializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(KeysForEpoch keysForEpoch, DataOutputPlus out, int version) throws IOException

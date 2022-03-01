@@ -111,7 +111,7 @@ public interface AccordKey extends Key<AccordKey>
                    '}';
         }
 
-        public static final IVersionedSerializer<PartitionKey> serializer = new IVersionedSerializer<PartitionKey>()
+        public static final IVersionedSerializer<PartitionKey> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(PartitionKey key, DataOutputPlus out, int version) throws IOException
@@ -159,7 +159,7 @@ public interface AccordKey extends Key<AccordKey>
                    '}';
         }
 
-        public static final IVersionedSerializer<TokenKey> serializer = new IVersionedSerializer<TokenKey>()
+        public static final IVersionedSerializer<TokenKey> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(TokenKey key, DataOutputPlus out, int version) throws IOException

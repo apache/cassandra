@@ -52,7 +52,7 @@ public abstract class AccordQuery implements Query
 
     private AccordQuery() {}
 
-    public static final IVersionedSerializer<AccordQuery> serializer = new IVersionedSerializer<AccordQuery>()
+    public static final IVersionedSerializer<AccordQuery> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AccordQuery query, DataOutputPlus out, int version) throws IOException

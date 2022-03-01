@@ -56,7 +56,7 @@ public class WaitOnCommitSerializer
         }
     };
 
-    public static final IVersionedSerializer<WaitOnCommitOk> reply = new IVersionedSerializer<WaitOnCommitOk>()
+    public static final IVersionedSerializer<WaitOnCommitOk> reply = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(WaitOnCommitOk ok, DataOutputPlus out, int version) throws IOException

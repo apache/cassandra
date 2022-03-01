@@ -350,7 +350,7 @@ public class AccordUpdate implements Update
         return predicates.get(i);
     }
 
-    static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<UpdatePredicate>()
+    static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(UpdatePredicate predicate, DataOutputPlus out, int version) throws IOException
