@@ -1,4 +1,5 @@
 3.11.13
+ * filter out NULL_VERSION entries from peers table in ConfiguredLimit (CASSANDRA-16518)
 Merged from 3.0:
  * Suppress inapplicable CVEs (CASSANDRA-17368)
  * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
