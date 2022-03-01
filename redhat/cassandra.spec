@@ -202,6 +202,7 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/fqltool
 %attr(755,root,root) %{_bindir}/generatetokens
+%attr(755,root,root) %{_bindir}/hash_password
 
 
 %changelog
