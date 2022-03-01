@@ -176,7 +176,7 @@ public class FileHandle extends SharedCloseableImpl
         NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, path());
     }
 
-    private Rebufferer instantiateRebufferer(RateLimiter limiter)
+    public Rebufferer instantiateRebufferer(RateLimiter limiter)
     {
         Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer();
 

@@ -24,6 +24,7 @@ import java.nio.file.StandardOpenOption;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.PageAware;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -258,6 +259,34 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     public long position()
     {
         return current();
+    }
+
+    // Page management using on-disk pages
+
+    @Override
+    public int maxBytesInPage()
+    {
+        return PageAware.PAGE_SIZE;
+    }
+
+    @Override
+    public void padToPageBoundary() throws IOException
+    {
+        PageAware.pad(this);
+    }
+
+    @Override
+    public int bytesLeftInPage()
+    {
+        long position = position();
+        long bytesLeft = PageAware.pageLimit(position) - position;
+        return (int) bytesLeft;
+    }
+
+    @Override
+    public long paddedPosition()
+    {
+        return PageAware.padded(position());
     }
 
     /**

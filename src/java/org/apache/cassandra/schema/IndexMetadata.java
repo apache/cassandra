@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -144,6 +145,13 @@ public final class IndexMetadata
                 throw new ConfigurationException(String.format("Specified Indexer class (%s) does not implement the Indexer interface", className));
             validateCustomIndexOptions(table, indexerClass, options);
         }
+    }
+
+    public String getIndexClassName()
+    {
+        if (isCustom())
+            return expandAliases(options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME));
+        return CassandraIndex.class.getName();
     }
 
     public static String expandAliases(String className)

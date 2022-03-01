@@ -332,6 +332,41 @@ public class CompressedSequentialWriter extends SequentialWriter
         }
     }
 
+    // Page management using chunk boundaries
+
+    @Override
+    public int maxBytesInPage()
+    {
+        return buffer.capacity();
+    }
+
+    @Override
+    public void padToPageBoundary() throws IOException
+    {
+        if (buffer.position() == 0)
+            return;
+
+        int padLength = buffer.remaining();
+
+        // Flush as much as we have
+        doFlush(0);
+        // But pretend we had a whole chunk
+        bufferOffset += padLength;
+        lastFlushOffset += padLength;
+    }
+
+    @Override
+    public int bytesLeftInPage()
+    {
+        return buffer.remaining();
+    }
+
+    @Override
+    public long paddedPosition()
+    {
+        return position() + (buffer.position() == 0 ? 0 : buffer.remaining());
+    }
+
     protected class TransactionalProxy extends SequentialWriter.TransactionalProxy
     {
         @Override

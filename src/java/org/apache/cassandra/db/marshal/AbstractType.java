@@ -40,6 +40,9 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.github.jamm.Unmetered;
 
 import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM;
@@ -586,6 +589,69 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
 
         return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+    }
+
+    /**
+     * Produce a byte-comparable representation of the given value, i.e. a sequence of bytes that compares the same way
+     * using lexicographical unsigned byte comparison as the original value using the type's comparator.
+     *
+     * We use a slightly stronger requirement to be able to use the types in tuples. Precisely, for any pair x, y of
+     * non-equal valid values of this type and any bytes b1, b2 between 0x10 and 0xEF,
+     * (+ stands for concatenation)
+     *   compare(x, y) == compareLexicographicallyUnsigned(asByteComparable(x)+b1, asByteComparable(y)+b2)
+     * (i.e. the values compare like the original type, and an added 0x10-0xEF byte at the end does not change that) and:
+     *   asByteComparable(x)+b1 is not a prefix of asByteComparable(y)      (weakly prefix free)
+     * (i.e. a valid representation of a value may be a prefix of another valid representation of a value only if the
+     * following byte in the latter is smaller than 0x10 or larger than 0xEF). These properties are trivially true if
+     * the encoding compares correctly and is prefix free, but also permits a little more freedom that enables somewhat
+     * more efficient encoding of arbitrary-length byte-comparable blobs.
+     *
+     * Depending on the type, this method can be called for null or empty input, in which case the output is allowed to
+     * be null (the clustering/tuple encoding will accept and handle it).
+     */
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V value, ByteComparable.Version version)
+    {
+        if (isByteOrderComparable)
+        {
+            // When a type is byte-ordered on its own, we only need to escape it, so that we can include it in
+            // multi-component types and make the encoding weakly-prefix-free.
+            return ByteSource.of(accessor, value, version);
+        }
+        else
+            // default is only good for byte-comparables
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement asComparableBytes");
+    }
+
+    public final ByteSource asComparableBytes(ByteBuffer byteBuffer, ByteComparable.Version version)
+    {
+        return asComparableBytes(ByteBufferAccessor.instance, byteBuffer, version);
+    }
+
+    /**
+     * Translates the given byte-ordered representation to the common, non-byte-ordered binary representation of a
+     * payload for this abstract type (the latter, common binary representation is what we mostly work with in the
+     * storage engine internals). If the given bytes don't correspond to the encoding of some payload value for this
+     * abstract type, an {@link IllegalArgumentException} may be thrown.
+     *
+     * @param accessor value accessor used to construct the value.
+     * @param comparableBytes A byte-ordered representation (presumably of a payload for this abstract type).
+     * @param version The byte-comparable version used to construct the representation.
+     * @return A of a payload for this abstract type, corresponding to the given byte-ordered representation,
+     *         constructed using the supplied value accessor.
+     *
+     * @see #asComparableBytes
+     */
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        if (isByteOrderComparable)
+            return accessor.valueOf(ByteSourceInverse.getUnescapedBytes(comparableBytes));
+        else
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement fromComparableBytes");
+    }
+
+    public final ByteBuffer fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version);
     }
 
     /**
