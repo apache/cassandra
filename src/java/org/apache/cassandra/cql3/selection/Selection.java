@@ -377,6 +377,12 @@ public abstract class Selection
         public boolean collectTimestamps();
 
         /**
+         * Checks if one of the selectors collect maxTimestamps.
+         * @return {@code true} if one of the selectors collect maxTimestamps, {@code false} otherwise.
+         */
+        public boolean collectMaxTimestamps();
+
+        /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
          *
          * @param input the input row
@@ -507,6 +513,11 @@ public abstract class Selection
                 }
 
                 @Override
+                public boolean collectMaxTimestamps() {
+                    return false;
+                }
+
+                @Override
                 public ColumnFilter getColumnFilter()
                 {
                     // In the case of simple selection we know that the ColumnFilter has already been computed and
@@ -521,6 +532,7 @@ public abstract class Selection
     {
         private final SelectorFactories factories;
         private final boolean collectTimestamps;
+        private final boolean collectMaxTimestamps;
         private final boolean collectTTLs;
 
         public SelectionWithProcessing(TableMetadata table,
@@ -541,7 +553,8 @@ public abstract class Selection
 
             this.factories = factories;
             this.collectTimestamps = factories.containsWritetimeSelectorFactory();
-            this.collectTTLs = factories.containsTTLSelectorFactory();;
+            this.collectMaxTimestamps = factories.containsMaxWritetimeSelectorFactory();
+            this.collectTTLs = factories.containsTTLSelectorFactory();
 
             for (ColumnMetadata orderingColumn : orderingColumns)
             {
@@ -619,7 +632,12 @@ public abstract class Selection
                 @Override
                 public boolean collectTimestamps()
                 {
-                    return collectTimestamps;
+                    return collectTimestamps || collectMaxTimestamps;
+                }
+
+                @Override
+                public boolean collectMaxTimestamps() {
+                    return collectMaxTimestamps;
                 }
 
                 @Override

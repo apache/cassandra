@@ -47,6 +47,11 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     private boolean containsWritetimeFactory;
 
     /**
+     * <code>true</code> if one of the factory creates maxWritetime selectors.
+     */
+    private boolean containsMaxWritetimeFactory;
+
+    /**
      * <code>true</code> if one of the factory creates TTL selectors.
      */
     private boolean containsTTLFactory;
@@ -96,6 +101,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
             Factory factory = selectable.newSelectorFactory(table, expectedType, defs, boundNames);
             containsWritetimeFactory |= factory.isWritetimeSelectorFactory();
             containsTTLFactory |= factory.isTTLSelectorFactory();
+            containsMaxWritetimeFactory |= factory.isMaxWritetimeSelectorFactory();
             if (factory.isAggregateSelectorFactory())
                 ++numberOfAggregateFactories;
             factories.add(factory);
@@ -163,6 +169,17 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     public boolean containsWritetimeSelectorFactory()
     {
         return containsWritetimeFactory;
+    }
+
+    /**
+     * Checks if this <code>SelectorFactories</code> contains at least one factory for maxWritetime selectors.
+     *
+     * @return <code>true</code> if this <code>SelectorFactories</code> contains at least one factory for maxWritetime
+     * selectors, <code>false</code> otherwise.
+     */
+    public boolean containsMaxWritetimeSelectorFactory()
+    {
+        return containsMaxWritetimeFactory;
     }
 
     /**

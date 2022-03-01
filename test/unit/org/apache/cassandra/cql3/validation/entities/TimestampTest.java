@@ -97,6 +97,42 @@ public class TimestampTest extends CQLTester
                    row(1, null, null));
     }
 
+    @Test
+    public void testMaxTimestamp() throws Throwable
+    {
+        String myType = createType("CREATE TYPE %s (a int, b int)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a text, " +
+                    "l list<int>, fl frozen<list<int>>," +
+                    "s set<int>, fs frozen<set<int>>," +
+                    "m map<int, text>, fm frozen<map<int, text>>," +
+                    "t " + myType + ", ft frozen<" + myType + ">)");
+        execute("INSERT INTO %s (k, a, l, fl, s, fs, m, fm, t, ft) VALUES " +
+                "(1, 'test', [1], [2], {1}, {2}, {1 : 'a'}, {2 : 'b'}, {a : 1, b : 1 }, {a : 2, b : 2})");
+        // update the list, so its maxWritetime should be more advanced than other columns
+        execute("UPDATE %s SET l = l + [10] WHERE k = 1");
+
+        Object[][] res = getRows(execute("SELECT maxwritetime(a), maxwritetime(l), maxwritetime(fl)," +
+                                         "maxwritetime(s), maxwritetime(fs), maxwritetime(m), maxwritetime(fm)," +
+                                         "maxwritetime(t), maxwritetime(ft) FROM %s"));
+        Assert.assertEquals(1, res.length);
+        Assert.assertEquals("maxwritetime should work on both single cell and complex columns",
+                            9, res[0].length);
+        for (Object ts : res[0])
+        {
+            assertTrue(ts instanceof Long); // all the result fields are timestamps
+        }
+        long aMaxTimestamp = (long) res[0][0]; // maxwritetime selector of a is at the 1st position
+        long lMaxTimestamp = (long) res[0][1]; // maxwritetime selector of l is at the 2nd position
+        assertTrue("l should have a large maxwritetime since it is updated later",
+                   aMaxTimestamp < lMaxTimestamp);
+        for (int i = 0; i < res[0].length; i++)
+        {
+            long ts = (long) res[0][i];
+            if (i != 1)
+                Assert.assertEquals("All other columns should have the same maxwritetime", aMaxTimestamp, ts);
+        }
+    }
+
     /**
      * Migrated from cql_tests.py:TestCQL.invalid_custom_timestamp_test()
      */

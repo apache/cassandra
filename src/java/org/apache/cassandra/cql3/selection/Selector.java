@@ -20,8 +20,10 @@ package org.apache.cassandra.cql3.selection;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -71,7 +73,7 @@ public abstract class Selector
     /**
      * The <code>Selector</code> kinds.
      */
-    public static enum Kind
+    public enum Kind
     {
         SIMPLE_SELECTOR(SimpleSelector.deserializer),
         TERM_SELECTOR(TermSelector.deserializer),
@@ -85,7 +87,8 @@ public abstract class Selector
         SCALAR_FUNCTION_SELECTOR(ScalarFunctionSelector.deserializer),
         AGGREGATE_FUNCTION_SELECTOR(AggregateFunctionSelector.deserializer),
         ELEMENT_SELECTOR(ElementsSelector.ElementSelector.deserializer),
-        SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer);
+        SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer),
+        MAX_WRITETIME_SELECTOR(MaxWritetimeSelector.deserializer);
 
         private final SelectorDeserializer deserializer;
 
@@ -147,6 +150,17 @@ public abstract class Selector
          * <code>false</code> otherwise
          */
         public boolean isWritetimeSelectorFactory()
+        {
+            return false;
+        }
+
+        /**
+         * Checks if this factory creates <code>maxwritetime</code> selector instances.
+         *
+         * @return <code>true</code> if this factory creates <code>maxwritetime</code> selectors instances,
+         * <code>false</code> otherwise
+         */
+        public boolean isMaxWritetimeSelectorFactory()
         {
             return false;
         }
@@ -322,13 +336,18 @@ public abstract class Selector
 
         public void add(ByteBuffer v)
         {
+            add(v, Long.MIN_VALUE, -1);
+        }
+
+        public void add(ByteBuffer v, long timestamp, int ttl)
+        {
             values[index] = v;
 
             if (timestamps != null)
-                timestamps[index] = Long.MIN_VALUE;
+                timestamps[index] = timestamp;
 
             if (ttls != null)
-                ttls[index] = -1;
+                ttls[index] = ttl;
 
             index++;
         }
