@@ -62,6 +62,7 @@ import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
@@ -187,7 +188,7 @@ public class DirectoriesTest
         if (createManifest)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
-            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new DurationSpec("1m"), Instant.now());
+            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new DurationSpec("1m"), now());
             manifest.serializeToJsonFile(manifestFile);
         }
 
@@ -312,7 +313,7 @@ public class DirectoriesTest
 
             File manifestFile = directories.getSnapshotManifestFile(tag);
 
-            SnapshotManifest manifest = new SnapshotManifest(files, new DurationSpec("1m"), Instant.now());
+            SnapshotManifest manifest = new SnapshotManifest(files, new DurationSpec("1m"), now());
             manifest.serializeToJsonFile(manifestFile);
 
             Set<File> dirs = new HashSet<>();

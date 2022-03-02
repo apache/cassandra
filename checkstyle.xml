@@ -62,6 +62,15 @@
       <property name="ignoreComments" value="true"/>
       <property name="message" value="Avoid System for time, should use org.apache.cassandra.utils.Clock.Global or org.apache.cassandra.utils.Clock interface" />
     </module>
+
+    <module name="RegexpSinglelineJava">
+      <!-- block Instant.now -->
+      <property name="id" value="blockInstantNow"/>
+      <property name="format" value="Instant\.now"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Instant.now() for time, should use org.apache.cassandra.util.FBUtilities.now()" />
+    </module>
+
     <module name="RegexpSinglelineJava">
       <!-- block normal executors -->
       <property name="id" value="blockExecutors"/>

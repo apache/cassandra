@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -120,9 +121,8 @@ public class CompactionTask extends AbstractCompactionTask
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
         {
-            long epochMilli = currentTimeMillis();
-            Instant creationTime = Instant.ofEpochMilli(epochMilli);
-            cfs.snapshotWithoutFlush(epochMilli + "-compact-" + cfs.name, creationTime);
+            Instant creationTime = now();
+            cfs.snapshotWithoutFlush(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
         }
 
         try (CompactionController controller = getCompactionController(transaction.originals()))

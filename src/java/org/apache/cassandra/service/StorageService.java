@@ -164,6 +164,7 @@ import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.service.ActiveRepairService.*;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -3979,7 +3980,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-        Instant creationTime = Instant.now();
+        Instant creationTime = now();
 
         for (Keyspace keyspace : keyspaces)
         {
@@ -4045,7 +4046,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-        Instant creationTime = Instant.now();
+        Instant creationTime = now();
 
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {

@@ -44,6 +44,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ExecutorUtils;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 public class SnapshotManager {
 
@@ -133,7 +134,7 @@ public class SnapshotManager {
     @VisibleForTesting
     protected synchronized void clearExpiredSnapshots()
     {
-        Instant now = Instant.now();
+        Instant now = now();
         while (!expiringSnapshots.isEmpty() && expiringSnapshots.peek().isExpired(now))
         {
             TableSnapshot expiredSnapshot = expiringSnapshots.peek();

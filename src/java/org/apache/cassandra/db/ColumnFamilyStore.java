@@ -113,6 +113,7 @@ import static org.apache.cassandra.db.commitlog.CommitLog.instance;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
@@ -1539,9 +1540,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // skip snapshot creation during scrub, SEE JIRA 5891
         if(!disableSnapshot)
         {
-            long epochMilli = currentTimeMillis();
-            Instant creationTime = Instant.ofEpochMilli(epochMilli);
-            String snapshotName = "pre-scrub-" + epochMilli;
+            Instant creationTime = now();
+            String snapshotName = "pre-scrub-" + creationTime.toEpochMilli();
             snapshotWithoutFlush(snapshotName, creationTime);
         }
 
@@ -1858,7 +1858,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public TableSnapshot snapshotWithoutFlush(String snapshotName)
     {
-        return snapshotWithoutFlush(snapshotName, Instant.now());
+        return snapshotWithoutFlush(snapshotName, now());
     }
 
     public TableSnapshot snapshotWithoutFlush(String snapshotName, Instant creationTime)
@@ -2051,7 +2051,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public TableSnapshot snapshot(String snapshotName)
     {
-        return snapshot(snapshotName, false, null, null, Instant.now());
+        return snapshot(snapshotName, false, null, null, now());
     }
 
     /**
@@ -2075,7 +2075,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush)
     {
-        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null, null, Instant.now());
+        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null, null, now());
     }
 
     /**

@@ -77,6 +77,7 @@ import org.apache.cassandra.utils.concurrent.Promise;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
@@ -241,7 +242,7 @@ public class Keyspace
      */
     public void snapshot(String snapshotName, String columnFamilyName) throws IOException
     {
-        snapshot(snapshotName, columnFamilyName, false, null, null, Instant.now());
+        snapshot(snapshotName, columnFamilyName, false, null, null, now());
     }
 
     /**

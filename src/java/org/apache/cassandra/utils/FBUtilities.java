@@ -31,6 +31,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -452,6 +453,12 @@ public class FBUtilities
     public static int nowInSeconds()
     {
         return (int) (currentTimeMillis() / 1000);
+    }
+
+    public static Instant now()
+    {
+        long epochMilli = currentTimeMillis();
+        return Instant.ofEpochMilli(epochMilli);
     }
 
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)

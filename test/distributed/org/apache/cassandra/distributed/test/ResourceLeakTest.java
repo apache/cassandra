@@ -24,7 +24,6 @@ import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
-import java.time.Instant;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
 
@@ -41,6 +40,7 @@ import org.apache.cassandra.utils.SigarLibrary;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
  * All objects referencing the InstanceClassLoader need to be garbage collected or
@@ -65,7 +65,7 @@ public class ResourceLeakTest extends TestBaseImpl
     final long finalWaitMillis = 0l;       // Number of millis to wait before final resource dump to give gc a chance
 
     static final SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss");
-    static final String when = format.format(Date.from(Instant.now()));
+    static final String when = format.format(Date.from(now()));
 
     static String outputFilename(String base, String description, String extension)
     {
