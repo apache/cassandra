@@ -114,14 +114,73 @@ name, driver version, hostname, protocol version, request count, ssl
 enabled, ssl protocol and user name:
 
 ....
+cqlsh> EXPAND ON ;
+Now Expanded output is enabled
 cqlsh> SELECT * FROM system_views.clients;
 
- address   | port  | client_options                                                                                                                                                                                                                          | connection_stage | driver_name                                  | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
------------+-------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------+----------------------------------------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
- 127.0.0.1 | 58210 |                                                                                                                                           {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'} |            ready |                       DataStax Python Driver |         3.25.0 | localhost |                5 |            33 |             null |       False |         null | anonymous
- 127.0.0.1 | 58211 |                                                                                                                                           {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'} |            ready |                       DataStax Python Driver |         3.25.0 | localhost |                5 |            21 |             null |       False |         null | anonymous
- 127.0.0.1 | 59037 | {'APPLICATION_NAME': 'TestApp', 'APPLICATION_VERSION': '1.0.0', 'CLIENT_ID': '8f56bf85-3d55-4f04-9639-39af1cefc224', 'CQL_VERSION': '3.0.0', 'DRIVER_NAME': 'DataStax Java driver for Apache Cassandra(R)', 'DRIVER_VERSION': '4.13.0'} |            ready | DataStax Java driver for Apache Cassandra(R) |         4.13.0 | localhost |                5 |            18 |             null |       False |         null | anonymous
- 127.0.0.1 | 59040 | {'APPLICATION_NAME': 'TestApp', 'APPLICATION_VERSION': '1.0.0', 'CLIENT_ID': '8f56bf85-3d55-4f04-9639-39af1cefc224', 'CQL_VERSION': '3.0.0', 'DRIVER_NAME': 'DataStax Java driver for Apache Cassandra(R)', 'DRIVER_VERSION': '4.13.0'} |            ready | DataStax Java driver for Apache Cassandra(R) |         4.13.0 | localhost |                5 |             4 |             null |       False |         null | anonymous
+@ Row 1
+------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ address          | 127.0.0.1
+ port             | 50687
+ client_options   | {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
+ connection_stage | ready
+ driver_name      | DataStax Python Driver
+ driver_version   | 3.25.0
+ hostname         | localhost
+ protocol_version | 5
+ request_count    | 16
+ ssl_cipher_suite | null
+ ssl_enabled      | False
+ ssl_protocol     | null
+ username         | anonymous
+
+@ Row 2
+------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ address          | 127.0.0.1
+ port             | 50688
+ client_options   | {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
+ connection_stage | ready
+ driver_name      | DataStax Python Driver
+ driver_version   | 3.25.0
+ hostname         | localhost
+ protocol_version | 5
+ request_count    | 4
+ ssl_cipher_suite | null
+ ssl_enabled      | False
+ ssl_protocol     | null
+ username         | anonymous
+
+@ Row 3
+------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ address          | 127.0.0.1
+ port             | 50753
+ client_options   | {'APPLICATION_NAME': 'TestApp', 'APPLICATION_VERSION': '1.0.0', 'CLIENT_ID': '55b3efbd-c56b-469d-8cca-016b860b2f03', 'CQL_VERSION': '3.0.0', 'DRIVER_NAME': 'DataStax Java driver for Apache Cassandra(R)', 'DRIVER_VERSION': '4.13.0'}
+ connection_stage | ready
+ driver_name      | DataStax Java driver for Apache Cassandra(R)
+ driver_version   | 4.13.0
+ hostname         | localhost
+ protocol_version | 5
+ request_count    | 18
+ ssl_cipher_suite | null
+ ssl_enabled      | False
+ ssl_protocol     | null
+ username         | anonymous
+
+@ Row 4
+------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ address          | 127.0.0.1
+ port             | 50755
+ client_options   | {'APPLICATION_NAME': 'TestApp', 'APPLICATION_VERSION': '1.0.0', 'CLIENT_ID': '55b3efbd-c56b-469d-8cca-016b860b2f03', 'CQL_VERSION': '3.0.0', 'DRIVER_NAME': 'DataStax Java driver for Apache Cassandra(R)', 'DRIVER_VERSION': '4.13.0'}
+ connection_stage | ready
+ driver_name      | DataStax Java driver for Apache Cassandra(R)
+ driver_version   | 4.13.0
+ hostname         | localhost
+ protocol_version | 5
+ request_count    | 7
+ ssl_cipher_suite | null
+ ssl_enabled      | False
+ ssl_protocol     | null
+ username         | anonymous
 
 (4 rows)
 ....
