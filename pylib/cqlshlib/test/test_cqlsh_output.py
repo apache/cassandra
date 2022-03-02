@@ -763,13 +763,13 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
                 self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;\n",
                               output)
-                self.assertRegex(output, '.*\s*$')
+                self.assertRegex(output, r'.*\s*$')
 
     def test_show_output(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             output = c.cmd_and_response('show version;')
             self.assertRegex(output,
-                    '^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
+                    r'^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
 
             output = c.cmd_and_response('show host;')
             self.assertHasColors(output)
