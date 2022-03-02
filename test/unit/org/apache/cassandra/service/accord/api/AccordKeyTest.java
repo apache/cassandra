@@ -28,6 +28,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.api.AccordKey.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SerializerTestUtils;
 
@@ -57,25 +58,25 @@ public class AccordKeyTest
     public void partitionKeyTest()
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        AccordKey.PartitionKey pk = new AccordKey.PartitionKey(TABLE1, dk);
-        SerializerTestUtils.assertSerializerIOEquality(pk, AccordKey.PartitionKey.serializer);
+        PartitionKey pk = new PartitionKey(TABLE1, dk);
+        SerializerTestUtils.assertSerializerIOEquality(pk, PartitionKey.serializer);
     }
 
     @Test
     public void tokenKeyTest()
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        AccordKey.TokenKey pk = new AccordKey.TokenKey(TABLE1, dk.getToken().maxKeyBound());
-        SerializerTestUtils.assertSerializerIOEquality(pk, AccordKey.TokenKey.serializer);
+        TokenKey pk = new TokenKey(TABLE1, dk.getToken().maxKeyBound());
+        SerializerTestUtils.assertSerializerIOEquality(pk, TokenKey.serializer);
     }
 
     @Test
     public void comparisonTest()
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        AccordKey.PartitionKey pk = new AccordKey.PartitionKey(TABLE1, dk);
-        AccordKey.TokenKey tkLow = new AccordKey.TokenKey(TABLE1, dk.getToken().minKeyBound());
-        AccordKey.TokenKey tkHigh = new AccordKey.TokenKey(TABLE1, dk.getToken().maxKeyBound());
+        PartitionKey pk = new PartitionKey(TABLE1, dk);
+        TokenKey tkLow = new TokenKey(TABLE1, dk.getToken().minKeyBound());
+        TokenKey tkHigh = new TokenKey(TABLE1, dk.getToken().maxKeyBound());
 
         Assert.assertTrue(tkLow.compareTo(pk) < 0);
         Assert.assertTrue(pk.compareTo(tkHigh) < 0);
@@ -87,11 +88,29 @@ public class AccordKeyTest
         Assert.assertTrue(TABLE1.compareTo(TABLE2) < 0);
 
         DecoratedKey dk1 = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        AccordKey.PartitionKey pk1 = new AccordKey.PartitionKey(TABLE1, dk1);
+        PartitionKey pk1 = new PartitionKey(TABLE1, dk1);
 
         DecoratedKey dk2 = partitioner(TABLE2).decorateKey(ByteBufferUtil.bytes(5));
-        AccordKey.PartitionKey pk2 = new AccordKey.PartitionKey(TABLE2, dk2);
+        PartitionKey pk2 = new PartitionKey(TABLE2, dk2);
 
         Assert.assertTrue(pk1.compareTo(pk2) < 0);
+    }
+
+    @Test
+    public void sentinelComparisonTest()
+    {
+        Assert.assertTrue(TABLE1.compareTo(TABLE2) < 0);
+        DecoratedKey dk1 = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
+        PartitionKey pk1 = new PartitionKey(TABLE1, dk1);
+
+        DecoratedKey dk2 = partitioner(TABLE2).decorateKey(ByteBufferUtil.bytes(5));
+        PartitionKey pk2 = new PartitionKey(TABLE2, dk2);
+
+        SentinelKey loSentinel = SentinelKey.min(TABLE1);
+        SentinelKey hiSentinel = SentinelKey.max(TABLE1);
+        Assert.assertTrue(loSentinel.compareTo(hiSentinel) < 0);
+        Assert.assertTrue(pk1.compareTo(loSentinel) > 0);
+        Assert.assertTrue(loSentinel.compareTo(pk1) < 0);
+        Assert.assertTrue(hiSentinel.compareTo(pk2) < 0);
     }
 }

@@ -30,8 +30,6 @@ import com.google.common.base.Preconditions;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -41,62 +39,65 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.AccordKey.SentinelKey;
+import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
 
 public class AccordTopologyUtils
 {
-    private static Shard createShard(TableId tableId, Range<Token> range, EndpointsForToken natural, EndpointsForToken pending)
+    private static Shard createShard(TokenRange range, EndpointsForToken natural, EndpointsForToken pending)
     {
-        return new Shard(new TokenRange(tableId, range),
+        return new Shard(range,
                          natural.stream().map(EndpointMapping::getId).collect(Collectors.toList()),
                          natural.stream().map(EndpointMapping::getId).collect(Collectors.toSet()),
                          pending.stream().map(EndpointMapping::getId).collect(Collectors.toSet()));
     }
 
+    private static TokenRange minRange(TableId tableId, Token token)
+    {
+        return new TokenRange(SentinelKey.min(tableId), TokenKey.max(tableId, token));
+    }
+
+    private static TokenRange maxRange(TableId tableId, Token token)
+    {
+        return new TokenRange(TokenKey.min(tableId, token), SentinelKey.max(tableId));
+    }
+
+    private static TokenRange range(TableId tableId, Token left, Token right)
+    {
+        return new TokenRange(TokenKey.min(tableId, left), TokenKey.max(tableId, right));
+    }
+
     public static List<Shard> createShards(TableMetadata tableMetadata, TokenMetadata tokenMetadata)
     {
+        TableId tableId = tableMetadata.id;
         String keyspace = tableMetadata.keyspace;
+
         AbstractReplicationStrategy replication = Keyspace.open(keyspace).getReplicationStrategy();
         Set<Token> tokenSet = new HashSet<>(tokenMetadata.sortedTokens());
         tokenSet.addAll(tokenMetadata.getBootstrapTokens().keySet());
         tokenMetadata.getMovingEndpoints().forEach(p -> tokenSet.add(p.left));
-        IPartitioner partitioner = tableMetadata.partitioner;
-
         List<Token> tokens = new ArrayList<>(tokenSet);
         tokens.sort(Comparator.naturalOrder());
 
-        List<Range<Token>> ranges = new ArrayList<>(tokens.size());
-
-        Range<Token> finalRange = null;
+        List<Shard> shards = new ArrayList<>(tokens.size() + 1);
+        Shard finalShard = null;
         for (int i=0, mi=tokens.size(); i<mi; i++)
         {
-            Range<Token> range = new Range<>(tokens.get(i > 0 ? i - 1 : mi - 1), tokens.get(i));
-            if (range.isWrapAround())
+            Token token = tokens.get(i);
+            EndpointsForToken natural = replication.getNaturalReplicasForToken(token);
+            EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(token, keyspace);
+            if (i == 0)
             {
-                Preconditions.checkArgument(finalRange == null);
-                // FIXME: this will exclude the min token with the current range logic,
-                //  with a set of unwrapped token ranges, the minimum token is actually owned by the highest rang (x, minToken]
-                ranges.add(new Range<>(partitioner.getMinimumToken(), range.right));
-                // FIXME: max token isn't supported by all partitioners
-                finalRange = new Range<>(range.left, partitioner.getMaximumToken());
+                shards.add(createShard(minRange(tableId, token), natural, pending));
+                finalShard = createShard(maxRange(tableId, tokens.get(mi-1)), natural, pending);
             }
             else
             {
-                ranges.add(range);
+                Token prev = tokens.get(i - 1);
+                shards.add(createShard(range(tableId, prev, token), natural, pending));
             }
-
         }
-
-        if (finalRange != null)
-            ranges.add(finalRange);
-
-        List<Shard> shards = new ArrayList<>(ranges.size());
-        for (int i=0, mi=ranges.size(); i<mi; i++)
-        {
-            Range<Token> range = ranges.get(i);
-            EndpointsForToken natural = replication.getNaturalReplicasForToken(range.right);
-            EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(range.right, keyspace);
-            shards.add(createShard(tableMetadata.id, range, natural, pending));
-        }
+        shards.add(finalShard);
 
         return shards;
     }

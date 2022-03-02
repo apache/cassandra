@@ -42,12 +42,67 @@ public interface AccordKey extends Key<AccordKey>
     static int compare(AccordKey left, AccordKey right)
     {
         int cmp = left.tableId().compareTo(right.tableId());
-        return cmp == 0 ? left.partitionKey().compareTo(right.partitionKey()) : cmp;
+        if (cmp != 0)
+            return cmp;
+
+        if (left instanceof SentinelKey || right instanceof SentinelKey)
+        {
+            int leftInt = left instanceof SentinelKey ? ((SentinelKey) left).asInt() : 0;
+            int rightInt = right instanceof SentinelKey ? ((SentinelKey) right).asInt() : 0;
+            return Integer.compare(leftInt, rightInt);
+        }
+
+        return left.partitionKey().compareTo(right.partitionKey());
     }
 
     default int compareTo(AccordKey that)
     {
         return compare(this, that);
+    }
+
+    @Override
+    default int keyHash()
+    {
+        return partitionKey().getToken().tokenHash();
+    }
+
+    static class SentinelKey implements AccordKey
+    {
+        private final TableId tableId;
+        private final boolean isMin;
+
+        private SentinelKey(TableId tableId, boolean isMin)
+        {
+            this.tableId = tableId;
+            this.isMin = isMin;
+        }
+
+        public static SentinelKey min(TableId tableId)
+        {
+            return new SentinelKey(tableId, true);
+        }
+
+        public static SentinelKey max(TableId tableId)
+        {
+            return new SentinelKey(tableId, false);
+        }
+
+        @Override
+        public TableId tableId()
+        {
+            return tableId;
+        }
+
+        @Override
+        public PartitionPosition partitionKey()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        int asInt()
+        {
+            return isMin ? -1 : 1;
+        }
     }
 
     static abstract class AbstractKey<T extends PartitionPosition> implements AccordKey
@@ -59,12 +114,6 @@ public interface AccordKey extends Key<AccordKey>
         {
             this.tableId = tableId;
             this.key = key;
-        }
-
-        @Override
-        public int keyHash()
-        {
-            return key.getToken().tokenHash();
         }
 
         @Override
@@ -148,6 +197,16 @@ public interface AccordKey extends Key<AccordKey>
         public TokenKey(TableId tableId, Token.KeyBound key)
         {
             super(tableId, key);
+        }
+
+        public static TokenKey min(TableId tableId, Token token)
+        {
+            return new TokenKey(tableId, token.minKeyBound());
+        }
+
+        public static TokenKey max(TableId tableId, Token token)
+        {
+            return new TokenKey(tableId, token.maxKeyBound());
         }
 
         @Override
