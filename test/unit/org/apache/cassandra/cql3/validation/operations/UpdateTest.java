@@ -19,8 +19,6 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.junit.Test;
 
