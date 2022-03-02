@@ -43,7 +43,7 @@ public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
         this.outboundBindAny = outboundBindAny;
     }
 
-    public NettyStreamingChannel connect(InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind) throws IOException
+    public NettyStreamingChannel create(InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind) throws IOException
     {
         // Connect to secure port for all peers if ServerEncryptionOptions is configured other than 'none'
         // When 'all', 'dc' and 'rack', server nodes always have SSL port open, and since thin client like sstableloader
