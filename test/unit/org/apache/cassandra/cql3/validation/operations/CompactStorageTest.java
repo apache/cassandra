@@ -1182,7 +1182,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? ", 0);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ?", 0);
 
         // Non primary key in the where clause
@@ -1267,7 +1267,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? AND clustering = ?", 0, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering = ?", 0, 1);
 
         // Non primary key in the where clause
@@ -1366,7 +1366,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
         // Non primary key in the where clause
@@ -4421,7 +4421,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "UPDATE %s SET value = ? WHERE partitionKey > ? AND clustering_1 = ?", 7, 0, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ?", 7, 0, 1);
 
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
@@ -4553,7 +4553,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "UPDATE %s SET value = ? WHERE partitionKey > ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
