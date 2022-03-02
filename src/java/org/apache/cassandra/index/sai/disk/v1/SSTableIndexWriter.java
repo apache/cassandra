@@ -142,7 +142,10 @@ public class SSTableIndexWriter implements PerIndexWriter
                              indexDescriptor.descriptor, FBUtilities.prettyPrintMemory(bytesAllocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
             }
 
-            compactSegments();
+            if (this.indexContext.isSegmentCompactionEnabled())
+            {
+                compactSegments();
+            }
 
             writeSegmentsMetadata();
             indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
