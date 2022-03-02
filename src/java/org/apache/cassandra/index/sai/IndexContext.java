@@ -85,6 +85,8 @@ public class IndexContext
     private static final Set<AbstractType<?>> EQ_ONLY_TYPES =
             ImmutableSet.of(UTF8Type.instance, AsciiType.instance, BooleanType.instance, UUIDType.instance);
 
+    public static final String ENABLE_SEGMENT_COMPACTION_OPTION_NAME = "enable_segment_compaction";
+
     private final AbstractType<?> partitionKeyType;
     private final ClusteringComparator clusteringComparator;
 
@@ -105,6 +107,8 @@ public class IndexContext
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final AbstractAnalyzer.AnalyzerFactory queryAnalyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
+
+    private final boolean segmentCompactionEnabled;
 
     public IndexContext(TableMetadata tableMeta, IndexMetadata config)
     {
@@ -133,6 +137,10 @@ public class IndexContext
 
         this.primaryKeyFactory = Version.LATEST.onDiskFormat().primaryKeyFactory(tableMeta.comparator);
 
+        this.segmentCompactionEnabled = Boolean.parseBoolean(
+            config.options.getOrDefault(ENABLE_SEGMENT_COMPACTION_OPTION_NAME, "true")
+        );
+
         logger.info(logMessage("Initialized column context with index writer config: {}"),
                 this.indexWriterConfig.toString());
     }
@@ -145,7 +153,8 @@ public class IndexContext
                         ColumnMetadata column,
                         IndexMetadata config,
                         IndexWriterConfig indexWriterConfig,
-                        ColumnQueryMetrics columnQueryMetrics)
+                        ColumnQueryMetrics columnQueryMetrics,
+                        boolean segmentCompactionEnabled)
     {
         this.keyspace = keyspace;
         this.table = table;
@@ -164,6 +173,7 @@ public class IndexContext
                                     ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), options)
                                     : this.analyzerFactory;
         this.primaryKeyFactory = Version.LATEST.onDiskFormat().primaryKeyFactory(clusteringComparator);
+        this.segmentCompactionEnabled = segmentCompactionEnabled;
     }
 
     public IndexContext(TableMetadata table, ColumnMetadata column)
@@ -185,6 +195,7 @@ public class IndexContext
                                     ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), options)
                                     : this.analyzerFactory;
         this.primaryKeyFactory = Version.LATEST.onDiskFormat().primaryKeyFactory(clusteringComparator);
+        this.segmentCompactionEnabled = true;
     }
 
     public AbstractType<?> keyValidator()
@@ -637,5 +648,20 @@ public class IndexContext
         IndexFeatureSet.Accumulator accumulator = new IndexFeatureSet.Accumulator();
         getView().getIndexes().stream().map(SSTableIndex::indexFeatureSet).forEach(set -> accumulator.accumulate(set));
         return accumulator.complete();
+    }
+
+    /**
+     * Returns true if index segments should be compacted into one segment after building the index.
+     *
+     * By default, this option is set to true. A user is able to override this by setting
+     * <code>enable_segment_compaction</code> to false in the index options.
+     * This is an expert-only option.
+     * Disabling compaction improves performance of writes at the expense of significantly reducing performance
+     * of read queries. A user should never turn compaction off on a production system
+     * unless diagnosing a performance issue.
+     */
+    public boolean isSegmentCompactionEnabled()
+    {
+        return this.segmentCompactionEnabled;
     }
 }

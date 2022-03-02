@@ -216,7 +216,8 @@ public class SAITester extends CQLTester
                                 IndexMetadata.fromSchemaMetadata(name, IndexMetadata.Kind.CUSTOM, null),
                                 IndexWriterConfig.emptyConfig(),
                                 TypeUtil.isLiteral(validator) ? QueryEventListeners.NO_OP_TRIE_LISTENER
-                                                              : QueryEventListeners.NO_OP_BKD_LISTENER);
+                                                              : QueryEventListeners.NO_OP_BKD_LISTENER,
+                                true);
     }
 
     public static IndexContext createIndexContext(String columnName, String indexName, AbstractType<?> validator)
@@ -229,7 +230,8 @@ public class SAITester extends CQLTester
                                 IndexMetadata.fromSchemaMetadata(indexName, IndexMetadata.Kind.CUSTOM, null),
                                 IndexWriterConfig.emptyConfig(),
                                 TypeUtil.isLiteral(validator) ? QueryEventListeners.NO_OP_TRIE_LISTENER
-                                                              : QueryEventListeners.NO_OP_BKD_LISTENER);
+                                                              : QueryEventListeners.NO_OP_BKD_LISTENER,
+                                true);
     }
 
     protected void simulateNodeRestart()

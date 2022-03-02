@@ -119,7 +119,7 @@ public abstract class SegmentBuilder
                                                                     maxSegmentRowId,
                                                                     rowCount,
                                                                     indexWriterConfig,
-                                                                    true))
+                                                                    indexContext.isSegmentCompactionEnabled()))
             {
                 return writer.writeAll(kdTreeRamBuffer.asPointValues());
             }
@@ -154,7 +154,9 @@ public abstract class SegmentBuilder
         @Override
         protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
         {
-            try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext, true))
+            try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor,
+                                                                      indexContext,
+                                                                      indexContext.isSegmentCompactionEnabled()))
             {
                 return writer.writeAll(ramIndexer.getTermsWithPostings());
             }

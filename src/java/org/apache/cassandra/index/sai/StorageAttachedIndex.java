@@ -151,6 +151,7 @@ public class StorageAttachedIndex implements Index
     private static final Set<String> VALID_OPTIONS = ImmutableSet.of(NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
                                                                      NonTokenizingOptions.ASCII,
+                                                                     IndexContext.ENABLE_SEGMENT_COMPACTION_OPTION_NAME,
                                                                      IndexTarget.TARGET_OPTION_NAME,
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_MIN_LEAVES,
