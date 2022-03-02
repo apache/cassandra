@@ -123,7 +123,8 @@ public class SegmentFlushTest
                                                      column,
                                                      config,
                                                      IndexWriterConfig.defaultConfig("test"),
-                                                     QueryEventListeners.NO_OP_TRIE_LISTENER);
+                                                     QueryEventListeners.NO_OP_TRIE_LISTENER,
+                                                     true);
 
         SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, indexContext, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
 

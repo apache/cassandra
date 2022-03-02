@@ -94,24 +94,16 @@ public class SegmentMergerTest extends SAITester
         // Post-build the index only has 1 segment
         assertEquals(1, segments.size());
 
-        Map<String, List<Integer>> actual = new HashMap<>();
-
-        for (String term : expected.keySet())
+        for (Map.Entry<String, List<Integer>> entry : expected.entrySet())
         {
-            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", term);
-            List<Integer> postings;
-            if (actual.containsKey(term))
-                postings = actual.get(term);
-            else
-            {
-                postings = new ArrayList<>();
-                actual.put(term, postings);
-            }
-            results.forEach(row -> postings.add(row.getInt("pk")));
-            postings.sort(Integer::compareTo);
+            String value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
         }
-
-        expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
     }
 
     @Test
@@ -153,25 +145,108 @@ public class SegmentMergerTest extends SAITester
         // Post-build the index only has 1 segment
         assertEquals(1, segments.size());
 
-        Map<Integer, List<Integer>> actual = new HashMap<>();
-
-        for (int term : expected.keySet())
+        for (Map.Entry<Integer, List<Integer>> entry : expected.entrySet())
         {
-            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", term);
+            Integer value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
+        }
+    }
+
+    @Test
+    public void literalIndexNoCompactionTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, value text, PRIMARY KEY(pk))");
+        disableCompaction();
+
+        // Insert sufficient rows to make sure more than 1 segments are created before segment compaction
+        Map<String, List<Integer>> expected = new HashMap<>();
+
+        for (int rowId = 0; rowId < getRandom().nextIntBetween(50000, 100000); rowId++)
+        {
+            String value = Integer.toString(getRandom().nextIntBetween(0, 1000));
+            execute("INSERT INTO %s (pk, value) VALUES (?, ?)", rowId, value);
             List<Integer> postings;
-            if (actual.containsKey(term))
-                postings = actual.get(term);
+            if (expected.containsKey(value))
+                postings = expected.get(value);
             else
             {
                 postings = new ArrayList<>();
-                actual.put(term, postings);
+                expected.put(value, postings);
             }
-            results.forEach(row -> postings.add(row.getInt("pk")));
-            postings.sort(Integer::compareTo);
-        }
+            postings.add(rowId);
 
-        expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
+        }
+        flush();
+
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' " +
+                                       "WITH OPTIONS = {'enable_segment_compaction': 'false'}");
+        waitForIndexQueryable();
+
+        List<SegmentMetadata> segments = getSegments(indexName);
+        assertTrue(segments.size() > 1);
+
+        for (Map.Entry<String, List<Integer>> entry : expected.entrySet())
+        {
+            String value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
+        }
     }
+
+    @Test
+    public void numericIndexNoCompactionTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, value int, PRIMARY KEY(pk))");
+        disableCompaction();
+
+        // Insert sufficient rows to make sure more than 1 segments are created before segment compaction
+        Map<Integer, List<Integer>> expected = new HashMap<>();
+
+        for (int rowId = 0; rowId < getRandom().nextIntBetween(10000, 50000); rowId++)
+        {
+            int value = getRandom().nextIntBetween(0, 1000);
+            execute("INSERT INTO %s (pk, value) VALUES (?, ?)", rowId, value);
+            List<Integer> postings;
+            if (expected.containsKey(value))
+                postings = expected.get(value);
+            else
+            {
+                postings = new ArrayList<>();
+                expected.put(value, postings);
+            }
+            postings.add(rowId);
+
+        }
+        flush();
+
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' " +
+                                       "WITH OPTIONS = {'enable_segment_compaction': 'false'}");
+        waitForIndexQueryable();
+
+        List<SegmentMetadata> segments = getSegments(indexName);
+        assertTrue(segments.size() > 1);
+
+        for (Map.Entry<Integer, List<Integer>> entry : expected.entrySet())
+        {
+            Integer value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
+        }
+    }
+
 
     private List<SegmentMetadata> getSegments(String indexName) throws Throwable
     {
