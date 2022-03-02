@@ -79,6 +79,7 @@ class TestExportTask(CopyTaskTest):
             overridden_opts[k] = v
         export_task = ExportTask(shell, self.ks, self.table, self.columns, self.fname, overridden_opts, self.protocol_version, self.config_file)
         assert export_task.get_ranges() == expected_ranges
+        export_task.close()
 
     def test_get_ranges_murmur3(self):
         """
