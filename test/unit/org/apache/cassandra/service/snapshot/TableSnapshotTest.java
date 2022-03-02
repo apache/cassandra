@@ -34,6 +34,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TableSnapshotTest
@@ -97,46 +98,46 @@ public class TableSnapshotTest
         );
 
         assertThat(snapshot.isExpiring()).isFalse();
-        assertThat(snapshot.isExpired(Instant.now())).isFalse();
+        assertThat(snapshot.isExpired(now())).isFalse();
 
         snapshot = new TableSnapshot(
         "ks",
         "tbl",
         "some",
-        Instant.now(),
+        now(),
         null,
         folders,
         (File file) -> 0L
         );
 
         assertThat(snapshot.isExpiring()).isFalse();
-        assertThat(snapshot.isExpired(Instant.now())).isFalse();
+        assertThat(snapshot.isExpired(now())).isFalse();
 
         snapshot = new TableSnapshot(
         "ks",
         "tbl",
         "some",
-        Instant.now(),
-        Instant.now().plusSeconds(1000),
+        now(),
+        now().plusSeconds(1000),
         folders,
         (File file) -> 0L
         );
 
         assertThat(snapshot.isExpiring()).isTrue();
-        assertThat(snapshot.isExpired(Instant.now())).isFalse();
+        assertThat(snapshot.isExpired(now())).isFalse();
 
         snapshot = new TableSnapshot(
         "ks",
         "tbl",
         "some",
-        Instant.now(),
-        Instant.now().minusSeconds(1000),
+        now(),
+        now().minusSeconds(1000),
         folders,
         (File file) -> 0L
         );
 
         assertThat(snapshot.isExpiring()).isTrue();
-        assertThat(snapshot.isExpired(Instant.now())).isTrue();
+        assertThat(snapshot.isExpired(now())).isTrue();
     }
 
     private Long writeBatchToFile(File file) throws IOException

@@ -38,6 +38,7 @@ import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class LoadingMapTest
@@ -58,10 +59,10 @@ public class LoadingMapTest
     @After
     public void afterTest() throws TimeoutException
     {
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
+        Instant deadline = now().plus(Duration.ofSeconds(5));
         while (executor.getPendingTaskCount() > 0 || executor.getActiveTaskCount() > 0)
         {
-            if (Instant.now().isAfter(deadline))
+            if (now().isAfter(deadline))
                 throw new TimeoutException();
 
             Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
