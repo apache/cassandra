@@ -75,6 +75,7 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 public final class SystemKeyspace
 {
@@ -1477,7 +1478,7 @@ public final class SystemKeyspace
                                                                              previous,
                                                                              next));
 
-            Instant creationTime = Instant.now();
+            Instant creationTime = now();
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
                 Keyspace.open(keyspace).snapshot(snapshotName, null, false, null, null, creationTime);
         }

@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
