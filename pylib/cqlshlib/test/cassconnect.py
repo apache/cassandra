@@ -22,7 +22,6 @@ import random
 import string
 
 from cassandra.cluster import Cluster
-from cassandra.policies import RoundRobinPolicy
 from cassandra.metadata import maybe_escape_name as quote_name
 from cassandra.auth import PlainTextAuthProvider
 from cqlshlib.cql3handling import CqlRuleSet
@@ -36,7 +35,7 @@ test_keyspace_init = os.path.join(test_dir, 'test_keyspace_init.cql')
 def get_cassandra_connection(cql_version=None):
 
     auth_provider = PlainTextAuthProvider(username=TEST_USER, password=TEST_PWD)
-    conn = Cluster((TEST_HOST,), TEST_PORT, auth_provider=auth_provider, cql_version=cql_version, load_balancing_policy=RoundRobinPolicy())
+    conn = Cluster((TEST_HOST,), TEST_PORT, auth_provider=auth_provider, cql_version=cql_version)
 
     # until the cql lib does this for us
     conn.cql_version = cql_version
