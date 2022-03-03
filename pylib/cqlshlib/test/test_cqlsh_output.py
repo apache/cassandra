@@ -402,7 +402,6 @@ class TestCqlshOutput(BaseTestCase):
             """),
         ), env=env)
         try:
-            import pytz  # test only if pytz is available on PYTHONPATH
             env['TZ'] = 'America/Sao_Paulo'
             self.assertQueriesGiveColoredOutput((
                 ('''select timestampcol from has_all_types where num = 0;''', """

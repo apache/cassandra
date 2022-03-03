@@ -68,5 +68,5 @@ class TestCqlshUnicode(BaseTestCase):
             output = c.cmd_and_response('CREATE TYPE "%s" ( "%s" int );' % (v1, v2))
             output = c.cmd_and_response('DESC TYPES;')
             self.assertIn(v1, output)
-            output = c.cmd_and_response('DESC TYPE "%s";' %(v1,))
+            output = c.cmd_and_response('DESC TYPE "%s";' % (v1,))
             self.assertIn(v2, output)
