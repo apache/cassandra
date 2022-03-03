@@ -1,4 +1,5 @@
 4.0.4
+ * Fix race condition bug during local session repair (CASSANDRA-17335)
  * Fix ignored streaming encryption settings in sstableloader (CASSANDRA-17367)
  * Streaming tasks handle empty SSTables correctly (CASSANDRA-16349)
  * Prevent SSTableLoader from doing unnecessary work (CASSANDRA-16349)
