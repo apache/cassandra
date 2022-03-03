@@ -94,24 +94,16 @@ public class SegmentMergerTest extends SAITester
         // Post-build the index only has 1 segment
         assertEquals(1, segments.size());
 
-        Map<String, List<Integer>> actual = new HashMap<>();
-
-        for (String term : expected.keySet())
+        for (Map.Entry<String, List<Integer>> entry : expected.entrySet())
         {
-            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", term);
-            List<Integer> postings;
-            if (actual.containsKey(term))
-                postings = actual.get(term);
-            else
-            {
-                postings = new ArrayList<>();
-                actual.put(term, postings);
-            }
-            results.forEach(row -> postings.add(row.getInt("pk")));
-            postings.sort(Integer::compareTo);
+            String value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
         }
-
-        expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
     }
 
     @Test
@@ -153,24 +145,16 @@ public class SegmentMergerTest extends SAITester
         // Post-build the index only has 1 segment
         assertEquals(1, segments.size());
 
-        Map<Integer, List<Integer>> actual = new HashMap<>();
-
-        for (int term : expected.keySet())
+        for (Map.Entry<Integer, List<Integer>> entry : expected.entrySet())
         {
-            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", term);
-            List<Integer> postings;
-            if (actual.containsKey(term))
-                postings = actual.get(term);
-            else
-            {
-                postings = new ArrayList<>();
-                actual.put(term, postings);
-            }
-            results.forEach(row -> postings.add(row.getInt("pk")));
-            postings.sort(Integer::compareTo);
+            Integer value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
         }
-
-        expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
     }
 
     @Test
@@ -207,25 +191,16 @@ public class SegmentMergerTest extends SAITester
         assertTrue(segments.size() > 1);
         logger.info("Segments count: {}", segments.size());
 
-
-        Map<String, List<Integer>> actual = new HashMap<>();
-
-        for (String term : expected.keySet())
+        for (Map.Entry<String, List<Integer>> entry : expected.entrySet())
         {
-            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", term);
-            List<Integer> postings;
-            if (actual.containsKey(term))
-                postings = actual.get(term);
-            else
-            {
-                postings = new ArrayList<>();
-                actual.put(term, postings);
-            }
-            results.forEach(row -> postings.add(row.getInt("pk")));
-            postings.sort(Integer::compareTo);
+            String value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
         }
-
-        expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
     }
 
     @Test
@@ -263,24 +238,16 @@ public class SegmentMergerTest extends SAITester
 
         logger.info("Segments count: {}", segments.size());
 
-        Map<Integer, List<Integer>> actual = new HashMap<>();
-
-        for (int term : expected.keySet())
+        for (Map.Entry<Integer, List<Integer>> entry : expected.entrySet())
         {
-            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", term);
-            List<Integer> postings;
-            if (actual.containsKey(term))
-                postings = actual.get(term);
-            else
-            {
-                postings = new ArrayList<>();
-                actual.put(term, postings);
-            }
-            results.forEach(row -> postings.add(row.getInt("pk")));
-            postings.sort(Integer::compareTo);
+            Integer value = entry.getKey();
+            List<Integer> expectedPostings = entry.getValue();
+            UntypedResultSet results = execute("SELECT * FROM %s WHERE value = ?", value);
+            List<Integer> actualPostings = new ArrayList<>();
+            results.forEach(row -> actualPostings.add(row.getInt("pk")));
+            actualPostings.sort(Integer::compareTo);
+            assertEquals("Postings comparison failed for term = " + value, expectedPostings, actualPostings);
         }
-
-        expected.keySet().forEach(term -> assertThat("Postings comparison failed for term = " + term, expected.get(term), is(actual.get(term))));
     }
 
 
