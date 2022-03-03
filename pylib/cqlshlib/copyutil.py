@@ -32,6 +32,7 @@ import sys
 import threading
 import time
 import traceback
+import errno
 
 from bisect import bisect_right
 from calendar import timegm
@@ -200,6 +201,7 @@ class ReceivingChannels(object):
             try:
                 readable, _, _ = select(self._readers, [], [], timeout)
             except select.error as exc:
+                # TODO: PEP 475 in Python 3.5 should make this unnecessary
                 # Do not abort on window resize:
                 if exc[0] != errno.EINTR:
                     raise
