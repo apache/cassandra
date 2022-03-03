@@ -133,7 +133,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
             // Guardrail on columns per table
-            Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, state);
+            Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, false, state);
 
             // Guardrail on number of tables
             if (Guardrails.tables.enabled(state))
@@ -144,7 +144,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                                      .map(Keyspace::open)
                                                      .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
                                                      .sum();
-                Guardrails.tables.guard(totalUserTables + 1, tableName, state);
+                Guardrails.tables.guard(totalUserTables + 1, tableName, false, state);
             }
         }
     }

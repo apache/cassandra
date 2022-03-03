@@ -49,6 +49,11 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
     private static final String IGNORED_PROPERTY_NAME = "table_properties_ignored";
     private static final String DISALLOWED_PROPERTY_NAME = "table_properties_disallowed";
 
+    public GuardrailTablePropertiesTest()
+    {
+        super(Guardrails.tableProperties);
+    }
+
     @Before
     public void before()
     {

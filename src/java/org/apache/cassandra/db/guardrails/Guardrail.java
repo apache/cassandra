@@ -44,6 +44,7 @@ public abstract class Guardrail
 {
     protected static final NoSpamLogger logger = NoSpamLogger.getLogger(LoggerFactory.getLogger(Guardrail.class),
                                                                         10, TimeUnit.MINUTES);
+    protected static final String REDACTED = "<redacted>";
 
     /** A name identifying the guardrail (mainly for shipping with diagnostic events). */
     public final String name;
@@ -69,6 +70,11 @@ public abstract class Guardrail
 
     protected void warn(String message)
     {
+        warn(message, message);
+    }
+
+    protected void warn(String message, String redactedMessage)
+    {
         message = decorateMessage(message);
 
         logger.warn(message);
@@ -77,9 +83,15 @@ public abstract class Guardrail
         ClientWarn.instance.warn(message);
         // Similarly, tracing will also ignore the message if we're not running tracing on the current thread.
         Tracing.trace(message);
+        GuardrailsDiagnostics.warned(name, decorateMessage(redactedMessage));
     }
 
     protected void fail(String message, @Nullable ClientState state)
+    {
+        fail(message, message, state);
+    }
+
+    protected void fail(String message, String redactedMessage, @Nullable ClientState state)
     {
         message = decorateMessage(message);
 
@@ -89,6 +101,7 @@ public abstract class Guardrail
         ClientWarn.instance.warn(message);
         // Similarly, tracing will also ignore the message if we're not running tracing on the current thread.
         Tracing.trace(message);
+        GuardrailsDiagnostics.failed(name, decorateMessage(redactedMessage));
 
         if (state != null)
             throw new GuardrailViolatedException(message);
