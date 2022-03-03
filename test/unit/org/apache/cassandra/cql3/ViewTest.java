@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.cql3;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,8 +28,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.commons.io.FileUtils;
 
 import junit.framework.Assert;
 import org.junit.After;
@@ -55,7 +63,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -64,11 +71,11 @@ import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
-import static junit.framework.Assert.fail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(BMUnitRunner.class)
 public class ViewTest extends CQLTester
@@ -96,7 +103,7 @@ public class ViewTest extends CQLTester
     public void end() throws Throwable
     {
         for (String viewName : views)
-            executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + viewName);
+            executeNet(protocolVersion, "DROP MATERIALIZED VIEW IF EXISTS " + viewName);
     }
 
     private void createView(String name, String query) throws Throwable
@@ -1615,6 +1622,42 @@ public class ViewTest extends CQLTester
                                              "k = " + keyspace() + ".\"token\"(2) AND v IS NOT NULL",
                                              "INSERT INTO %s(k, v) VALUES (0, 1)",
                                              "INSERT INTO %s(k, v) VALUES (2, 3)"), row(3, 2));
+    }
+
+    @Test
+    public void testSnapshotNameOfDroppedViewHasDroppedPrefix() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        boolean enableMaterializedViews = DatabaseDescriptor.getEnableMaterializedViews();
+        try
+        {
+            // create it
+            DatabaseDescriptor.setEnableMaterializedViews(true);
+            createView("viewtobedropped", "CREATE MATERIALIZED VIEW %s AS SELECT v FROM %%s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
+
+            // drop it
+            executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + keyspace() + ".viewtobedropped");
+
+            String dataDir = DatabaseDescriptor.getAllDataFileLocations()[0];
+            // look for snapshots which have "dropped-" prefix, there has to be such
+            Pattern compile = Pattern.compile(String.format("%s/viewtobedropped-.*/snapshots/dropped-.*-viewtobedropped/.*", keyspace()));
+
+            List<File> collect = FileUtils.listFiles(new File(dataDir), null, true)
+                                          .stream()
+                                          .filter(file -> {
+                                              Path relativize = Paths.get(dataDir).relativize(file.toPath());
+                                              Matcher matcher = compile.matcher(relativize.toString());
+                                              return matcher.matches();
+                                          }).collect(Collectors.toList());
+            assertFalse(collect.isEmpty());
+        }
+        finally
+        {
+            DatabaseDescriptor.setEnableMaterializedViews(enableMaterializedViews);
+        }
     }
 
     /**
