@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
@@ -125,18 +127,48 @@ public abstract class ThresholdTester extends GuardrailTester
                   .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    protected void assertThresholdWarns(String query, String... messages) throws Throwable
+    protected void assertThresholdWarns(String query, String message) throws Throwable
     {
-        assertWarns(query, messages);
+        assertThresholdWarns(query, message, message);
+    }
+
+    protected void assertThresholdWarns(String query, String message, String redactedMessage) throws Throwable
+    {
+        assertThresholdWarns(query, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected void assertThresholdWarns(String query, List<String> messages) throws Throwable
+    {
+        assertThresholdWarns(query, messages, messages);
+    }
+
+    protected void assertThresholdWarns(String query, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        assertWarns(query, messages, redactedMessages);
 
         Assertions.assertThat(currentValue())
                   .isGreaterThan(warnGetter.applyAsLong(guardrails()))
                   .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    protected void assertThresholdFails(String query, String... messages) throws Throwable
+    protected void assertThresholdFails(String query, String message) throws Throwable
     {
-        assertFails(query, messages);
+        assertThresholdFails(query, message, message);
+    }
+
+    protected void assertThresholdFails(String query, String message, String redactedMessage) throws Throwable
+    {
+        assertThresholdFails(query, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected void assertThresholdFails(String query, List<String> messages) throws Throwable
+    {
+        assertThresholdFails(query, messages, messages);
+    }
+
+    protected void assertThresholdFails(String query, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        assertFails(query, messages, redactedMessages);
 
         Assertions.assertThat(currentValue())
                   .isGreaterThanOrEqualTo(warnGetter.applyAsLong(guardrails()))

@@ -157,6 +157,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
         Iterable<ViewMetadata> tableViews = keyspace.views.forTable(table.id);
         Guardrails.materializedViewsPerTable.guard(Iterables.size(tableViews) + 1,
                                                    String.format("%s on table %s", viewName, table.name),
+                                                   false,
                                                    state);
 
         if (table.params.gcGraceSeconds == 0)
