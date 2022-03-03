@@ -87,6 +87,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
+import org.apache.cassandra.exceptions.TruncateException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -2306,9 +2307,11 @@ public class StorageProxy implements StorageProxyMBean
      * @param keyspace
      * @param cfname
      * @throws UnavailableException If some of the hosts in the ring are down.
-     * @throws TimeoutException
+     * @throws TimeoutException If the truncate operation doesn't complete within the truncation timeout limit.
+     * @throws TruncateException If the truncate operation fails on some replica.
      */
-    public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException
+    public void truncateBlocking(String keyspace, String cfname)
+    throws UnavailableException, TimeoutException, TruncateException
     {
         logger.debug("Starting a blocking truncate operation on keyspace {}, CF {}", keyspace, cfname);
         if (isAnyStorageHostDown())
@@ -2322,7 +2325,27 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         Set<InetAddressAndPort> allEndpoints = StorageService.instance.getLiveRingMembers(true);
+        truncateBlocking(allEndpoints, keyspace, cfname);
+    }
 
+    /**
+     * Performs the truncate operatoin, which effectively deletes all data from
+     * the column family cfname.
+     * This method sends truncate requests and waits for the answers. It assumes taht all endpoints
+     * are live. This is either enforced by {@link StorageProxy#truncateBlocking(String, String)} or by the CNDB
+     * override.
+     *
+     * @param allEndpoints All endpoints where to send truncate requests.
+     * @param keyspace
+     * @param cfname
+     * @throws UnavailableException If some of the hosts in the ring are down (all nodes need to be up to perform
+     *                              a truncate operation).
+     * @throws TimeoutException If the truncate operation doesn't complete within the truncation timeout limit.
+     * @throws TruncateException If the truncate operation fails on some replica.
+     */
+    public void truncateBlocking(Set<InetAddressAndPort> allEndpoints, String keyspace, String cfname)
+    throws UnavailableException, TimeoutException, TruncateException
+    {
         int blockFor = allEndpoints.size();
         final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor);
 

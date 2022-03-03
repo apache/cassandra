@@ -54,7 +54,7 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
         start = System.nanoTime();
     }
 
-    public void get() throws TimeoutException
+    public void get() throws TimeoutException, TruncateException
     {
         long timeoutNanos = DatabaseDescriptor.getTruncateRpcTimeout(NANOSECONDS) - (System.nanoTime() - start);
         boolean completedInTime;
