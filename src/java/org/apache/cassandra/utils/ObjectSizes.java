@@ -202,7 +202,7 @@ public class ObjectSizes
         if (str == null)
             return 0;
 
-        return EMPTY_STRING_SIZE + sizeOfArray(str.length(), Character.SIZE);
+        return EMPTY_STRING_SIZE + sizeOfArray(str.length(), Character.BYTES);
     }
 
     /**
