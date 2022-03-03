@@ -759,7 +759,7 @@ public class Schema
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfs.metadata), true);
 
         if (DatabaseDescriptor.isAutoSnapshot())
-            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+            cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
 
         // reinitialize the keyspace.
         ViewDefinition view = oldKsm.views.get(viewName).get();
