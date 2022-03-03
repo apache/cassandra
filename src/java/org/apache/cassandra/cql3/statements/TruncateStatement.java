@@ -78,7 +78,7 @@ public class TruncateStatement extends QualifiedStatement<TruncateStatement> imp
             if (metaData.isVirtual())
                 throw new InvalidRequestException("Cannot truncate virtual tables");
 
-            StorageProxy.truncateBlocking(keyspace(), name());
+            StorageProxy.instance.truncateBlocking(keyspace(), name());
         }
         catch (UnavailableException | TimeoutException e)
         {
