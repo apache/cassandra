@@ -24,6 +24,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -50,6 +51,14 @@ public class GuardrailItemsPerCollectionTest extends ThresholdTester
               Guardrails::setItemsPerCollectionThreshold,
               Guardrails::getItemsPerCollectionWarnThreshold,
               Guardrails::getItemsPerCollectionFailThreshold);
+    }
+
+    @After
+    public void after()
+    {
+        // immediately drop the created table so its async cleanup doesn't interfere with the next tests
+        if (currentTable() != null)
+            dropTable("DROP TABLE %s");
     }
 
     @Test
@@ -206,6 +215,14 @@ public class GuardrailItemsPerCollectionTest extends ThresholdTester
 
         assertValid("INSERT INTO %s (k, v) VALUES (4, ?)", map(1));
         assertWarns("UPDATE %s SET v = v + ? WHERE k = 4", map(1, FAIL_THRESHOLD + 1), FAIL_THRESHOLD);
+    }
+
+    @Override
+    protected String createTable(String query)
+    {
+        String table = super.createTable(query);
+        disableCompaction();
+        return table;
     }
 
     private void assertValid(String query, ByteBuffer collection) throws Throwable

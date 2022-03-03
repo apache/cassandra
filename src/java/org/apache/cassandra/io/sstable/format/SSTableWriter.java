@@ -430,8 +430,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        column.name.toString(),
                                        keyString,
                                        metadata);
-            Guardrails.collectionSize.guard(cellsSize, msg, null);
-            Guardrails.itemsPerCollection.guard(cellsCount, msg, null);
+            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
+            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
         }
     }
 }

@@ -117,6 +117,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
                                                   Strings.isNullOrEmpty(indexName)
                                                   ? String.format("on table %s", table.name)
                                                   : String.format("%s on table %s", indexName, table.name),
+                                                  false,
                                                   state);
 
         List<IndexTarget> indexTargets = Lists.newArrayList(transform(rawIndexTargets, t -> t.prepare(table)));

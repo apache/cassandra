@@ -1,4 +1,5 @@
 4.1
+ * Add diagnostic events for guardrails (CASSANDRA-17197)
  * Increase cqlsh version (CASSANDRA-17432)
  * Update SUPPORTED_UPGRADE_PATHS to include 3.0 and 3.x to 4.1 paths and remove obsolete tests (CASSANDRA-17362)
  * Support DELETE in CQLSSTableWriter (CASSANDRA-14797)

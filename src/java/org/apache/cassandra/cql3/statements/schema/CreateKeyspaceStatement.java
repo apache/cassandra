@@ -117,7 +117,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         super.validate(state);
 
         // Guardrail on number of keyspaces
-        Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, state);
+        Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
     }
 
     @Override
