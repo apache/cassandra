@@ -20,7 +20,7 @@
 
 import unittest
 
-from cassandra.metadata import MIN_LONG, Murmur3Token, TokenMap
+from cassandra.metadata import MIN_LONG, Murmur3Token
 from cassandra.policies import SimpleConvictionPolicy
 from cassandra.pool import Host
 from unittest.mock import Mock

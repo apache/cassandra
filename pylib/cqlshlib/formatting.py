@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-
 import binascii
 import calendar
 import datetime
@@ -23,7 +21,6 @@ import math
 import os
 import re
 import sys
-import platform
 
 from six import ensure_text
 

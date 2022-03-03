@@ -16,18 +16,15 @@
 
 # NOTE: this testing tool is *nix specific
 
-from __future__ import unicode_literals
-
 import os
 import sys
 import re
 import contextlib
 import subprocess
 import signal
-import math
 from time import time
 from . import basecase
-from os.path import join, normpath
+from os.path import join
 
 
 import pty

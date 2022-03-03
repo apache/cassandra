@@ -15,10 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals, with_statement
-
 import os
-import subprocess
 
 from .basecase import BaseTestCase
 from .cassconnect import (get_cassandra_connection, create_keyspace, testrun_cqlsh)
