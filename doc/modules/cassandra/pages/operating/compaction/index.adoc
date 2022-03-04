@@ -5,16 +5,16 @@
 Picking the right compaction strategy for your workload will ensure the
 best performance for both querying and for compaction itself.
 
-xref:cql/operating/compaction/stcs.adoc[`Size Tiered Compaction Strategy (STCS)`]::
+xref:operating/compaction/stcs.adoc[`Size Tiered Compaction Strategy (STCS)`]::
   The default compaction strategy. Useful as a fallback when other
   strategies don't fit the workload. Most useful for non pure time
   series workloads with spinning disks, or when the I/O from `LCS`
   is too high.
-xref:cql/operating/compaction/lcs.adoc[`Leveled Compaction Strategy (LCS)`]::
+xref:operating/compaction/lcs.adoc[`Leveled Compaction Strategy (LCS)`]::
   Leveled Compaction Strategy (LCS) is optimized for read heavy
   workloads, or workloads with lots of updates and deletes. It is not a
   good choice for immutable time series data.
-xref:cql/operating/compaction/twcs.adoc[`Time Window Compaction Strategy (TWCS)`]::
+xref:operating/compaction/twcs.adoc[`Time Window Compaction Strategy (TWCS)`]::
   Time Window Compaction Strategy is designed for TTL'ed, mostly
   immutable time series data.
 
