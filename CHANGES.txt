@@ -1,4 +1,5 @@
 4.1
+ * remove unused imports in cqlsh.py and cqlshlib (CASSANDRA-17413)
  * deprecate property windows_timer_interval (CASSANDRA-17404)
  * Expose streaming as a vtable (CASSANDRA-17390)
  * Make startup checks configurable (CASSANDRA-17220)

@@ -17,8 +17,6 @@
 # to configure behavior, define $CQL_TEST_HOST to the destination address
 # and $CQL_TEST_PORT to the associated port.
 
-from __future__ import unicode_literals, with_statement
-
 import locale
 import os
 import re
