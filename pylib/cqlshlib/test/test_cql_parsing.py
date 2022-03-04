@@ -778,12 +778,12 @@ class TestCqlParsing(TestCase):
 
 
 def parse_cqlsh_statements(text):
-    '''
+    """
     Runs its argument through the sequence of parsing steps that cqlsh takes its
     input through.
 
     Currently does not handle batch statements.
-    '''
+    """
     # based on onecmd
     statements, _ = CqlRuleSet.cql_split_statements(text)
     # stops here. For regular cql commands, onecmd just splits it and sends it
@@ -799,13 +799,13 @@ def tokens_with_types(lexed):
 
 
 def strip_final_empty_items(xs):
-    '''
+    """
     Returns its a copy of argument as a list, but with any terminating
     subsequence of falsey values removed.
 
     >>> strip_final_empty_items([[3, 4], [5, 6, 7], [], [], [1], []])
     [[3, 4], [5, 6, 7], [], [], [1]]
-    '''
+    """
     rv = list(xs)
 
     while rv and not rv[-1]:

@@ -111,12 +111,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                     # don't put any 'endline' tokens in output
                     continue
 
-            # Convert all unicode tokens to ascii, where possible.  This
-            # helps avoid problems with performing unicode-incompatible
-            # operations on tokens (like .lower()).  See CASSANDRA-9083
-            # for one example of this.
-            str_token = t[1]
-
             curstmt.append(t)
             if t[0] == 'endtoken':
                 term_on_nl = False

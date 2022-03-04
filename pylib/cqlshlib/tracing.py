@@ -19,7 +19,6 @@ import time
 
 from cassandra.query import QueryTrace, TraceUnavailable
 from cqlshlib.displaying import MAGENTA
-from cqlshlib.formatting import CqlType
 
 
 def print_trace_session(shell, session, session_id, partial_session=False):

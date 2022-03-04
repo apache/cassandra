@@ -20,7 +20,7 @@
 
 import unittest
 
-from cassandra.metadata import MIN_LONG, Murmur3Token, TokenMap
+from cassandra.metadata import MIN_LONG, Murmur3Token
 from cassandra.policies import SimpleConvictionPolicy
 from cassandra.pool import Host
 from unittest.mock import Mock
@@ -75,7 +75,7 @@ class TestExportTask(CopyTaskTest):
         }
         # merge override options with standard options
         overridden_opts = dict(self.opts)
-        for k,v in opts.items():
+        for k, v in opts.items():
             overridden_opts[k] = v
         export_task = ExportTask(shell, self.ks, self.table, self.columns, self.fname, overridden_opts, self.protocol_version, self.config_file)
         assert export_task.get_ranges() == expected_ranges
@@ -93,19 +93,19 @@ class TestExportTask(CopyTaskTest):
         self._test_get_ranges_murmur3_base({'begintoken': 1, 'endtoken': -1}, {})
 
         # simple case of a single range
-        expected_ranges = {(1,2): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}}
+        expected_ranges = {(1, 2): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}}
         self._test_get_ranges_murmur3_base({'begintoken': 1, 'endtoken': 2}, expected_ranges)
 
         # simple case of two contiguous ranges
         expected_ranges = {
-            (-4611686018427387903,0): {'hosts': ('10.0.0.3', '10.0.0.4', '10.0.0.1'), 'attempts': 0, 'rows': 0, 'workerno': -1},
-            (0,1): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}
+            (-4611686018427387903, 0): {'hosts': ('10.0.0.3', '10.0.0.4', '10.0.0.1'), 'attempts': 0, 'rows': 0, 'workerno': -1},
+            (0, 1): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'begintoken': -4611686018427387903, 'endtoken': 1}, expected_ranges)
 
         # specify a begintoken only (endtoken defaults to None)
         expected_ranges = {
-            (4611686018427387905,None): {'hosts': ('10.0.0.1', '10.0.0.2', '10.0.0.3'), 'attempts': 0, 'rows': 0, 'workerno': -1}
+            (4611686018427387905, None): {'hosts': ('10.0.0.1', '10.0.0.2', '10.0.0.3'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'begintoken': 4611686018427387905}, expected_ranges)
 
@@ -114,4 +114,3 @@ class TestExportTask(CopyTaskTest):
             (None, MIN_LONG + 1): {'hosts': ('10.0.0.2', '10.0.0.3', '10.0.0.4'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'endtoken': MIN_LONG + 1}, expected_ranges)
-

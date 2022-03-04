@@ -157,7 +157,8 @@ def cql_rule_set():
     return CqlRuleSet
 
 
-class DEFAULTVAL: pass
+class DEFAULTVAL:
+    pass
 
 
 __TEST__ = False
