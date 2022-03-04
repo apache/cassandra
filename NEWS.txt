@@ -129,6 +129,9 @@ Deprecation
       in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
       `org.apache.cassandra.db:type=StorageService`, which are equally deprecated in favour of the analogous methods
       in the JMX MBean `org.apache.cassandra.db:type=Guardrails`. See CASSANDRA-17195 for further details.
+    - The functionality behind the property `windows_timer_interval` was removed as part of CASSANDRA-16956. The
+      property is still present but it is deprecated and it is just a place-holder to prevent breaking upgrades. This
+      property is expected to be fully removed in the next major release of Cassandra.
 
 4.0
 ===

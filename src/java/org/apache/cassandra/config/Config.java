@@ -474,6 +474,9 @@ public class Config
     public volatile ConsistencyLevel ideal_consistency_level = null;
 
     @Deprecated
+    public int windows_timer_interval = 0;
+
+    @Deprecated
     public String otc_coalescing_strategy = "DISABLED";
 
     @Deprecated
