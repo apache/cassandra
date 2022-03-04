@@ -98,12 +98,12 @@ final class FieldSelector extends Selector
         selected.addFetchedColumns(builder);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
-        selected.addInput(protocolVersion, rs);
+        selected.addInput(protocolVersion, input);
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         ByteBuffer value = selected.getOutput(protocolVersion);
         if (value == null)

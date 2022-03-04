@@ -194,17 +194,17 @@ final class MapSelector extends Selector
         }
     }
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
         {
             Pair<Selector, Selector> pair = elements.get(i);
-            pair.left.addInput(protocolVersion, rs);
-            pair.right.addInput(protocolVersion, rs);
+            pair.left.addInput(protocolVersion, input);
+            pair.right.addInput(protocolVersion, input);
         }
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         Map<ByteBuffer, ByteBuffer> map = new TreeMap<>(type.getKeysType());
         for (int i = 0, m = elements.size(); i < m; i++)

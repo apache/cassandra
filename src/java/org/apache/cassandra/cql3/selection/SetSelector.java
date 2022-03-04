@@ -92,13 +92,13 @@ final class SetSelector extends Selector
             elements.get(i).addFetchedColumns(builder);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
-            elements.get(i).addInput(protocolVersion, rs);
+            elements.get(i).addInput(protocolVersion, input);
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         Set<ByteBuffer> buffers = new TreeSet<>(type.getElementsType());
         for (int i = 0, m = elements.size(); i < m; i++)

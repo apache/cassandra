@@ -218,7 +218,7 @@ abstract class ElementsSelector extends Selector
         };
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         ByteBuffer value = selected.getOutput(protocolVersion);
         return value == null ? null : extractSelection(value);
@@ -226,9 +226,9 @@ abstract class ElementsSelector extends Selector
 
     protected abstract ByteBuffer extractSelection(ByteBuffer collection);
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
-        selected.addInput(protocolVersion, rs);
+        selected.addInput(protocolVersion, input);
     }
 
     public void reset()

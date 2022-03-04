@@ -107,7 +107,7 @@ final class WritetimeOrTTLSelector extends Selector
         builder.add(column);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs)
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         if (isSet)
             return;
@@ -116,12 +116,12 @@ final class WritetimeOrTTLSelector extends Selector
 
         if (isWritetime)
         {
-            long ts = rs.timestamps[idx];
+            long ts = input.getTimestamp(idx);
             current = ts != Long.MIN_VALUE ? ByteBufferUtil.bytes(ts) : null;
         }
         else
         {
-            int ttl = rs.ttls[idx];
+            int ttl = input.getTtl(idx);
             current = ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
         }
     }

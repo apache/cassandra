@@ -132,17 +132,17 @@ public final class SimpleSelector extends Selector
     }
 
     @Override
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input) throws InvalidRequestException
     {
         if (!isSet)
         {
             isSet = true;
-            current = rs.current.get(idx);
+            current = input.getValue(idx);
         }
     }
 
     @Override
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         return current;
     }

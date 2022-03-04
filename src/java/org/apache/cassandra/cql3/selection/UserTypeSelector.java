@@ -39,7 +39,6 @@ import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -183,13 +182,13 @@ final class UserTypeSelector extends Selector
             field.addFetchedColumns(builder);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (Selector field : fields.values())
-            field.addInput(protocolVersion, rs);
+            field.addInput(protocolVersion, input);
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         UserType userType = (UserType) type;
         ByteBuffer[] buffers = new ByteBuffer[userType.size()];

@@ -36,12 +36,12 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
         }
     };
 
-    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
-            s.addInput(protocolVersion, rs);
+            s.addInput(protocolVersion, input);
         }
     }
 
@@ -49,7 +49,7 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
     {
     }
 
-    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
