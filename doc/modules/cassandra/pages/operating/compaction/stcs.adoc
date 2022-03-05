@@ -1,4 +1,4 @@
-= Leveled Compaction Strategy
+= Size Tiered Compaction Strategy
 
 [[stcs]]
 The basic idea of `SizeTieredCompactionStrategy` (STCS) is to merge
