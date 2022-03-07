@@ -22,29 +22,128 @@ import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
+import org.github.jamm.MemoryLayoutSpecification;
+import org.github.jamm.MemoryMeter;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ObjectSizesTest
 {
-    @Test
-    public void heapByteBuffer()
+    private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE).omitSharedBufferOverhead().ignoreKnownSingletons();
+
+    private static final long EMPTY_HEAP_BUFFER_RAW_SIZE = meter.measure(ByteBuffer.allocate(0));
+    private static final long EMPTY_OFFHEAP_BUFFER_RAW_SIZE = meter.measure(ByteBuffer.allocateDirect(0));
+    private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
+
+    public static final long REF_ARRAY_0_SIZE = MemoryLayoutSpecification.sizeOfArray(0, MemoryLayoutSpecification.SPEC.getReferenceSize());
+    public static final long REF_ARRAY_1_SIZE = MemoryLayoutSpecification.sizeOfArray(1, MemoryLayoutSpecification.SPEC.getReferenceSize());
+    public static final long REF_ARRAY_2_SIZE = MemoryLayoutSpecification.sizeOfArray(2, MemoryLayoutSpecification.SPEC.getReferenceSize());
+
+    public static final long BYTE_ARRAY_0_SIZE = MemoryLayoutSpecification.sizeOfArray(0, 1);
+    public static final long BYTE_ARRAY_10_SIZE = MemoryLayoutSpecification.sizeOfArray(10, 1);
+    public static final long BYTE_ARRAY_10_EXCEPT_DATA_SIZE = MemoryLayoutSpecification.sizeOfArray(10, 1) - 10;
+
+    private ByteBuffer buf10 = ByteBuffer.allocate(10);
+    private ByteBuffer prefixBuf8 = buf10.duplicate();
+    private ByteBuffer suffixBuf9 = buf10.duplicate();
+    private ByteBuffer infixBuf7 = buf10.duplicate();
+
     {
-        byte[] bytes = {0, 1, 2, 3, 4};
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        prefixBuf8.limit(8);
 
-        long empty = ObjectSizes.sizeOfEmptyHeapByteBuffer();
-        long actual = ObjectSizes.measureDeep(buffer);
+        suffixBuf9.position(1);
+        suffixBuf9 = suffixBuf9.slice();
 
-        assertThat(actual).isEqualTo(empty + ObjectSizes.sizeOfArray(bytes));
-        assertThat(ObjectSizes.sizeOnHeapOf(buffer)).isEqualTo(actual);
+        infixBuf7.limit(8);
+        infixBuf7.position(1);
+        infixBuf7 = infixBuf7.slice();
     }
 
     @Test
-    public void shouldIgnoreArrayOverheadForSubBuffer()
+    public void testSizeOnHeapExcludingData()
     {
-        byte[] bytes = {0, 1, 2, 3, 4};
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        buffer.position(1);
-        assertThat(ObjectSizes.sizeOnHeapOf(buffer)).isEqualTo(ObjectSizes.sizeOfEmptyHeapByteBuffer() + 4);
+        // empty array of byte buffers
+        ByteBuffer[] buffers = EMPTY_BYTE_BUFFER_ARRAY;
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_0_SIZE);
+
+        // single empty heap buffer
+        buffers = new ByteBuffer[]{ ByteBuffer.allocate(0) };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_0_SIZE);
+
+        // single non-empty heap buffer
+        buffers = new ByteBuffer[]{ buf10 };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_10_EXCEPT_DATA_SIZE);
+
+        // single empty direct buffer
+        buffers = new ByteBuffer[]{ ByteBuffer.allocateDirect(0) };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // single non-empty direct buffer
+        buffers = new ByteBuffer[]{ ByteBuffer.allocateDirect(10) };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // two different empty byte buffers
+        buffers = new ByteBuffer[]{ ByteBuffer.allocate(0), ByteBuffer.allocateDirect(0) };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_2_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_0_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // two different non-empty byte buffers
+        buffers = new ByteBuffer[]{ buf10, ByteBuffer.allocateDirect(500) };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_2_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_10_EXCEPT_DATA_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // heap buffer being a prefix slice of other buffer
+        buffers = new ByteBuffer[]{ prefixBuf8 };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE);
+
+        // heap buffer being a suffix slice of other buffer
+        buffers = new ByteBuffer[]{ suffixBuf9 };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE);
+
+        // heap buffer being an infix slice of other buffer
+        buffers = new ByteBuffer[]{ infixBuf7 };
+        assertThat(ObjectSizes.sizeOnHeapExcludingData(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE);
+    }
+
+    @Test
+    public void testSizeOnHeapOf()
+    {
+        // empty array of byte buffers
+        ByteBuffer[] buffers = EMPTY_BYTE_BUFFER_ARRAY;
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_0_SIZE);
+
+        // single empty heap buffer
+        buffers = new ByteBuffer[]{ ByteBuffer.allocate(0) };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_0_SIZE);
+
+        // single non-empty heap buffer
+        buffers = new ByteBuffer[]{ buf10 };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_10_SIZE);
+
+        // single empty direct buffer
+        buffers = new ByteBuffer[]{ ByteBuffer.allocateDirect(0) };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // single non-empty direct buffer
+        buffers = new ByteBuffer[]{ ByteBuffer.allocateDirect(10) };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // two different empty byte buffers
+        buffers = new ByteBuffer[]{ ByteBuffer.allocate(0), ByteBuffer.allocateDirect(0) };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_2_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_0_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // two different non-empty byte buffers
+        buffers = new ByteBuffer[]{ buf10, ByteBuffer.allocateDirect(500) };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_2_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + BYTE_ARRAY_10_SIZE + EMPTY_OFFHEAP_BUFFER_RAW_SIZE);
+
+        // heap buffer being a prefix slice of other buffer
+        buffers = new ByteBuffer[]{ prefixBuf8 };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + 8);
+
+        // heap buffer being a suffix slice of other buffer
+        buffers = new ByteBuffer[]{ suffixBuf9 };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + 9);
+
+        // heap buffer being an infix slice of other buffer
+        buffers = new ByteBuffer[]{ infixBuf7 };
+        assertThat(ObjectSizes.sizeOnHeapOf(buffers)).isEqualTo(REF_ARRAY_1_SIZE + EMPTY_HEAP_BUFFER_RAW_SIZE + 7);
     }
 }
