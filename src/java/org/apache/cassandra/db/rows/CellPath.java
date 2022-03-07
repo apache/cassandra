@@ -127,7 +127,7 @@ public abstract class CellPath
 
         public long unsharedHeapSizeExcludingData()
         {
-            return EMPTY_SIZE + ObjectSizes.sizeOfEmptyHeapByteBuffer();
+            return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value);
         }
     }
 
