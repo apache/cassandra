@@ -95,6 +95,7 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Fix ObjectSizes implementation and usages (CASSANDRA-17402)
  * Fix race condition bug during local session repair (CASSANDRA-17335)
  * Fix ignored streaming encryption settings in sstableloader (CASSANDRA-17367)
  * Streaming tasks handle empty SSTables correctly (CASSANDRA-16349)
