@@ -78,12 +78,21 @@ implements IncrementalTrieWriter<VALUE>
             int p = sp.next();
             while ( n == p )
             {
-                assert n != ByteSource.END_OF_STREAM : String.format("Incremental trie requires unique sorted keys, got equal %s after %s.", next, prev);
+                assert n != ByteSource.END_OF_STREAM : String.format("Incremental trie requires unique sorted keys, got equal %s(%s) after %s(%s).",
+                                                                     next,
+                                                                     next.byteComparableAsString(Walker.BYTE_COMPARABLE_VERSION),
+                                                                     prev,
+                                                                     prev.byteComparableAsString(Walker.BYTE_COMPARABLE_VERSION));
+
                 ++stackpos;
                 n = sn.next();
                 p = sp.next();
             }
-            assert p < n : String.format("Incremental trie requires sorted keys, got %s after %s.", next, prev);
+            assert p < n : String.format("Incremental trie requires sorted keys, got %s(%s) after %s(%s).",
+                                         next,
+                                         next.byteComparableAsString(Walker.BYTE_COMPARABLE_VERSION),
+                                         prev,
+                                         prev.byteComparableAsString(Walker.BYTE_COMPARABLE_VERSION));
         }
         prev = next;
 

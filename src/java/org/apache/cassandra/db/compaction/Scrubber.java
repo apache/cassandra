@@ -394,7 +394,7 @@ public class Scrubber implements Closeable
                 return false;
             }
 
-            if (writer.tryAppend(iterator) == null)
+            if (!writer.tryAppend(iterator))
                 emptyPartitions++;
             else
                 goodPartitions++;

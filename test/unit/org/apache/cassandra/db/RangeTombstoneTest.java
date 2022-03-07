@@ -27,9 +27,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
@@ -37,6 +40,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -51,14 +55,17 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.OrderCheckingIterator;
 
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
@@ -66,10 +73,20 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class RangeTombstoneTest
 {
     private static final String KSNAME = "RangeTombstoneTest";
     private static final String CFNAME = "StandardInteger1";
+    private static final String CFNAME_INDEXED = "StandardIntegerIndexed";
+    public static final int GC_GRACE = 5000;
+
+    @Parameterized.Parameters(name = "compaction={0}")
+    public static Iterable<CompactionParams> compactionParamSets()
+    {
+        return ImmutableSet.of(CompactionParams.stcs(ImmutableMap.of()),
+                               CompactionParams.ucs(ImmutableMap.of()));
+    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -77,7 +94,19 @@ public class RangeTombstoneTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KSNAME,
                                     KeyspaceParams.simple(1),
-                                    standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
+                                    standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance),
+                                    standardCFMD(KSNAME, CFNAME_INDEXED, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
+    }
+
+    public RangeTombstoneTest(CompactionParams compactionParams)
+    {
+        Keyspace ks = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().compaction(compactionParams).build());
+        cfs.disableAutoCompaction(); // don't trigger compaction at 4 sstables
+        cfs = ks.getColumnFamilyStore(CFNAME_INDEXED);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().compaction(compactionParams).build());
+        cfs.disableAutoCompaction(); // don't trigger compaction at 4 sstables
     }
 
     @Test
@@ -332,6 +361,7 @@ public class RangeTombstoneTest
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
+        cfs.truncateBlocking();
 
         String key = "7810";
 
@@ -344,9 +374,78 @@ public class RangeTombstoneTest
         new RowUpdateBuilder(cfs.metadata(), 1, key).addRangeTombstone(10, 11).build().apply();
         cfs.forceBlockingFlush(UNIT_TESTS);
 
-        Thread.sleep(5);
+        Thread.sleep(3000);
         cfs.forceMajorCompaction();
-        assertEquals(8, Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build()).rowCount());
+        checkUnfilteredContains(cfs, key, 8);
+    }
+
+
+    @Test
+    public void testDB4980_mid() throws ExecutionException, InterruptedException
+    {
+        testDB4980("4980_m", 9, 11, 12, 14, 10, 13);
+    }
+
+    @Test
+    public void testDB4980_left() throws ExecutionException, InterruptedException
+    {
+        testDB4980("4980_l", 10, 13, 12, 14, 9, 11);
+    }
+
+    @Test
+    public void testDB4980_right() throws ExecutionException, InterruptedException
+    {
+        testDB4980("4980_r", 9, 11, 10, 13, 12, 14);
+    }
+
+    public void testDB4980(String key, int start1, int end1, int start2, int end2, int start3, int end3) throws ExecutionException, InterruptedException
+    {
+        Keyspace ks = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(GC_GRACE).build());
+        cfs.truncateBlocking();
+
+        UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
+        for (int i = 10; i < 20; i ++)
+            builder.newRow(i).add("val", i);
+        builder.apply();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        int localTime = FBUtilities.nowInSeconds();
+        new RowUpdateBuilder(cfs.metadata(), localTime - (GC_GRACE + 100), 1, 0, key)
+            .addRangeTombstone(start1, end1)
+            .build()
+            .apply();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        new RowUpdateBuilder(cfs.metadata(), localTime - (GC_GRACE + 30), 2, 0, key)
+            .addRangeTombstone(start2, end2)
+            .build()
+            .apply();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        // This one should stay
+        new RowUpdateBuilder(cfs.metadata(), localTime, 3, 0, key)
+            .addRangeTombstone(start3, end3)
+            .build()
+            .apply();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        cfs.forceMajorCompaction();
+        checkUnfilteredContains(cfs, key, 7);
+    }
+
+    private void checkUnfilteredContains(ColumnFamilyStore cfs, String key, int expected)
+    {
+        assertEquals(1, cfs.getLiveSSTables().size());
+        DecoratedKey dkey = cfs.metadata().partitioner.decorateKey(((AbstractType<String>) cfs.metadata().partitionKeyType).decompose(key));
+        UnfilteredRowIterator iter = cfs.getLiveSSTables().iterator().next().iterator(dkey,
+                                                                                      Slices.ALL,
+                                                                                      ColumnFilter.NONE,
+                                                                                      false,
+                                                                                      SSTableReadsListener.NOOP_LISTENER);
+        iter = new OrderCheckingIterator(iter);
+        assertEquals(expected, Iterators.size(iter));
     }
 
     @Test
@@ -355,6 +454,7 @@ public class RangeTombstoneTest
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
+        cfs.truncateBlocking();
 
         String key = "7808_1";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -375,6 +475,7 @@ public class RangeTombstoneTest
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
+        cfs.truncateBlocking();
 
         String key = "7808_2";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -390,7 +491,7 @@ public class RangeTombstoneTest
         cfs.forceBlockingFlush(UNIT_TESTS);
         Thread.sleep(5);
         cfs.forceMajorCompaction();
-        assertEquals(1, Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build()).rowCount());
+        checkUnfilteredContains(cfs, key, 1);
     }
 
     @Test
@@ -476,7 +577,7 @@ public class RangeTombstoneTest
     public void testRowWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
     {
         Keyspace table = Keyspace.open(KSNAME);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME_INDEXED);
         ByteBuffer key = ByteBufferUtil.bytes("k5");
         ByteBuffer indexedColumnName = ByteBufferUtil.bytes("val");
 
@@ -582,7 +683,7 @@ public class RangeTombstoneTest
     public void testOverwritesToDeletedColumns() throws Exception
     {
         Keyspace table = Keyspace.open(KSNAME);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME_INDEXED);
         ByteBuffer key = ByteBufferUtil.bytes("k6");
         ByteBuffer indexedColumnName = ByteBufferUtil.bytes("val");
 

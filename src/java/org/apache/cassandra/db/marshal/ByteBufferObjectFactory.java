@@ -61,10 +61,6 @@ class ByteBufferObjectFactory implements ValueAccessor.ObjectFactory<ByteBuffer>
         return Clustering.EMPTY;
     }
 
-    public Clustering<ByteBuffer> staticClustering() {
-        return Clustering.STATIC_CLUSTERING;
-    }
-
     public ClusteringBound<ByteBuffer> bound(ClusteringPrefix.Kind kind, ByteBuffer... values)
     {
         return new BufferClusteringBound(kind, values);

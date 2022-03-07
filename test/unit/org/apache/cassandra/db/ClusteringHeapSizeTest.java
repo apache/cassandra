@@ -70,7 +70,7 @@ public class ClusteringHeapSizeTest
     @Test
     public void testSingletonClusteringHeapSize()
     {
-        Clustering<?> clustering = this.clustering.accessor().factory().staticClustering();
+        Clustering<?> clustering = Clustering.STATIC_CLUSTERING;
         Assertions.assertThat(clustering.unsharedHeapSize())
                   .isEqualTo(0);
         Assertions.assertThat(clustering.unsharedHeapSizeExcludingData())

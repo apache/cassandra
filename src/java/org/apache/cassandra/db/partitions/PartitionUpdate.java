@@ -62,7 +62,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     protected static final Logger logger = LoggerFactory.getLogger(PartitionUpdate.class);
 
     @SuppressWarnings("Convert2MethodRef")
-    public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer(tableId -> SchemaManager.instance.getExistingTableMetadata(tableId));
+    public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer(tableId -> Schema.instance.getExistingTableMetadata(tableId));
 
     private final BTreePartitionData holder;
     private final DeletionInfo deletionInfo;

@@ -66,7 +66,7 @@ public interface ValueAccessor<V>
         Cell<V> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, V value, CellPath path);
         Clustering<V> clustering(V... values);
         Clustering<V> clustering();
-        Clustering<V> staticClustering();
+        // Note: the static clustering is always Clustering.STATIC_CLUSTERING (of ByteBuffer accessor).
         ClusteringBound<V> bound(ClusteringPrefix.Kind kind, V... values);
         ClusteringBound<V> bound(ClusteringPrefix.Kind kind);
         ClusteringBoundary<V> boundary(ClusteringPrefix.Kind kind, V... values);

@@ -1191,7 +1191,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (notCleaned == null)
                         continue;
 
-                    if (writer.append(notCleaned) != null)
+                    if (writer.append(notCleaned))
                         totalkeysWritten++;
 
                     long bytesScanned = scanner.getBytesScanned();

@@ -186,7 +186,7 @@ public abstract class Cell<V> extends ColumnData
      *   - [ value ]: the cell value, unless it has the HAS_EMPTY_VALUE_MASK.
      *   - [ path ]: the cell path if the column this is a cell of is complex.
      */
-    static class Serializer
+    public static class Serializer
     {
         private final static int IS_DELETED_MASK             = 0x01; // Whether the cell is a tombstone or not.
         private final static int IS_EXPIRING_MASK            = 0x02; // Whether the cell is expiring.

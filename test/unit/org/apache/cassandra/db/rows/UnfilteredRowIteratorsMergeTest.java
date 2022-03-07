@@ -20,17 +20,21 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.IntUnaryOperator;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.io.sstable.compaction.IteratorFromCursor;
+import org.apache.cassandra.io.sstable.compaction.SSTableCursor;
+import org.apache.cassandra.io.sstable.compaction.SSTableCursorMerger;
+import org.apache.cassandra.io.sstable.compaction.SkipEmptyDataCursor;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -46,7 +50,7 @@ public class UnfilteredRowIteratorsMergeTest
         DatabaseDescriptor.daemonInitialization();
     }
     static DecoratedKey partitionKey = Util.dk("key");
-    static DeletionTime partitionLevelDeletion = DeletionTime.LIVE;
+    static Map<List<Unfiltered>, DeletionTime> partitionLevelDeletions = Maps.newHashMap();
     static TableMetadata metadata =
         TableMetadata.builder("UnfilteredRowIteratorsMergeTest", "Test")
                      .addPartitionKeyColumn("key", AsciiType.instance)
@@ -71,25 +75,37 @@ public class UnfilteredRowIteratorsMergeTest
     @Test
     public void testTombstoneMerge()
     {
-        testTombstoneMerge(false, false);
+        testTombstoneMerge(false, false, false);
     }
 
     @Test
     public void testTombstoneMergeReversed()
     {
-        testTombstoneMerge(true, false);
+        testTombstoneMerge(true, false, false);
     }
+    @Test
+    public void testTombstoneMergeCursor()
+    {
+        testTombstoneMerge(false, false, true);
+    }
+
 
     @Test
     public void testTombstoneMergeIterative()
     {
-        testTombstoneMerge(false, true);
+        testTombstoneMerge(false, true, false);
     }
 
     @Test
     public void testTombstoneMergeReversedIterative()
     {
-        testTombstoneMerge(true, true);
+        testTombstoneMerge(true, true, false);
+    }
+
+    @Test
+    public void testTombstoneMergeCursorIterative()
+    {
+        testTombstoneMerge(false, true, true);
     }
 
     @Test
@@ -100,8 +116,15 @@ public class UnfilteredRowIteratorsMergeTest
                      "66<[13] [13]<67");
     }
 
+    @Test
+    public void testWithPartitionLevelDeletion()
+    {
+        testForInput("D5|68[7]",
+                     "67<=[11] [11]<69" );
+    }
+
     @SuppressWarnings("unused")
-    public void testTombstoneMerge(boolean reversed, boolean iterations)
+    public void testTombstoneMerge(boolean reversed, boolean iterations, boolean throughCursor)
     {
         this.reversed = reversed;
         UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, reversed);
@@ -122,8 +145,8 @@ public class UnfilteredRowIteratorsMergeTest
                 System.out.println("Merging");
             for (int i=0; i<ITERATORS; ++i)
                 sources.add(generator.generateSource(r, ITEMS, RANGE, DEL_RANGE, timeGenerators.get(r.nextInt(timeGenerators.size()))));
-            List<Unfiltered> merged = merge(sources, iterations);
-    
+            List<Unfiltered> merged = merge(sources, iterations, throughCursor);
+
             if (ITEMS <= 20)
                 System.out.println("results in");
             if (ITEMS <= 20)
@@ -138,11 +161,23 @@ public class UnfilteredRowIteratorsMergeTest
         }
     }
 
-    private List<Unfiltered> merge(List<List<Unfiltered>> sources, boolean iterations)
+    private List<Unfiltered> merge(List<List<Unfiltered>> sources, boolean iterations, boolean throughCursors)
+    {
+        if (throughCursors)
+            return mergeThroughCursors(sources,  iterations);
+        else
+            return mergeThroughIterators(sources, iterations);
+    }
+
+    private List<Unfiltered> mergeThroughIterators(List<List<Unfiltered>> sources, boolean iterations)
     {
         List<UnfilteredRowIterator> us = sources.
                 stream().
-                map(l -> new UnfilteredRowsGenerator.Source(l.iterator(), metadata, partitionKey, DeletionTime.LIVE, reversed)).
+                map(l -> new UnfilteredRowsGenerator.Source(l.iterator(),
+                                                            metadata,
+                                                            partitionKey,
+                                                            partitionLevelDeletions.computeIfAbsent(l, v -> DeletionTime.LIVE),
+                                                            reversed)).
                 collect(Collectors.toList());
         List<Unfiltered> merged = new ArrayList<>();
         Iterators.addAll(merged, mergeIterators(us, iterations));
@@ -165,6 +200,155 @@ public class UnfilteredRowIteratorsMergeTest
         {
             return UnfilteredRowIterators.merge(us);
         }
+    }
+
+    private List<Unfiltered> mergeThroughCursors(List<List<Unfiltered>> sources, boolean iterations)
+    {
+        List<SSTableCursor> us = sources.stream()
+                                        .map(l -> cursor(l,
+                                                         partitionKey,
+                                                         partitionLevelDeletions.computeIfAbsent(l, v -> DeletionTime.LIVE)))
+                                        .collect(Collectors.toList());
+        List<Unfiltered> merged = new ArrayList<>();
+        Iterators.addAll(merged, new IteratorFromCursor(metadata, mergeCursors(us, iterations)).next());
+        return merged;
+    }
+
+    private SSTableCursor mergeCursors(List<SSTableCursor> us, boolean iterations)
+    {
+        if (iterations)
+        {
+            SSTableCursor mi = us.get(0);
+            int i;
+            for (i = 1; i + 2 <= ITERATORS; i += 2)
+                mi = new SSTableCursorMerger(ImmutableList.of(mi, us.get(i), us.get(i+1)), metadata);
+            if (i + 1 <= ITERATORS)
+                mi = new SSTableCursorMerger(ImmutableList.of(mi, us.get(i)), metadata);
+            return new SkipEmptyDataCursor(mi);
+        }
+        else
+        {
+            return new SkipEmptyDataCursor(new SSTableCursorMerger(us, metadata));
+        }
+    }
+
+    private SSTableCursor cursor(List<Unfiltered> content, DecoratedKey partitionKey, DeletionTime partitionLevelDeletion)
+    {
+        return new SSTableCursor() {
+            Type type = Type.UNINITIALIZED;
+            Iterator<Unfiltered> iterator = content.iterator();
+            DeletionTime activeRangeDeletion = DeletionTime.LIVE;
+            DeletionTime rowLevelDeletion;
+            Unfiltered current;
+            Iterator<Cell<?>> cellIterator;
+            Cell currentCell;
+
+            public Type advance()
+            {
+                if (type == Type.RANGE_TOMBSTONE)
+                    activeRangeDeletion = rowLevelDeletion;
+
+                switch (type)
+                {
+                    case UNINITIALIZED:
+                        return type = Type.PARTITION;
+                    case ROW:
+                    case SIMPLE_COLUMN:
+                        if (cellIterator.hasNext())
+                        {
+                            currentCell = cellIterator.next();
+                            return type = Type.SIMPLE_COLUMN;
+                        }
+                        // else fall through
+                    case RANGE_TOMBSTONE:
+                    case PARTITION:
+                        if (!iterator.hasNext())
+                            return type = Type.EXHAUSTED;
+
+                        current = iterator.next();
+                        if (current.isRow())
+                        {
+                            Row row = (Row) this.current;
+                            cellIterator = row.cells().iterator();
+                            rowLevelDeletion = row.deletion().time();
+                            return type = Type.ROW;
+                        }
+                        else
+                        {
+                            RangeTombstoneMarker marker = (RangeTombstoneMarker) this.current;
+                            rowLevelDeletion = marker.isOpen(false) ? marker.openDeletionTime(false) : DeletionTime.LIVE;
+                            return type = Type.RANGE_TOMBSTONE;
+                        }
+                    default:
+                        throw new AssertionError();
+                }
+            }
+
+            public Type type()
+            {
+                return type;
+            }
+
+            public DecoratedKey partitionKey()
+            {
+                return partitionKey;
+            }
+
+            public DeletionTime partitionLevelDeletion()
+            {
+                return partitionLevelDeletion;
+            }
+
+            public ClusteringPrefix clusteringKey()
+            {
+                return current.clustering();
+            }
+
+            public LivenessInfo clusteringKeyLivenessInfo()
+            {
+                return ((Row) current).primaryKeyLivenessInfo();
+            }
+
+            public DeletionTime rowLevelDeletion()
+            {
+                return rowLevelDeletion;
+            }
+
+            public DeletionTime activeRangeDeletion()
+            {
+                return activeRangeDeletion;
+            }
+
+            public DeletionTime complexColumnDeletion()
+            {
+                return null;    // we don't return complex columns
+            }
+
+            public ColumnMetadata column()
+            {
+                return cell().column;
+            }
+
+            public long bytesProcessed()
+            {
+                return 0;
+            }
+
+            public long bytesTotal()
+            {
+                return 0;
+            }
+
+            public Cell cell()
+            {
+                return currentCell;
+            }
+
+            public void close()
+            {
+                // nothing
+            }
+        };
     }
 
     @SuppressWarnings("unused")
@@ -410,33 +594,10 @@ public class UnfilteredRowIteratorsMergeTest
             RangeTombstoneMarker marker = (RangeTombstoneMarker) curr;
             if (marker.isClose(reversed))
                 val = "[" + marker.closeDeletionTime(reversed).markedForDeleteAt() + "]" + (marker.closeIsInclusive(reversed) ? "<=" : "<") + val;
-            if (marker.isOpen(reversed)) 
+            if (marker.isOpen(reversed))
                 val = val + (marker.openIsInclusive(reversed) ? "<=" : "<") + "[" + marker.openDeletionTime(reversed).markedForDeleteAt() + "]";
         }
         return val;
-    }
-
-    class Source extends AbstractUnfilteredRowIterator implements UnfilteredRowIterator
-    {
-        Iterator<Unfiltered> content;
-
-        protected Source(Iterator<Unfiltered> content)
-        {
-            super(UnfilteredRowIteratorsMergeTest.metadata,
-                  UnfilteredRowIteratorsMergeTest.partitionKey,
-                  UnfilteredRowIteratorsMergeTest.partitionLevelDeletion,
-                  UnfilteredRowIteratorsMergeTest.metadata.regularAndStaticColumns(),
-                  null,
-                  reversed,
-                  EncodingStats.NO_STATS);
-            this.content = content;
-        }
-
-        @Override
-        protected Unfiltered computeNext()
-        {
-            return content.hasNext() ? content.next() : endOfData();
-        }
     }
 
     public void testForInput(String... inputs)
@@ -447,67 +608,23 @@ public class UnfilteredRowIteratorsMergeTest
         List<List<Unfiltered>> sources = new ArrayList<>();
         for (String input : inputs)
         {
-            List<Unfiltered> source = generator.parse(input, DEL_RANGE);
+            List<Unfiltered> source = generator.parse(input, DEL_RANGE, partitionLevelDeletions);
             generator.dumpList(source);
             generator.verifyValid(source);
             sources.add(source);
         }
 
-        List<Unfiltered> merged = merge(sources, false);
-        System.out.println("Merge to:");
+        List<Unfiltered> merged = merge(sources, false, false);
+        System.out.println("Merge through iterator to:");
         generator.dumpList(merged);
         verifyEquivalent(sources, merged, generator);
         generator.verifyValid(merged);
         System.out.println();
-    }
-
-    List<Unfiltered> parse(String input)
-    {
-        String[] split = input.split(" ");
-        Pattern open = Pattern.compile("(\\d+)<(=)?\\[(\\d+)\\]");
-        Pattern close = Pattern.compile("\\[(\\d+)\\]<(=)?(\\d+)");
-        Pattern row = Pattern.compile("(\\d+)(\\[(\\d+)\\])?");
-        List<Unfiltered> out = new ArrayList<>(split.length);
-        for (String s : split)
-        {
-            Matcher m = open.matcher(s);
-            if (m.matches())
-            {
-                out.add(openMarker(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(3)), m.group(2) != null));
-                continue;
-            }
-            m = close.matcher(s);
-            if (m.matches())
-            {
-                out.add(closeMarker(Integer.parseInt(m.group(3)), Integer.parseInt(m.group(1)), m.group(2) != null));
-                continue;
-            }
-            m = row.matcher(s);
-            if (m.matches())
-            {
-                int live = m.group(3) != null ? Integer.parseInt(m.group(3)) : DEL_RANGE;
-                out.add(emptyRowAt(Integer.parseInt(m.group(1)), x -> live));
-                continue;
-            }
-            Assert.fail("Can't parse " + s);
-        }
-        return out;
-    }
-
-    private RangeTombstoneMarker openMarker(int pos, int delTime, boolean inclusive)
-    {
-        return marker(pos, delTime, true, inclusive);
-    }
-
-    private RangeTombstoneMarker closeMarker(int pos, int delTime, boolean inclusive)
-    {
-        return marker(pos, delTime, false, inclusive);
-    }
-
-    private RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
-    {
-        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
-                                                                    new ByteBuffer[] {clusteringFor(pos).bufferAt(0)}),
-                                             new DeletionTime(delTime, delTime));
+        merged = merge(sources, false, true);
+        System.out.println("Merge through cursors to:");
+        generator.dumpList(merged);
+        verifyEquivalent(sources, merged, generator);
+        generator.verifyValid(merged);
+        System.out.println();
     }
 }

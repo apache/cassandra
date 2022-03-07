@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
  *   3) {@code ClusteringBoundary} represents the threshold between two adjacent range tombstones.
  * See those classes for more details.
  */
-public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
+public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable
 {
     public static final Serializer serializer = new Serializer();
 

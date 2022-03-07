@@ -30,6 +30,7 @@ import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Reducer;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -745,7 +746,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             return rows;
         }
 
-        private static class ColumnDataReducer extends MergeIterator.Reducer<ColumnData, ColumnData>
+        private static class ColumnDataReducer extends Reducer<ColumnData, ColumnData>
         {
             private ColumnMetadata column;
             private final List<ColumnData> versions;
@@ -791,7 +792,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             }
 
             @SuppressWarnings("resource")
-            protected ColumnData getReduced()
+            public ColumnData getReduced()
             {
                 if (column.isSimple())
                 {
@@ -846,7 +847,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             }
         }
 
-        private static class CellReducer extends MergeIterator.Reducer<Cell<?>, Cell<?>>
+        private static class CellReducer extends Reducer<Cell<?>, Cell<?>>
         {
             private DeletionTime activeDeletion;
             private Cell<?> merged;
@@ -863,7 +864,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                     merged = merged == null ? cell : Cells.reconcile(merged, cell);
             }
 
-            protected Cell<?> getReduced()
+            public Cell<?> getReduced()
             {
                 return merged;
             }

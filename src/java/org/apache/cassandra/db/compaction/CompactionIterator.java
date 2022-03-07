@@ -37,6 +37,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.utils.Throwables;
 
@@ -170,6 +171,41 @@ public class CompactionIterator implements UnfilteredPartitionIterator
     long totalSourceRows()
     {
         return Arrays.stream(mergedRowsHistogram).reduce(0L, Long::sum);
+    }
+
+    public long getTotalBytesScanned()
+    {
+        long bytesScanned = 0L;
+        for (ISSTableScanner scanner : scanners)
+            bytesScanned += scanner.getBytesScanned();
+
+        return bytesScanned;
+    }
+
+    public long getTotalCompressedSize()
+    {
+        long compressedSize = 0;
+        for (ISSTableScanner scanner : scanners)
+            compressedSize += scanner.getCompressedLengthInBytes();
+
+        return compressedSize;
+    }
+
+    public double getCompressionRatio()
+    {
+        double compressed = 0.0;
+        double uncompressed = 0.0;
+
+        for (ISSTableScanner scanner : scanners)
+        {
+            compressed += scanner.getCompressedLengthInBytes();
+            uncompressed += scanner.getLengthInBytes();
+        }
+
+        if (compressed == uncompressed || uncompressed == 0)
+            return MetadataCollector.NO_COMPRESSION_RATIO;
+
+        return compressed / uncompressed;
     }
 
     long[] mergedPartitionsHistogram()
@@ -322,7 +358,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
         return String.format("%s: %s, (%d/%d)", type, metadata(), bytesRead(), totalBytes());
     }
 
-    private class Purger extends PurgeFunction
+    class Purger extends PurgeFunction
     {
         private final AbstractCompactionController controller;
 

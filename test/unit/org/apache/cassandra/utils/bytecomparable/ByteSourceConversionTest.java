@@ -298,10 +298,10 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
                 V[] b = accessor.createArray(2);
                 b[0] = accessor.valueOf(t1.decompose(o1));
                 b[1] = accessor.valueOf(t2.decompose(o2));
-                ClusteringPrefix<V> c = ByteSourceComparisonTest.makeBound(accessor.factory(), k1, b);
+                ClusteringPrefix<?> c = ByteSourceComparisonTest.makeBound(accessor.factory(), k1, b);
                 final ByteComparable bsc = comp.asByteComparable(c);
                 logger.info("Clustering {} bytesource {}", c.clusteringString(comp.subtypes()), bsc.byteComparableAsString(VERSION));
-                ClusteringPrefix<V> converted = getClusteringPrefix(accessor, k1, comp, bsc);
+                ClusteringPrefix<?> converted = getClusteringPrefix(accessor, k1, comp, bsc);
                 assertEquals(String.format("Failed compare(%s, converted %s ByteSource %s) == 0\ntype %s",
                                            safeStr(c.clusteringString(comp.subtypes())),
                                            safeStr(converted.clusteringString(comp.subtypes())),
@@ -335,7 +335,7 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
             }
     }
 
-    private static <V> ClusteringPrefix<V> getClusteringPrefix(ValueAccessor<V> accessor,
+    private static <V> ClusteringPrefix<?> getClusteringPrefix(ValueAccessor<V> accessor,
                                                                ClusteringPrefix.Kind k1,
                                                                ClusteringComparator comp,
                                                                ByteComparable bsc)

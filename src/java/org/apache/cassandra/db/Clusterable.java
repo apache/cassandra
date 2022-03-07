@@ -20,8 +20,11 @@ package org.apache.cassandra.db;
 /**
  * Common class for objects that are identified by a clustering prefix, and can be thus sorted by a
  * {@link ClusteringComparator}.
+ *
+ * Note that clusterings can have mixed accessors (necessary because the static clustering is always of ByteBuffer
+ * accessor) and thus the accessor type cannot be set here.
  */
-public interface Clusterable<T>
+public interface Clusterable
 {
-    public ClusteringPrefix<T> clustering();
+    public ClusteringPrefix<?> clustering();
 }

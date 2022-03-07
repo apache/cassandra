@@ -252,11 +252,12 @@ public class BackgroundCompactions
             compactionLogger.statistics(strategy, "completed", getStatistics(strategy));
 
         CompactionPick completed = compactions.remove(id);
-        CompactionProgress progress = completed.progress;
-        updateCompactionRate(progress);
-
         if (completed != null)
+        {
+            CompactionProgress progress = completed.progress;
+            updateCompactionRate(progress);
             completed.setCompleted();
+        }
 
         // We rely on setPending() to refresh the aggregates again even though in some cases it may not be
         // called immediately (e.g. compactions disabled)

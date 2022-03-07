@@ -136,6 +136,11 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return markedForDeleteAt() > dt.markedForDeleteAt() || (markedForDeleteAt() == dt.markedForDeleteAt() && localDeletionTime() > dt.localDeletionTime());
     }
 
+    public static DeletionTime merge(DeletionTime d1, DeletionTime d2)
+    {
+        return d2.supersedes(d1) ? d2 : d1;
+    }
+
     public boolean deletes(LivenessInfo info)
     {
         return deletes(info.timestamp());

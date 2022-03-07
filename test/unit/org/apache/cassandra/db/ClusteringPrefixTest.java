@@ -178,12 +178,12 @@ public class ClusteringPrefixTest
 
     public <V> void testRetainable(ValueAccessor.ObjectFactory<V> factory,
                                    Function<String, V[]> allocator,
-                                   Function<ClusteringPrefix<V>, ClusteringPrefix<V>> mapper)
+                                   Function<ClusteringPrefix<?>, ClusteringPrefix<?>> mapper)
     {
-        ClusteringPrefix<V>[] clusterings = new ClusteringPrefix[]
+        ClusteringPrefix<?>[] clusterings = new ClusteringPrefix[]
         {
             factory.clustering(),
-            factory.staticClustering(),
+            Clustering.STATIC_CLUSTERING,
             factory.clustering(allocator.apply("test")),
             factory.bound(ClusteringPrefix.Kind.INCL_START_BOUND, allocator.apply("testA")),
             factory.bound(ClusteringPrefix.Kind.INCL_END_BOUND, allocator.apply("testB")),
