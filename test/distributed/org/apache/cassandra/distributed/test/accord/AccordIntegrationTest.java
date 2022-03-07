@@ -49,7 +49,7 @@ public class AccordIntegrationTest extends TestBaseImpl
                 txnBuilder.withCondition(KEYSPACE, "tbl", 0, 0, NOT_EXISTS);
                 try
                 {
-                    AccordData result = (AccordData) AccordService.instance.node.coordinate(txnBuilder.build()).toCompletableFuture().get();
+                    AccordData result = (AccordData) AccordService.instance.node.coordinate(txnBuilder.build()).get();
                     Assert.assertNotNull(result);
                 }
                 catch (InterruptedException | ExecutionException e)

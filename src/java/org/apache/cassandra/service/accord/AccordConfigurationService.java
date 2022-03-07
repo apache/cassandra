@@ -24,6 +24,7 @@ import java.util.List;
 import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.topology.Topology;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Currently a stubbed out config service meant to be triggered from a dtest
@@ -59,7 +60,7 @@ public class AccordConfigurationService implements ConfigurationService
     }
 
     @Override
-    public void fetchTopologyForEpoch(long epoch, Runnable onComplete)
+    public Future<Void> fetchTopologyForEpoch(long epoch)
     {
         throw new UnsupportedOperationException();
     }
