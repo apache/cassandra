@@ -397,6 +397,7 @@ public final class Guardrails implements GuardrailsMBean
         return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
     }
 
+    @Override
     public int getInSelectCartesianProductWarnThreshold()
     {
         return DEFAULT_CONFIG.getInSelectCartesianProductWarnThreshold();

@@ -341,7 +341,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   warn,
                                   () -> config.in_select_cartesian_product_warn_threshold,
                                   x -> config.in_select_cartesian_product_warn_threshold = x);
-        updatePropertyWithLogging("page_size_fail_threshold",
+        updatePropertyWithLogging("in_select_cartesian_product_fail_threshold",
                                   fail,
                                   () -> config.in_select_cartesian_product_fail_threshold,
                                   x -> config.in_select_cartesian_product_fail_threshold = x);
