@@ -187,4 +187,13 @@ public interface CompactionStrategy extends CompactionObserver
      * @return true if the strategy supports early open
      */
     boolean supportsEarlyOpen();
+
+    /**
+     * Return whether this strategy can be used with cursor compaction.
+     * Currently we report true for all strategies.
+     */
+    default boolean supportsCursorCompaction()
+    {
+        return true;
+    }
 }

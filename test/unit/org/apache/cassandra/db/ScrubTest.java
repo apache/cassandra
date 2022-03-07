@@ -837,10 +837,8 @@ public class ScrubTest
         }
 
         @Override
-        protected long beforeAppend(DecoratedKey decoratedKey)
-        {
-            return dataFile.position();
-        }
+        protected void checkKeyOrder(DecoratedKey decoratedKey)
+        {}
     }
 
     /**

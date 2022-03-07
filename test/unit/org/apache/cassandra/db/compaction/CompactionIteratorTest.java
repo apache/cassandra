@@ -244,22 +244,7 @@ public class CompactionIteratorTest extends CQLTester
 
     private List<List<Unfiltered>> parse(String[] inputs, UnfilteredRowsGenerator generator)
     {
-        return ImmutableList.copyOf(Lists.transform(Arrays.asList(inputs), x -> parse(x, generator)));
-    }
-
-    private List<Unfiltered> parse(String input, UnfilteredRowsGenerator generator)
-    {
-        Matcher m = Pattern.compile("D(\\d+)\\|").matcher(input);
-        if (m.lookingAt())
-        {
-            int del = Integer.parseInt(m.group(1));
-            input = input.substring(m.end());
-            List<Unfiltered> list = generator.parse(input, NOW - 1);
-            deletionTimes.put(list, new DeletionTime(del, del));
-            return list;
-        }
-        else
-            return generator.parse(input, NOW - 1);
+        return ImmutableList.copyOf(Lists.transform(Arrays.asList(inputs), x -> generator.parse(x, NOW - 1, deletionTimes)));
     }
 
     private List<Unfiltered> compact(Iterable<List<Unfiltered>> sources, Iterable<List<Unfiltered>> tombstoneSources)

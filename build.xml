@@ -1592,7 +1592,25 @@
     </sequential>
   </macrodef>
 
-  <macrodef name="testlist-system-keyspace-directory">
+    <macrodef name="testlist-nocursor">
+        <attribute name="test.file.list"/>
+        <attribute name="testlist.offset"/>
+        <sequential>
+            <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
+                             exclude="**/*.java" timeout="${test.timeout}" testtag="nocursor">
+                <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+                <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+                <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+                <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+                <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
+                <jvmarg value="-Dcassandra.skip_sync=true" />
+                <jvmarg value="-Dcassandra.allow_cursor_compaction=false" />
+                <jvmarg value="-Dlogback.configurationFile=file://${test.logback.configurationFile}"/>
+            </testmacrohelper>
+        </sequential>
+    </macrodef>
+
+    <macrodef name="testlist-system-keyspace-directory">
     <attribute name="test.file.list" />
     <sequential>
       <property name="system_keyspaces_directory_yaml" value="${build.test.dir}/cassandra.system.yaml"/>
@@ -1704,6 +1722,14 @@
       </path>
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-bigtable" />
+  </target>
+
+  <target name="test-nocursor" depends="maybe-build-test" description="Execute unit tests with cursor compaction disabled">
+      <path id="all-test-classes-path">
+          <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+      </path>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-nocursor" />
   </target>
 
   <target name="test-system-keyspace-directory" depends="maybe-build-test" description="Execute unit tests with a system keyspaces directory configured">

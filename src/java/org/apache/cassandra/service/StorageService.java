@@ -5742,11 +5742,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB();
     }
 
+    @Deprecated // CPU-intensive optimization that visibly slows down compaction but does not provide a clear benefit (see STAR-782)
     public boolean getMigrateKeycacheOnCompaction()
     {
         return DatabaseDescriptor.shouldMigrateKeycacheOnCompaction();
     }
 
+    @Deprecated // CPU-intensive optimization that visibly slows down compaction but does not provide a clear benefit (see STAR-782)
     public void setMigrateKeycacheOnCompaction(boolean invalidateKeyCacheOnCompaction)
     {
         DatabaseDescriptor.setMigrateKeycacheOnCompaction(invalidateKeyCacheOnCompaction);

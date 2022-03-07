@@ -56,6 +56,7 @@ import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -201,6 +202,8 @@ public class BigTableRowIndexEntryTest extends CQLTester
         {
 
             Iterator<Clustering<?>> clusteringIter = clusterings.iterator();
+            if (staticRow == null)
+                staticRow = Rows.EMPTY_STATIC_ROW;
             columnIndex.buildRowIndex(makeRowIter(staticRow, partitionKey, clusteringIter, dataWriterNew));
             rieNew = BigTableRowIndexEntry.create(startPosition, 0L,
                                                   deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,

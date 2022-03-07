@@ -1,0 +1,23 @@
+--- a/build.xml
++++ b/build.xml
+@@ -1708,8 +1708,7 @@
+       <testhelper testdelegate="testlist-bigtable" />
+   </target>
+ 
+-<<<<<<<
+-  <target name="test-nocursor" depends="build-test" description="Execute unit tests with cursor compaction disabled">
++  <target name="test-nocursor" depends="maybe-build-test" description="Execute unit tests with cursor compaction disabled">
+       <path id="all-test-classes-path">
+           <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+       </path>
+@@ -1717,10 +1716,7 @@
+       <testhelper testdelegate="testlist-nocursor" />
+   </target>
+ 
+-  <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
+-=======
+   <target name="test-system-keyspace-directory" depends="maybe-build-test" description="Execute unit tests with a system keyspaces directory configured">
+->>>>>>>
+     <path id="all-test-classes-path">
+       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+     </path>

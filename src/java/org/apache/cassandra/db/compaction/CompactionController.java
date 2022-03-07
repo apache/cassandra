@@ -101,6 +101,15 @@ public class CompactionController extends AbstractCompactionController
             closeDataFiles();
     }
 
+    public void refreshOverlaps()
+    {
+        if (overlapTracker != null)
+        {
+            overlapTracker.refreshOverlaps();
+            closeDataFiles();
+        }
+    }
+
     void closeDataFiles()
     {
         FileUtils.closeQuietly(openDataFiles.values());

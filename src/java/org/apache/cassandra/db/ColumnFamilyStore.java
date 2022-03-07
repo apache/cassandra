@@ -2724,6 +2724,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return String.format("%s.%s", getKeyspaceName(), getTableName());
     }
 
+    /**
+     * Do not use outside of tests / benchmarks.
+     * Ensures no flushing will run while the given runnable is executing.
+     */
+    @VisibleForTesting
+    public void unsafeRunWithoutFlushing(Runnable r)
+    {
+        synchronized (data)
+        {
+            r.run();
+        }
+    }
+
     public void disableAutoCompaction()
     {
         // we don't use CompactionStrategy.pause since we don't want users flipping that on and off
@@ -3522,6 +3535,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return false;
         }
 
+        public void refreshOverlaps()
+        {
+            if (this.overlappingSSTables != null)
+                close();
+            collectOverlaps();
+        }
+        
         private void collectOverlaps()
         {
             if (compacting == null)

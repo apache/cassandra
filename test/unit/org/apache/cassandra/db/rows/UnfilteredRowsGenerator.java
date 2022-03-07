@@ -219,6 +219,28 @@ public class UnfilteredRowsGenerator
         return out;
     }
 
+    /**
+     * As above, but also parses "Dxx|" prefix which specifies deletion time to be put in the specified deletion times map.
+     * @param input
+     * @param defaultLiveness
+     * @param deletionTimes
+     * @return
+     */
+    public List<Unfiltered> parse(String input, int defaultLiveness, Map<List<Unfiltered>, DeletionTime> deletionTimes)
+    {
+        Matcher m = Pattern.compile("D(\\d+)\\|").matcher(input);
+        if (m.lookingAt())
+        {
+            int del = Integer.parseInt(m.group(1));
+            input = input.substring(m.end());
+            List<Unfiltered> list = parse(input, defaultLiveness);
+            deletionTimes.put(list, new DeletionTime(del, del));
+            return list;
+        }
+        else
+            return parse(input, defaultLiveness);
+    }
+
     static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering<?> clustering = clusteringFor(pos);

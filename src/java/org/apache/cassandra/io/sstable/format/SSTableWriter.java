@@ -18,23 +18,33 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.PartitionSerializationException;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -74,18 +84,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
     protected final SerializationHeader header;
-    protected final TransactionalProxy txnProxy = txnProxy();
     protected final Collection<SSTableFlushObserver> observers;
 
-    protected abstract TransactionalProxy txnProxy();
-
-    // due to lack of multiple inheritance, we use an inner class to proxy our Transactional implementation details
-    protected abstract class TransactionalProxy extends AbstractTransactional
-    {
-        // should be set during doPrepare()
-        protected SSTableReader finalReader;
-        protected boolean openResult;
-    }
+    protected abstract AbstractTransactional txnProxy();
 
     protected SSTableWriter(Descriptor descriptor,
                             Set<Component> components,
@@ -180,37 +181,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, 0, header, indexGroups, lifecycleNewTracker);
     }
 
-    /**
-     * BigTable SSTable components. Should be moved to BigTableWriter but is left here for painless upstream merges.
-     */
-    public static Set<Component> bigTableComponents(TableMetadata metadata, Collection<Component> indexComponents)
-    {
-        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
-                Component.PRIMARY_INDEX,
-                Component.STATS,
-                Component.SUMMARY,
-                Component.TOC,
-                Component.DIGEST));
-
-        if (metadata.params.bloomFilterFpChance < 1.0)
-            components.add(Component.FILTER);
-
-        if (metadata.params.compression.isEnabled())
-        {
-            components.add(Component.COMPRESSION_INFO);
-        }
-        else
-        {
-            // it would feel safer to actually add this component later in maybeWriteDigest(),
-            // but the components are unmodifiable after construction
-            components.add(Component.CRC);
-        }
-
-        components.addAll(indexComponents);
-
-        return components;
-    }
-
     private static Collection<SSTableFlushObserver> observers(Descriptor descriptor,
                                                               Collection<Index.Group> indexGroups,
                                                               LifecycleNewTracker tracker,
@@ -238,13 +208,55 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     /**
      * Appends partition data to this writer.
      *
-     * @param iterator the partition to write
+     * @param partition the partition to write
      * @return the created index entry if something was written, that is if {@code iterator}
      * wasn't empty, {@code null} otherwise.
      *
      * @throws FSWriteError if a write to the dataFile fails
      */
-    public abstract RowIndexEntry append(UnfilteredRowIterator iterator);
+    public RowIndexEntry append(UnfilteredRowIterator partition)
+    {
+        if (partition.isEmpty())
+            return null;
+
+        try
+        {
+            if (!startPartition(partition.partitionKey(), partition.partitionLevelDeletion()))
+                return null;
+
+            if (!partition.staticRow().isEmpty())
+                addUnfiltered(partition.staticRow());
+
+            while (partition.hasNext())
+                addUnfiltered(partition.next());
+
+            return endPartition();
+        }
+        catch (BufferOverflowException boe)
+        {
+            throw new PartitionSerializationException(partition, boe);
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, getFilename());
+        }
+    }
+
+    /**
+     * Start a partition. Will be followed by a sequence of addUnfiltered(), and finished with endPartition().
+     * The static row may be given in the first addUnfiltered() (by cursors), or via addStaticRow() called before any
+     * other addUnfiltered() (by append(UnfilteredRowIterator) above).
+     *
+     * @param key
+     * @param partitionLevelDeletion
+     * @return true if the partition was successfully started, false if there is a problem (e.g. key not in order).
+     * @throws IOException
+     */
+    public abstract boolean startPartition(DecoratedKey key, DeletionTime partitionLevelDeletion) throws IOException;
+
+    public abstract void addUnfiltered(Unfiltered unfiltered) throws IOException;
+
+    public abstract RowIndexEntry endPartition() throws IOException;
 
     public abstract long getFilePointer();
 
@@ -270,11 +282,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return this;
     }
 
-    public SSTableWriter setOpenResult(boolean openResult)
-    {
-        txnProxy.openResult = openResult;
-        return this;
-    }
+    public abstract SSTableWriter setOpenResult(boolean openResult);
 
     /**
      * Open the resultant SSTableReader before it has been fully written
@@ -298,7 +306,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public SSTableReader finish(boolean openResult)
     {
         setOpenResult(openResult);
-        txnProxy.finish();
+        txnProxy().finish();
         observers.forEach(SSTableFlushObserver::complete);
         return finished();
     }
@@ -307,17 +315,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
      * Open the resultant SSTableReader once it has been fully written, and all related state
      * is ready to be finalised including other sstables being written involved in the same operation
      */
-    public SSTableReader finished()
-    {
-        return txnProxy.finalReader;
-    }
+    public abstract SSTableReader finished();
 
     // finalise our state on disk, including renaming
     public final void prepareToCommit()
     {
         try
         {
-            txnProxy.prepareToCommit();
+            txnProxy().prepareToCommit();
         }
         finally
         {
@@ -328,14 +333,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public final Throwable commit(Throwable accumulate)
     {
-        return txnProxy.commit(accumulate);
+        return txnProxy().commit(accumulate);
     }
 
     public final Throwable abort(Throwable accumulate)
     {
         try
         {
-            return txnProxy.abort(accumulate);
+            return txnProxy().abort(accumulate);
         }
         finally
         {
@@ -345,14 +350,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public final void close()
     {
-        txnProxy.close();
+        txnProxy().close();
     }
 
     public final void abort()
     {
         try
         {
-            txnProxy.abort();
+            txnProxy().abort();
         }
         finally
         {
@@ -432,9 +437,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         long dataSize();
     }
 
-    public static void guardCollectionSize(UnfilteredRowIterator partition, Unfiltered unfiltered)
+    public static void guardCollectionSize(TableMetadata metadata, DecoratedKey partitionKey, Unfiltered unfiltered)
     {
-        if (!unfiltered.isRow() || SchemaConstants.isInternalKeyspace(partition.metadata().keyspace))
+        if (!unfiltered.isRow() || SchemaConstants.isInternalKeyspace(metadata.keyspace))
             return;
 
         if (!Guardrails.collectionSize.enabled(null) && !Guardrails.itemsPerCollection.enabled(null))
@@ -461,8 +466,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
                 continue;
 
-            TableMetadata metadata = partition.metadata();
-            ByteBuffer key = partition.partitionKey().getKey();
+            ByteBuffer key = partitionKey.getKey();
             String keyString = metadata.primaryKeyAsCQLLiteral(key, row.clustering());
             String msg = String.format("%s in row %s in table %s",
                                        column.name.toString(),
