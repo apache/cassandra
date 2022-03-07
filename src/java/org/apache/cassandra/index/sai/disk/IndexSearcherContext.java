@@ -30,15 +30,19 @@ public class IndexSearcherContext
 
     final PrimaryKey minimumKey;
     final PrimaryKey maximumKey;
+    final long segmentRowIdOffset;
     final long maxPartitionOffset;
 
     public IndexSearcherContext(PrimaryKey minimumKey,
                                 PrimaryKey maximumKey,
+                                long segmentRowIdOffset,
                                 SSTableQueryContext context,
                                 PostingList.PeekablePostingList postingList) throws IOException
     {
         this.context = context;
         this.postingList = postingList;
+
+        this.segmentRowIdOffset = segmentRowIdOffset;
 
         this.minimumKey = minimumKey;
 

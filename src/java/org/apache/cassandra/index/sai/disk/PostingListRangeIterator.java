@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.Throwables;
  *
  * <ol>
  *   <li> fetch next segment row id from posting list or skip to specific segment row id if {@link #skipTo(PrimaryKey)} is called </li>
+ *   <li> add segmentRowIdOffset to obtain the sstable row id </li>
  *   <li> produce a {@link PrimaryKey} from {@link PrimaryKeyMap#primaryKeyFromRowId(long)} which is used
  *       to avoid fetching duplicated keys due to partition-level indexing on wide partition schema.
  *       <br/>
@@ -104,11 +105,11 @@ public class PostingListRangeIterator extends RangeIterator
             if (exhausted())
                 return endOfData();
 
-            long segmentRowId = getNextSegmentRowId();
-            if (segmentRowId == PostingList.END_OF_STREAM)
+            long rowId = getNextRowId();
+            if (rowId == PostingList.END_OF_STREAM)
                 return endOfData();
 
-            return primaryKeyMap.primaryKeyFromRowId(segmentRowId);
+            return primaryKeyMap.primaryKeyFromRowId(rowId);
         }
         catch (Throwable t)
         {
@@ -138,10 +139,11 @@ public class PostingListRangeIterator extends RangeIterator
     }
 
     /**
-     * reads the next row ID from the underlying posting list, potentially skipping to get there.
+     * reads the next sstable row ID from the underlying posting list, potentially skipping to get there.
      */
-    private long getNextSegmentRowId() throws IOException
+    private long getNextRowId() throws IOException
     {
+        long segmentRowId;
         if (needsSkipping)
         {
             long targetRowID = primaryKeyMap.rowIdFromPrimaryKey(skipToToken);
@@ -151,14 +153,16 @@ public class PostingListRangeIterator extends RangeIterator
                 return PostingList.END_OF_STREAM;
             }
 
-            long segmentRowId = postingList.advance(targetRowID);
-
+            segmentRowId = postingList.advance(targetRowID - searcherContext.segmentRowIdOffset);
             needsSkipping = false;
-            return segmentRowId;
         }
         else
         {
-            return postingList.nextPosting();
+            segmentRowId = postingList.nextPosting();
         }
+
+        return segmentRowId != PostingList.END_OF_STREAM
+               ? segmentRowId + searcherContext.segmentRowIdOffset
+               : PostingList.END_OF_STREAM;
     }
 }
