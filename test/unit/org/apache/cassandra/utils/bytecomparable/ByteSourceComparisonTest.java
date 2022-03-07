@@ -334,8 +334,8 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                     b[1] = t2.decompose(o2);
                     d[0] = t1.decompose(o3);
                     d[1] = t2.decompose(o4);
-                    ClusteringPrefix<ByteBuffer> c = makeBound(k1, b);
-                    ClusteringPrefix<ByteBuffer> e = makeBound(k2, d);
+                    ClusteringPrefix<?> c = makeBound(k1, b);
+                    ClusteringPrefix<?> e = makeBound(k2, d);
                     final ByteComparable bsc = comp.asByteComparable(c);
                     final ByteComparable bse = comp.asByteComparable(e);
                     int expected = Integer.signum(comp.compare(c, e));
@@ -359,12 +359,12 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                 }
     }
 
-    static ClusteringPrefix<ByteBuffer> makeBound(ClusteringPrefix.Kind k1, ByteBuffer[] b)
+    static ClusteringPrefix<?> makeBound(ClusteringPrefix.Kind k1, ByteBuffer[] b)
     {
         return makeBound(ByteBufferAccessor.instance.factory(), k1, b);
     }
 
-    static <V> ClusteringPrefix<V> makeBound(ValueAccessor.ObjectFactory<V> factory, ClusteringPrefix.Kind k1, V[] b)
+    static <V> ClusteringPrefix<?> makeBound(ValueAccessor.ObjectFactory<V> factory, ClusteringPrefix.Kind k1, V[] b)
     {
         switch (k1)
         {
@@ -382,7 +382,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
             return factory.clustering(b);
 
         case STATIC_CLUSTERING:
-            return factory.staticClustering();
+            return Clustering.STATIC_CLUSTERING;
 
         default:
             throw new AssertionError();

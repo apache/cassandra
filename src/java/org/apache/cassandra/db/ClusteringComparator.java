@@ -334,7 +334,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
      *                 buffers in advance.
      * @param comparable The clustering encoded as a byte-comparable sequence.
      */
-    public <V> Clustering<V> clusteringFromByteComparable(ValueAccessor<V> accessor,
+    public <V> Clustering<?> clusteringFromByteComparable(ValueAccessor<V> accessor,
                                                           ByteComparable comparable)
     {
         ByteComparable.Version version = ByteComparable.Version.OSS41;
@@ -350,7 +350,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
             assert size() == 0 : "Terminator should be after " + size() + " components, got 0";
             return accessor.factory().clustering();
         case EXCLUDED:
-            return accessor.factory().staticClustering();
+            return Clustering.STATIC_CLUSTERING;
         default:
             // continue with processing
         }

@@ -18,17 +18,15 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.nio.ByteBuffer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -36,12 +34,14 @@ import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.BTreeRemoval;
+import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 
 /**
  * An immutable and sorted list of (non-PK) columns for a given table.
@@ -579,6 +579,50 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             }
         }
 
+        /**
+         * Deserialize a columns subset, placing the selected columns in the given array and returning the number of
+         * columns.
+         *
+         * @param superset the full list of columns
+         * @param in file from which the subset should be read
+         * @param placeInto An array where the selected columns will be placed, in the same order as superset. Must
+         *                  be at least superset.length long.
+         * @return the number of items placed in the target array, <= superset.length.
+         * @throws IOException
+         */
+        public int deserializeSubset(ColumnMetadata[] superset,
+                                     DataInputPlus in,
+                                     ColumnMetadata[] placeInto)
+        throws IOException
+        {
+            long encoded = in.readUnsignedVInt();
+            if (encoded == 0L)
+            {
+                // this is wasteful, but we don't expect to be called in this case (rows will have a flag set that
+                // bypasses this path).
+                System.arraycopy(superset, 0, placeInto, 0, superset.length);
+                return superset.length;
+            }
+            else if (superset.length >= 64)
+            {
+                return deserializeLargeSubset(in, superset, (int) encoded, placeInto);
+            }
+            else
+            {
+                int count = 0;
+                for (ColumnMetadata column : superset)
+                {
+                    if ((encoded & 1) == 0)
+                        placeInto[count++] = column;
+
+                    encoded >>>= 1;
+                }
+                if (encoded != 0)
+                    throw new IOException("Invalid Columns subset bytes; too many bits set:" + Long.toBinaryString(encoded));
+                return count;
+            }
+        }
+
         // encodes a 1 bit for every *missing* column, on the assumption presence is more common,
         // and because this is consistent with encoding 0 to represent all present
         private static long encodeBitmap(Collection<ColumnMetadata> columns, Columns superset, int supersetCount)
@@ -680,6 +724,44 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         }
 
         @DontInline
+        private int deserializeLargeSubset(DataInputPlus in,
+                                           ColumnMetadata[] superset,
+                                           int delta,
+                                           ColumnMetadata[] placeInto)
+        throws IOException
+        {
+            int supersetCount = superset.length;
+            int columnCount = supersetCount - delta;
+
+            int count = 0;
+            if (columnCount < supersetCount / 2)
+            {
+                for (int i = 0 ; i < columnCount ; i++)
+                {
+                    int idx = (int) in.readUnsignedVInt();
+                    placeInto[count++] = superset[idx];
+                }
+            }
+            else
+            {
+                int idx = 0;
+                int skipped = 0;
+                while (true)
+                {
+                    int nextMissingIndex = skipped < delta ? (int)in.readUnsignedVInt() : supersetCount;
+                    while (idx < nextMissingIndex)
+                        placeInto[count++] = superset[idx++];
+
+                    if (idx == supersetCount)
+                        break;
+                    idx++;
+                    skipped++;
+                }
+            }
+            return count;
+        }
+
+        @DontInline
         private int serializeLargeSubsetSize(Collection<ColumnMetadata> columns, int columnCount, Columns superset, int supersetCount)
         {
             // write flag indicating we're in lengthy mode
@@ -712,6 +794,5 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             }
             return size;
         }
-
     }
 }

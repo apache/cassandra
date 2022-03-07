@@ -39,7 +39,9 @@ import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.Reducer;
 
 /**
  * replay the contents of a list of paths containing full query logs
@@ -121,7 +123,7 @@ public class Replay implements Runnable
         {
             readQueues = arguments.stream().map(s -> SingleChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead)).collect(Collectors.toList());
-            try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
+            try (CloseableIterator<List<FQLQuery>> iter = MergeIterator.getCloseable(iterators, FQLQuery::compareTo, new ReplayReducer());
                  QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath))
             {
                 replayer.replay();
@@ -141,7 +143,7 @@ public class Replay implements Runnable
     }
 
     @VisibleForTesting
-    public static class Reducer extends MergeIterator.Reducer<FQLQuery, List<FQLQuery>>
+    public static class ReplayReducer extends Reducer<FQLQuery, List<FQLQuery>>
     {
         List<FQLQuery> queries = new ArrayList<>();
         public void reduce(int idx, FQLQuery current)
@@ -149,7 +151,7 @@ public class Replay implements Runnable
             queries.add(current);
         }
 
-        protected List<FQLQuery> getReduced()
+        public List<FQLQuery> getReduced()
         {
             return queries;
         }

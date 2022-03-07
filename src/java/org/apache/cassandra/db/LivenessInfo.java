@@ -211,6 +211,11 @@ public class LivenessInfo implements IMeasurableMemory
         return isExpiring();
     }
 
+    public static LivenessInfo merge(LivenessInfo a, LivenessInfo b)
+    {
+        return b.supersedes(a) ? b : a;
+    }
+
     protected boolean isExpired()
     {
         return false;
@@ -237,7 +242,7 @@ public class LivenessInfo implements IMeasurableMemory
     @Override
     public String toString()
     {
-        return String.format("[ts=%d]", timestamp);
+        return timestamp == NO_TIMESTAMP ? "[ts=EMPTY]" : String.format("[ts=%d]", timestamp);
     }
 
     @Override

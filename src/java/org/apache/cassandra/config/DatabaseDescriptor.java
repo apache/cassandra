@@ -2764,11 +2764,13 @@ public class DatabaseDescriptor
         return conf.commitlog_total_space_in_mb;
     }
 
+    @Deprecated // CPU-intensive optimization that visibly slows down compaction but does not provide a clear benefit (see STAR-782)
     public static boolean shouldMigrateKeycacheOnCompaction()
     {
         return conf.key_cache_migrate_during_compaction;
     }
 
+    @Deprecated // CPU-intensive optimization that visibly slows down compaction but does not provide a clear benefit (see STAR-782)
     public static void setMigrateKeycacheOnCompaction(boolean migrateCacheEntry)
     {
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;

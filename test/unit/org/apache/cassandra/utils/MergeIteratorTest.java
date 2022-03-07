@@ -46,7 +46,7 @@ public class MergeIteratorTest
     @Test
     public void testManyToOne() throws Exception
     {
-        MergeIterator.Reducer<String,String> reducer = new MergeIterator.Reducer<String,String>()
+        Reducer<String,String> reducer = new Reducer<String,String>()
         {
             String concatted = "";
 
@@ -63,9 +63,9 @@ public class MergeIteratorTest
                 return tmp;
             }
         };
-        IMergeIterator<String,String> smi = MergeIterator.get(Arrays.asList(a, b, c, d),
-                Ordering.<String>natural(),
-                reducer);
+        CloseableIterator<String> smi = MergeIterator.getCloseable(Arrays.asList(a, b, c, d),
+                                                                   Ordering.<String>natural(),
+                                                                   reducer);
         assert Iterators.elementsEqual(cat, smi);
         smi.close();
         assert a.closed && b.closed && c.closed && d.closed;

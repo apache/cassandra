@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction.writers;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
@@ -34,6 +36,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
@@ -43,12 +46,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
-
 /**
  * Class that abstracts away the actual writing of files to make it possible to use CompactionTask for more
  * use cases.
  */
-public abstract class CompactionAwareWriter extends Transactional.AbstractTransactional implements Transactional
+public abstract class CompactionAwareWriter extends Transactional.AbstractTransactional implements Transactional, SSTableDataSink
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionAwareWriter.class);
 
@@ -136,7 +138,35 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     public boolean append(UnfilteredRowIterator partition)
     {
         maybeSwitchWriter(partition.partitionKey());
-        return sstableWriter.append(partition) != null;
+        return appendWithoutSwitchingWriters(partition);
+    }
+
+    /**
+     * Write a partition without considering location change.
+     * Exposed for TieredCompactionStrategy which needs to control the location itself.
+     */
+    boolean appendWithoutSwitchingWriters(UnfilteredRowIterator partition)
+    {
+        return sstableWriter.append(partition);
+    }
+
+    @Override
+    public boolean startPartition(DecoratedKey partitionKey, DeletionTime deletionTime) throws IOException
+    {
+        maybeSwitchWriter(partitionKey);
+        return sstableWriter.startPartition(partitionKey, deletionTime);
+    }
+
+    @Override
+    public void endPartition() throws IOException
+    {
+        sstableWriter.endPartition();
+    }
+
+    @Override
+    public void addUnfiltered(Unfiltered unfiltered) throws IOException
+    {
+        sstableWriter.addUnfiltered(unfiltered);
     }
 
     @Override
@@ -149,7 +179,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     /**
      * Switches the writer if necessary, i.e. if the new key should be placed in a different data directory, or if the
      * specific strategy has decided a new sstable is needed.
-     *
      * Guaranteed to be called before the first call to realAppend.
      */
     protected void maybeSwitchWriter(DecoratedKey key)
@@ -288,5 +317,10 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     public long bytesWritten()
     {
         return sstableWriter.bytesWritten();
+    }
+
+    public String getCurrentFileName()
+    {
+        return sstableWriter.currentWriter().getFilename();
     }
 }

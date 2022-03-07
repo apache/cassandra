@@ -22,7 +22,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Maps;
@@ -42,9 +41,9 @@ import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
 import org.assertj.core.api.Assertions;
 
 
-public class MutlipleSSTableFormatsTest extends CQLTester
+public class MultipleSSTableFormatsTest extends CQLTester
 {
-    private final static Logger logger = LoggerFactory.getLogger(MutlipleSSTableFormatsTest.class);
+    private final static Logger logger = LoggerFactory.getLogger(MultipleSSTableFormatsTest.class);
     private final static int cnt = 100;
     private final static int overlap = 70;
     private final static int deletionCount = 30;

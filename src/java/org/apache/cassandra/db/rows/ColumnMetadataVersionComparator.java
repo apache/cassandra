@@ -35,7 +35,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
  *     cannot guarantee when that's fully done).</li>
  * </ul>
  */
-final class ColumnMetadataVersionComparator implements Comparator<ColumnMetadata>
+public final class ColumnMetadataVersionComparator implements Comparator<ColumnMetadata>
 {
     public static final Comparator<ColumnMetadata> INSTANCE = new ColumnMetadataVersionComparator();
 

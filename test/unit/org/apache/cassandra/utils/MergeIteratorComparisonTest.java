@@ -36,7 +36,6 @@ import org.junit.Test;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.utils.MergeIterator.Reducer;
 
 public class MergeIteratorComparisonTest
 {
@@ -77,7 +76,7 @@ public class MergeIteratorComparisonTest
         }.result;
         testMergeIterator(reducer, lists);
     }
-    
+
     @Test
     public void testNonOverlapInts()
     {
@@ -186,7 +185,7 @@ public class MergeIteratorComparisonTest
         }.result;
         testMergeIterator(reducer, lists);
     }
-    
+
     @Test
     public void testNonOverlapStrings()
     {
@@ -287,7 +286,7 @@ public class MergeIteratorComparisonTest
         testMergeIterator(reducer, lists, type);
     }
 
-    
+
     @Test
     public void testSets()
     {
@@ -466,8 +465,8 @@ public class MergeIteratorComparisonTest
     public <T> void testMergeIterator(Reducer<T, ?> reducer, List<List<T>> lists, Comparator<T> comparator)
     {
         {
-            IMergeIterator<T,?> tested = MergeIterator.get(closeableIterators(lists), comparator, reducer);
-            IMergeIterator<T,?> base = new MergeIteratorPQ<>(closeableIterators(lists), comparator, reducer);
+            CloseableIterator<?> tested = MergeIterator.getCloseable(closeableIterators(lists), comparator, reducer);
+            CloseableIterator<?> base = new MergeIteratorPQ<>(closeableIterators(lists), comparator, reducer);
             // If test fails, try the version below for improved reporting:
             Object[] basearr = Iterators.toArray(base, Object.class);
             Assert.assertArrayEquals(basearr, Iterators.toArray(tested, Object.class));
@@ -480,13 +479,13 @@ public class MergeIteratorComparisonTest
         cmp = new CountingComparator<>(comparator); cmpb = new CountingComparator<>(comparator);
         System.out.println();
         for (int i=0; i<10; ++i) {
-            benchmarkIterator(MergeIterator.get(closeableIterators(lists), cmp, reducer), cmp);
+            benchmarkIterator(MergeIterator.getCloseable(closeableIterators(lists), cmp, reducer), cmp);
             benchmarkIterator(new MergeIteratorPQ<>(closeableIterators(lists), cmpb, reducer), cmpb);
         }
         System.out.format("MI: %.2f\n", cmp.count / (double) cmpb.count);
     }
-    
-    public <T> void benchmarkIterator(IMergeIterator<T, ?> it, CountingComparator<T> comparator)
+
+    public <T> void benchmarkIterator(CloseableIterator<?> it, CountingComparator<T> comparator)
     {
         System.out.format("Testing %30s... ", it.getClass().getSimpleName());
         long time = System.currentTimeMillis();
@@ -517,7 +516,7 @@ public class MergeIteratorComparisonTest
     static class Counted<T> {
         T item;
         int count;
-        
+
         Counted(T item) {
             this.item = item;
             count = 0;
@@ -537,7 +536,7 @@ public class MergeIteratorComparisonTest
             return item.toString() + "x" + count;
         }
     }
-    
+
     static class Counter<T> extends Reducer<T, Counted<T>> {
         Counted<T> current = null;
         boolean read = true;
@@ -560,21 +559,21 @@ public class MergeIteratorComparisonTest
         }
 
         @Override
-        protected Counted<T> getReduced()
+        public Counted<T> getReduced()
         {
             assert current != null;
             read = true;
             return current;
         }
     }
-    
+
     static class KeyedSet<K extends Comparable<? super K>, V> extends Pair<K, Set<V>> implements Comparable<KeyedSet<K, V>>
     {
         protected KeyedSet(K left, V right)
         {
             super(left, ImmutableSet.of(right));
         }
-        
+
         protected KeyedSet(K left, Collection<V> right)
         {
             super(left, Sets.newHashSet(right));
@@ -586,7 +585,7 @@ public class MergeIteratorComparisonTest
             return left.compareTo(o.left);
         }
     }
-    
+
     static class Union<K extends Comparable<K>, V> extends Reducer<KeyedSet<K, V>, KeyedSet<K, V>> {
         KeyedSet<K, V> current = null;
         boolean read = true;
@@ -611,14 +610,14 @@ public class MergeIteratorComparisonTest
         }
 
         @Override
-        protected KeyedSet<K, V> getReduced()
+        public KeyedSet<K, V> getReduced()
         {
             assert current != null;
             read = true;
             return current;
         }
     }
-    
+
     // closeable list iterator
     public static class CLI<E> extends AbstractIterator<E> implements CloseableIterator<E>
     {
@@ -643,8 +642,11 @@ public class MergeIteratorComparisonTest
     }
 
     // Old MergeIterator implementation for comparison.
-    public class MergeIteratorPQ<In,Out> extends MergeIterator<In,Out> implements IMergeIterator<In, Out>
+    public class MergeIteratorPQ<In,Out> extends AbstractIterator<Out>
     {
+        protected final Reducer<In,Out> reducer;
+        protected final List<? extends Iterator<In>> iterators;
+
         // a queue for return: all candidates must be open and have at least one item
         protected final PriorityQueue<CandidatePQ<In>> queue;
         // a stack of the last consumed candidates, so that we can lazily call 'advance()'
@@ -653,7 +655,8 @@ public class MergeIteratorComparisonTest
         protected final ArrayDeque<CandidatePQ<In>> candidates;
         public MergeIteratorPQ(List<? extends Iterator<In>> iters, Comparator<In> comp, Reducer<In, Out> reducer)
         {
-            super(iters, reducer);
+            this.iterators = iters;
+            this.reducer = reducer;
             this.queue = new PriorityQueue<>(Math.max(1, iters.size()));
             for (int i = 0; i < iters.size(); i++)
             {
@@ -664,6 +667,23 @@ public class MergeIteratorComparisonTest
                 this.queue.add(candidate);
             }
             this.candidates = new ArrayDeque<>(queue.size());
+        }
+
+        public void close()
+        {
+            for (int i = 0, length = this.iterators.size(); i < length; i++)
+            {
+                Iterator<In> iterator = iterators.get(i);
+                try
+                {
+                    if (iterator instanceof AutoCloseable)
+                        ((AutoCloseable)iterator).close();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
         }
 
         protected final Out computeNext()

@@ -29,6 +29,8 @@ import org.apache.cassandra.utils.MergeIterator;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+import org.apache.cassandra.utils.Reducer;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
@@ -387,11 +389,11 @@ public class TokenTree
             if (!loadedKeys.isEmpty())
                 keys.add(loadedKeys.iterator());
 
-            return MergeIterator.get(keys, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey, DecoratedKey>()
+            return MergeIterator.get(keys, DecoratedKey.comparator, new Reducer<DecoratedKey, DecoratedKey>()
             {
                 DecoratedKey reduced = null;
 
-                public boolean trivialReduceIsTrivial()
+                public boolean singleSourceReduceIsTrivial()
                 {
                     return true;
                 }
@@ -401,7 +403,7 @@ public class TokenTree
                     reduced = current;
                 }
 
-                protected DecoratedKey getReduced()
+                public DecoratedKey getReduced()
                 {
                     return reduced;
                 }

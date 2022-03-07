@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Comparator;
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -34,7 +36,6 @@ import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.big.IndexInfo;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.IteratorWithLowerBound;
 
 /**
  * An unfiltered row iterator with a lower bound retrieved from either the global
@@ -44,7 +45,7 @@ import org.apache.cassandra.utils.IteratorWithLowerBound;
  * the result is that if we don't need to access this sstable, i.e. due to the LIMIT conditon,
  * then we will not. See CASSANDRA-8180 for examples of why this is useful.
  */
-public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilteredRowIterator implements IteratorWithLowerBound<Unfiltered>
+public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilteredRowIterator
 {
     private final SSTableReader sstable;
     private final Slices slices;
@@ -52,7 +53,14 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     private final ColumnFilter selectedColumns;
     private final SSTableReadsListener listener;
     private Unfiltered lowerBoundMarker;
-    private boolean firstItemRetrieved;
+    enum State
+    {
+        LOWER_BOUND_NOT_REQUESTED,
+        LOWER_BOUND_REQUESTED,
+        LOWER_BOUND_PRODUCED,
+        PRODUCING_ITEMS;
+    }
+    private State state;
 
     public UnfilteredRowIteratorWithLowerBound(DecoratedKey partitionKey,
                                                SSTableReader sstable,
@@ -76,10 +84,21 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         this.isReverseOrder = isReverseOrder;
         this.selectedColumns = selectedColumns;
         this.listener = listener;
-        this.firstItemRetrieved = false;
+        state = State.LOWER_BOUND_NOT_REQUESTED;
     }
 
-    public Unfiltered lowerBound()
+    /**
+     * Request that the iterator produce an artificial lower bound (i.e. an ineffective range tombstone that is used to
+     * delay opening the sstable until the iteration reaches the clustering range that the sstable covers).
+     */
+    public void requestLowerBound()
+    {
+        assert state == State.LOWER_BOUND_NOT_REQUESTED || state == State.LOWER_BOUND_REQUESTED;
+        state = State.LOWER_BOUND_REQUESTED;
+    }
+
+    @VisibleForTesting
+    protected Unfiltered lowerBound()
     {
         if (lowerBoundMarker != null)
             return lowerBoundMarker;
@@ -119,20 +138,35 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     protected Unfiltered computeNext()
     {
-        Unfiltered ret = super.computeNext();
-        if (firstItemRetrieved)
-            return ret;
+        switch (state)
+        {
+            case LOWER_BOUND_REQUESTED:
+                Unfiltered lowerBound = lowerBound();
+                if (lowerBound != null)
+                {
+                    state = state.LOWER_BOUND_PRODUCED;
+                    return lowerBound;
+                }
+                // else proceed as if it was not requested
+                break;
+            case LOWER_BOUND_PRODUCED:
+                state = State.PRODUCING_ITEMS;
+                Unfiltered ret = super.computeNext();
 
-        // Check that the lower bound is not bigger than the first item retrieved
-        firstItemRetrieved = true;
-        if (lowerBoundMarker != null && ret != null)
-            assert comparator().compare(lowerBoundMarker.clustering(), ret.clustering()) <= 0
-                : String.format("Lower bound [%s ]is bigger than first returned value [%s] for sstable %s",
-                                lowerBoundMarker.clustering().toString(metadata()),
-                                ret.toString(metadata()),
-                                sstable.getFilename());
+                // Check that the lower bound is not bigger than the first item retrieved
+                if (lowerBoundMarker != null && ret != null)
+                    assert comparator().compare(lowerBoundMarker.clustering(), ret.clustering()) <= 0
+                    : String.format("Lower bound [%s ]is bigger than first returned value [%s] for sstable %s",
+                                    lowerBoundMarker.clustering().toString(metadata()),
+                                    ret.toString(metadata()),
+                                    sstable.getFilename());
 
-        return ret;
+                return ret;
+        }
+        // if the bound was not requested, was null, or we have already produced it and the first item, pass on all
+        // items from the source
+        state = State.PRODUCING_ITEMS;
+        return super.computeNext();
     }
 
     private Comparator<Clusterable> comparator()
