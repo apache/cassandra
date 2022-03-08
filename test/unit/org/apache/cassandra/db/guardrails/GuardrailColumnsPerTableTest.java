@@ -160,11 +160,12 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
 
     private void assertWarns(long numColumns, String query, String tableName) throws Throwable
     {
-        assertThresholdWarns(format("The table %s has %s columns, this exceeds the warning threshold of %s.",
+        assertThresholdWarns(format(query, keyspace() + '.' + tableName),
+                             format("The table %s has %s columns, this exceeds the warning threshold of %s.",
                                     tableName,
                                     numColumns,
-                                    guardrails().getColumnsPerTableWarnThreshold()),
-                             format(query, keyspace() + '.' + tableName));
+                                    guardrails().getColumnsPerTableWarnThreshold())
+        );
     }
 
     private void assertAddColumnFails(String query) throws Throwable
@@ -179,10 +180,11 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
 
     private void assertFails(long numColumns, String query, String tableName) throws Throwable
     {
-        assertThresholdFails(format("Tables cannot have more than %s columns, but %s provided for table %s",
+        assertThresholdFails(format(query, keyspace() + '.' + tableName),
+                             format("Tables cannot have more than %s columns, but %s provided for table %s",
                                     guardrails().getColumnsPerTableFailThreshold(),
                                     numColumns,
-                                    tableName),
-                             format(query, keyspace() + '.' + tableName));
+                                    tableName)
+        );
     }
 }

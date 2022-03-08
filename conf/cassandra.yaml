@@ -1620,6 +1620,11 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable. 
 # partition_keys_in_select_warn_threshold: -1
 # partition_keys_in_select_fail_threshold: -1
+# Guardrail to warn or fail when an IN query creates a cartesian product with a size exceeding threshold,
+# eg. "a in (1,2,...10) and b in (1,2...10)" results in cartesian product of 100.
+# The two thresholds default to -1 to disable.
+# in_select_cartesian_product_warn_threshold: -1
+# in_select_cartesian_product_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

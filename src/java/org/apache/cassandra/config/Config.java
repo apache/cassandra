@@ -767,10 +767,13 @@ public class Config
     public volatile int page_size_fail_threshold = DISABLED_GUARDRAIL;
     public volatile int partition_keys_in_select_warn_threshold = DISABLED_GUARDRAIL;
     public volatile int partition_keys_in_select_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile int in_select_cartesian_product_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int in_select_cartesian_product_fail_threshold = DISABLED_GUARDRAIL;
     public volatile Set<String> table_properties_ignored = Collections.emptySet();
     public volatile Set<String> table_properties_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
+
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
     public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);
 

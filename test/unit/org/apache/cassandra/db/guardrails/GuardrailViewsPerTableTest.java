@@ -108,16 +108,18 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
     private void assertCreateViewWarns() throws Throwable
     {
         String viewName = createViewName();
-        assertThresholdWarns(format("Creating materialized view %s on table %s, current number of views %s exceeds warning threshold of %s.",
-                                    viewName, currentTable(), currentValue() + 1, guardrails().getMaterializedViewsPerTableWarnThreshold()),
-                             format(CREATE_VIEW, viewName));
+        assertThresholdWarns(format(CREATE_VIEW, viewName),
+                             format("Creating materialized view %s on table %s, current number of views %s exceeds warning threshold of %s.",
+                                    viewName, currentTable(), currentValue() + 1, guardrails().getMaterializedViewsPerTableWarnThreshold())
+        );
     }
 
     private void assertCreateViewFails() throws Throwable
     {
         String viewName = createViewName();
-        assertThresholdFails(format("aborting the creation of materialized view %s on table %s",
-                                    viewName, currentTable()),
-                             format(CREATE_VIEW, viewName));
+        assertThresholdFails(format(CREATE_VIEW, viewName),
+                             format("aborting the creation of materialized view %s on table %s",
+                                    viewName, currentTable())
+        );
     }
 }
