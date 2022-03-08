@@ -119,6 +119,6 @@ public class GuardrailUserTimestampsTest extends GuardrailTester
 
     private void assertFails(String query) throws Throwable
     {
-        assertFails("User provided timestamps (USING TIMESTAMP) is not allowed", query);
+        assertFails(query, "User provided timestamps (USING TIMESTAMP) is not allowed");
     }
 }

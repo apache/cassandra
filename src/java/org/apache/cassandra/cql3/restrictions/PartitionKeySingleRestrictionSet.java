@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -28,6 +29,7 @@ import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * A set of single restrictions on the partition key.
@@ -78,12 +80,16 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     }
 
     @Override
-    public List<ByteBuffer> values(QueryOptions options)
+    public List<ByteBuffer> values(QueryOptions options, ClientState state)
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
         for (SingleRestriction r : restrictions)
         {
             r.appendTo(builder, options);
+
+            if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(state))
+                Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "partition key", state);
+
             if (builder.hasMissingElements())
                 break;
         }

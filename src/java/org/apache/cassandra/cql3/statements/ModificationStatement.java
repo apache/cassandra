@@ -330,23 +330,23 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return conditions.isIfExists();
     }
 
-    public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
+    public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options, ClientState state)
     throws InvalidRequestException
     {
-        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options);
+        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options, state);
         for (ByteBuffer key : partitionKeys)
             QueryProcessor.validateKey(key);
 
         return partitionKeys;
     }
 
-    public NavigableSet<Clustering<?>> createClustering(QueryOptions options)
+    public NavigableSet<Clustering<?>> createClustering(QueryOptions options, ClientState state)
     throws InvalidRequestException
     {
         if (appliesOnlyToStaticColumns() && !restrictions.hasClusteringColumnsRestrictions())
             return FBUtilities.singleton(CBuilder.STATIC_BUILDER.build(), metadata().comparator);
 
-        return restrictions.getClusteringColumns(options);
+        return restrictions.getClusteringColumns(options, state);
     }
 
     /**
@@ -508,7 +508,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options);
+        ClientState clientState = queryState.getClientState();
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, clientState);
         // We don't support IN for CAS operation so far
         checkFalse(restrictions.keyIsInRelation(),
                    "IN on the partition key is not supported with conditional %s",
@@ -522,7 +523,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                    "IN on the clustering key columns is not supported with conditional %s",
                     type.isUpdate()? "updates" : "deletions");
 
-        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options));
+        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options, clientState));
         CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
@@ -695,7 +696,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    int nowInSeconds,
                                                    long queryStartNanoTime)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options);
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
         addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
@@ -741,7 +742,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
         else
         {
-            NavigableSet<Clustering<?>> clusterings = createClustering(options);
+            NavigableSet<Clustering<?>> clusterings = createClustering(options, state);
 
             // If some of the restrictions were unspecified (e.g. empty IN restrictions) we do not need to do anything.
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())

@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.service.ClientState;
 
 import static org.apache.cassandra.cql3.statements.Bound.END;
 import static org.apache.cassandra.cql3.statements.Bound.START;
@@ -102,9 +103,9 @@ final class TokenFilter implements PartitionKeyRestrictions
     }
 
     @Override
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> values(QueryOptions options, ClientState state) throws InvalidRequestException
     {
-        return filter(restrictions.values(options), options);
+        return filter(restrictions.values(options, state), options, state);
     }
 
     @Override
@@ -139,13 +140,14 @@ final class TokenFilter implements PartitionKeyRestrictions
      *
      * @param values the values returned by the decorated restriction
      * @param options the query options
+     * @param state the client state
      * @return the values matching the token restriction
      * @throws InvalidRequestException if the request is invalid
      */
-    private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options) throws InvalidRequestException
+    private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options, ClientState state) throws InvalidRequestException
     {
         RangeSet<Token> rangeSet = tokenRestriction.hasSlice() ? toRangeSet(tokenRestriction, options)
-                                                               : toRangeSet(tokenRestriction.values(options));
+                                                               : toRangeSet(tokenRestriction.values(options, state));
 
         return filterWithRangeSet(rangeSet, values);
     }
