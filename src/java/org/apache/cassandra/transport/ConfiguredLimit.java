@@ -87,9 +87,10 @@ public abstract class ConfiguredLimit implements ProtocolVersionLimit
         private void maybeUpdateVersion(boolean allowLowering)
         {
             boolean enforceV3Cap = SystemKeyspace.loadPeerVersions()
-                                                 .values()
+                                                 .entrySet()
                                                  .stream()
-                                                 .anyMatch(v -> v.compareTo(MIN_VERSION_FOR_V4) < 0);
+                                                 .filter(entry -> !entry.getValue().equals(SystemKeyspace.NULL_VERSION))
+                                                 .anyMatch(v -> v.getValue().compareTo(MIN_VERSION_FOR_V4) < 0);
 
             if (!enforceV3Cap)
             {
