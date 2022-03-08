@@ -20,6 +20,9 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
@@ -52,6 +55,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
@@ -59,6 +63,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
+// TODO: rework all of the io methods to emit/accumulate mutations
 public class AccordKeyspace
 {
     public static final String COMMANDS = "commands";
@@ -228,5 +233,165 @@ public class AccordKeyspace
         command.writes(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
         command.result(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
         return command;
+    }
+
+    public static AccordCommandsForKey loadCommandsForKey(CommandStore commandStore, AccordKey.PartitionKey key)
+    {
+        String cql = "SELECT max_timestamp FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?) " +
+                     "LIMIT 1";
+        UntypedResultSet result = executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                                                      commandStore.generation(), commandStore.index(),
+                                                      key.tableId(), key.partitionKey().getKey());
+
+        if (result.isEmpty())
+            return new AccordCommandsForKey(commandStore, key, Timestamp.NONE);
+
+        return new AccordCommandsForKey(commandStore, key, deserializeTimestamp(result.one(), "max_timestamp", Timestamp::new));
+    }
+
+    public static void updateCommandsForKeyMaxTimestamp(CommandStore commandStore, AccordKey.PartitionKey key, Timestamp time)
+    {
+        String cql = "UPDATE %s.%s " +
+                     "SET max_timestamp=(?, ?, ?, ?) " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?)";
+        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                            time.epoch, time.real, time.logical, time.node.id,
+                            commandStore.generation(), commandStore.index(),
+                            key.tableId(), key.partitionKey().getKey());
+    }
+
+    public static TxnId getCommandForKeySeriesEntry(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    {
+
+        String cql = "SELECT txn_id FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?, " +
+                     "timestamp=(?, ?, ?, ?)";
+        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                                                      commandStore.generation(), commandStore.index(),
+                                                      key.tableId(), key.partitionKey().getKey(),
+                                                      kind.ordinal(),
+                                                      time.epoch, time.real, time.logical, time.node.id);
+
+        if (result.isEmpty())
+            return null;
+
+        return deserializeTimestamp(result.one(), "txn_id", TxnId::new);
+    }
+
+    public static void addCommandForKeySeriesEntry(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time, TxnId txnId)
+    {
+
+        String cql = "UPDATE %s.%s " +
+                     "SET txn_id=(?, ?, ?, ?) " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?, " +
+                     "timestamp=(?, ?, ?, ?)";
+        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                            txnId.epoch, txnId.real, txnId.logical, txnId.node.id,
+                            commandStore.generation(), commandStore.index(),
+                            key.tableId(), key.partitionKey().getKey(),
+                            kind.ordinal(),
+                            time.epoch, time.real, time.logical, time.node.id);
+    }
+
+    public static void removeCommandForKeySeriesEntry(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    {
+
+        String cql = "DELETE FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?, " +
+                     "timestamp=(?, ?, ?, ?)";
+        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                            commandStore.generation(), commandStore.index(),
+                            key.tableId(), key.partitionKey().getKey(),
+                            kind.ordinal(),
+                            time.epoch, time.real, time.logical, time.node.id);
+    }
+
+    private static List<TxnId> createTxnIdList(UntypedResultSet result)
+    {
+        if (result.isEmpty())
+            return Collections.emptyList();
+
+        List<TxnId> ids = new ArrayList<>(result.size());
+        for (UntypedResultSet.Row row : result)
+            ids.add(deserializeTimestamp(row, "txn_id", TxnId::new));
+        return ids;
+    }
+
+    public static List<TxnId> commandsForKeysSeriesEntriesBefore(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    {
+        String cql = "SELECT txn_id FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?, " +
+                     "timestamp < (?, ?, ?, ?)";
+        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                                                      commandStore.generation(), commandStore.index(),
+                                                      key.tableId(), key.partitionKey().getKey(),
+                                                      kind.ordinal(),
+                                                      time.epoch, time.real, time.logical, time.node.id);
+        return createTxnIdList(result);
+    }
+
+    public static List<TxnId> commandsForKeysSeriesEntriesAfter(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    {
+        String cql = "SELECT txn_id FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?, " +
+                     "timestamp > (?, ?, ?, ?)";
+        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                                                      commandStore.generation(), commandStore.index(),
+                                                      key.tableId(), key.partitionKey().getKey(),
+                                                      kind.ordinal(),
+                                                      time.epoch, time.real, time.logical, time.node.id);
+        return createTxnIdList(result);
+    }
+
+    public static List<TxnId> commandsForKeysSeriesEntriesBetween(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp min, Timestamp max)
+    {
+        String cql = "SELECT txn_id FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?, " +
+                     "timestamp >= (?, ?, ?, ?), " +
+                     "timestamp <= (?, ?, ?, ?)";
+        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                                                      commandStore.generation(), commandStore.index(),
+                                                      key.tableId(), key.partitionKey().getKey(),
+                                                      kind.ordinal(),
+                                                      min.epoch, min.real, min.logical, min.node.id,
+                                                      max.epoch, max.real, max.logical, max.node.id);
+        return createTxnIdList(result);
+    }
+
+    public static List<TxnId> allCommandsForKeysSeriesEntries(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind)
+    {
+        String cql = "SELECT txn_id FROM %s.%s " +
+                     "WHERE store_generation=?, " +
+                     "store_index=?, " +
+                     "key=(?, ?), " +
+                     "series=?";
+        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
+                                                      commandStore.generation(), commandStore.index(),
+                                                      key.tableId(), key.partitionKey().getKey(),
+                                                      kind.ordinal());
+        return createTxnIdList(result);
     }
 }
