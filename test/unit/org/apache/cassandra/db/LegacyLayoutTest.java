@@ -30,6 +30,7 @@ import org.apache.cassandra.db.LegacyLayout.LegacyBound;
 import org.apache.cassandra.db.LegacyLayout.LegacyCell;
 import org.apache.cassandra.db.LegacyLayout.LegacyRangeTombstone;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.BufferCell;
@@ -482,5 +483,54 @@ public class LegacyLayoutTest
 
         LegacyCell cc = cell(clustering, cfm.getColumnDefinition(bytes("c")), bytes("v2"), 1);
         assertTrue(grouper.addAtom(cc));
+    }
+
+    @Test
+    public void testSubColumnCellNameSparseTable() throws UnknownColumnException
+    {
+        // Sparse supercolumn table with statically defined subcolumn from column_metadata, "static_subcolumn".
+        CFMetaData cfm = CFMetaData.Builder.create("ks", "table", false, true, true, false)
+                                           .addPartitionKey("key", Int32Type.instance)
+                                           .addClusteringColumn("column1", Int32Type.instance)
+                                           .addRegularColumn("", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true))
+                                           .addRegularColumn("static_subcolumn", Int32Type.instance)
+                                           .build();
+
+        assertDecodedCellNameEquals(cfm, bytes("key"), cfm.compactValueColumn(), bytes("key"));
+        assertDecodedCellNameEquals(cfm, bytes("column1"), cfm.compactValueColumn(), bytes("column1"));
+        assertDecodedCellNameEquals(cfm, bytes(""), cfm.compactValueColumn(), bytes(""));
+
+        assertDecodedCellNameEquals(cfm, bytes("static_subcolumn"), cfm.getColumnDefinition(bytes("static_subcolumn")), null);
+        assertDecodedCellNameEquals(cfm, bytes("regular_cellname"), cfm.compactValueColumn(), bytes("regular_cellname"));
+    }
+
+    @Test
+    public void testSubColumnCellNameDenseTable() throws UnknownColumnException
+    {
+        // Dense supercolumn table, with no statically defined subcolumns.
+        CFMetaData cfm = CFMetaData.Builder.createSuper("ks", "table", false)
+                                           .addPartitionKey("key", Int32Type.instance)
+                                           .addClusteringColumn("column1", Int32Type.instance)
+                                           .addRegularColumn("", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true))
+                                           .build();
+
+        assertDecodedCellNameEquals(cfm, bytes("key"), cfm.compactValueColumn(), bytes("key"));
+        assertDecodedCellNameEquals(cfm, bytes("column1"), cfm.compactValueColumn(), bytes("column1"));
+        assertDecodedCellNameEquals(cfm, bytes(""), cfm.compactValueColumn(), bytes(""));
+        assertDecodedCellNameEquals(cfm, bytes("column2"), cfm.compactValueColumn(), bytes("column2"));
+        assertDecodedCellNameEquals(cfm, bytes("value"), cfm.compactValueColumn(), bytes("value"));
+    }
+
+    private void assertDecodedCellNameEquals(CFMetaData cfm,
+                                             ByteBuffer subColumn,
+                                             ColumnDefinition columnDefinition,
+                                             ByteBuffer collectionElement)
+    throws UnknownColumnException
+    {
+        ByteBuffer cellNameBuffer = CompositeType.build(bytes(1), subColumn);
+        LegacyLayout.LegacyCellName decodedCellName = LegacyLayout.decodeCellName(cfm, cellNameBuffer, false);
+        assertArrayEquals(new ByteBuffer[]{bytes(1)}, decodedCellName.clustering.getRawValues());
+        assertEquals(columnDefinition, decodedCellName.column);
+        assertEquals(collectionElement, decodedCellName.collectionElement);
     }
 }
