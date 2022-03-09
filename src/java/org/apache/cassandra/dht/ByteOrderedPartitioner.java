@@ -30,6 +30,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -99,6 +102,12 @@ public class ByteOrderedPartitioner implements IPartitioner
             BytesToken other = (BytesToken) obj;
 
             return Arrays.equals(token, other.token);
+        }
+
+        @Override
+        public ByteSource asComparableBytes(ByteComparable.Version version)
+        {
+            return ByteSource.of(token, version);
         }
 
         @Override
@@ -222,6 +231,11 @@ public class ByteOrderedPartitioner implements IPartitioner
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
+        public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+        {
+            return new BytesToken(ByteSourceInverse.getUnescapedBytes(comparableBytes));
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             BytesToken bytesToken = (BytesToken) token;

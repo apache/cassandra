@@ -34,6 +34,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class LengthPartitioner implements IPartitioner
 {
@@ -83,7 +86,14 @@ public class LengthPartitioner implements IPartitioner
         return new BigIntegerToken(BigInteger.valueOf(random.nextInt(15)));
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
+    {
+        @Override
+        public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+        {
+            return new BigIntegerToken(IntegerType.instance.compose(IntegerType.instance.fromComparableBytes(comparableBytes, version)));
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             BigIntegerToken bigIntegerToken = (BigIntegerToken) token;

@@ -1659,6 +1659,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
     }
 
+    public DecoratedKey keyAt(RandomAccessReader reader, long position) throws IOException
+    {
+        reader.seek(position);
+        return keyAt(reader);
+    }
+
     private DecoratedKey keyAt(FileDataInput reader) throws IOException
     {
         if (reader.isEOF()) return null;

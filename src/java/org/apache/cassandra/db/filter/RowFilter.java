@@ -23,8 +23,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -259,6 +261,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public RowFilter withoutExpressions()
     {
         return withNewExpressions(Collections.emptyList());
+    }
+
+    public RowFilter restrict(Predicate<Expression> filter)
+    {
+        return withNewExpressions(expressions.stream().filter(filter).collect(Collectors.toList()));
     }
 
     protected abstract RowFilter withNewExpressions(List<Expression> expressions);
@@ -640,7 +647,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      */
     public static class SimpleExpression extends Expression
     {
-        SimpleExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
+        public SimpleExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
         }
