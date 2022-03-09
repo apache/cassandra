@@ -23,6 +23,7 @@ import java.util.function.LongPredicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
+import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -169,7 +170,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 CompactionIterator.this.updateCounterFor(merged);
 
-                if (type != OperationType.COMPACTION || !controller.cfs.indexManager.hasIndexes())
+                if (type != OperationType.COMPACTION || !controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION))
                     return null;
 
                 Columns statics = Columns.NONE;

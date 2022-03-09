@@ -25,6 +25,7 @@ import java.util.concurrent.*;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -107,6 +108,19 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         currentKeyPosition = curPosition;
     }
 
+    @Override
+    public void partitionLevelDeletion(DeletionTime deletionTime, long position)
+    {
+        // do nothing
+    }
+
+    @Override
+    public void staticRow(Row staticRow, long position)
+    {
+        nextUnfilteredCluster(staticRow);
+    }
+
+    @Override
     public void nextUnfilteredCluster(Unfiltered unfiltered)
     {
         if (!unfiltered.isRow())

@@ -18,6 +18,9 @@
 package org.apache.cassandra.io.sstable.format;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 
 /**
@@ -40,16 +43,70 @@ public interface SSTableFlushObserver
     void startPartition(DecoratedKey key, long indexPosition);
 
     /**
-     * Called after the unfiltered cluster is written to the sstable.
-     * Will be preceded by a call to {@code startPartition(DecoratedKey, long)},
-     * and the cluster should be assumed to belong to that partition.
+     * Called when the deletion time of a partition is written to the sstable.
      *
-     * @param unfilteredCluster The unfiltered cluster being added to SSTable.
+     * Will be preceded by a call to {@link #startPartition(DecoratedKey, long)},
+     * and the deletion time should be assumed to belong to that partition.
+     *
+     * @param deletionTime the partition-level deletion time being written to the SSTable
+     * @param position the position of the written deletion time in the data file,
+     * as required by {@link SSTableReader#partitionLevelDeletionAt(long)}
      */
-    void nextUnfilteredCluster(Unfiltered unfilteredCluster);
+    void partitionLevelDeletion(DeletionTime deletionTime, long position);
+
+    /**
+     * Called when the static row of a partition is written to the sstable.
+     *
+     * Will be preceded by a call to {@link #startPartition(DecoratedKey, long)},
+     * and the static row should be assumed to belong to that partition.
+     *
+     * @param staticRow the static row being written to the SSTable
+     * @param position the position of the written static row in the data file,
+     * as required by {@link SSTableReader#staticRowAt(long, ColumnFilter)}
+     */
+    void staticRow(Row staticRow, long position);
+
+    /**
+     * Called after an unfiltered is written to the sstable.
+     *
+     * Will be preceded by a call to {@link #startPartition(DecoratedKey, long)},
+     * and the unfiltered should be assumed to belong to that partition.
+     *
+     * Implementations overriding {@link #nextUnfilteredCluster(Unfiltered, long)} shouldn't implement this method
+     * since only one of the two methods is required.
+     *
+     * @param unfiltered the unfiltered being written to the SSTable
+     */
+    default void nextUnfilteredCluster(Unfiltered unfiltered)
+    {
+    }
+
+    /**
+     * Called after an unfiltered is written to the sstable.
+     *
+     * Will be preceded by a call to {@link #startPartition(DecoratedKey, long)},
+     * and the unfiltered should be assumed to belong to that partition.
+     *
+     * Implementations overriding {@link #nextUnfilteredCluster(Unfiltered)} shouldn't implement this method
+     * since only one of the two methods is required.
+     *
+     * @param unfiltered the unfiltered being written to the SSTable
+     * @param position the position of the written unfiltered in the data file,
+     * as required by {@link SSTableReader#clusteringAt(long)}
+     * and {@link SSTableReader#unfilteredAt(long, ColumnFilter)}
+     */
+    default void nextUnfilteredCluster(Unfiltered unfiltered, long position)
+    {
+        nextUnfilteredCluster(unfiltered);
+    }
 
     /**
      * Called when all data is written to the file and it's ready to be finished up.
      */
     void complete();
+
+    /**
+     * Clean up resources on error. There should be no side effects if called multiple times.
+     */
+    default void abort(Throwable accumulator) {}
 }

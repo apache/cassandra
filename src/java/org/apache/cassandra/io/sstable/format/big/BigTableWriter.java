@@ -80,12 +80,13 @@ public class BigTableWriter extends SSTableWriter
                           UUID pendingRepair,
                           boolean isTransient,
                           TableMetadataRef metadata,
-                          MetadataCollector metadataCollector, 
+                          MetadataCollector metadataCollector,
                           SerializationHeader header,
                           Collection<SSTableFlushObserver> observers,
-                          LifecycleNewTracker lifecycleNewTracker)
+                          LifecycleNewTracker lifecycleNewTracker,
+                          Set<Component> indexComponents)
     {
-        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers);
+        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, indexComponents);
         lifecycleNewTracker.trackNew(this); // must track before any files are created
 
         if (compression)
