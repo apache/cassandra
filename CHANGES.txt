@@ -161,6 +161,7 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Disallow CONTAINS for UPDATE and DELETE (CASSANDRA-15266)
  * Suppress inapplicable CVEs (CASSANDRA-17368)
  * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
  * Fixed TestCqlshOutput failing tests (CASSANDRA-17386)
