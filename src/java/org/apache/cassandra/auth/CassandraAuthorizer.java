@@ -141,8 +141,10 @@ public class CassandraAuthorizer implements IAuthorizer
     // Called after a resource is removed (DROP KEYSPACE, DROP TABLE, etc.).
     // Execute a logged batch removing all the permissions for the resource
     // as well as the index table entry
-    public void revokeAllOn(IResource droppedResource)
+    @Override
+    public Set<RoleResource> revokeAllOn(IResource droppedResource)
     {
+        Set<RoleResource> affectedRoles = new HashSet<>();
         try
         {
             UntypedResultSet rows = process(String.format("SELECT role FROM %s.%s WHERE resource = '%s'",
@@ -153,10 +155,12 @@ public class CassandraAuthorizer implements IAuthorizer
             List<CQLStatement> statements = new ArrayList<>();
             for (UntypedResultSet.Row row : rows)
             {
+                String role = row.getString("role");
+                affectedRoles.add(RoleResource.role(role));
                 statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE role = '%s' AND resource = '%s'",
                                                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                          AuthKeyspace.ROLE_PERMISSIONS,
-                                                                         escape(row.getString("role")),
+                                                                         escape(role),
                                                                          escape(droppedResource.getName())),
                                                            ClientState.forInternalCalls()));
             }
@@ -173,6 +177,8 @@ public class CassandraAuthorizer implements IAuthorizer
         {
             logger.warn(String.format("CassandraAuthorizer failed to revoke all permissions on %s", droppedResource), e);
         }
+
+        return affectedRoles;
     }
 
     private void executeLoggedBatch(List<CQLStatement> statements)

@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -62,19 +63,25 @@ public class CassandraRoleManagerTest
 
         // simple role with no grants
         fetchRolesAndCheckReadCount(roleManager, ROLE_A);
+        assertRoleMembers(roleManager, ImmutableSet.of(), ImmutableSet.of(ROLE_A));
+        
         // single level of grants
         grantRolesTo(roleManager, ROLE_A, ROLE_B, ROLE_C);
+        assertRoleMembers(roleManager, ImmutableSet.of(ROLE_A), ImmutableSet.of(ROLE_B, ROLE_C));
         fetchRolesAndCheckReadCount(roleManager, ROLE_A);
 
         // multi level role hierarchy
         grantRolesTo(roleManager, ROLE_B, ROLE_B_1, ROLE_B_2, ROLE_B_3);
+        assertRoleMembers(roleManager, ImmutableSet.of(ROLE_B), ImmutableSet.of(ROLE_B_1, ROLE_B_2, ROLE_B_3));
         grantRolesTo(roleManager, ROLE_C, ROLE_C_1, ROLE_C_2, ROLE_C_3);
+        assertRoleMembers(roleManager, ImmutableSet.of(ROLE_C), ImmutableSet.of(ROLE_C_1, ROLE_C_2, ROLE_C_3));
         fetchRolesAndCheckReadCount(roleManager, ROLE_A);
 
         // Check that when granted roles appear multiple times in parallel levels of the hierarchy, we don't
         // do redundant reads. E.g. here role_b_1, role_b_2 and role_b3 are granted to both role_b and role_c
         // but we only want to actually read them once
         grantRolesTo(roleManager, ROLE_C, ROLE_B_1, ROLE_B_2, ROLE_B_3);
+        assertRoleMembers(roleManager, ImmutableSet.of(ROLE_B, ROLE_C), ImmutableSet.of(ROLE_B_1, ROLE_B_2, ROLE_B_3));
         fetchRolesAndCheckReadCount(roleManager, ROLE_A);
     }
 
@@ -84,5 +91,13 @@ public class CassandraRoleManagerTest
         Set<Role> granted = roleManager.getRoleDetails(primaryRole);
         long after = getReadCount();
         assertEquals(granted.size(), after - before);
+    }
+    
+    private void assertRoleMembers(IRoleManager roleManager, Set<RoleResource> expectedMembers, Set<RoleResource> rolesToCheck)
+    {
+        for (RoleResource roleToCheck : rolesToCheck)
+        {
+            assertEquals(expectedMembers, roleManager.getMembersOf(roleToCheck));
+        }
     }
 }

@@ -91,6 +91,7 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.Statement;
+import com.datastax.shaded.netty.channel.EventLoopGroup;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.auth.CassandraAuthorizer;
@@ -1316,7 +1317,8 @@ public abstract class CQLTester
                       .withPort(nativePort)
                       .withClusterName("Test Cluster")
                       .withoutJMXReporting()
-                      .withSocketOptions(socketOptions);
+                      .withSocketOptions(socketOptions)
+                      .withNettyOptions(IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS);
     }
 
     protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException

@@ -28,6 +28,7 @@ import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.FSWriteError;
 import org.mockito.Mockito;
 
@@ -46,6 +47,7 @@ public class PathUtilsTest
     @BeforeClass
     public static void beforeClass()
     {
+        CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE.setBoolean(false);
         classTestDir = FileUtils.getTempDir().resolve("PathUtilsTest");
         PathUtils.createDirectoryIfNotExists(classTestDir.toPath());
         classTestDir.deleteRecursiveOnExit();

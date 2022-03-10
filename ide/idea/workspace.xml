@@ -182,6 +182,7 @@
       <option name="TEST_OBJECT" value="class" />
       <option name="VM_PARAMETERS" value="
                                           -Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml
+                                          -Dcassandra.disable_tcactive_openssl=true 
                                           -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs
                                           -Dcassandra.ring_delay_ms=1000
                                           -Dcassandra.skip_sync=true
@@ -196,7 +197,7 @@
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml
                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
                                           -XX:ActiveProcessorCount=4
-                                          -XX:MaxMetaspaceSize=384M
+                                          -XX:MaxMetaspaceSize=512M
                                           -XX:SoftRefLRUPolicyMSPerMB=0
                                           -ea" />
       <option name="PARAMETERS" value="" />

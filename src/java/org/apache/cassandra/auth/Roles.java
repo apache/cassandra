@@ -59,6 +59,12 @@ public class Roles
         cache.invalidate();
     }
 
+    @VisibleForTesting
+    public static void clearCache(RoleResource roleResource)
+    {
+        cache.invalidate(roleResource);
+    }
+
     /**
      * Identify all roles granted to the supplied Role, including both directly granted
      * and inherited roles.
