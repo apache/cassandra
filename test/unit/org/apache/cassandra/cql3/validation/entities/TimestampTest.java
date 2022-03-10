@@ -22,7 +22,7 @@ import org.junit.Test;
 import org.junit.Assert;
 import org.apache.cassandra.cql3.CQLTester;
 
-import static junit.framework.Assert.assertNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TimestampTest extends CQLTester

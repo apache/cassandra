@@ -34,12 +34,13 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static junit.framework.Assert.fail;
+import static org.junit.Assert.fail;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class SSTableWriterTest extends SSTableWriterTestBase
 {
@@ -95,7 +96,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
 
     @Test
-    public void testAbortTxnWithClosedWriterShouldRemoveSSTable() throws InterruptedException
+    public void testAbortTxnWithClosedWriterShouldRemoveSSTable()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -139,7 +140,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
     }
 
     @Test
-    public void testAbortTxnWithClosedAndOpenWriterShouldRemoveAllSSTables() throws InterruptedException
+    public void testAbortTxnWithClosedAndOpenWriterShouldRemoveAllSSTables()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);

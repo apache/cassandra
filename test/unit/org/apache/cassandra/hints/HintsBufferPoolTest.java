@@ -26,11 +26,11 @@ import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableList;
 
-import static junit.framework.Assert.*;
-
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
 public class HintsBufferPoolTest
