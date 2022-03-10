@@ -152,9 +152,15 @@ public final class StatementRestrictions
          *     allow two IN for the same entity but that doesn't seem very useful)
          *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value
          *     in CQL so far)
+         *   - CONTAINS and CONTAINS_KEY cannot be used with UPDATE or DELETE
          */
         for (Relation relation : whereClause.relations)
         {
+            if ((relation.isContains() || relation.isContainsKey()) && (type.isUpdate() || type.isDelete()))
+            {
+                throw invalidRequest("Cannot use %s with %s", type, relation.operator());
+            }
+
             if (relation.operator() == Operator.IS_NOT)
             {
                 if (!forView)
