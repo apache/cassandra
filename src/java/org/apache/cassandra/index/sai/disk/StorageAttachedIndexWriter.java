@@ -114,7 +114,7 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
     }
 
     @Override
-    public void nextUnfilteredCluster(Unfiltered unfiltered, long position)
+    public void nextUnfilteredCluster(Unfiltered unfiltered)
     {
         if (aborted) return;
 

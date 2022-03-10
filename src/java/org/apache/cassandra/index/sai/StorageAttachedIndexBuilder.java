@@ -174,29 +174,16 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
                     RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
                     dataFile.seek(indexEntry.position);
-                    ByteBufferUtil.skipShortLength(dataFile); // key
-
-                    /*
-                     * Not directly using {@link SSTableIdentityIterator#create(SSTableReader, FileDataInput, DecoratedKey)},
-                     * because we need to get position of partition level deletion and static row.
-                     */
-                    long partitionDeletionPosition = dataFile.getFilePointer();
-                    DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dataFile);
-                    long staticRowPosition = dataFile.getFilePointer();
-
-                    indexWriter.partitionLevelDeletion(partitionLevelDeletion, partitionDeletionPosition);
+                    ByteBufferUtil.readWithShortLength(dataFile); // key
 
                     try (SSTableIdentityIterator partition = SSTableIdentityIterator.create(sstable, dataFile, key))
                     {
                         // if the row has statics attached, it has to be indexed separately
                         if (metadata.hasStaticColumns())
-                            indexWriter.nextUnfilteredCluster(partition.staticRow(), staticRowPosition);
+                            indexWriter.nextUnfilteredCluster(partition.staticRow());
 
                         while (partition.hasNext())
-                        {
-                            long unfilteredPosition = dataFile.getFilePointer();
-                            indexWriter.nextUnfilteredCluster(partition.next(), unfilteredPosition);
-                        }
+                            indexWriter.nextUnfilteredCluster(partition.next());
                     }
 
                     bytesProcessed += keyPosition - previousKeyPosition;
