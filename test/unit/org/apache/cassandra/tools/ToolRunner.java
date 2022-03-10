@@ -216,6 +216,9 @@ public class ToolRunner
         ProcessBuilder pb = new ProcessBuilder(args);
         if (env != null && !env.isEmpty())
             pb.environment().putAll(env);
+        String jvmOpts = pb.environment().getOrDefault("JVM_OPTS", "") + " -Dcassandra.disable_tcactive_openssl=true";
+        pb.environment().put("JVM_OPTS", jvmOpts);
+
         try
         {
             return new ForkedObservableTool(pb.start(), stdin, args);

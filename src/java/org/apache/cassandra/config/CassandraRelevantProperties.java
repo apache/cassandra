@@ -276,7 +276,9 @@ public enum CassandraRelevantProperties
     /** Which class to use for dynamic snitch severity values */
     DYNAMIC_SNITCH_SEVERITY_PROVIDER("cassandra.dynamic_snitch_severity_provider"),
 
-    NEVER_PURGE_TOMBSTONES_PROPERTY("cassandra.never_purge_tombstones");
+    NEVER_PURGE_TOMBSTONES_PROPERTY("cassandra.never_purge_tombstones"),
+
+    USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

@@ -47,8 +47,9 @@ public class AllowAllAuthorizer implements IAuthorizer
     {
     }
 
-    public void revokeAllOn(IResource droppedResource)
+    public Set<RoleResource> revokeAllOn(IResource droppedResource)
     {
+        return Collections.emptySet();
     }
 
     public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource of)

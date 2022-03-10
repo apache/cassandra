@@ -98,11 +98,17 @@ public class StubAuthorizer implements IAuthorizer
                 userPermissions.remove(key);
     }
 
-    public void revokeAllOn(IResource droppedResource)
+    public Set<RoleResource> revokeAllOn(IResource droppedResource)
     {
+        Set<RoleResource> roles = new HashSet<>();
         for (Pair<String, IResource> key : userPermissions.keySet())
             if (key.right.equals(droppedResource))
+            {
                 userPermissions.remove(key);
+                roles.add(RoleResource.role(key.left));
+            }
+        
+        return roles;
     }
 
     public Set<? extends IResource> protectedResources()

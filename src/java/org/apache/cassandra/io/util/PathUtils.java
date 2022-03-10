@@ -42,6 +42,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Throwables;
 
 import static java.nio.file.StandardOpenOption.*;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -70,11 +71,13 @@ public final class PathUtils
     private static final Logger logger = LoggerFactory.getLogger(PathUtils.class);
     private static final NoSpamLogger nospam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
+    private static final boolean USE_NIX_RECURSIVE_DELETE = CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE.getBoolean();
+
     private static Consumer<Path> onDeletion = path -> {
         if (StorageService.instance.isDaemonSetupCompleted())
             setDeletionListener(ignore -> {});
-        else
-            logger.info("Deleting file during startup: {}", path);
+        else if (logger.isTraceEnabled())
+            logger.trace("Deleting file during startup: {}", path);
     };
 
     public static FileChannel newReadChannel(Path path) throws NoSuchFileException
@@ -298,6 +301,27 @@ public final class PathUtils
         return accumulate;
     }
 
+    private static void deleteRecursiveUsingNixCommand(Path path, boolean quietly)
+    {
+        try
+        {
+            String[] cmd = new String[]{ "rm", quietly ? "-rf" : "-r", path.toAbsolutePath().toString() };
+            int result = Runtime.getRuntime().exec(cmd).waitFor();
+            if (result != 0)
+                throw new IOException(String.format("'%s' returned non-zero exit code: %d", Arrays.toString(cmd), result));
+            onDeletion.accept(path);
+        }
+        catch (IOException e)
+        {
+            throw propagateUnchecked(e, path, true);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new FSWriteError(e, path);
+        }
+    }
+
     /**
      * Deletes all files and subdirectories under "path".
      * @param path file to be deleted
@@ -305,6 +329,12 @@ public final class PathUtils
      */
     public static void deleteRecursive(Path path)
     {
+        if (USE_NIX_RECURSIVE_DELETE && path.getFileSystem() == FileSystems.getDefault())
+        {
+            deleteRecursiveUsingNixCommand(path, false);
+            return;
+        }
+
         if (isDirectory(path))
             forEach(path, PathUtils::deleteRecursive);
 
@@ -319,6 +349,12 @@ public final class PathUtils
      */
     public static void deleteQuietly(Path path)
     {
+        if (USE_NIX_RECURSIVE_DELETE && path.getFileSystem() == FileSystems.getDefault())
+        {
+            deleteRecursiveUsingNixCommand(path, true);
+            return;
+        }
+
         if (isDirectory(path))
             forEach(path, PathUtils::deleteQuietly);
 

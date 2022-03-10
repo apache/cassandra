@@ -82,12 +82,14 @@ import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.NettyOptions;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.Statement;
+import com.datastax.shaded.netty.channel.EventLoopGroup;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.auth.CassandraAuthorizer;
@@ -210,6 +212,15 @@ public abstract class CQLTester
                                                                    "(\\((?:\\s*\\w+\\s*\\()?%<s\\))?",
                                                                    CREATE_INDEX_NAME_REGEX);
     private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(CREATE_INDEX_REGEX, Pattern.CASE_INSENSITIVE);
+
+    public static final NettyOptions IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS = new NettyOptions()
+    {
+        @Override
+        public void onClusterClose(EventLoopGroup eventLoopGroup)
+        {
+            eventLoopGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS).syncUninterruptibly();
+        }
+    };
 
     /** Return the current server version if supported by the driver, else
      * the latest that is supported.
@@ -1293,7 +1304,8 @@ public abstract class CQLTester
                       .withPort(nativePort)
                       .withClusterName("Test Cluster")
                       .withoutJMXReporting()
-                      .withSocketOptions(socketOptions);
+                      .withSocketOptions(socketOptions)
+                      .withNettyOptions(IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS);
     }
 
     protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException

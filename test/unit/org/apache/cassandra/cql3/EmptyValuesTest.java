@@ -76,6 +76,8 @@ public class EmptyValuesTest extends CQLTester
             try (PrintStream out = new PrintStream(buf, true))
             {
                 ProcessBuilder pb = new ProcessBuilder("tools/bin/sstabledump", ssTable.getFilename());
+                String jvmOpts = pb.environment().getOrDefault("JVM_OPTS", "") + " -Dcassandra.disable_tcactive_openssl=true";
+                pb.environment().put("JVM_OPTS", jvmOpts);
                 Process process = pb.start();
                 process.waitFor();
                 IOUtils.copy(process.getInputStream(), buf);
