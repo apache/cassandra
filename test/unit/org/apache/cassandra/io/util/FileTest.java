@@ -24,9 +24,9 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -38,6 +38,8 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.io.FSWriteError;
+import org.assertj.core.api.Assertions;
 import org.psjava.util.Triple;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -404,5 +406,14 @@ public class FileTest
     {
         File file = new File("somewhere/a/");
         Assert.assertEquals(new File("../b"), file.relativize(new File("somewhere/b")));
+    }
+
+    @Test
+    public void testDeleteFail()
+    {
+        File file = new File(UUID.randomUUID().toString());
+        Assertions.assertThatExceptionOfType(FSWriteError.class)
+                  .isThrownBy(file::deleteRecursive)
+                  .withCauseInstanceOf(IOException.class);
     }
 }
