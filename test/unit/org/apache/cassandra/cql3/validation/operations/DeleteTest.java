@@ -162,6 +162,27 @@ public class DeleteTest extends CQLTester
                    row("abc", 4, "xyz", "some other value"));
     }
 
+    @Test
+    public void testDeletionWithContainsAndContainsKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, primary key (a, b))");
+
+        Object[] row = row(1, map(1, 1, 2, 2), 3);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", row);
+
+        assertRows(execute("SELECT * FROM %s"), row);
+
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
+                             "DELETE FROM %s WHERE a=1 AND b CONTAINS 1");
+
+        assertRows(execute("SELECT * FROM %s"), row);
+
+        assertInvalidMessage("Cannot use DELETE with CONTAINS KEY",
+                             "DELETE FROM %s WHERE a=1 AND b CONTAINS KEY 1");
+
+        assertRows(execute("SELECT * FROM %s"), row);
+    }
+
     /**
      * Test deletion by 'composite prefix' (range tombstones)
      * migrated from cql_tests.py:TestCQL.range_tombstones_test()
@@ -489,7 +510,7 @@ public class DeleteTest extends CQLTester
             assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                                  "DELETE FROM %s WHERE partitionKey > ? ", 0);
 
-            assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+            assertInvalidMessage("Cannot use DELETE with CONTAINS",
                                  "DELETE FROM %s WHERE partitionKey CONTAINS ?", 0);
 
             // Non primary key in the where clause
@@ -581,7 +602,7 @@ public class DeleteTest extends CQLTester
             assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                                  "DELETE FROM %s WHERE partitionKey > ? AND clustering = ?", 0, 1);
 
-            assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+            assertInvalidMessage("Cannot use DELETE with CONTAINS",
                                  "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering = ?", 0, 1);
 
             // Non primary key in the where clause
@@ -711,7 +732,7 @@ public class DeleteTest extends CQLTester
             assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                                  "DELETE FROM %s WHERE partitionKey > ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
-            assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+            assertInvalidMessage("Cannot use DELETE with CONTAINS",
                                  "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
             // Non primary key in the where clause
@@ -1124,17 +1145,17 @@ public class DeleteTest extends CQLTester
 
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND value = ?", 3, 3, 3);
-        assertInvalidMessage("Non PRIMARY KEY columns found in where clause: values",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND values CONTAINS ?", 3, 3, 3);
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "DELETE FROM %s WHERE partitionKey = ? AND value = ?", 3, 3);
-        assertInvalidMessage("Non PRIMARY KEY columns found in where clause: values",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey = ? AND values CONTAINS ?", 3, 3);
         assertInvalidMessage("Some partition key parts are missing: partitionkey",
                              "DELETE FROM %s WHERE clustering_1 = ?", 3);
         assertInvalidMessage("Some partition key parts are missing: partitionkey",
                              "DELETE FROM %s WHERE value = ?", 3);
-        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE values CONTAINS ?", 3);
     }
 
