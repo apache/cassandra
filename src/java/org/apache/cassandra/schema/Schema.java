@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
@@ -108,6 +109,14 @@ public class Schema implements SchemaProvider
 
         this.localKeyspaces.forEach(this::loadNew);
         this.updateHandler = SchemaUpdateHandlerFactoryProvider.instance.get().getSchemaUpdateHandler(online, this::mergeAndUpdateVersion);
+    }
+
+    @VisibleForTesting
+    public Schema(boolean online, Keyspaces localKeyspaces, SchemaUpdateHandler updateHandler)
+    {
+        this.online = online;
+        this.localKeyspaces = localKeyspaces;
+        this.updateHandler = updateHandler;
     }
 
     public void startSync()
@@ -586,7 +595,8 @@ public class Schema implements SchemaProvider
      *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
-    private synchronized void mergeAndUpdateVersion(SchemaTransformationResult result)
+    @VisibleForTesting
+    public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result)
     {
         if (online)
             SystemKeyspace.updateSchemaVersion(result.after.getVersion());

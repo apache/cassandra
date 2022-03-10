@@ -129,6 +129,17 @@ public class Keyspace
         initialized = true;
     }
 
+    /**
+     * Never use it in production code.
+     *
+     * Useful when creating a fake Schema so that it does not manage Keyspace instances (and CFS)
+     */
+    @VisibleForTesting
+    public static void unsetInitialized()
+    {
+        initialized = false;
+    }
+
     public static Keyspace open(String keyspaceName)
     {
         assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;
