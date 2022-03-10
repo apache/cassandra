@@ -1,4 +1,5 @@
 3.0.27
+ * Fail build when Ant is not of a certain version (CASSANDRA-17428)
  * Disallow CONTAINS for UPDATE and DELETE (CASSANDRA-15266)
  * filter out NULL_VERSION entries from peers table in ConfiguredLimit (CASSANDRA-16518)
  * Suppress inapplicable CVEs (CASSANDRA-17368)
