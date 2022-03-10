@@ -25,13 +25,13 @@ import java.util.Arrays;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static junit.framework.Assert.assertNull;
-import static org.junit.Assert.assertEquals;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
  * SELECT statement tests that require a ByteOrderedPartitioner
@@ -368,7 +368,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
 
         Object[][] rows = getRows(execute("SELECT v2 FROM %s"));
         assertEquals(0, rows[0][0]);
-        assertEquals(null, rows[1][0]);
+        assertNull(rows[1][0]);
         assertEquals(2, rows[2][0]);
 
         rows = getRows(execute("SELECT v2 FROM %s WHERE k = 1"));

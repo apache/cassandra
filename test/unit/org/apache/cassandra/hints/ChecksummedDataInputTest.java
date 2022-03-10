@@ -20,7 +20,6 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.util.File;
@@ -35,9 +34,10 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ChecksummedDataInputTest
 {
@@ -104,12 +104,12 @@ public class ChecksummedDataInputTest
             assertEquals(127, reader.read());
             byte[] bytes = new byte[b.length];
             reader.readFully(bytes);
-            assertTrue(Arrays.equals(bytes, b));
-            assertEquals(false, reader.readBoolean());
+            assertArrayEquals(bytes, b);
+            assertFalse(reader.readBoolean());
             assertEquals(10, reader.readByte());
             assertEquals('t', reader.readChar());
-            assertEquals(3.3, reader.readDouble());
-            assertEquals(2.2f, reader.readFloat());
+            assertEquals(3.3, reader.readDouble(), 0.0);
+            assertEquals(2.2f, reader.readFloat(), 0.0);
             assertEquals(42, reader.readInt());
             assertEquals(Long.MAX_VALUE, reader.readLong());
             assertEquals(Short.MIN_VALUE, reader.readShort());
@@ -176,14 +176,14 @@ public class ChecksummedDataInputTest
 
             // assert that we read all the right values back
             assertEquals(127, reader.read());
-            assertEquals(false, reader.readBoolean());
+            assertFalse(reader.readBoolean());
             assertEquals(10, reader.readByte());
             assertEquals('t', reader.readChar());
             assertTrue(reader.checkCrc());
 
             reader.resetCrc();
-            assertEquals(3.3, reader.readDouble());
-            assertEquals(2.2f, reader.readFloat());
+            assertEquals(3.3, reader.readDouble(), 0.0);
+            assertEquals(2.2f, reader.readFloat(), 0.0);
             assertEquals(42, reader.readInt());
             assertTrue(reader.checkCrc());
             assertTrue(reader.isEOF());
@@ -232,7 +232,7 @@ public class ChecksummedDataInputTest
 
             // assert that we read all the right values back
             assertEquals(127, reader.read());
-            assertEquals(false, reader.readBoolean());
+            assertFalse(reader.readBoolean());
             assertEquals(10, reader.readByte());
             assertEquals('t', reader.readChar());
             assertFalse(reader.checkCrc());

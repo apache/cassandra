@@ -43,8 +43,12 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static junit.framework.Assert.*;
 
 public class HintsStoreTest
 {

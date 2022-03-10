@@ -32,8 +32,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import junit.framework.AssertionFailedError;
-
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
@@ -233,7 +231,7 @@ public class MockMessagingSpy
             {
                 T result = queue.poll(time, unit);
                 if (result != null)
-                    setException(new AssertionFailedError("Received unexpected message: " + result));
+                    setException(new AssertionError("Received unexpected message: " + result));
                 else
                     set(true);
             }

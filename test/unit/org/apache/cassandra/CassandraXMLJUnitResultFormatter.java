@@ -33,8 +33,8 @@ import java.util.Properties;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import junit.framework.AssertionFailedError;
-import junit.framework.Test;
+import junit.framework.AssertionFailedError;  // checkstyle: permit this import
+import junit.framework.Test;  // checkstyle: permit this import
 
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.taskdefs.optional.junit.IgnoredTestListener;

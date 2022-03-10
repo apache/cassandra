@@ -24,8 +24,8 @@ import java.io.OutputStream;
 import java.io.StringWriter;
 import java.text.NumberFormat;
 
-import junit.framework.AssertionFailedError;
-import junit.framework.Test;
+import junit.framework.AssertionFailedError;  // checkstyle: permit this import
+import junit.framework.Test;  // checkstyle: permit this import
 
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.taskdefs.optional.junit.IgnoredTestListener;

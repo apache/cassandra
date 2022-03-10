@@ -35,8 +35,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
