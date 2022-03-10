@@ -239,8 +239,9 @@ public class CQLSSTableWriter implements Closeable
             throw new InvalidRequestException(String.format("Invalid number of arguments, expecting %d values but got %d", boundNames.size(), values.size()));
 
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
-        List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
-        SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
+        ClientState state = ClientState.forInternalCalls();
+        List<ByteBuffer> keys = insert.buildPartitionKeyNames(options, state);
+        SortedSet<Clustering<?>> clusterings = insert.createClustering(options, state);
 
         long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
@@ -250,7 +251,7 @@ public class CQLSSTableWriter implements Closeable
                                                        ClientState.forInternalCalls(),
                                                        options,
                                                        insert.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
-                                                       (int) TimeUnit.MILLISECONDS.toSeconds(now),
+                                                       options.getNowInSec((int) TimeUnit.MILLISECONDS.toSeconds(now)),
                                                        insert.getTimeToLive(options),
                                                        Collections.emptyMap());
 

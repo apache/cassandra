@@ -82,6 +82,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$FlushCompression",
     "org.apache.cassandra.config.Config$InternodeCompression",
     "org.apache.cassandra.config.Config$MemtableAllocationType",
+    "org.apache.cassandra.config.Config$PaxosOnLinearizabilityViolation",
+    "org.apache.cassandra.config.Config$PaxosStatePurging",
     "org.apache.cassandra.config.Config$PaxosVariant",
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
@@ -215,7 +217,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.SmallestDurationSeconds",
     "org.apache.cassandra.config.SmallestDurationMilliseconds",
     "org.apache.cassandra.config.SmallestDataStorageKibibytes",
-    "org.apache.cassandra.config.SmallestDataStorageMebibytes"
+    "org.apache.cassandra.config.SmallestDataStorageMebibytes",
+    "org.apache.cassandra.config.StartupChecksOptions",
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

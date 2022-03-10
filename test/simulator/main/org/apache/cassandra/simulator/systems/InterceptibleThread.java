@@ -26,11 +26,15 @@ import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.OrderOn;
+import org.apache.cassandra.simulator.systems.InterceptedWait.Trigger;
+import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.INTERRUPT;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.SIGNAL;
 import static org.apache.cassandra.simulator.systems.InterceptibleThread.WaitTimeKind.ABSOLUTE_MILLIS;
 import static org.apache.cassandra.simulator.systems.InterceptibleThread.WaitTimeKind.NONE;
 import static org.apache.cassandra.simulator.systems.InterceptibleThread.WaitTimeKind.RELATIVE_NANOS;
@@ -40,6 +44,7 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION, ancestors = ALL, members = ALL)
 public class InterceptibleThread extends FastThreadLocalThread implements InterceptorOfConsequences
 {
+    @Shared(scope = SIMULATION)
     enum WaitTimeKind
     {
         NONE, RELATIVE_NANOS, ABSOLUTE_MILLIS
@@ -50,15 +55,17 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     private class Parked implements InterceptedWait
     {
         final Kind kind;
+        final CaptureSites captureSites;
         final InterceptorOfConsequences waitInterceptedBy;
         final List<TriggerListener> onTrigger = new ArrayList<>(3);
         final long waitTime;
-        boolean isWakeIntercepted; // we have intercepted a pending wakeup
         boolean isDone; // we have been signalled (by the simulation or otherwise)
+        Trigger trigger;
 
-        Parked(Kind kind, long waitTime, InterceptorOfConsequences waitInterceptedBy)
+        Parked(Kind kind, CaptureSites captureSites, long waitTime, InterceptorOfConsequences waitInterceptedBy)
         {
             this.kind = kind;
+            this.captureSites = captureSites;
             this.waitTime = waitTime;
             this.waitInterceptedBy = waitInterceptedBy;
         }
@@ -82,7 +89,13 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
         }
 
         @Override
-        public synchronized void triggerAndAwaitDone(InterceptorOfConsequences interceptor, boolean isTimeout)
+        public boolean isInterruptible()
+        {
+            return true;
+        }
+
+        @Override
+        public synchronized void triggerAndAwaitDone(InterceptorOfConsequences interceptor, Trigger trigger)
         {
             if (parked == null)
                 return;
@@ -92,7 +105,8 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
             parked = null;
             onTrigger.forEach(listener -> listener.onTrigger(this));
 
-            notify();
+            if (!preWakeup(this))
+                notify();
 
             try
             {
@@ -139,9 +153,9 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
                 while (!isTriggered())
                     wait();
 
-                if (interruptOnWakeup)
+                if (hasPendingInterrupt)
                     doInterrupt();
-                interruptOnWakeup = false;
+                hasPendingInterrupt = false;
             }
             catch (InterruptedException e)
             {
@@ -150,16 +164,22 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
             }
         }
 
-        void interceptWakeIfNotAlready(InterceptibleThread by)
+        @Override
+        public void interceptWakeup(Trigger trigger, Thread by)
         {
-            if (!isWakeIntercepted) by.interceptor.interceptWakeup(this, waitInterceptedBy);
-            isWakeIntercepted = true;
+            if (this.trigger != null && this.trigger.compareTo(trigger) >= 0)
+                return;
+
+            this.trigger = trigger;
+            if (captureSites != null)
+                captureSites.registerWakeup(by);
+            interceptorOrDefault(by).interceptWakeup(this, trigger, waitInterceptedBy);
         }
 
         @Override
         public String toString()
         {
-            return "";
+            return captureSites == null ? "" : captureSites.toString();
         }
     }
 
@@ -169,15 +189,16 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     final String toString;
     final Runnable onTermination;
     private final InterceptorOfGlobalMethods interceptorOfGlobalMethods;
-    private final SimulatedTime.LocalTime time;
+    private final LocalTime time;
 
     // this is set before the thread's execution begins/continues; events and cessation are reported back to this
     private InterceptorOfConsequences interceptor;
     private NotifyThreadPaused notifyOnPause;
 
     private boolean hasPendingUnpark;
-    private boolean interruptOnWakeup;
+    private boolean hasPendingInterrupt;
     private Parked parked;
+    private InterceptedWait waitingOn;
 
     volatile boolean trapInterrupts = true;
     // we need to avoid non-determinism when evaluating things in the debugger and toString() is the main culprit
@@ -185,7 +206,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     // perform any non-deterministic actions
     private int determinismDepth;
 
-    public InterceptibleThread(ThreadGroup group, Runnable target, String name, Object extraToStringInfo, Runnable onTermination, InterceptorOfGlobalMethods interceptorOfGlobalMethods, SimulatedTime.LocalTime time)
+    public InterceptibleThread(ThreadGroup group, Runnable target, String name, Object extraToStringInfo, Runnable onTermination, InterceptorOfGlobalMethods interceptorOfGlobalMethods, LocalTime time)
     {
         super(group, target, name);
         this.onTermination = onTermination;
@@ -212,13 +233,15 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
                     break;
                 case RELATIVE_NANOS:
                     kind = WAIT_UNTIL;
-                    waitTime = time.localToGlobal(time.relativeNanosToAbsolute(waitTime));
+                    waitTime = time.localToGlobalNanos(time.relativeToLocalNanos(waitTime));
                     break;
                 case ABSOLUTE_MILLIS:
                     kind = WAIT_UNTIL;
                     waitTime = time.translate().fromMillisSinceEpoch(waitTime);
             }
-            Parked parked = this.parked = new Parked(kind, waitTime, interceptor);
+
+            Parked parked = new Parked(kind, interceptorOfGlobalMethods.captureWaitSite(this), waitTime, interceptor);
+            this.parked = parked;
             interceptWait(parked);
             parked.await();
         }
@@ -229,15 +252,32 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     {
         if (by.interceptor == null) return false;
         if (parked == null) hasPendingUnpark = true;
-        else parked.interceptWakeIfNotAlready(by);
+        else parked.interceptWakeup(SIGNAL, by);
         return true;
     }
 
     public void trapInterrupts(boolean trapInterrupts)
     {
         this.trapInterrupts = trapInterrupts;
-        if (interruptOnWakeup)
+        if (!trapInterrupts && hasPendingInterrupt)
             doInterrupt();
+    }
+
+    public boolean hasPendingInterrupt()
+    {
+        return hasPendingInterrupt;
+    }
+
+    public boolean preWakeup(InterceptedWait wakingOn)
+    {
+        assert wakingOn == waitingOn;
+        waitingOn = null;
+        if (!hasPendingInterrupt)
+            return false;
+
+        hasPendingInterrupt = false;
+        doInterrupt();
+        return true;
     }
 
     public void doInterrupt()
@@ -252,9 +292,9 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
         if (by == this || !(by instanceof InterceptibleThread) || !trapInterrupts) doInterrupt();
         else
         {
-            interruptOnWakeup = true;
-            if (parked == null) hasPendingUnpark = true;
-            else parked.interceptWakeIfNotAlready((InterceptibleThread)by);
+            hasPendingInterrupt = true;
+            if (waitingOn != null && waitingOn.isInterruptible())
+                waitingOn.interceptWakeup(INTERRUPT, by);
         }
     }
 
@@ -281,13 +321,13 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     }
 
     @Override
-    public void interceptWakeup(InterceptedWait wakeup, InterceptorOfConsequences waitWasInterceptedBy)
+    public void interceptWakeup(InterceptedWait wakeup, Trigger trigger, InterceptorOfConsequences waitWasInterceptedBy)
     {
         ++determinismDepth;
         try
         {
-            interceptor.interceptWakeup(wakeup, waitWasInterceptedBy);
-            if (debug != null) debug.interceptWakeup(wakeup, waitWasInterceptedBy);
+            interceptor.interceptWakeup(wakeup, trigger, waitWasInterceptedBy);
+            if (debug != null) debug.interceptWakeup(wakeup, trigger, waitWasInterceptedBy);
         }
         finally
         {
@@ -323,6 +363,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
             NotifyThreadPaused notifyOnPause = this.notifyOnPause;
             this.interceptor = null;
             this.notifyOnPause = null;
+            this.waitingOn = wakeupWith;
 
             interceptor.interceptWait(wakeupWith);
             if (debug != null) debug.interceptWait(wakeupWith);
@@ -342,9 +383,6 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     @Override
     public void interceptTermination(boolean isThreadTermination)
     {
-        if (isThreadTermination)
-            onTermination();
-
         ++determinismDepth;
         try
         {
@@ -373,7 +411,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
 
         this.interceptor = interceptor;
         this.notifyOnPause = notifyOnPause;
-        this.interceptor.beforeInvocation(this);
+        interceptor.beforeInvocation(this);
     }
 
     public boolean isEvaluationDeterministic()
@@ -493,6 +531,24 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
         if (!(thread instanceof InterceptibleThread) || !(currentThread instanceof InterceptibleThread)
             || !((InterceptibleThread) thread).unpark((InterceptibleThread) currentThread))
             LockSupport.unpark(thread);
+    }
+
+    public static InterceptorOfConsequences interceptorOrDefault(Thread thread)
+    {
+        if (!(thread instanceof InterceptibleThread))
+            return DEFAULT_INTERCEPTOR;
+
+        return interceptorOrDefault((InterceptibleThread) thread);
+    }
+
+    public static InterceptorOfConsequences interceptorOrDefault(InterceptibleThread thread)
+    {
+        return thread.isIntercepting() ? thread : DEFAULT_INTERCEPTOR;
+    }
+
+    public LocalTime time()
+    {
+        return time;
     }
 
     public static void setDebugInterceptor(InterceptorOfConsequences interceptor)

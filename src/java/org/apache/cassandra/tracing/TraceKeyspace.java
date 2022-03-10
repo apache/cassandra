@@ -35,9 +35,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public final class TraceKeyspace
 {
@@ -144,7 +144,7 @@ public final class TraceKeyspace
     static Mutation makeEventMutation(ByteBuffer sessionId, String message, int elapsed, String threadName, int ttl)
     {
         PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Events, sessionId);
-        Row.SimpleBuilder rowBuilder = builder.row(UUIDGen.getTimeUUID())
+        Row.SimpleBuilder rowBuilder = builder.row(nextTimeUUID())
                                               .ttl(ttl);
 
         rowBuilder.add("activity", message)

@@ -95,6 +95,17 @@ public interface GuardrailsConfig
      */
     int getMaterializedViewsPerTableWarnThreshold();
 
+
+    /**
+     * @return The threshold to warn when partition keys in select more than threshold.
+     */
+    int getPartitionKeysInSelectWarnThreshold();
+
+    /**
+     * @return The threshold to fail when partition keys in select more than threshold.
+     */
+    int getPartitionKeysInSelectFailThreshold();
+
     /**
      * @return The threshold to fail when creating more materialized views per table than threshold.
      */
@@ -133,4 +144,16 @@ public interface GuardrailsConfig
      * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
+     * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductWarnThreshold();
+
+    /**
+     * @return The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductFailThreshold();
 }

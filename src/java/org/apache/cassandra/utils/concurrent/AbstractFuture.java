@@ -316,7 +316,6 @@ public abstract class AbstractFuture<V> implements Future<V>
         return this;
     }
 
-
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      *

@@ -36,6 +36,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.UniqueIdentifier;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static com.google.common.base.Functions.compose;
@@ -187,7 +188,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return log.type();
     }
 
-    public UUID opId()
+    public TimeUUID opId()
     {
         return log.id();
     }

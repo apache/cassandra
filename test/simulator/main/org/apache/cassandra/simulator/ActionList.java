@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Iterators;
@@ -137,6 +138,11 @@ public class ActionList extends AbstractCollection<Action>
     public String toString()
     {
         return Arrays.toString(actions);
+    }
+
+    public String toReconcileString()
+    {
+        return Arrays.stream(actions).map(Action::toReconcileString).collect(Collectors.joining(",", "[", "]"));
     }
 }
 

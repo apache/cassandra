@@ -29,21 +29,25 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState.SHUTTING_DOWN_NOW;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState.TERMINATED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.Interruptible.State.INTERRUPTED;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class InfiniteLoopExecutor implements Interruptible
 {
     private static final Logger logger = LoggerFactory.getLogger(InfiniteLoopExecutor.class);
 
     @Shared(scope = Shared.Scope.SIMULATION)
-    public enum InternalState { TERMINATED }
+    public enum InternalState { SHUTTING_DOWN_NOW, TERMINATED }
 
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum SimulatorSafe { SAFE, UNSAFE }
@@ -59,6 +63,7 @@ public class InfiniteLoopExecutor implements Interruptible
     private final Task task;
     private volatile Object state = NORMAL;
     private final Consumer<Thread> interruptHandler;
+    private final Condition isTerminated = newOneTimeCondition();
 
     public InfiniteLoopExecutor(String name, Task task, Daemon daemon)
     {
@@ -102,32 +107,40 @@ public class InfiniteLoopExecutor implements Interruptible
     private void loop()
     {
         boolean interrupted = false;
-        while (true)
+        try
         {
-            try
+            while (true)
             {
-                Object cur = state;
-                if (cur == TERMINATED) break;
+                try
+                {
+                    Object cur = state;
+                    if (cur == SHUTTING_DOWN_NOW) break;
 
-                interrupted |= Thread.interrupted();
-                if (cur == NORMAL && interrupted) cur = INTERRUPTED;
-                task.run((State) cur);
+                    interrupted |= Thread.interrupted();
+                    if (cur == NORMAL && interrupted) cur = INTERRUPTED;
+                    task.run((State) cur);
 
-                interrupted = false;
-                if (cur == SHUTTING_DOWN) state = TERMINATED;
+                    interrupted = false;
+                    if (cur == SHUTTING_DOWN) break;
+                }
+                catch (TerminateException ignore)
+                {
+                    break;
+                }
+                catch (UncheckedInterruptedException | InterruptedException ignore)
+                {
+                    interrupted = true;
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Exception thrown by runnable, continuing with loop", t);
+                }
             }
-            catch (TerminateException ignore)
-            {
-                state = TERMINATED;
-            }
-            catch (UncheckedInterruptedException | InterruptedException ignore)
-            {
-                interrupted = true;
-            }
-            catch (Throwable t)
-            {
-                logger.error("Exception thrown by runnable, continuing with loop", t);
-            }
+        }
+        finally
+        {
+            state = TERMINATED;
+            isTerminated.signal();
         }
     }
 
@@ -138,13 +151,13 @@ public class InfiniteLoopExecutor implements Interruptible
 
     public void shutdown()
     {
-        stateUpdater.updateAndGet(this, cur -> cur != TERMINATED ? SHUTTING_DOWN : TERMINATED);
+        stateUpdater.updateAndGet(this, cur -> cur != TERMINATED && cur != SHUTTING_DOWN_NOW ? SHUTTING_DOWN : cur);
         interruptHandler.accept(thread);
     }
 
     public Object shutdownNow()
     {
-        state = TERMINATED;
+        stateUpdater.updateAndGet(this, cur -> cur != TERMINATED ? SHUTTING_DOWN_NOW : TERMINATED);
         interruptHandler.accept(thread);
         return null;
     }
@@ -152,12 +165,16 @@ public class InfiniteLoopExecutor implements Interruptible
     @Override
     public boolean isTerminated()
     {
-        return state == TERMINATED && !thread.isAlive();
+        return state == TERMINATED;
     }
 
     public boolean awaitTermination(long time, TimeUnit unit) throws InterruptedException
     {
-        thread.join(unit.toMillis(time));
+        if (isTerminated())
+            return true;
+
+        long deadlineNanos = nanoTime() + unit.toNanos(time);
+        isTerminated.awaitUntil(deadlineNanos);
         return isTerminated();
     }
 

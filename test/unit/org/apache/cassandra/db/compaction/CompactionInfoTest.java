@@ -27,7 +27,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.repair.AbstractPendingAntiCompactionTest;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
 {
@@ -35,7 +38,7 @@ public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
     public void testCompactionInfoToStringContainsTaskId()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        UUID expectedTaskId = UUID.randomUUID();
+        TimeUUID expectedTaskId = nextTimeUUID();
         CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, expectedTaskId, new ArrayList<>());
         Assertions.assertThat(compactionInfo.toString())
                   .contains(expectedTaskId.toString());
@@ -45,7 +48,7 @@ public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
     public void testCompactionInfoToStringFormat()
     {
         UUID tableId = UUID.randomUUID();
-        UUID taskId = UUID.randomUUID();
+        TimeUUID taskId = nextTimeUUID();
         ColumnFamilyStore cfs = MockSchema.newCFS(builder -> builder.id(TableId.fromUUID(tableId)));
         CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, taskId, new ArrayList<>());
         Assertions.assertThat(compactionInfo.toString())

@@ -24,11 +24,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class SemaphoreTest
 {
@@ -57,11 +60,11 @@ public class SemaphoreTest
         Semaphore s = Semaphore.newFairSemaphore(2);
         List<Future<Boolean>> fs = start(s);
         s.release(1);
-        fs.get(0).get(1L, TimeUnit.MINUTES);
+        fs.get(0).get(1L, MINUTES);
         s.release(1);
-        fs.get(1).get(1L, TimeUnit.MINUTES);
+        fs.get(1).get(1L, MINUTES);
         s.release(1);
-        fs.get(2).get(1L, TimeUnit.MINUTES);
+        fs.get(2).get(1L, MINUTES);
         s.release(1);
         Assert.assertEquals(1, s.permits());
     }
@@ -74,17 +77,17 @@ public class SemaphoreTest
             Assert.assertTrue(s.tryAcquire(1));
             s.drain();
             Assert.assertFalse(s.tryAcquire(1));
-            Assert.assertFalse(s.tryAcquire(1, 1L, TimeUnit.MILLISECONDS));
+            Assert.assertFalse(s.tryAcquire(1, 1L, MILLISECONDS));
             Thread.currentThread().interrupt();
             try { s.acquireThrowUncheckedOnInterrupt(1); Assert.fail(); } catch (UncheckedInterruptedException ignore) { }
             Thread.currentThread().interrupt();
-            try { s.tryAcquire(1, 1L, TimeUnit.MILLISECONDS); Assert.fail(); } catch (InterruptedException ignore) { }
+            try { s.tryAcquire(1, 1L, MILLISECONDS); Assert.fail(); } catch (InterruptedException ignore) { }
             Thread.currentThread().interrupt();
-            try { s.tryAcquireUntil(1, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1L)); Assert.fail(); } catch (InterruptedException ignore) { }
+            try { s.tryAcquireUntil(1, nanoTime() + MILLISECONDS.toNanos(1L)); Assert.fail(); } catch (InterruptedException ignore) { }
             List<Future<Boolean>> fs = new ArrayList<>();
-            fs.add(exec.submit(() -> s.tryAcquire(1, 1L, TimeUnit.MINUTES)));
+            fs.add(exec.submit(() -> s.tryAcquire(1, 1L, MINUTES)));
             while (s instanceof Semaphore.Standard && ((Semaphore.Standard) s).waiting() == 0) Thread.yield();
-            fs.add(exec.submit(() -> s.tryAcquireUntil(1, System.nanoTime() + TimeUnit.MINUTES.toNanos(1L))));
+            fs.add(exec.submit(() -> s.tryAcquireUntil(1, System.nanoTime() + MINUTES.toNanos(1L))));
             while (s instanceof Semaphore.Standard && ((Semaphore.Standard) s).waiting() == 1) Thread.yield();
             fs.add(exec.submit(() -> { s.acquire(1); return true; } ));
             return fs;

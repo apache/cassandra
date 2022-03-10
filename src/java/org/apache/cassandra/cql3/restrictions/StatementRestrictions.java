@@ -35,6 +35,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -162,9 +163,15 @@ public final class StatementRestrictions
          *     allow two IN for the same entity but that doesn't seem very useful)
          *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value
          *     in CQL so far)
+         *   - CONTAINS and CONTAINS_KEY cannot be used with UPDATE or DELETE
          */
         for (Relation relation : whereClause.relations)
         {
+            if ((relation.isContains() || relation.isContainsKey()) && (type.isUpdate() || type.isDelete()))
+            {
+                throw invalidRequest("Cannot use %s with %s", type, relation.operator());
+            }
+
             if (relation.operator() == Operator.IS_NOT)
             {
                 if (!forView)
@@ -619,11 +626,12 @@ public final class StatementRestrictions
      * Returns the partition keys for which the data is requested.
      *
      * @param options the query options
+     * @param state the client state
      * @return the partition keys for which the data is requested.
      */
-    public List<ByteBuffer> getPartitionKeys(final QueryOptions options)
+    public List<ByteBuffer> getPartitionKeys(final QueryOptions options, ClientState state)
     {
-        return partitionKeyRestrictions.values(options);
+        return partitionKeyRestrictions.values(options, state);
     }
 
     /**
@@ -741,9 +749,10 @@ public final class StatementRestrictions
      * Returns the requested clustering columns.
      *
      * @param options the query options
+     * @param state the client state
      * @return the requested clustering columns
      */
-    public NavigableSet<Clustering<?>> getClusteringColumns(QueryOptions options)
+    public NavigableSet<Clustering<?>> getClusteringColumns(QueryOptions options, ClientState state)
     {
         // If this is a names command and the table is a static compact one, then as far as CQL is concerned we have
         // only a single row which internally correspond to the static parts. In which case we want to return an empty
@@ -751,7 +760,7 @@ public final class StatementRestrictions
         if (table.isStaticCompactTable())
             return BTreeSet.empty(table.comparator);
 
-        return clusteringColumnsRestrictions.valuesAsClustering(options);
+        return clusteringColumnsRestrictions.valuesAsClustering(options, state);
     }
 
     /**

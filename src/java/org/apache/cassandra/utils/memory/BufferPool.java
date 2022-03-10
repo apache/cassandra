@@ -1485,8 +1485,7 @@ public class BufferPool
     @VisibleForTesting
     public void shutdownLocalCleaner(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        shutdownNow(of(localPoolCleaner));
-        awaitTermination(timeout, unit, of(localPoolCleaner));
+        shutdownAndWait(timeout, unit, of(localPoolCleaner));
     }
 
     @VisibleForTesting

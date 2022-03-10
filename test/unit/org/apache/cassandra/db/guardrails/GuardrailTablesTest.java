@@ -90,16 +90,18 @@ public class GuardrailTablesTest extends ThresholdTester
     private String assertCreateTableWarns() throws Throwable
     {
         String tableName = createTableName();
-        assertThresholdWarns(format("Creating table %s, current number of tables 2 exceeds warning threshold of 1", tableName),
-                             createTableQuery(tableName));
+        assertThresholdWarns(createTableQuery(tableName),
+                             format("Creating table %s, current number of tables 2 exceeds warning threshold of 1", tableName)
+        );
         return tableName;
     }
 
     private void assertCreateTableFails() throws Throwable
     {
         String tableName = createTableName();
-        assertThresholdFails(format("Cannot have more than 2 tables, aborting the creation of table %s", tableName),
-                             createTableQuery(tableName));
+        assertThresholdFails(createTableQuery(tableName),
+                             format("Cannot have more than 2 tables, aborting the creation of table %s", tableName)
+        );
     }
 
     private String createTableQuery()

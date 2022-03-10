@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +35,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -105,9 +105,9 @@ public class PendingAntiCompaction
     static class AntiCompactionPredicate implements Predicate<SSTableReader>
     {
         private final Collection<Range<Token>> ranges;
-        private final UUID prsid;
+        private final TimeUUID prsid;
 
-        public AntiCompactionPredicate(Collection<Range<Token>> ranges, UUID prsid)
+        public AntiCompactionPredicate(Collection<Range<Token>> ranges, TimeUUID prsid)
         {
             this.ranges = ranges;
             this.prsid = prsid;
@@ -167,19 +167,19 @@ public class PendingAntiCompaction
     public static class AcquisitionCallable implements Callable<AcquireResult>
     {
         private final ColumnFamilyStore cfs;
-        private final UUID sessionID;
+        private final TimeUUID sessionID;
         private final AntiCompactionPredicate predicate;
         private final int acquireRetrySeconds;
         private final int acquireSleepMillis;
 
         @VisibleForTesting
-        public AcquisitionCallable(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, UUID sessionID, int acquireRetrySeconds, int acquireSleepMillis)
+        public AcquisitionCallable(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID sessionID, int acquireRetrySeconds, int acquireSleepMillis)
         {
             this(cfs, sessionID, acquireRetrySeconds, acquireSleepMillis, new AntiCompactionPredicate(ranges, sessionID));
         }
 
         @VisibleForTesting
-        AcquisitionCallable(ColumnFamilyStore cfs, UUID sessionID, int acquireRetrySeconds, int acquireSleepMillis, AntiCompactionPredicate predicate)
+        AcquisitionCallable(ColumnFamilyStore cfs, TimeUUID sessionID, int acquireRetrySeconds, int acquireSleepMillis, AntiCompactionPredicate predicate)
         {
             this.cfs = cfs;
             this.sessionID = sessionID;
@@ -258,11 +258,11 @@ public class PendingAntiCompaction
 
     static class AcquisitionCallback implements Function<List<AcquireResult>, Future<List<Void>>>
     {
-        private final UUID parentRepairSession;
+        private final TimeUUID parentRepairSession;
         private final RangesAtEndpoint tokenRanges;
         private final BooleanSupplier isCancelled;
 
-        public AcquisitionCallback(UUID parentRepairSession, RangesAtEndpoint tokenRanges, BooleanSupplier isCancelled)
+        public AcquisitionCallback(TimeUUID parentRepairSession, RangesAtEndpoint tokenRanges, BooleanSupplier isCancelled)
         {
             this.parentRepairSession = parentRepairSession;
             this.tokenRanges = tokenRanges;
@@ -325,7 +325,7 @@ public class PendingAntiCompaction
         }
     }
 
-    private final UUID prsId;
+    private final TimeUUID prsId;
     private final Collection<ColumnFamilyStore> tables;
     private final RangesAtEndpoint tokenRanges;
     private final ExecutorService executor;
@@ -333,7 +333,7 @@ public class PendingAntiCompaction
     private final int acquireSleepMillis;
     private final BooleanSupplier isCancelled;
 
-    public PendingAntiCompaction(UUID prsId,
+    public PendingAntiCompaction(TimeUUID prsId,
                                  Collection<ColumnFamilyStore> tables,
                                  RangesAtEndpoint tokenRanges,
                                  ExecutorService executor,
@@ -343,7 +343,7 @@ public class PendingAntiCompaction
     }
 
     @VisibleForTesting
-    PendingAntiCompaction(UUID prsId,
+    PendingAntiCompaction(TimeUUID prsId,
                           Collection<ColumnFamilyStore> tables,
                           RangesAtEndpoint tokenRanges,
                           int acquireRetrySeconds,
@@ -376,13 +376,13 @@ public class PendingAntiCompaction
     }
 
     @VisibleForTesting
-    protected AcquisitionCallable getAcquisitionCallable(ColumnFamilyStore cfs, Set<Range<Token>> ranges, UUID prsId, int acquireRetrySeconds, int acquireSleepMillis)
+    protected AcquisitionCallable getAcquisitionCallable(ColumnFamilyStore cfs, Set<Range<Token>> ranges, TimeUUID prsId, int acquireRetrySeconds, int acquireSleepMillis)
     {
         return new AcquisitionCallable(cfs, ranges, prsId, acquireRetrySeconds, acquireSleepMillis);
     }
 
     @VisibleForTesting
-    protected AcquisitionCallback getAcquisitionCallback(UUID prsId, RangesAtEndpoint tokenRanges)
+    protected AcquisitionCallback getAcquisitionCallback(TimeUUID prsId, RangesAtEndpoint tokenRanges)
     {
         return new AcquisitionCallback(prsId, tokenRanges, isCancelled);
     }

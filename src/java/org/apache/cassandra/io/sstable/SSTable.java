@@ -50,6 +50,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
 import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
@@ -371,7 +372,7 @@ public abstract class SSTable
         return AbstractBounds.bounds(first.getToken(), true, last.getToken(), true);
     }
 
-    public static void validateRepairedMetadata(long repairedAt, UUID pendingRepair, boolean isTransient)
+    public static void validateRepairedMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
     {
         Preconditions.checkArgument((pendingRepair == NO_PENDING_REPAIR) || (repairedAt == UNREPAIRED_SSTABLE),
                                     "pendingRepair cannot be set on a repaired sstable");

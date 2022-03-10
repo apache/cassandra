@@ -17,16 +17,15 @@
  */
 package org.apache.cassandra.batchlog;
 
-import java.util.UUID;
-
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.TimeUUID;
 
-public final class BatchRemoveVerbHandler implements IVerbHandler<UUID>
+public final class BatchRemoveVerbHandler implements IVerbHandler<TimeUUID>
 {
     public static final BatchRemoveVerbHandler instance = new BatchRemoveVerbHandler();
 
-    public void doVerb(Message<UUID> message)
+    public void doVerb(Message<TimeUUID> message)
     {
         BatchlogManager.remove(message.payload);
     }

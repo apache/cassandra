@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import javax.management.openmbean.ArrayType;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
@@ -37,6 +36,7 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class PendingStat
 {
@@ -63,9 +63,9 @@ public class PendingStat
 
     public final long dataSize;
     public final int numSSTables;
-    public final Set<UUID> sessions;
+    public final Set<TimeUUID> sessions;
 
-    public PendingStat(long dataSize, int numSSTables, Set<UUID> sessions)
+    public PendingStat(long dataSize, int numSSTables, Set<TimeUUID> sessions)
     {
         this.dataSize = dataSize;
         this.numSSTables = numSSTables;
@@ -84,7 +84,7 @@ public class PendingStat
         values.put(COMPOSITE_NAMES[1], numSSTables);
         String[] sessionIds = new String[sessions.size()];
         int idx = 0;
-        for (UUID session : sessions)
+        for (TimeUUID session : sessions)
             sessionIds[idx++] = session.toString();
         values.put(COMPOSITE_NAMES[2], sessionIds);
 
@@ -102,9 +102,9 @@ public class PendingStat
     {
         Preconditions.checkArgument(cd.getCompositeType().equals(COMPOSITE_TYPE));
         Object[] values = cd.getAll(COMPOSITE_NAMES);
-        Set<UUID> sessions = new HashSet<>();
+        Set<TimeUUID> sessions = new HashSet<>();
         for (String session : (String[]) values[2])
-            sessions.add(UUID.fromString(session));
+            sessions.add(TimeUUID.fromString(session));
         return new PendingStat((long) values[0], (int) values[1], sessions);
     }
 
@@ -112,11 +112,11 @@ public class PendingStat
     {
         public long dataSize = 0;
         public int numSSTables = 0;
-        public Set<UUID> sessions = new HashSet<>();
+        public Set<TimeUUID> sessions = new HashSet<>();
 
         public Builder addSSTable(SSTableReader sstable)
         {
-            UUID sessionID = sstable.getPendingRepair();
+            TimeUUID sessionID = sstable.getPendingRepair();
             if (sessionID == null)
                 return this;
             dataSize += sstable.onDiskLength();

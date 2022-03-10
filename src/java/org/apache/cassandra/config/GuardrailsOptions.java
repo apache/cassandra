@@ -67,6 +67,9 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.table_properties_ignored = validateTableProperties(config.table_properties_ignored, "table_properties_ignored");
         config.table_properties_disallowed = validateTableProperties(config.table_properties_disallowed, "table_properties_disallowed");
         validateIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
+        validateIntThreshold(config.partition_keys_in_select_warn_threshold,
+                             config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
+        validateIntThreshold(config.in_select_cartesian_product_warn_threshold, config.in_select_cartesian_product_fail_threshold, "in_select_cartesian_product");
     }
 
     @Override
@@ -195,6 +198,31 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public int getPartitionKeysInSelectWarnThreshold()
+    {
+        return config.partition_keys_in_select_warn_threshold;
+    }
+
+    @Override
+    public int getPartitionKeysInSelectFailThreshold()
+    {
+        return config.partition_keys_in_select_fail_threshold;
+    }
+
+    public void setPartitionKeysInSelectThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "partition_keys_in_select");
+        updatePropertyWithLogging("partition_keys_in_select_warn_threshold",
+                                  warn,
+                                  () -> config.partition_keys_in_select_warn_threshold,
+                                  x -> config.partition_keys_in_select_warn_threshold = x);
+        updatePropertyWithLogging("partition_keys_in_select_fail_threshold",
+                                  fail,
+                                  () -> config.partition_keys_in_select_fail_threshold,
+                                  x -> config.partition_keys_in_select_fail_threshold = x);
+    }
+
+    @Override
     public int getMaterializedViewsPerTableFailThreshold()
     {
         return config.materialized_views_per_table_fail_threshold;
@@ -292,6 +320,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   enabled,
                                   () -> config.read_before_write_list_operations_enabled,
                                   x -> config.read_before_write_list_operations_enabled = x);
+    }
+
+    @Override
+    public int getInSelectCartesianProductWarnThreshold()
+    {
+        return config.in_select_cartesian_product_warn_threshold;
+    }
+
+    @Override
+    public int getInSelectCartesianProductFailThreshold()
+    {
+        return config.in_select_cartesian_product_fail_threshold;
+    }
+
+    public void setInSelectCartesianProductThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "in_select_cartesian_product");
+        updatePropertyWithLogging("in_select_cartesian_product_warn_threshold",
+                                  warn,
+                                  () -> config.in_select_cartesian_product_warn_threshold,
+                                  x -> config.in_select_cartesian_product_warn_threshold = x);
+        updatePropertyWithLogging("in_select_cartesian_product_fail_threshold",
+                                  fail,
+                                  () -> config.in_select_cartesian_product_fail_threshold,
+                                  x -> config.in_select_cartesian_product_fail_threshold = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)

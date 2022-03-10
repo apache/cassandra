@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 
 import com.google.common.collect.Iterators;
 
@@ -51,23 +52,24 @@ import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
+import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.systems.SimulatedExecution;
 import org.apache.cassandra.simulator.systems.SimulatedQuery;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
-import org.apache.cassandra.simulator.systems.SimulatedWaits;
-import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
 import static org.apache.cassandra.simulator.ClusterSimulation.SHARE;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture.NONE;
 import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -117,7 +119,7 @@ public class SimulationTestBase
             return new ActionPlan(ActionList.of(initialize()),
                                   Collections.singletonList(execute()),
                                   ActionList.empty())
-                   .iterator(-1, () -> 0L, simulated.time, new RunnableActionScheduler.Immediate(), scheduler, simulated.futureScheduler);
+                   .iterator(STREAM_LIMITED, -1, () -> 0L, simulated.time, scheduler, simulated.futureScheduler);
         }
 
         public void run()
@@ -190,21 +192,23 @@ public class SimulationTestBase
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
+        Failures failures = new Failures();
         RandomSource random = new RandomSource.Default();
-        SimulatedWaits waits = new SimulatedWaits(random);
-        SimulatedTime time = new SimulatedTime(random, 1577836800000L /*Jan 1st UTC*/, new LongRange(1, 100, MILLISECONDS, NANOSECONDS),
-                                               UNIFORM, UNIFORM.period(new LongRange(10L, 60L, SECONDS, NANOSECONDS), random));
+        SimulatedTime time = new SimulatedTime(1, random, 1577836800000L /*Jan 1st UTC*/, new LongRange(1, 100, MILLISECONDS, NANOSECONDS),
+                                               UNIFORM, UNIFORM.period(new LongRange(10L, 60L, SECONDS, NANOSECONDS), random), (i1, i2) -> {});
         SimulatedExecution execution = new SimulatedExecution();
 
+        Predicate<String> sharedClassPredicate = AbstractCluster.getSharedClassPredicate(ISOLATE, SHARE, ANY, SIMULATION);
         InstanceClassLoader classLoader = new InstanceClassLoader(1, 1, AbstractCluster.CURRENT_VERSION.classpath,
                                                                   Thread.currentThread().getContextClassLoader(),
-                                                                  AbstractCluster.getSharedClassPredicate(ISOLATE, SHARE, ANY, SIMULATION),
-                                                                  new InterceptClasses(() -> 1.0f, () -> 1.0f, NemesisFieldSelectors.get())::apply);
+                                                                  sharedClassPredicate,
+                                                                  new InterceptClasses(() -> 1.0f, () -> 1.0f, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate())::apply);
 
         ThreadGroup tg = new ThreadGroup("test");
-        InterceptorOfGlobalMethods interceptorOfGlobalMethods = waits.interceptGlobalMethods(classLoader);
+        InterceptorOfGlobalMethods interceptorOfGlobalMethods = new InterceptingGlobalMethods(NONE, null, failures, random);
         InterceptingExecutorFactory factory = execution.factory(interceptorOfGlobalMethods, classLoader, tg);
 
+        time.setup(1, classLoader);
         IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<ExecutorFactory>) ExecutorFactory.Global::unsafeSet, classLoader)
                         .accept(factory);
 
@@ -215,7 +219,7 @@ public class SimulationTestBase
                             return random.uniform(Integer.MIN_VALUE, Integer.MAX_VALUE);
                         });
 
-        SimulatedSystems simulated = new SimulatedSystems(random, time, waits, null, execution, null, null, null, new FutureActionScheduler()
+        SimulatedSystems simulated = new SimulatedSystems(random, time, null, execution, null, null, null, new FutureActionScheduler()
         {
             @Override
             public Deliver shouldDeliver(int from, int to)
@@ -230,7 +234,7 @@ public class SimulationTestBase
             }
 
             @Override
-            public long messageTimeoutNanos(long expiresAfterNanos)
+            public long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos)
             {
                 return 0;
             }
@@ -246,7 +250,7 @@ public class SimulationTestBase
             {
                 return 0;
             }
-        }, new Debug(), new Failures());
+        }, new Debug(), failures);
 
         RunnableActionScheduler runnableScheduler = new RunnableActionScheduler.RandomUniform(random);
 
@@ -263,9 +267,9 @@ public class SimulationTestBase
         };
 
 
-        ActionSchedule testSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, new Work(UNLIMITED, runnableScheduler, Collections.singletonList(ActionList.of(entrypoint))));
+        ActionSchedule testSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(entrypoint))));
         Iterators.advance(testSchedule, Integer.MAX_VALUE);
-        ActionSchedule checkSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, new Work(UNLIMITED, runnableScheduler, Collections.singletonList(ActionList.of(toAction(check, classLoader, factory, simulated)))));
+        ActionSchedule checkSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(toAction(check, classLoader, factory, simulated)))));
         Iterators.advance(checkSchedule, Integer.MAX_VALUE);
     }
 

@@ -35,8 +35,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.db.compaction.OperationType.COMPACTION;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 
 public class CompactionAwareWriterTest extends CQLTester
@@ -208,7 +209,7 @@ public class CompactionAwareWriterTest extends CQLTester
         int nowInSec = FBUtilities.nowInSeconds();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(nowInSec));
-             CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
+             CompactionIterator ci = new CompactionIterator(COMPACTION, scanners.scanners, controller, nowInSec, nextTimeUUID()))
         {
             while (ci.hasNext())
             {

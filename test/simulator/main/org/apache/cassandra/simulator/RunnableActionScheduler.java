@@ -96,7 +96,7 @@ public abstract class RunnableActionScheduler implements Consumer<Action>
         public double priority()
         {
             double result = cur;
-            double step = (2*random.uniformDouble() - 1f) * maxStepSize;
+            double step = 2 * (random.uniformDouble() - 1f) * maxStepSize;
             this.cur = step > 0 ? Math.min(1d, cur + step)
                                 : Math.max(0d, cur + step);
             return result;

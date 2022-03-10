@@ -32,8 +32,8 @@ public interface StorageProxyMBean
     public Set<String> getHintedHandoffDisabledDCs();
     public int getMaxHintWindow();
     public void setMaxHintWindow(int ms);
-    public int getMaxHintsSizePerHostInMb();
-    public void setMaxHintsSizePerHostInMb(int value);
+    public int getMaxHintsSizePerHostInMiB();
+    public void setMaxHintsSizePerHostInMiB(int value);
     public int getMaxHintsInProgress();
     public void setMaxHintsInProgress(int qs);
     public int getHintsInProgress();
@@ -126,4 +126,10 @@ public interface StorageProxyMBean
 
     boolean getUseStatementsEnabled();
     void setUseStatementsEnabled(boolean enabled);
+
+    void setPaxosContentionStrategy(String variant);
+    String getPaxosContentionStrategy();
+
+    void setPaxosCoordinatorLockingDisabled(boolean disabled);
+    boolean getPaxosCoordinatorLockingDisabled();
 }

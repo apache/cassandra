@@ -128,11 +128,39 @@ public final class Guardrails implements GuardrailsMBean
                                      what, value, threshold));
 
     /**
+     * Guardrail on the number of partition keys in the IN clause.
+     */
+    public static final Threshold partitionKeysInSelect =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
+                                     "partition keys %s exceeds warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Aborting query with partition keys in IN clause on table %s, " +
+                                     "number of partition keys %s exceeds fail threshold of %s.",
+                                     what, value, threshold));
+
+    /**
      * Guardrail disabling operations on lists that require read before write.
      */
     public static final DisableFlag readBeforeWriteListOperationsEnabled =
     new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
                     "List operation requiring read before write");
+
+    /**
+     * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
+     */
+    public static final Threshold inSelectCartesianProduct =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("The cartesian product of the IN restrictions on %s produces %d values, " +
+                                     "this exceeds warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Aborting query because the cartesian product of the IN restrictions on %s " +
+                                     "produces %d values, this exceeds fail threshold of %s.",
+                                     what, value, threshold));
 
     private Guardrails()
     {
@@ -349,6 +377,42 @@ public final class Guardrails implements GuardrailsMBean
     public void setReadBeforeWriteListOperationsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setReadBeforeWriteListOperationsEnabled(enabled);
+    }
+
+    @Override
+    public void setPartitionKeysInSelectThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
+    }
+
+    @Override
+    public int getPartitionKeysInSelectWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionKeysInSelectWarnThreshold();
+    }
+
+    @Override
+    public int getPartitionKeysInSelectFailThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
+    }
+
+    @Override
+    public int getInSelectCartesianProductWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getInSelectCartesianProductWarnThreshold();
+    }
+
+    @Override
+    public int getInSelectCartesianProductFailThreshold()
+    {
+        return DEFAULT_CONFIG.getInSelectCartesianProductFailThreshold();
+    }
+
+    @Override
+    public void setInSelectCartesianProductThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setInSelectCartesianProductThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

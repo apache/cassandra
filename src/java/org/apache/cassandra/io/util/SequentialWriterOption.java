@@ -40,6 +40,7 @@ public class SequentialWriterOption
      * </ul>
      */
     public static final SequentialWriterOption DEFAULT = SequentialWriterOption.newBuilder().build();
+    public static final SequentialWriterOption FINISH_ON_CLOSE = SequentialWriterOption.newBuilder().finishOnClose(true).build();
 
     private final int bufferSize;
     private final BufferType bufferType;

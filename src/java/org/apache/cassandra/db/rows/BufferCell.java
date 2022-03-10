@@ -26,7 +26,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import static java.lang.String.format;
 
@@ -134,14 +133,6 @@ public class BufferCell extends AbstractCell<ByteBuffer>
         return withUpdatedValue(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
-    public Cell<?> copy(AbstractAllocator allocator)
-    {
-        if (!value.hasRemaining())
-            return this;
-
-        return new BufferCell(column, timestamp, ttl, localDeletionTime, allocator.clone(value), path == null ? null : path.copy(allocator));
-    }
-
     @Override
     public long unsharedHeapSize()
     {
@@ -151,6 +142,6 @@ public class BufferCell extends AbstractCell<ByteBuffer>
     @Override
     public long unsharedHeapSizeExcludingData()
     {
-        return EMPTY_SIZE + ObjectSizes.sizeOfEmptyHeapByteBuffer() + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value) + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
     }
 }

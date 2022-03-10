@@ -25,13 +25,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.commons.lang3.StringUtils;
 
@@ -88,7 +88,7 @@ public final class TracingTest
     {
         List<String> traces = new ArrayList<>();
         Tracing tracing = new TracingImpl(traces);
-        UUID uuid = tracing.newSession(Tracing.TraceType.NONE);
+        TimeUUID uuid = tracing.newSession(Tracing.TraceType.NONE);
         tracing.begin("test-request", Collections.<String,String>emptyMap());
         tracing.get(uuid).trace("test-1");
         tracing.get(uuid).trace("test-2");
@@ -189,7 +189,7 @@ public final class TracingTest
             return get();
         }
 
-        protected UUID newSession(UUID sessionId, TraceType traceType, Map<String,ByteBuffer> customPayload)
+        protected TimeUUID newSession(TimeUUID sessionId, TraceType traceType, Map<String,ByteBuffer> customPayload)
         {
             if (!customPayload.isEmpty())
                 logger.info("adding custom payload items {}", StringUtils.join(customPayload.keySet(), ','));
@@ -198,7 +198,7 @@ public final class TracingTest
             return super.newSession(sessionId, traceType, customPayload);
         }
 
-        protected TraceState newTraceState(InetAddressAndPort ia, UUID uuid, Tracing.TraceType tt)
+        protected TraceState newTraceState(InetAddressAndPort ia, TimeUUID uuid, Tracing.TraceType tt)
         {
             return new TraceState(ia, uuid, tt)
             {

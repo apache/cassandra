@@ -27,6 +27,8 @@ import java.util.UUID;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.fail;
 
 import org.apache.cassandra.SchemaLoader;
@@ -62,7 +64,7 @@ public class DynamicCompositeTypeTest
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
-            uuids[i] = UUIDGen.getTimeUUID();
+            uuids[i] = nextTimeUUID().asUUID();
     }
 
     @BeforeClass

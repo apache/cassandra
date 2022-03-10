@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
@@ -80,6 +81,12 @@ public class CounterMutation implements IMutation
     public Collection<PartitionUpdate> getPartitionUpdates()
     {
         return mutation.getPartitionUpdates();
+    }
+
+    @Override
+    public Supplier<Mutation> hintOnFailure()
+    {
+        return null;
     }
 
     public void validateSize(int version, int overhead)

@@ -15,10 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals, with_statement
-
 import os
-import subprocess
 
 from .basecase import BaseTestCase
 from .cassconnect import (get_cassandra_connection, create_keyspace, testrun_cqlsh)
@@ -71,5 +68,5 @@ class TestCqlshUnicode(BaseTestCase):
             output = c.cmd_and_response('CREATE TYPE "%s" ( "%s" int );' % (v1, v2))
             output = c.cmd_and_response('DESC TYPES;')
             self.assertIn(v1, output)
-            output = c.cmd_and_response('DESC TYPE "%s";' %(v1,))
+            output = c.cmd_and_response('DESC TYPE "%s";' % (v1,))
             self.assertIn(v2, output)

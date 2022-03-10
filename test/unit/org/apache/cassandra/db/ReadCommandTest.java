@@ -79,9 +79,10 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -1242,13 +1243,13 @@ public class ReadCommandTest
         digests.add(digest);
 
         // add a pending repair session to table1, digest should remain the same but now we expect it to be marked inconclusive
-        UUID session1 = UUIDGen.getTimeUUID();
+        TimeUUID session1 = nextTimeUUID();
         mutateRepaired(cfs, sstable1, ActiveRepairService.UNREPAIRED_SSTABLE, session1);
         digests.add(performReadAndVerifyRepairedInfo(readCommand, numPartitions, rowsPerPartition, false));
         assertEquals(1, digests.size());
 
         // add a different pending session to table2, digest should remain the same and still consider it inconclusive
-        UUID session2 = UUIDGen.getTimeUUID();
+        TimeUUID session2 = nextTimeUUID();
         mutateRepaired(cfs, sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, session2);
         digests.add(performReadAndVerifyRepairedInfo(readCommand, numPartitions, rowsPerPartition, false));
         assertEquals(1, digests.size());
@@ -1286,7 +1287,7 @@ public class ReadCommandTest
         }
     }
 
-    private void mutateRepaired(ColumnFamilyStore cfs, SSTableReader sstable, long repairedAt, UUID pendingSession)
+    private void mutateRepaired(ColumnFamilyStore cfs, SSTableReader sstable, long repairedAt, TimeUUID pendingSession)
     {
         try
         {

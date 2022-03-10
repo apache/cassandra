@@ -51,16 +51,18 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.service.paxos.BallotGenerator;
+import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
+import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /*
@@ -330,23 +332,23 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return conditions.isIfExists();
     }
 
-    public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
+    public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options, ClientState state)
     throws InvalidRequestException
     {
-        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options);
+        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options, state);
         for (ByteBuffer key : partitionKeys)
             QueryProcessor.validateKey(key);
 
         return partitionKeys;
     }
 
-    public NavigableSet<Clustering<?>> createClustering(QueryOptions options)
+    public NavigableSet<Clustering<?>> createClustering(QueryOptions options, ClientState state)
     throws InvalidRequestException
     {
         if (appliesOnlyToStaticColumns() && !restrictions.hasClusteringColumnsRestrictions())
             return FBUtilities.singleton(CBuilder.STATIC_BUILDER.build(), metadata().comparator);
 
-        return restrictions.getClusteringColumns(options);
+        return restrictions.getClusteringColumns(options, state);
     }
 
     /**
@@ -508,7 +510,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options);
+        ClientState clientState = queryState.getClientState();
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, clientState);
         // We don't support IN for CAS operation so far
         checkFalse(restrictions.keyIsInRelation(),
                    "IN on the partition key is not supported with conditional %s",
@@ -522,7 +525,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                    "IN on the clustering key columns is not supported with conditional %s",
                     type.isUpdate()? "updates" : "deletions");
 
-        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options));
+        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options, clientState));
         CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
@@ -657,7 +660,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, int nowInSeconds)
     {
-        UUID ballot = UUIDGen.getTimeUUIDFromMicros(timestamp);
+        Ballot ballot = BallotGenerator.Global.atUnixMicros(timestamp, NONE);
 
         SinglePartitionReadQuery readCommand = request.readCommand(nowInSeconds);
         FilteredPartition current;
@@ -670,10 +673,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (!request.appliesTo(current))
             return current.rowIterator();
 
-        PartitionUpdate updates = request.makeUpdates(current, state);
+        PartitionUpdate updates = request.makeUpdates(current, state, ballot);
         updates = TriggerExecutor.instance.execute(updates);
 
-        Commit proposal = Commit.newProposal(ballot, updates);
+        Proposal proposal = Proposal.of(ballot, updates);
         proposal.makeMutation().apply();
         return null;
     }
@@ -695,7 +698,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    int nowInSeconds,
                                                    long queryStartNanoTime)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options);
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
         addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
@@ -741,7 +744,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
         else
         {
-            NavigableSet<Clustering<?>> clusterings = createClustering(options);
+            NavigableSet<Clustering<?>> clusterings = createClustering(options, state);
 
             // If some of the restrictions were unspecified (e.g. empty IN restrictions) we do not need to do anything.
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())

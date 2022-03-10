@@ -441,7 +441,7 @@ public final class SchemaKeyspace
     @SuppressWarnings("unchecked")
     private static DecoratedKey decorate(TableMetadata metadata, Object value)
     {
-        return metadata.partitioner.decorateKey(((AbstractType) metadata.partitionKeyType).decompose(value));
+        return metadata.partitioner.decorateKey(metadata.partitionKeyType.decomposeUntyped(value));
     }
 
     static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
@@ -1147,9 +1147,9 @@ public final class SchemaKeyspace
 
         List<AbstractType<?>> argTypes = new ArrayList<>();
         for (String type : row.getFrozenList("argument_types", UTF8Type.instance))
-            argTypes.add(CQLTypeParser.parse(ksName, type, types));
+            argTypes.add(CQLTypeParser.parse(ksName, type, types).udfType());
 
-        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types);
+        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types).udfType();
 
         String language = row.getString("language");
         String body = row.getString("body");
@@ -1209,10 +1209,10 @@ public final class SchemaKeyspace
         List<AbstractType<?>> argTypes =
             row.getFrozenList("argument_types", UTF8Type.instance)
                .stream()
-               .map(t -> CQLTypeParser.parse(ksName, t, types))
+               .map(t -> CQLTypeParser.parse(ksName, t, types).udfType())
                .collect(toList());
 
-        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types);
+        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types).udfType();
 
         FunctionName stateFunc = new FunctionName(ksName, (row.getString("state_func")));
 

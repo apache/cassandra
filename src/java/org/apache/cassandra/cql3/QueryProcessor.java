@@ -52,6 +52,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
@@ -376,6 +377,16 @@ public class QueryProcessor implements QueryHandler
 
     private static QueryOptions makeInternalOptions(CQLStatement prepared, Object[] values, ConsistencyLevel cl)
     {
+        return makeInternalOptionsWithNowInSec(prepared, FBUtilities.nowInSeconds(), values, cl);
+    }
+
+    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values)
+    {
+        return makeInternalOptionsWithNowInSec(prepared, nowInSec, values, ConsistencyLevel.ONE);
+    }
+
+    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values, ConsistencyLevel cl)
+    {
         if (prepared.getBindVariables().size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.getBindVariables().size(), values.length));
 
@@ -383,10 +394,10 @@ public class QueryProcessor implements QueryHandler
         for (int i = 0; i < values.length; i++)
         {
             Object value = values[i];
-            AbstractType type = prepared.getBindVariables().get(i).type;
-            boundValues.add(value instanceof ByteBuffer || value == null ? (ByteBuffer)value : type.decompose(value));
+            AbstractType<?> type = prepared.getBindVariables().get(i).type;
+            boundValues.add(value instanceof ByteBuffer || value == null ? (ByteBuffer)value : type.decomposeUntyped(value));
         }
-        return QueryOptions.forInternalCalls(cl, boundValues);
+        return QueryOptions.forInternalCallsWithNowInSec(nowInSec, cl, boundValues);
     }
 
     public static Prepared prepareInternal(String query) throws RequestValidationException
@@ -497,6 +508,16 @@ public class QueryProcessor implements QueryHandler
         return execute(query, cl, internalQueryState(), values);
     }
 
+    public static UntypedResultSet executeInternalWithNowInSec(String query, int nowInSec, Object... values)
+    {
+        Prepared prepared = prepareInternal(query);
+        ResultMessage result = prepared.statement.executeLocally(internalQueryState(), makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values));
+        if (result instanceof ResultMessage.Rows)
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+        else
+            return null;
+    }
+
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
     throws RequestExecutionException
     {
@@ -570,6 +591,19 @@ public class QueryProcessor implements QueryHandler
         ResultMessage result = select.executeInternal(internalQueryState(), makeInternalOptions(prepared.statement, values), nowInSec, queryStartNanoTime);
         assert result instanceof ResultMessage.Rows;
         return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+    }
+
+    /**
+     * A special version of executeInternal that takes the time used as "now" for the query in argument.
+     * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
+     * cases.
+     */
+    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(int nowInSec, String query, Object... values)
+    {
+        Prepared prepared = prepareInternal(query);
+        assert prepared.statement instanceof SelectStatement;
+        SelectStatement select = (SelectStatement)prepared.statement;
+        return select.executeRawInternal(makeInternalOptions(prepared.statement, values), internalQueryState().getClientState(), nowInSec);
     }
 
     public static UntypedResultSet resultify(String query, RowIterator partition)

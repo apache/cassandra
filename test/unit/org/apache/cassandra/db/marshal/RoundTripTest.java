@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
 
@@ -29,6 +30,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class RoundTripTest
 {
@@ -88,7 +91,7 @@ public class RoundTripTest
     @Test
     public void testLexicalUUID()
     {
-        UUID uuid = UUIDGen.getTimeUUID();
+        UUID uuid = nextTimeUUID().asUUID();
         assert LexicalUUIDType.instance.fromString(LexicalUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
@@ -98,15 +101,15 @@ public class RoundTripTest
     @Test
     public void testTimeUUID()
     {
-        UUID uuid = UUIDGen.getTimeUUID();
+        TimeUUID uuid = nextTimeUUID();
         assert TimeUUIDType.instance.getString(TimeUUIDType.instance.fromString(uuid.toString()))
                 .equals(uuid.toString());
-        assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
-                .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
-        assert TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
+        assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(uuid.toBytes()))
+                .equals(uuid.toBytes());
+        assert TimeUUIDType.instance.compose(uuid.toBytes()).equals(uuid);
 
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
-        assert UUIDSerializer.instance.toString(uuid).equals(uuid.toString());
+        assert uuid.toString().equals(uuid.toString());
     }
 
     @Test

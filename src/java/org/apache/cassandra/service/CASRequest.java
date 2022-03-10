@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.paxos.Ballot;
 
 /**
  * Abstract the conditions and updates for a CAS operation.
@@ -30,7 +31,7 @@ public interface CASRequest
     /**
      * The command to use to fetch the value to compare for the CAS.
      */
-    public SinglePartitionReadQuery readCommand(int nowInSec);
+    public SinglePartitionReadCommand readCommand(int nowInSec);
 
     /**
      * Returns whether the provided CF, that represents the values fetched using the
@@ -42,5 +43,5 @@ public interface CASRequest
      * The updates to perform of a CAS success. The values fetched using the readFilter()
      * are passed as argument.
      */
-    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState state) throws InvalidRequestException;
+    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
 }

@@ -38,11 +38,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -81,7 +83,6 @@ import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
-import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.ShutdownException;
@@ -98,6 +99,7 @@ import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
 import static java.util.stream.Stream.of;
+import static org.apache.cassandra.distributed.impl.IsolatedExecutor.DEFAULT_SHUTDOWN_EXECUTOR;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAndPort;
 import static org.apache.cassandra.utils.Shared.Recursive.ALL;
 import static org.apache.cassandra.utils.Shared.Recursive.NONE;
@@ -168,6 +170,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private final List<Throwable> uncaughtExceptions = new CopyOnWriteArrayList<>();
 
     private final ThreadGroup clusterThreadGroup = new ThreadGroup(clusterId.toString());
+    private final ShutdownExecutor shutdownExecutor;
 
     private volatile IMessageSink messageSink;
 
@@ -178,6 +181,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
+        private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
 
         public AbstractBuilder(Factory<I, C, B> factory)
         {
@@ -188,6 +192,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
         {
             this.nodeProvisionStrategy = nodeProvisionStrategy;
+            return (B) this;
+        }
+
+        public B withShutdownExecutor(ShutdownExecutor shutdownExecutor)
+        {
+            this.shutdownExecutor = shutdownExecutor;
             return (B) this;
         }
     }
@@ -206,7 +216,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         protected IInvokableInstance delegate()
         {
             if (delegate == null)
-                throw new IllegalStateException("Can't use shut down instances, delegate is null");
+                throw new IllegalStateException("Can't use shutdown instances, delegate is null");
             return delegate;
         }
 
@@ -229,7 +239,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         private IInvokableInstance newInstance()
         {
             ++generation;
-            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, sharedClassPredicate, classTransformer);
+            IClassTransformer transformer = classTransformer == null ? null : classTransformer.initialise();
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, sharedClassPredicate, transformer);
             ThreadGroup threadGroup = new ThreadGroup(clusterThreadGroup, "node" + config.num() + (generation > 1 ? "_" + generation : ""));
             if (instanceInitializer != null)
                 instanceInitializer.initialise(classLoader, threadGroup, config.num(), generation);
@@ -237,13 +248,25 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             IInvokableInstance instance;
             try
             {
-                instance = Instance.transferAdhocPropagate((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
-                                   .apply(config.forVersion(version.version), classLoader, root.getFileSystem());
+                instance = Instance.transferAdhocPropagate((SerializableQuadFunction<IInstanceConfig, ClassLoader, FileSystem, ShutdownExecutor, Instance>)Instance::new, classLoader)
+                                   .apply(config.forVersion(version.version), classLoader, root.getFileSystem(), shutdownExecutor);
             }
             catch (InvocationTargetException e)
             {
-                instance = Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
-                                   .apply(config.forVersion(version.version), classLoader);
+                try
+                {
+                    instance = Instance.transferAdhocPropagate((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
+                                       .apply(config.forVersion(version.version), classLoader, root.getFileSystem());
+                }
+                catch (InvocationTargetException e2)
+                {
+                    instance = Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
+                                       .apply(config.forVersion(version.version), classLoader);
+                }
+                catch (IllegalAccessException e2)
+                {
+                    throw new RuntimeException(e);
+                }
             }
             catch (IllegalAccessException e)
             {
@@ -465,6 +488,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.configUpdater = builder.getConfigUpdater();
         this.broadcastPort = builder.getBroadcastPort();
         this.nodeProvisionStrategy = builder.nodeProvisionStrategy;
+        this.shutdownExecutor = builder.shutdownExecutor;
         this.instances = new ArrayList<>();
         this.instanceMap = new ConcurrentHashMap<>();
         this.initialVersion = builder.getVersion();

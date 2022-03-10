@@ -190,6 +190,14 @@ public class VersionedValue implements Comparable<VersionedValue>
                                                     Long.toString(expireTime)));
         }
 
+        @VisibleForTesting
+        public VersionedValue left(Collection<Token> tokens, long expireTime, int generation)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_LEFT,
+                                                    makeTokenString(tokens),
+                                                    Long.toString(expireTime)), generation);
+        }
+
         public VersionedValue moving(Token token)
         {
             return new VersionedValue(VersionedValue.STATUS_MOVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));

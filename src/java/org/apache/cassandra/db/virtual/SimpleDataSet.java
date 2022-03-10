@@ -176,8 +176,10 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         private void add(String columnName, Object value)
         {
             ColumnMetadata column = metadata.getColumn(ByteBufferUtil.bytes(columnName));
-            if (null == column || !column.isRegular())
-                throw new IllegalArgumentException();
+            if (column == null)
+                throw new IllegalArgumentException("Unknown column: " + columnName);
+            if (!column.isRegular())
+                throw new IllegalArgumentException(String.format("Expect a regular column %s, but got %s", columnName, column.kind));
             values.put(column, value);
         }
 
@@ -202,9 +204,8 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> ByteBuffer decompose(AbstractType<?> type, T value)
+    private static ByteBuffer decompose(AbstractType<?> type, Object value)
     {
-        return ((AbstractType<T>) type).decompose(value);
+        return type.decomposeUntyped(value);
     }
 }

@@ -21,7 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+
+import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
 
@@ -50,24 +53,25 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
 
-public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
+public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
     private final ReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
-    public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         this(command, replicaPlan, readRepair, queryStartNanoTime, false);
     }
 
-    public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
     {
         super(command, replicaPlan, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
@@ -88,12 +92,17 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public PartitionIterator resolve()
     {
+        return resolve(null);
+    }
+
+    public PartitionIterator resolve(@Nullable Runnable runOnShortRead)
+    {
         // We could get more responses while this method runs, which is ok (we're happy to ignore any response not here
         // at the beginning of this method), so grab the response count once and use that through the method.
         Collection<Message<ReadResponse>> messages = responses.snapshot();
         assert !any(messages, msg -> msg.payload.isDigestResponse());
 
-        E replicas = replicaPlan().candidates().select(transform(messages, Message::from), false);
+        E replicas = replicaPlan().readCandidates().select(transform(messages, Message::from), false);
 
         // If requested, inspect each response for a digest of the replica's repaired data set
         RepairedDataTracker repairedDataTracker = trackRepairedStatus
@@ -115,7 +124,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         {
             ResolveContext context = new ResolveContext(replicas);
             return resolveWithReadRepair(context,
-                                         i -> shortReadProtectedResponse(i, context),
+                                         i -> shortReadProtectedResponse(i, context, runOnShortRead),
                                          UnaryOperator.identity(),
                                          repairedDataTracker);
         }
@@ -181,13 +190,13 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         UnfilteredPartitionIterator getResponse(int i);
     }
 
-    private UnfilteredPartitionIterator shortReadProtectedResponse(int i, ResolveContext context)
+    private UnfilteredPartitionIterator shortReadProtectedResponse(int i, ResolveContext context, @Nullable Runnable onShortRead)
     {
         UnfilteredPartitionIterator originalResponse = responses.get(i).payload.makeIterator(command);
 
         return context.needShortReadProtection()
                ? ShortReadProtection.extend(context.replicas.get(i),
-                                            () -> responses.clearUnsafe(i),
+                                            () -> { responses.clearUnsafe(i); if (onShortRead != null) onShortRead.run(); },
                                             originalResponse,
                                             command,
                                             context.mergedResultCounter,
@@ -202,9 +211,9 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                     RepairedDataTracker repairedDataTracker)
     {
         UnfilteredPartitionIterators.MergeListener listener = null;
-        if (context.needsReadRepair())
+        if (context.needsReadRepair() && readRepair != NoopReadRepair.instance)
         {
-            P sources = replicaPlan.getWithContacts(context.replicas);
+            P sources = replicaPlan.get().withContacts(context.replicas);
             listener = wrapMergeListener(readRepair.getMergeListener(sources), sources, repairedDataTracker);
         }
 
@@ -244,7 +253,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),
-                                                                 i -> shortReadProtectedResponse(i, firstPhaseContext),
+                                                                 i -> shortReadProtectedResponse(i, firstPhaseContext, null),
                                                                  UnaryOperator.identity());
 
         PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
@@ -285,6 +294,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
         FilteredPartitions filtered = FilteredPartitions.filter(merged, filter);
         PartitionIterator counted = Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
+
         return Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }
 

@@ -35,6 +35,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,8 +69,11 @@ import org.apache.cassandra.utils.concurrent.Future;
  * of column families. For each of the column family to repair, RepairSession
  * creates a {@link RepairJob} that handles the repair of that CF.
  *
- * A given RepairJob has the 2 main phases:
+ * A given RepairJob has the 3 main phases:
  * <ol>
+ *   <li>
+ *     Paxos repair: unfinished paxos operations in the range/keyspace/table are first completed
+ *   </li>
  *   <li>Validation phase: the job requests merkle trees from each of the replica involves
  *      ({@link org.apache.cassandra.repair.ValidationTask}) and waits until all trees are received (in
  *      validationComplete()).
@@ -102,9 +106,9 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
-    public final UUID parentRepairSession;
+    public final TimeUUID parentRepairSession;
     /** Repair session ID */
-    private final UUID id;
+    private final TimeUUID id;
     public final String keyspace;
     private final String[] cfnames;
     public final RepairParallelism parallelismDegree;
@@ -114,6 +118,8 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final CommonRange commonRange;
     public final boolean isIncremental;
     public final PreviewKind previewKind;
+    public final boolean repairPaxos;
+    public final boolean paxosOnly;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -136,10 +142,12 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
+     * @param repairPaxos true if incomplete paxos operations should be completed as part of repair
+     * @param paxosOnly true if we should only complete paxos operations, not run a normal repair
      * @param cfnames names of columnfamilies
      */
-    public RepairSession(UUID parentRepairSession,
-                         UUID id,
+    public RepairSession(TimeUUID parentRepairSession,
+                         TimeUUID id,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -147,8 +155,12 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean pullRepair,
                          PreviewKind previewKind,
                          boolean optimiseStreams,
+                         boolean repairPaxos,
+                         boolean paxosOnly,
                          String... cfnames)
     {
+        this.repairPaxos = repairPaxos;
+        this.paxosOnly = paxosOnly;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
 
         this.parentRepairSession = parentRepairSession;
@@ -169,7 +181,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         return ExecutorFactory.Global.executorFactory().pooled("RepairJobTask", Integer.MAX_VALUE);
     }
 
-    public UUID getId()
+    public TimeUUID getId()
     {
         return id;
     }
@@ -274,7 +286,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
                     previewKind.logPrefix(getId()), parentRepairSession, repairedNodes(), commonRange, keyspace, Arrays.toString(cfnames));
         Tracing.traceRepair("Syncing range {}", commonRange);
-        if (!previewKind.isPreview())
+        if (!previewKind.isPreview() && !paxosOnly)
         {
             SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, commonRange);
         }

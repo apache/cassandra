@@ -100,6 +100,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.apache.cassandra.utils.Pair;
 import org.awaitility.Awaitility;
@@ -1160,15 +1161,33 @@ public abstract class CQLTester
 
     protected static void assertWarningsContain(Message.Response response, String message)
     {
-        List<String> warnings = response.getWarnings();
+        assertWarningsContain(response.getWarnings(), message);
+    }
+
+    protected static void assertWarningsContain(List<String> warnings, String message)
+    {
         Assert.assertNotNull(warnings);
         assertTrue(warnings.stream().anyMatch(s -> s.contains(message)));
+    }
+    
+    protected static void assertWarningsEquals(ResultSet rs, String... messages)
+    {
+        assertWarningsEquals(rs.getExecutionInfo().getWarnings(), messages);
+    }
+
+    protected static void assertWarningsEquals(List<String> warnings, String... messages)
+    {
+        Assert.assertNotNull(warnings);
+        Assertions.assertThat(messages).hasSameElementsAs(warnings);
     }
 
     protected static void assertNoWarningContains(Message.Response response, String message)
     {
-        List<String> warnings = response.getWarnings();
-        
+        assertNoWarningContains(response.getWarnings(), message);
+    }
+
+    protected static void assertNoWarningContains(List<String> warnings, String message)
+    {
         if (warnings != null) 
         {
             assertFalse(warnings.stream().anyMatch(s -> s.contains(message)));
@@ -1424,6 +1443,7 @@ public abstract class CQLTester
 
             Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d", i), expected == null ? 1 : expected.length, meta.size());
 
+            StringBuilder error = new StringBuilder();
             for (int j = 0; j < meta.size(); j++)
             {
                 ColumnSpecification column = meta.get(j);
@@ -1436,15 +1456,17 @@ public abstract class CQLTester
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
                     if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
-                        Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
-                                                  i,
-                                                  j,
-                                                  column.name,
-                                                  column.type.asCQL3Type(),
-                                                  formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
-                                                  formatValue(actualValue, column.type)));
+                        error.append(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
+                                                   i,
+                                                   j,
+                                                   column.name,
+                                                   column.type.asCQL3Type(),
+                                                   formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
+                                                   formatValue(actualValue, column.type))).append("\n");
                 }
             }
+            if (error.length() > 0)
+                Assert.fail(error.toString());
             i++;
         }
 
@@ -2029,7 +2051,7 @@ public abstract class CQLTester
         if (value instanceof ByteBuffer)
             return (ByteBuffer)value;
 
-        return type.decompose(serializeTuples(value));
+        return type.decomposeUntyped(serializeTuples(value));
     }
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)
@@ -2158,6 +2180,9 @@ public abstract class CQLTester
 
         if (value instanceof UUID)
             return UUIDType.instance;
+
+        if (value instanceof TimeUUID)
+            return TimeUUIDType.instance;
 
         if (value instanceof List)
         {

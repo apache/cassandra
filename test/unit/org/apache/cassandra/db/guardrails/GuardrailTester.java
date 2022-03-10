@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -163,7 +164,7 @@ public abstract class GuardrailTester extends CQLTester
         assertValid(() -> execute(userClientState, query));
     }
 
-    protected void assertWarns(CheckedFunction function, String message) throws Throwable
+    protected void assertWarns(CheckedFunction function, String... messages) throws Throwable
     {
         // We use client warnings to check we properly warn as this is the most convenient. Technically,
         // this doesn't validate we also log the warning, but that's probably fine ...
@@ -171,7 +172,7 @@ public abstract class GuardrailTester extends CQLTester
         try
         {
             function.apply();
-            assertWarnings(message);
+            assertWarnings(messages);
         }
         finally
         {
@@ -179,17 +180,17 @@ public abstract class GuardrailTester extends CQLTester
         }
     }
 
-    protected void assertWarns(String message, String query) throws Throwable
+    protected void assertWarns(String query, String... messages) throws Throwable
     {
-        assertWarns(() -> execute(userClientState, query), message);
+        assertWarns(() -> execute(userClientState, query), messages);
     }
 
-    protected void assertFails(CheckedFunction function, String message) throws Throwable
+    protected void assertFails(CheckedFunction function, String... messages) throws Throwable
     {
-        assertFails(function, message, true);
+        assertFails(function, true, messages);
     }
 
-    protected void assertFails(CheckedFunction function, String message, boolean thrown) throws Throwable
+    protected void assertFails(CheckedFunction function, boolean thrown, String... messages) throws Throwable
     {
         ClientWarn.instance.captureWarnings();
         try
@@ -203,10 +204,12 @@ public abstract class GuardrailTester extends CQLTester
         {
             assertTrue("Expect no exception thrown", thrown);
 
-            assertTrue(format("Full error message '%s' does not contain expected message '%s'", e.getMessage(), message),
-                       e.getMessage().contains(message));
+            // the last message is the one raising the guardrail failure, the previous messages are warnings
+            String failMessage = messages[messages.length - 1];
+            assertTrue(format("Full error message '%s' does not contain expected message '%s'", e.getMessage(), failMessage),
+                       e.getMessage().contains(failMessage));
 
-            assertWarnings(message);
+            assertWarnings(messages);
         }
         finally
         {
@@ -214,23 +217,27 @@ public abstract class GuardrailTester extends CQLTester
         }
     }
 
-    protected void assertFails(String message, String query) throws Throwable
+    protected void assertFails(String query, String... messages) throws Throwable
     {
-        assertFails(() -> execute(userClientState, query), message);
+        assertFails(() -> execute(userClientState, query), messages);
     }
 
-    private void assertWarnings(String message)
+    private void assertWarnings(String... messages)
     {
         List<String> warnings = getWarnings();
 
         assertFalse("Expected to warn, but no warning was received", warnings == null || warnings.isEmpty());
-        assertEquals(format("Got more thant 1 warning (got %d => %s)", warnings.size(), warnings),
-                     1,
+        assertEquals(format("Expected %d warnings but got %d: %s", messages.length, warnings.size(), warnings),
+                     messages.length,
                      warnings.size());
 
-        String warning = warnings.get(0);
-        assertTrue(format("Warning log message '%s' does not contain expected message '%s'", warning, message),
-                   warning.contains(message));
+        for (int i = 0; i < messages.length; i++)
+        {
+            String message = messages[i];
+            String warning = warnings.get(i);
+            assertTrue(format("Warning log message '%s' does not contain expected message '%s'", warning, message),
+                       warning.contains(message));
+        }
     }
 
     private void assertEmptyWarnings()
@@ -271,13 +278,18 @@ public abstract class GuardrailTester extends CQLTester
 
     protected ResultMessage execute(ClientState state, String query)
     {
+        return execute(state, query, Collections.emptyList());
+    }
+
+    protected ResultMessage execute(ClientState state, String query, List<ByteBuffer> values)
+    {
         QueryState queryState = new QueryState(state);
 
         String formattedQuery = formatQuery(query);
         CQLStatement statement = QueryProcessor.parseStatement(formattedQuery, queryState.getClientState());
         statement.validate(state);
 
-        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        QueryOptions options = QueryOptions.forInternalCalls(values);
 
         return statement.executeLocally(queryState, options);
     }

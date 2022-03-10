@@ -47,6 +47,8 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
 public class Scrubber implements Closeable
 {
     private final ColumnFamilyStore cfs;
@@ -489,7 +491,7 @@ public class Scrubber implements Closeable
     {
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
-        private final UUID scrubCompactionId;
+        private final TimeUUID scrubCompactionId;
         private final Lock fileReadLock;
 
         public ScrubInfo(RandomAccessReader dataFile, SSTableReader sstable, Lock fileReadLock)
@@ -497,7 +499,7 @@ public class Scrubber implements Closeable
             this.dataFile = dataFile;
             this.sstable = sstable;
             this.fileReadLock = fileReadLock;
-            scrubCompactionId = UUIDGen.getTimeUUID();
+            scrubCompactionId = nextTimeUUID();
         }
 
         public CompactionInfo getCompactionInfo()

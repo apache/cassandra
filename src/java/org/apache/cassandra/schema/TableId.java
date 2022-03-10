@@ -25,7 +25,8 @@ import java.util.UUID;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * The unique identifier of a table.
@@ -35,6 +36,7 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class TableId
 {
+    // TODO: should this be a TimeUUID?
     private final UUID id;
 
     private TableId(UUID id)
@@ -47,9 +49,10 @@ public class TableId
         return new TableId(id);
     }
 
+    // TODO: should we be using UUID.randomUUID()?
     public static TableId generate()
     {
-        return new TableId(UUIDGen.getTimeUUID());
+        return new TableId(nextTimeUUID().asUUID());
     }
 
     public static TableId fromString(String idString)

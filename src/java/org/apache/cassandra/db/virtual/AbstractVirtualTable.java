@@ -135,6 +135,12 @@ public abstract class AbstractVirtualTable implements VirtualTable
         throw new InvalidRequestException("Truncation is not supported by table " + metadata);
     }
 
+    @Override
+    public String toString()
+    {
+        return metadata().toString();
+    }
+
     public interface DataSet
     {
         boolean isEmpty();

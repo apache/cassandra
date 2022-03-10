@@ -64,7 +64,7 @@ public class DurationSpec
 
     public DurationSpec(String value)
     {
-        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan"))
+        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan") || value.equals("0"))
         {
             quantity = 0;
             unit = MILLISECONDS;
@@ -74,7 +74,7 @@ public class DurationSpec
         //parse the string field value
         Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
 
-        if(matcher.find())
+        if (matcher.find())
         {
             quantity = Long.parseLong(matcher.group(1));
             unit = fromSymbol(matcher.group(2));
@@ -129,6 +129,19 @@ public class DurationSpec
         }
     }
 
+    // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
+    // imporant to be explicit about get/set as this changes how parsing is done; this class is a data-type, so is
+    // not nested, having get/set can confuse parsing thinking this is a nested type
+    public long quantity()
+    {
+        return quantity;
+    }
+
+    public TimeUnit unit()
+    {
+        return unit;
+    }
+
     /**
      * Creates a {@code DurationSpec} of the specified amount of milliseconds.
      *
@@ -176,6 +189,17 @@ public class DurationSpec
     public static DurationSpec inHours(long hours)
     {
         return new DurationSpec(hours, HOURS);
+    }
+
+    /**
+     * Creates a {@code DurationSpec} of the specified amount of days.
+     *
+     * @param days the amount of days
+     * @return a duration
+     */
+    public static DurationSpec inDays(long days)
+    {
+        return new DurationSpec(days, DAYS);
     }
 
     /**

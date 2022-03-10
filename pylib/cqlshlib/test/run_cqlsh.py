@@ -16,18 +16,15 @@
 
 # NOTE: this testing tool is *nix specific
 
-from __future__ import unicode_literals
-
 import os
 import sys
 import re
 import contextlib
 import subprocess
 import signal
-import math
 from time import time
 from . import basecase
-from os.path import join, normpath
+from os.path import join
 
 
 import pty
@@ -41,6 +38,7 @@ try:
 except AttributeError:
     # Python 3.7+
     Pattern = re.Pattern
+
 
 def get_smm_sequence(term='xterm'):
     """
@@ -57,9 +55,11 @@ def get_smm_sequence(term='xterm'):
             result = result.decode("utf-8")
     return result
 
+
 DEFAULT_SMM_SEQUENCE = get_smm_sequence()
 
 cqlshlog = basecase.cqlshlog
+
 
 def set_controlling_pty(master, slave):
     os.setsid()
@@ -69,6 +69,7 @@ def set_controlling_pty(master, slave):
     if slave > 2:
         os.close(slave)
     os.close(os.open(os.ttyname(1), os.O_RDWR))
+
 
 @contextlib.contextmanager
 def raising_signal(signum, exc):
@@ -85,8 +86,10 @@ def raising_signal(signum, exc):
     finally:
         signal.signal(signum, oldhandlr)
 
+
 class TimeoutError(Exception):
     pass
+
 
 @contextlib.contextmanager
 def timing_out(seconds):
@@ -106,6 +109,7 @@ def timing_out(seconds):
 
 def noop(*a):
     pass
+
 
 class ProcRunner:
     def __init__(self, path, tty=True, env=None, args=()):
@@ -222,6 +226,7 @@ class ProcRunner:
             curtime = time()
         return got
 
+
 class CqlshRunner(ProcRunner):
     def __init__(self, path=None, host=None, port=None, keyspace=None, cqlver=None,
                  args=(), prompt=DEFAULT_CQLSH_PROMPT, env=None, tty=True, **kwargs):
@@ -256,7 +261,7 @@ class CqlshRunner(ProcRunner):
             self.output_header = self.read_to_next_prompt()
 
     def read_to_next_prompt(self, timeout=10.0):
-        return self.read_until(self.prompt, timeout=timeout, ptty_timeout=3, replace=[DEFAULT_SMM_SEQUENCE,])
+        return self.read_until(self.prompt, timeout=timeout, ptty_timeout=3, replace=[DEFAULT_SMM_SEQUENCE])
 
     def read_up_to_timeout(self, timeout, blksize=4096):
         output = ProcRunner.read_up_to_timeout(self, timeout, blksize=blksize)
@@ -281,11 +286,13 @@ class CqlshRunner(ProcRunner):
             promptline = output
             output = ''
         assert re.match(self.prompt, DEFAULT_PREFIX + promptline), \
-                'last line of output %r does not match %r?' % (promptline, self.prompt)
+            'last line of output %r does not match %r?' % (promptline, self.prompt)
         return output + '\n'
+
 
 def run_cqlsh(**kwargs):
     return contextlib.closing(CqlshRunner(**kwargs))
+
 
 def call_cqlsh(**kwargs):
     kwargs.setdefault('prompt', None)

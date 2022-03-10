@@ -97,24 +97,27 @@ public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
 
     private void assertCreateIndexWarns(String column, String indexName) throws Throwable
     {
-        assertThresholdWarns(format("Creating secondary index %son table %s, current number of indexes %s exceeds warning threshold of %s.",
+        assertThresholdWarns(format("CREATE INDEX %s ON %%s(%s)", indexName, column),
+                             format("Creating secondary index %son table %s, current number of indexes %s exceeds warning threshold of %s.",
                                     (Strings.isNullOrEmpty(indexName) ? "" : indexName + " "),
                                     currentTable(),
                                     currentValue() + 1,
-                                    guardrails().getSecondaryIndexesPerTableWarnThreshold()),
-                             format("CREATE INDEX %s ON %%s(%s)", indexName, column));
+                                    guardrails().getSecondaryIndexesPerTableWarnThreshold())
+        );
     }
 
     private void assertCreateIndexFails(String column, String indexName) throws Throwable
     {
-        assertThresholdFails(format("aborting the creation of secondary index %son table %s",
-                                    Strings.isNullOrEmpty(indexName) ? "" : indexName + " ", currentTable()),
-                             format("CREATE INDEX %s ON %%s(%s)", indexName, column));
+        assertThresholdFails(format("CREATE INDEX %s ON %%s(%s)", indexName, column),
+                             format("aborting the creation of secondary index %son table %s",
+                                    Strings.isNullOrEmpty(indexName) ? "" : indexName + " ", currentTable())
+        );
     }
 
     private void assertCreateCustomIndexFails(String column) throws Throwable
     {
-        assertThresholdFails(format("aborting the creation of secondary index on table %s", currentTable()),
-                             format("CREATE CUSTOM INDEX ON %%s (%s) USING 'org.apache.cassandra.index.sasi.SASIIndex'", column));
+        assertThresholdFails(format("CREATE CUSTOM INDEX ON %%s (%s) USING 'org.apache.cassandra.index.sasi.SASIIndex'", column),
+                             format("aborting the creation of secondary index on table %s", currentTable())
+        );
     }
 }

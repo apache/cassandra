@@ -37,7 +37,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -81,7 +80,7 @@ public abstract class AlteredHints
         int bufferSize = HintsWriteExecutor.WRITE_BUFFER_SIZE;
         List<Hint> hints = new LinkedList<>();
 
-        UUID hostId = UUIDGen.getTimeUUID();
+        UUID hostId = UUID.randomUUID();
         long ts = System.currentTimeMillis();
 
         HintsDescriptor descriptor = new HintsDescriptor(hostId, ts, params());

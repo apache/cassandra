@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.utils.TimeUUID;
 
 
 /**
@@ -56,8 +57,9 @@ public class TracingUtil
 
         static TraceEntry fromRowResultObjects(Object[] objects)
         {
-            return new TraceEntry((UUID) objects[0],
-                                  (UUID) objects[1],
+            UUID eventId = objects[1] instanceof UUID ? (UUID)objects[1]: ((TimeUUID)objects[1]).asUUID();
+            return new TraceEntry((UUID)objects[0],
+                                  eventId,
                                   (String) objects[2],
                                   (InetAddress) objects[3],
                                   (Integer) objects[4],

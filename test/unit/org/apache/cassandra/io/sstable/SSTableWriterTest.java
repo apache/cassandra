@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
 import org.apache.cassandra.io.util.File;
 import org.junit.Test;
@@ -33,10 +32,12 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static junit.framework.Assert.fail;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -235,7 +236,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         }
     }
 
-    private static void assertValidRepairMetadata(long repairedAt, UUID pendingRepair, boolean isTransient)
+    private static void assertValidRepairMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
@@ -255,7 +256,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         LifecycleTransaction.waitForDeletions();
     }
 
-    private static void assertInvalidRepairMetadata(long repairedAt, UUID pendingRepair, boolean isTransient)
+    private static void assertInvalidRepairMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
@@ -283,11 +284,11 @@ public class SSTableWriterTest extends SSTableWriterTestBase
     {
         assertValidRepairMetadata(UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false);
         assertValidRepairMetadata(1, NO_PENDING_REPAIR, false);
-        assertValidRepairMetadata(UNREPAIRED_SSTABLE, UUID.randomUUID(), false);
-        assertValidRepairMetadata(UNREPAIRED_SSTABLE, UUID.randomUUID(), true);
+        assertValidRepairMetadata(UNREPAIRED_SSTABLE, nextTimeUUID(), false);
+        assertValidRepairMetadata(UNREPAIRED_SSTABLE, nextTimeUUID(), true);
 
         assertInvalidRepairMetadata(UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, true);
-        assertInvalidRepairMetadata(1, UUID.randomUUID(), false);
+        assertInvalidRepairMetadata(1, nextTimeUUID(), false);
         assertInvalidRepairMetadata(1, NO_PENDING_REPAIR, true);
 
     }

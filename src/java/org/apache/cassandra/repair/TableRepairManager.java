@@ -20,12 +20,12 @@ package org.apache.cassandra.repair;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Table level hook for repair
@@ -37,7 +37,7 @@ public interface TableRepairManager
      * data previously isolated for repair with the given parentId. nowInSec should determine whether tombstones should
      * be purged or not.
      */
-    ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, UUID parentId, UUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException;
+    ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException;
 
     /**
      * Begin execution of the given validation callable. Which thread pool a validation should run in is an implementation detail.
@@ -54,7 +54,7 @@ public interface TableRepairManager
      * time. If the repairedAt time is zero, the data for the given session should be demoted back to unrepaired. Otherwise,
      * it should be promoted to repaired with the given repaired time.
      */
-    void incrementalSessionCompleted(UUID sessionID);
+    void incrementalSessionCompleted(TimeUUID sessionID);
 
     /**
      * For snapshot repairs. A snapshot of the current data for the given ranges should be taken with the given name.

@@ -40,6 +40,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -74,7 +75,7 @@ final class LogFile implements AutoCloseable
     private final OperationType type;
 
     // The unique id of the transaction
-    private final UUID id;
+    private final TimeUUID id;
 
     static LogFile make(File logReplica)
     {
@@ -92,7 +93,7 @@ final class LogFile implements AutoCloseable
         //String version = matcher.group(1);
 
         OperationType operationType = OperationType.fromFileName(matcher.group(2));
-        UUID id = UUID.fromString(matcher.group(3));
+        TimeUUID id = TimeUUID.fromString(matcher.group(3));
 
         return new LogFile(operationType, id, logReplicas);
     }
@@ -107,7 +108,7 @@ final class LogFile implements AutoCloseable
         return type;
     }
 
-    UUID id()
+    TimeUUID id()
     {
         return id;
     }
@@ -143,13 +144,13 @@ final class LogFile implements AutoCloseable
         return LogFile.FILE_REGEX.matcher(file.name()).matches();
     }
 
-    LogFile(OperationType type, UUID id, List<File> replicas)
+    LogFile(OperationType type, TimeUUID id, List<File> replicas)
     {
         this(type, id);
         this.replicas.addReplicas(replicas);
     }
 
-    LogFile(OperationType type, UUID id)
+    LogFile(OperationType type, TimeUUID id)
     {
         this.type = type;
         this.id = id;

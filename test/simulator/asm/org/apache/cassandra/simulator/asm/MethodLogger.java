@@ -41,15 +41,15 @@ import static org.apache.cassandra.simulator.asm.MethodLogger.Level.valueOf;
 // TODO (config): support logging only for packages/classes matching a pattern
 interface MethodLogger
 {
-    static final Level LOG = valueOf(System.getProperty("cassandra.simulator.print_asm", "none").toUpperCase());
-    static final Set<TransformationKind> KINDS = System.getProperty("cassandra.simulator.print_asm_opts", "").isEmpty()
+    static final Level LOG = valueOf(System.getProperty("cassandra.test.simulator.print_asm", "none").toUpperCase());
+    static final Set<TransformationKind> KINDS = System.getProperty("cassandra.test.simulator.print_asm_opts", "").isEmpty()
                                                  ? EnumSet.allOf(TransformationKind.class)
-                                                 : stream(System.getProperty("cassandra.simulator.print_asm_opts", "").split(","))
+                                                 : stream(System.getProperty("cassandra.test.simulator.print_asm_opts", "").split(","))
                                                    .map(TransformationKind::valueOf)
                                                    .collect(() -> EnumSet.noneOf(TransformationKind.class), Collection::add, Collection::addAll);
-    static final Pattern LOG_CLASSES = System.getProperty("cassandra.simulator.print_asm_classes", "").isEmpty()
+    static final Pattern LOG_CLASSES = System.getProperty("cassandra.test.simulator.print_asm_classes", "").isEmpty()
                                                  ? null
-                                                 : Pattern.compile(System.getProperty("cassandra.simulator.print_asm_classes", ""));
+                                                 : Pattern.compile(System.getProperty("cassandra.test.simulator.print_asm_classes", ""));
 
     // debug the output of each class at most once
     static final Set<String> LOGGED_CLASS = LOG != NONE ? Collections.newSetFromMap(new ConcurrentHashMap<>()) : null;

@@ -56,8 +56,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Expose all client options via system_views.clients and nodetool clientstats.
     - Support for String concatenation has been added through the + operator.
-    - New configuration max_hints_size_per_host to limit the size of local hints files per host in megabytes. Setting to
+    - New configuration max_hints_size_per_host to limit the size of local hints files per host in mebibytes. Setting to
       non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure
       the total size of the hints files per host does not exceed the limit.
     - Added ability to configure auth caches through corresponding `nodetool` commands.
@@ -73,6 +74,18 @@ New features
     - A new ALL TABLES IN KEYSPACE resource has been added. It allows to grant permissions for all tables and user types
       in a keyspace while preventing the user to use those permissions on the keyspace itself.
     - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
+    - A new implementation of Paxos (named v2) has been included that improves the safety and performance of LWT operations.
+      Importantly, v2 guarantees linearizability across safe range movements, so users are encouraged to enable v2.
+      v2 also halves the number of WAN messages required to be exchanged if used on conjunction with the new Paxos Repair
+      mechanism (see below) and with some minor modifications to applications using LWTs.
+      The new implementation may be enabled at any time by setting paxos_variant: v2, and disabled by setting to v1,
+      and this alone will reduce the number of WAN round-trips by between one and two for reads, and one for writes.
+    - A new Paxos Repair mechanism has been introduced as part of Repair, that permits further reducing the number of WAN 
+      round-trips for write LWTs. This process may be manually executed for v1 and is run automatically alongside normal 
+      repairs for v2. Once users are running regular repairs that include paxos repairs they are encouraged to set 
+      paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their 
+      applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN 
+      round-trip. See upgrade notes below.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
       to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
@@ -121,6 +134,18 @@ Upgrading
       what was actually applied in previous versions. This also affects the setters and getters for these properties in
       the JMX MBean `org.apache.cassandra.db:type=StorageService` and the nodetool commands `set/getstreamthroughput`
       and `set/getinterdcstreamthroughput`.
+    - Steps for upgrading Paxos
+        - Set paxos_variant: v2 across the cluster. This may be set via JMX, but should also be written
+          persistently to any yaml.
+        - Ensure paxos repairs are running regularly, either as part of normal incremental repair workflows or on their
+          own separate schedule. These operations are cheap and better to run frequently (e.g. once per hour)
+        - Set paxos_state_purging: repaired across the cluster.  This may be set via JMX, but should also be written
+          persistently to any yaml. NOTE: once this has been set, you must not restore paxos_state_purging: legacy. If
+          this setting must be disabled you must instead set paxos_state_purging: gc_grace. This may be necessary if
+          paxos repairs must be disabled for some reason on an extended basis, but in this case your applications must
+          restore default commit consistency to ensure correctness.
+        - Applications may now safely be updated to use ANY commit consistency level (or LOCAL_QUORUM, as preferred).
+          Uncontended writes should now take 2 round-trips, and uncontended reads should typically take one round-trip.
 
 Deprecation
 -----------
@@ -129,6 +154,9 @@ Deprecation
       in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
       `org.apache.cassandra.db:type=StorageService`, which are equally deprecated in favour of the analogous methods
       in the JMX MBean `org.apache.cassandra.db:type=Guardrails`. See CASSANDRA-17195 for further details.
+    - The functionality behind the property `windows_timer_interval` was removed as part of CASSANDRA-16956. The
+      property is still present but it is deprecated and it is just a place-holder to prevent breaking upgrades. This
+      property is expected to be fully removed in the next major release of Cassandra.
 
 4.0
 ===
@@ -225,6 +253,9 @@ New features
 
 Upgrading
 ---------
+    - otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
+      otc_backlog_expiration_interval_ms are deprecated and will be removed at earliest with next major release.
+      otc_coalescing_strategy is disabled since 3.11.
     - As part of the Internode Messaging improvement work in CASSANDRA-15066, internode_send_buff_size_in_bytes and
       internode_recv_buff_size_in_bytes were renamed to internode_socket_send_buffer_size_in_bytes and
       internode_socket_receive_buffer_size_in_bytes. To support upgrades pre-4.0, we add backward compatibility and
@@ -395,7 +426,8 @@ Upgrading
 
 Deprecation
 -----------
-
+    - JavaScript user-defined functions have been deprecated. They are planned for removal
+      in the next major release. (CASSANDRA-17280)
     - The JMX MBean org.apache.cassandra.metrics:type=Streaming,name=ActiveOutboundStreams has been
       deprecated and will be removed in a subsequent major version. This metric was not updated since several version
       already.

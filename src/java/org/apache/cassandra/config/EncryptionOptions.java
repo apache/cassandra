@@ -25,6 +25,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManagerFactory;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
@@ -33,6 +37,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.AbstractSslContextFactory;
+import org.apache.cassandra.security.DisableSslContextFactory;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -277,8 +283,15 @@ public class EncryptionOptions
         putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.ENABLED, this.enabled);
         putSslContextFactoryParameter(sslContextFactoryParameters, ConfigKey.OPTIONAL, this.optional);
 
-        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
-                                                                     sslContextFactoryParameters);
+        if (CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL.getBoolean())
+        {
+            sslContextFactoryInstance = new DisableSslContextFactory();
+        }
+        else
+        {
+            sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
+                                                                         sslContextFactoryParameters);
+        }
     }
 
     private void putSslContextFactoryParameter(Map<String,Object> existingParameters, ConfigKey configKey,

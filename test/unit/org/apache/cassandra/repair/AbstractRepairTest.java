@@ -20,7 +20,6 @@ package org.apache.cassandra.repair;
 
 import java.net.UnknownHostException;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -36,7 +35,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 @Ignore
 public abstract class AbstractRepairTest
@@ -82,9 +83,9 @@ public abstract class AbstractRepairTest
 
     protected static final Set<Range<Token>> ALL_RANGES = ImmutableSet.of(RANGE1, RANGE2, RANGE3);
 
-    public static UUID registerSession(ColumnFamilyStore cfs, boolean isIncremental, boolean isGlobal)
+    public static TimeUUID registerSession(ColumnFamilyStore cfs, boolean isIncremental, boolean isGlobal)
     {
-        UUID sessionId = UUIDGen.getTimeUUID();
+        TimeUUID sessionId = nextTimeUUID();
 
         long repairedAt = isIncremental ? System.currentTimeMillis() : ActiveRepairService.UNREPAIRED_SSTABLE;
         ActiveRepairService.instance.registerParentRepairSession(sessionId,

@@ -220,4 +220,44 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     void setReadBeforeWriteListOperationsEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when the number of partition keys in a select statement greater than threshold.
+     * -1 means disabled.
+     */
+    int getPartitionKeysInSelectWarnThreshold();
+
+    /**
+     * @return The threshold to fail when the number of partition keys in a select statement greater than threshold.
+     * -1 means disabled.
+     */
+    int getPartitionKeysInSelectFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when the number of partition keys in a select statement is greater than
+     *             threshold -1 means disabled.
+     * @param fail The threshold to prevent when the number of partition keys in a select statement is more than
+     *              threshold -1 means disabled.
+     */
+    void setPartitionKeysInSelectThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductWarnThreshold();
+
+    /**
+     * @return The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     *             -1 means disabled.
+     * @param fail The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     *             -1 means disabled.
+     */
+    public void setInSelectCartesianProductThreshold(int warn, int fail);
 }

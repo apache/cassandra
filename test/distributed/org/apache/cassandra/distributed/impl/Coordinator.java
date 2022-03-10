@@ -48,6 +48,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -62,7 +63,7 @@ public class Coordinator implements ICoordinator
     @Override
     public SimpleQueryResult executeWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {
-        return instance().sync(() -> executeInternal(query, consistencyLevel, boundValues)).call();
+        return instance().sync(() -> unsafeExecuteInternal(query, consistencyLevel, boundValues)).call();
     }
 
     public Future<SimpleQueryResult> asyncExecuteWithTracingWithResult(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
@@ -70,8 +71,8 @@ public class Coordinator implements ICoordinator
         return instance.async(() -> {
             try
             {
-                Tracing.instance.newSession(sessionId, Collections.emptyMap());
-                return executeInternal(query, consistencyLevelOrigin, boundValues);
+                Tracing.instance.newSession(TimeUUID.fromUuid(sessionId), Collections.emptyMap());
+                return unsafeExecuteInternal(query, consistencyLevelOrigin, boundValues);
             }
             finally
             {
@@ -80,17 +81,33 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    static org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
+    public static org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
     {
-        return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
+        try
+        {
+            return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.code);
+        }
+        catch (NoSuchFieldError e)
+        {
+            return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
+        }
     }
 
-    private SimpleQueryResult executeInternal(String query, ConsistencyLevel consistencyLevelOrigin, Object[] boundValues)
+    protected static org.apache.cassandra.db.ConsistencyLevel toCassandraSerialCL(ConsistencyLevel cl)
+    {
+        return toCassandraCL(cl == null ? ConsistencyLevel.SERIAL : cl);
+    }
+
+    public static SimpleQueryResult unsafeExecuteInternal(String query, ConsistencyLevel consistencyLevel, Object[] boundValues)
+    {
+        return unsafeExecuteInternal(query, null, consistencyLevel, boundValues);
+    }
+
+    public static SimpleQueryResult unsafeExecuteInternal(String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object[] boundValues)
     {
         ClientState clientState = makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
         List<ByteBuffer> boundBBValues = new ArrayList<>();
-        ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
         for (Object boundValue : boundValues)
             boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
@@ -103,12 +120,12 @@ public class Coordinator implements ICoordinator
         try
         {
             ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                   QueryOptions.create(toCassandraCL(consistencyLevel),
+                                   QueryOptions.create(toCassandraCL(commitConsistencyLevel),
                                                        boundBBValues,
                                                        false,
                                                        Integer.MAX_VALUE,
                                                        null,
-                                                       null,
+                                                       toCassandraSerialCL(serialConsistencyLevel),
                                                        ProtocolVersion.CURRENT,
                                                        null),
                                    nanoTime());
@@ -139,6 +156,12 @@ public class Coordinator implements ICoordinator
     public IInstance instance()
     {
         return instance;
+    }
+
+    @Override
+    public SimpleQueryResult executeWithResult(String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues)
+    {
+        return instance.sync(() -> unsafeExecuteInternal(query, serialConsistencyLevel, commitConsistencyLevel, boundValues)).call();
     }
 
     @Override

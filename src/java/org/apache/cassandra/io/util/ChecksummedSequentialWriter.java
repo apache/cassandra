@@ -20,8 +20,6 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
-import org.apache.cassandra.io.util.File;
-
 public class ChecksummedSequentialWriter extends SequentialWriter
 {
     private static final SequentialWriterOption CRC_WRITER_OPTION = SequentialWriterOption.newBuilder()

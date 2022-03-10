@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 
@@ -36,7 +35,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.UUIDSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
 
 public class PrepareMessage extends RepairMessage
@@ -44,13 +43,13 @@ public class PrepareMessage extends RepairMessage
     public final List<TableId> tableIds;
     public final Collection<Range<Token>> ranges;
 
-    public final UUID parentRepairSession;
+    public final TimeUUID parentRepairSession;
     public final boolean isIncremental;
     public final long timestamp;
     public final boolean isGlobal;
     public final PreviewKind previewKind;
 
-    public PrepareMessage(UUID parentRepairSession, List<TableId> tableIds, Collection<Range<Token>> ranges, boolean isIncremental, long timestamp, boolean isGlobal, PreviewKind previewKind)
+    public PrepareMessage(TimeUUID parentRepairSession, List<TableId> tableIds, Collection<Range<Token>> ranges, boolean isIncremental, long timestamp, boolean isGlobal, PreviewKind previewKind)
     {
         super(null);
         this.parentRepairSession = parentRepairSession;
@@ -95,7 +94,7 @@ public class PrepareMessage extends RepairMessage
             out.writeInt(message.tableIds.size());
             for (TableId tableId : message.tableIds)
                 tableId.serialize(out);
-            UUIDSerializer.serializer.serialize(message.parentRepairSession, out, version);
+            message.parentRepairSession.serialize(out);
             out.writeInt(message.ranges.size());
             for (Range<Token> r : message.ranges)
             {
@@ -116,7 +115,7 @@ public class PrepareMessage extends RepairMessage
             List<TableId> tableIds = new ArrayList<>(tableIdCount);
             for (int i = 0; i < tableIdCount; i++)
                 tableIds.add(TableId.deserialize(in));
-            UUID parentRepairSession = UUIDSerializer.serializer.deserialize(in, version);
+            TimeUUID parentRepairSession = TimeUUID.deserialize(in);
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
@@ -134,7 +133,7 @@ public class PrepareMessage extends RepairMessage
             size = TypeSizes.sizeof(message.tableIds.size());
             for (TableId tableId : message.tableIds)
                 size += tableId.serializedSize();
-            size += UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
+            size += TimeUUID.sizeInBytes();
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> r : message.ranges)
                 size += Range.tokenSerializer.serializedSize(r, version);

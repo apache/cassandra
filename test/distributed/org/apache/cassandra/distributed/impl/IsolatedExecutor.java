@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.LoggerContext;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -59,18 +58,56 @@ public class IsolatedExecutor implements IIsolatedExecutor
     private final String name;
     final ClassLoader classLoader;
     private final DynamicFunction<Serializable> transfer;
+    private final ShutdownExecutor shutdownExecutor;
 
+    public static final ShutdownExecutor DEFAULT_SHUTDOWN_EXECUTOR = (name, classLoader, shuttingDown, onTermination) -> {
+        /* Use a thread pool with a core pool size of zero to terminate the thread as soon as possible
+         ** so the instance class loader can be garbage collected.  Uses a custom thread factory
+         ** rather than NamedThreadFactory to avoid calling FastThreadLocal.removeAll() in 3.0 and up
+         ** as it was observed crashing during test failures and made it harder to find the real cause.
+         */
+        ThreadFactory threadFactory = (Runnable r) -> {
+            Thread t = new Thread(r, name + "_shutdown");
+            t.setDaemon(true);
+            return t;
+        };
+
+        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, SECONDS,
+                                                                  new LinkedBlockingQueue<>(), threadFactory);
+        return shutdownExecutor.submit(() -> {
+            try
+            {
+                ExecutorUtils.awaitTermination(60, TimeUnit.SECONDS, shuttingDown);
+                return onTermination.call();
+            }
+            finally
+            {
+                shutdownExecutor.shutdownNow();
+            }
+        });
+    };
+
+    // retained for backwards compatibility
+    @SuppressWarnings("unused")
     public IsolatedExecutor(String name, ClassLoader classLoader, ExecutorFactory executorFactory)
     {
-        this(name, classLoader, executorFactory.pooled("isolatedExecutor", Integer.MAX_VALUE));
+        this(name, classLoader, executorFactory.pooled("isolatedExecutor", Integer.MAX_VALUE), DEFAULT_SHUTDOWN_EXECUTOR);
     }
 
-    IsolatedExecutor(String name, ClassLoader classLoader, ExecutorService executorService)
+    // retained for backwards compatibility
+    @SuppressWarnings("unused")
+    public IsolatedExecutor(String name, ClassLoader classLoader, ExecutorService executorService)
+    {
+        this(name, classLoader, executorService, DEFAULT_SHUTDOWN_EXECUTOR);
+    }
+
+    IsolatedExecutor(String name, ClassLoader classLoader, ExecutorService executorService, ShutdownExecutor shutdownExecutor)
     {
         this.name = name;
         this.isolatedExecutor = executorService;
         this.classLoader = classLoader;
         this.transfer = transferTo(classLoader);
+        this.shutdownExecutor = shutdownExecutor;
     }
 
     protected IsolatedExecutor(IsolatedExecutor from, ExecutorService executor)
@@ -79,6 +116,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         this.isolatedExecutor = executor;
         this.classLoader = from.classLoader;
         this.transfer = from.transfer;
+        this.shutdownExecutor = from.shutdownExecutor;
     }
 
     public IIsolatedExecutor with(ExecutorService executor)
@@ -89,40 +127,19 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public Future<Void> shutdown()
     {
         isolatedExecutor.shutdownNow();
+        return shutdownExecutor.shutdown(name, classLoader, isolatedExecutor, () -> {
 
-        /* Use a thread pool with a core pool size of zero to terminate the thread as soon as possible
-        ** so the instance class loader can be garbage collected.  Uses a custom thread factory
-        ** rather than NamedThreadFactory to avoid calling FastThreadLocal.removeAll() in 3.0 and up
-        ** as it was observed crashing during test failures and made it harder to find the real cause.
-        */
-        ThreadFactory threadFactory = (Runnable r) -> {
-            Thread t = new Thread(r, name + "_shutdown");
-            t.setDaemon(true);
-            return t;
-        };
-        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, SECONDS,
-                                                                  new LinkedBlockingQueue<>(), threadFactory);
-        return shutdownExecutor.submit(() -> {
-            try
-            {
-                ExecutorUtils.awaitTermination(60, TimeUnit.SECONDS, isolatedExecutor);
+            // Shutdown logging last - this is not ideal as the logging subsystem is initialized
+            // outsize of this class, however doing it this way provides access to the full
+            // logging system while termination is taking place.
+            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+            loggerContext.stop();
 
-                // Shutdown logging last - this is not ideal as the logging subsystem is initialized
-                // outsize of this class, however doing it this way provides access to the full
-                // logging system while termination is taking place.
-                LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-                loggerContext.stop();
+            FastThreadLocal.destroy();
 
-                FastThreadLocal.destroy();
-
-                // Close the instance class loader after shutting down the isolatedExecutor and logging
-                // in case error handling triggers loading additional classes
-                ((URLClassLoader) classLoader).close();
-            }
-            finally
-            {
-                shutdownExecutor.shutdownNow();
-            }
+            // Close the instance class loader after shutting down the isolatedExecutor and logging
+            // in case error handling triggers loading additional classes
+            ((URLClassLoader) classLoader).close();
             return null;
         });
     }

@@ -27,7 +27,6 @@ import io.netty.buffer.ByteBufAllocator;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4SafeDecompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 import static org.apache.cassandra.net.MessagingService.current_version;

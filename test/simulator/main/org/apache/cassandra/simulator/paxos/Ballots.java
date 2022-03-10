@@ -19,7 +19,6 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
 
@@ -45,16 +44,19 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.simulator.systems.NonInterceptible;
+import org.apache.cassandra.simulator.systems.NonInterceptible.Permit;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Shared;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static java.lang.Long.max;
 import static java.util.Arrays.stream;
 import static org.apache.cassandra.db.SystemKeyspace.loadPaxosState;
-import static org.apache.cassandra.service.paxos.Commit.isAfter;
+import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.paxos.PaxosState.unsafeGetIfPresent;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.OPTIONAL;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class Ballots
@@ -95,37 +97,38 @@ public class Ballots
         }
     }
 
-    public static LatestBallots read(DecoratedKey key, TableMetadata metadata, int nowInSec, boolean includeEmptyProposals)
+    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, int nowInSec, boolean includeEmptyProposals)
     {
-        return NonInterceptible.apply(() -> {
-              PaxosState state = loadPaxosState(key, metadata, nowInSec);
-              UUID promised = state.promised.ballot;
-              Commit accepted = isAfter(state.accepted, state.mostRecentCommit) ? null : state.accepted;
-              Commit committed = state.mostRecentCommit;
-              long baseTable = latestBallotFromBaseTable(key, metadata);
-              return new LatestBallots(
-              UUIDGen.microsTimestamp(promised),
-              accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update),
-              latestBallot(committed.update),
-              baseTable
-              );
-          });
+        return NonInterceptible.apply(permit, () -> {
+            PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);
+            PaxosState.Snapshot persisted = loadPaxosState(key, metadata, nowInSec);
+            TimeUUID promised = latest(persisted.promised, state == null ? null : state.promised);
+            Commit.Accepted accepted = latest(persisted.accepted, state == null ? null : state.accepted);
+            Commit.Committed committed = latest(persisted.committed, state == null ? null : state.committed);
+            long baseTable = latestBallotFromBaseTable(key, metadata);
+            return new LatestBallots(
+                promised.unixMicros(),
+                accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update),
+                latestBallot(committed.update),
+                baseTable
+            );
+        });
     }
 
-    static LatestBallots[][] read(Cluster cluster, String keyspace, String table, int[] primaryKeys, int[][] replicasForKeys, boolean includeEmptyProposals)
+    static LatestBallots[][] read(Permit permit, Cluster cluster, String keyspace, String table, int[] primaryKeys, int[][] replicasForKeys, boolean includeEmptyProposals)
     {
-        return NonInterceptible.apply(() -> {
+        return NonInterceptible.apply(permit, () -> {
             LatestBallots[][] result = new LatestBallots[primaryKeys.length][];
             for (int i = 0 ; i < primaryKeys.length ; ++i)
             {
                 int primaryKey = primaryKeys[i];
                 result[i] = stream(replicasForKeys[i])
                             .mapToObj(cluster::get)
-                            .map(node -> node.unsafeApplyOnThisThread((ks, tbl, pk, ie) -> {
+                            .map(node -> node.unsafeApplyOnThisThread((p, ks, tbl, pk, ie) -> {
                                 TableMetadata metadata = Keyspace.open(ks).getColumnFamilyStore(tbl).metadata.get();
                                 DecoratedKey key = metadata.partitioner.decorateKey(Int32Type.instance.decompose(pk));
-                                return read(key, metadata, FBUtilities.nowInSeconds(), ie);
-                            }, keyspace, table, primaryKey, includeEmptyProposals))
+                                return read(p, key, metadata, FBUtilities.nowInSeconds(), ie);
+                            }, permit, keyspace, table, primaryKey, includeEmptyProposals))
                             .toArray(LatestBallots[]::new);
             }
             return result;
@@ -134,14 +137,16 @@ public class Ballots
 
     public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, int nowInSec)
     {
-        return NonInterceptible.apply(() -> {
-            PaxosState paxosTable = loadPaxosState(key, metadata, nowInSec);
-            long[] paxosMemtable = latestBallotsFromPaxosMemtable(key, metadata);
+        return NonInterceptible.apply(OPTIONAL, () -> {
+            PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);
+            PaxosState.Snapshot persisted = loadPaxosState(key, metadata, nowInSec);
+            long[] memtable = latestBallotsFromPaxosMemtable(key, metadata);
+            PaxosState.Snapshot cache = state == null ? persisted : state;
             long baseTable = latestBallotFromBaseTable(key, metadata);
             long baseMemtable = latestBallotFromBaseMemtable(key, metadata);
-            return debugBallot(null, paxosMemtable[0], paxosTable.promised) + ", "
-                   + debugBallot(null, paxosMemtable[1], paxosTable.accepted) + ", "
-                   + debugBallot(null, paxosMemtable[2], paxosTable.mostRecentCommit) + ", "
+            return debugBallot(cache.promised, memtable[0], persisted.promised) + ", "
+                   + debugBallot(cache.accepted, memtable[1], persisted.accepted) + ", "
+                   + debugBallot(cache.committed, memtable[2], persisted.committed) + ", "
                    + debugBallot(baseMemtable, 0L, baseTable);
         });
     }
@@ -228,7 +233,7 @@ public class Ballots
         return debugBallot(cache == null ? null : cache.ballot, memtable, persisted == null ? null : persisted.ballot);
     }
 
-    private static String debugBallot(UUID cache, long memtable, UUID persisted)
+    private static String debugBallot(TimeUUID cache, long memtable, TimeUUID persisted)
     {
         return debugBallot(timestamp(cache), memtable, timestamp(persisted));
     }
@@ -244,8 +249,8 @@ public class Ballots
         return value + (memtable == value && memtable != 0 ? "*" : "");
     }
 
-    private static long timestamp(UUID a)
+    private static long timestamp(TimeUUID a)
     {
-        return a == null ? 0L : UUIDGen.microsTimestamp(a);
+        return a == null ? 0L : a.unixMicros();
     }
 }

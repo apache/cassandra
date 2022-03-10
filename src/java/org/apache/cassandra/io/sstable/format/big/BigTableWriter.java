@@ -77,7 +77,7 @@ public class BigTableWriter extends SSTableWriter
     public BigTableWriter(Descriptor descriptor,
                           long keyCount,
                           long repairedAt,
-                          UUID pendingRepair,
+                          TimeUUID pendingRepair,
                           boolean isTransient,
                           TableMetadataRef metadata,
                           MetadataCollector metadataCollector, 
@@ -638,7 +638,7 @@ public class BigTableWriter extends SSTableWriter
 
         protected Throwable doAbort(Throwable accumulate)
         {
-            return indexFile.abort(accumulate);
+            return summary.close(indexFile.abort(accumulate));
         }
 
         @Override

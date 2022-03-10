@@ -116,7 +116,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * 
      * @param nowInSec the current time to decide what is deleted and what isn't
      * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
-     *                              normally retrieved from {@link CFMetaData#enforceStrictLiveness()}
+     *                              normally retrieved from {@link TableMetadata#enforceStrictLiveness()}
      * @return true if there is some live information
      */
     public boolean hasLiveData(int nowInSec, boolean enforceStrictLiveness);
@@ -249,6 +249,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      */
     public Row withOnlyQueriedData(ColumnFilter filter);
 
+    /*
+     * Returns a copy of this row without any data with a timestamp older than the one provided
+     */
+    public Row purgeDataOlderThan(long timestamp, boolean enforceStrictLiveness);
+
     /**
      * Returns a copy of this row where all counter cells have they "local" shard marked for clearing.
      */
@@ -281,6 +286,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public long unsharedHeapSizeExcludingData();
 
     public String toString(TableMetadata metadata, boolean fullDetails);
+    public long unsharedHeapSize();
 
     /**
      * Apply a function to every column in a row

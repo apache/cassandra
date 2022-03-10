@@ -47,6 +47,7 @@ import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tools.nodetool.RepairAdmin;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Base class for consistent Local and Coordinator sessions
@@ -55,7 +56,7 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  * There are 4 stages to a consistent incremental repair.
  *
  * <h1>Repair prepare</h1>
- *  First, the normal {@link ActiveRepairService#prepareForRepair(UUID, InetAddressAndPort, Set, RepairOption, boolean, List)} stuff
+ *  First, the normal {@link ActiveRepairService#prepareForRepair(TimeUUID, InetAddressAndPort, Set, RepairOption, boolean, List)} stuff
  *  happens, which sends out {@link PrepareMessage} and creates a {@link ActiveRepairService.ParentRepairSession}
  *  on the coordinator and each of the neighbors.
  *
@@ -186,7 +187,7 @@ public abstract class ConsistentSession
     }
 
     private volatile State state;
-    public final UUID sessionID;
+    public final TimeUUID sessionID;
     public final InetAddressAndPort coordinator;
     public final ImmutableSet<TableId> tableIds;
     public final long repairedAt;
@@ -264,7 +265,7 @@ public abstract class ConsistentSession
     abstract static class AbstractBuilder
     {
         private State state;
-        private UUID sessionID;
+        private TimeUUID sessionID;
         private InetAddressAndPort coordinator;
         private Set<TableId> ids;
         private long repairedAt;
@@ -276,7 +277,7 @@ public abstract class ConsistentSession
             this.state = state;
         }
 
-        void withSessionID(UUID sessionID)
+        void withSessionID(TimeUUID sessionID)
         {
             this.sessionID = sessionID;
         }

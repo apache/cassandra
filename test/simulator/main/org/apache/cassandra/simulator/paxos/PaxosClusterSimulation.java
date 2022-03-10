@@ -34,7 +34,7 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
     @SuppressWarnings("UnusedReturnValue")
     static class Builder extends ClusterSimulation.Builder<PaxosSimulation>
     {
-        PaxosVariant initialPaxosVariant = PaxosVariant.v1;
+        PaxosVariant initialPaxosVariant = PaxosVariant.v2;
         PaxosVariant finalPaxosVariant = null;
         Boolean stateCache;
         ConsistencyLevel serialConsistency = SERIAL;
@@ -75,7 +75,10 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
     {
         super(random, seed, uniqueNum, builder,
               config -> config.set("paxos_variant", builder.initialPaxosVariant.name())
-                              .set("paxos_cache_size_in_mb", (builder.stateCache != null ? builder.stateCache : random.uniformFloat() < 0.5) ? null : 0L),
+                              .set("paxos_cache_size", (builder.stateCache != null ? builder.stateCache : random.uniformFloat() < 0.5) ? null : "0MiB")
+                              .set("paxos_state_purging", "repaired")
+                              .set("paxos_on_linearizability_violations", "log")
+        ,
               (simulated, schedulers, cluster, options) -> {
                   int[] primaryKeys = primaryKeys(seed, builder.primaryKeyCount());
                   KindOfSequence.Period jitter = RandomSource.Choices.uniform(KindOfSequence.values()).choose(random)

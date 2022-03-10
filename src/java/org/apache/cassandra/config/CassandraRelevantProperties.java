@@ -19,6 +19,7 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.FileSystemOwnershipCheck;
 
 /** A class that extracts system properties for the cassandra node it runs within. */
 public enum CassandraRelevantProperties
@@ -93,8 +94,9 @@ public enum CassandraRelevantProperties
      */
     COM_SUN_MANAGEMENT_JMXREMOTE_RMI_PORT ("com.sun.management.jmxremote.rmi.port", "0"),
 
-    /** Cassandra jmx remote port */
+    /** Cassandra jmx remote and local port */
     CASSANDRA_JMX_REMOTE_PORT("cassandra.jmx.remote.port"),
+    CASSANDRA_JMX_LOCAL_PORT("cassandra.jmx.local.port"),
 
     /** This property  indicates whether SSL is enabled for monitoring remotely. Default is set to false. */
     COM_SUN_MANAGEMENT_JMXREMOTE_SSL ("com.sun.management.jmxremote.ssl"),
@@ -225,11 +227,26 @@ public enum CassandraRelevantProperties
 
     PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS("cassandra.paxos_repair_retry_timeout_millis", "60000"),
 
+    // startup checks properties
+    LIBJEMALLOC("cassandra.libjemalloc"),
+    @Deprecated // should be removed in favor of enable flag of relevant startup check (checkDatacenter)
+    IGNORE_DC("cassandra.ignore_dc"),
+    @Deprecated // should be removed in favor of enable flag of relevant startup check (checkRack)
+    IGNORE_RACK("cassandra.ignore_rack"),
+    @Deprecated // should be removed in favor of enable flag of relevant startup check (FileSystemOwnershipCheck)
+    FILE_SYSTEM_CHECK_ENABLE("cassandra.enable_fs_ownership_check"),
+    @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
+    FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME("cassandra.fs_ownership_filename", FileSystemOwnershipCheck.DEFAULT_FS_OWNERSHIP_FILENAME),
+    @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
+    FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
+
     // properties for debugging simulator ASM output
     TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
     TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),
     TEST_SIMULATOR_LIVENESS_CHECK("cassandra.test.simulator.livenesscheck", "true"),
-    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "true"),
+    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "false"),
+    TEST_SIMULATOR_DETERMINISM_CHECK("cassandra.test.simulator.determinismcheck", "none"),
+    TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl", "false"),
 
     // determinism properties for testing
     DETERMINISM_SSTABLE_COMPRESSION_DEFAULT("cassandra.sstable_compression_default", "true"),
@@ -283,6 +300,16 @@ public enum CassandraRelevantProperties
     }
 
     /**
+     * Returns default value.
+     *
+     * @return default value, if any, otherwise null.
+     */
+    public String getDefaultValue()
+    {
+        return defaultVal;
+    }
+
+    /**
      * Gets the value of a system property as a String.
      * @return system property String value if it exists, overrideDefaultValue otherwise.
      */
@@ -293,6 +320,15 @@ public enum CassandraRelevantProperties
             return overrideDefaultValue;
 
         return STRING_CONVERTER.convert(value);
+    }
+
+    public <T> T convert(PropertyConverter<T> converter)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            value = defaultVal;
+
+        return converter.convert(value);
     }
 
     /**
@@ -390,7 +426,7 @@ public enum CassandraRelevantProperties
         System.setProperty(key, Long.toString(value));
     }
 
-    private interface PropertyConverter<T>
+    public interface PropertyConverter<T>
     {
         T convert(String value);
     }

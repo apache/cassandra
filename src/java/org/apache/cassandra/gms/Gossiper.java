@@ -610,7 +610,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * @param epState
      * @return
      */
-    int getMaxEndpointStateVersion(EndpointState epState)
+    static int getMaxEndpointStateVersion(EndpointState epState)
     {
         int maxVersion = epState.getHeartBeatState().getHeartBeatVersion();
         for (Map.Entry<ApplicationState, VersionedValue> state : epState.states())
@@ -1144,6 +1144,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return ImmutableSet.copyOf(endpointStateMap.keySet());
     }
 
+    public String getForEndpoint(InetAddressAndPort ep, ApplicationState state)
+    {
+        EndpointState epState = endpointStateMap.get(ep);
+        if (epState == null)
+            return null;
+        VersionedValue value = epState.getApplicationState(state);
+        return value == null ? null : value.value;
+    }
+
     public int getEndpointCount()
     {
         return endpointStateMap.size();
@@ -1261,7 +1270,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
     }
 
-    void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
+    public void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
     {
         for (Entry<InetAddressAndPort, EndpointState> entry : remoteEpStateMap.entrySet())
         {
@@ -2143,7 +2152,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    protected boolean isInShadowRound()
+    public boolean isInShadowRound()
     {
         return inShadowRound;
     }

@@ -41,6 +41,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
 
@@ -261,7 +262,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, UUID pendingRepair, boolean isTransient, SerializationHeader header)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header)
     {
         Preconditions.checkState((minClustering == null && maxClustering == null)
                                  || comparator.compare(maxClustering, minClustering) >= 0);

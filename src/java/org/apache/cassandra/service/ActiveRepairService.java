@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.management.openmbean.CompositeData;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,14 +37,24 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +83,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.service.paxos.PaxosRepair;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
@@ -89,13 +102,13 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
@@ -109,6 +122,7 @@ import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 /**
@@ -149,14 +163,14 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public static final ActiveRepairService instance = new ActiveRepairService(FailureDetector.instance, Gossiper.instance);
 
     public static final long UNREPAIRED_SSTABLE = 0;
-    public static final UUID NO_PENDING_REPAIR = null;
+    public static final TimeUUID NO_PENDING_REPAIR = null;
 
     /**
      * A map of active coordinator session.
      */
-    private final ConcurrentMap<UUID, RepairSession> sessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TimeUUID, RepairSession> sessions = new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<UUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TimeUUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
 
     static
     {
@@ -234,7 +248,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     @Override
     public void failSession(String session, boolean force)
     {
-        UUID sessionID = UUID.fromString(session);
+        TimeUUID sessionID = TimeUUID.fromString(session);
         consistent.local.cancelSession(sessionID, force);
     }
 
@@ -332,7 +346,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @return Future for asynchronous call or null if there is no need to repair
      */
-    public RepairSession submitRepairSession(UUID parentRepairSession,
+    public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
@@ -340,18 +354,23 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean pullRepair,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
+                                             boolean repairPaxos,
+                                             boolean paxosOnly,
                                              ExecutorPlus executor,
                                              String... cfnames)
     {
+        if (repairPaxos && previewKind != PreviewKind.NONE)
+            throw new IllegalArgumentException("cannot repair paxos in a preview repair");
+
         if (range.endpoints.isEmpty())
             return null;
 
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
+        final RepairSession session = new RepairSession(parentRepairSession, nextTimeUUID(), range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, cfnames);
+                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
 
         sessions.put(session.getId(), session);
         // register listeners
@@ -416,7 +435,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
 
-    Pair<ParentRepairStatus, List<String>> getRepairStatus(Integer cmd)
+    @VisibleForTesting
+    public Pair<ParentRepairStatus, List<String>> getRepairStatus(Integer cmd)
     {
         return repairStatusByCmd.getIfPresent(cmd);
     }
@@ -520,7 +540,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-    public static boolean verifyCompactionsPendingThreshold(UUID parentRepairSession, PreviewKind previewKind)
+    public static boolean verifyCompactionsPendingThreshold(TimeUUID parentRepairSession, PreviewKind previewKind)
     {
         // Snapshot values so failure message is consistent with decision
         int pendingCompactions = CompactionManager.instance.getPendingTasks();
@@ -534,7 +554,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return true;
     }
 
-    public UUID prepareForRepair(UUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
+    public TimeUUID prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
@@ -621,7 +641,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * endpoint's cache.
      * This method does not throw an exception in case of a messaging failure.
      */
-    public void cleanUp(UUID parentRepairSession, Set<InetAddressAndPort> endpoints)
+    public void cleanUp(TimeUUID parentRepairSession, Set<InetAddressAndPort> endpoints)
     {
         for (InetAddressAndPort endpoint : endpoints)
         {
@@ -659,12 +679,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
-    private void failRepair(UUID parentRepairSession, String errorMsg) {
+    private void failRepair(TimeUUID parentRepairSession, String errorMsg) {
         removeParentRepairSession(parentRepairSession);
         throw new RuntimeException(errorMsg);
     }
 
-    public synchronized void registerParentRepairSession(UUID parentRepairSession, InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
+    public synchronized void registerParentRepairSession(TimeUUID parentRepairSession, InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
     {
         assert isIncremental || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE;
         if (!registeredForEndpointChanges)
@@ -691,7 +711,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * 
      * @throws NoSuchRepairSessionException if the provided identifier does not map to an active parent session
      */
-    public ParentRepairSession getParentRepairSession(UUID parentSessionId) throws NoSuchRepairSessionException
+    public ParentRepairSession getParentRepairSession(TimeUUID parentSessionId) throws NoSuchRepairSessionException
     {
         ParentRepairSession session = parentRepairSessions.get(parentSessionId);
         if (session == null)
@@ -709,7 +729,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *                        
      * @return the {@link ParentRepairSession} associated with the provided identifier
      */
-    public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
+    public synchronized ParentRepairSession removeParentRepairSession(TimeUUID parentSessionId)
     {
         String snapshotName = parentSessionId.toString();
         ParentRepairSession session = parentRepairSessions.remove(parentSessionId);
@@ -904,8 +924,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public void abort(Predicate<ParentRepairSession> predicate, String message)
     {
-        Set<UUID> parentSessionsToRemove = new HashSet<>();
-        for (Map.Entry<UUID, ParentRepairSession> repairSessionEntry : parentRepairSessions.entrySet())
+        Set<TimeUUID> parentSessionsToRemove = new HashSet<>();
+        for (Map.Entry<TimeUUID, ParentRepairSession> repairSessionEntry : parentRepairSessions.entrySet())
         {
             if (predicate.test(repairSessionEntry.getValue()))
                 parentSessionsToRemove.add(repairSessionEntry.getKey());
@@ -921,5 +941,75 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public int parentRepairSessionCount()
     {
         return parentRepairSessions.size();
+    }
+
+    public Future<?> repairPaxosForTopologyChange(String ksName, Collection<Range<Token>> ranges, String reason)
+    {
+        if (!paxosRepairEnabled())
+        {
+            logger.warn("Not running paxos repair for topology change because paxos repair has been disabled");
+            return ImmediateFuture.success(null);
+        }
+
+        if (ranges.isEmpty())
+        {
+            logger.warn("Not running paxos repair for topology change because there are no ranges to repair");
+            return ImmediateFuture.success(null);
+        }
+        List<TableMetadata> tables = Lists.newArrayList(Schema.instance.getKeyspaceMetadata(ksName).tables);
+        List<Future<Void>> futures = new ArrayList<>(ranges.size() * tables.size());
+        Keyspace keyspace = Keyspace.open(ksName);
+        AbstractReplicationStrategy replication = keyspace.getReplicationStrategy();
+        for (Range<Token> range: ranges)
+        {
+            for (TableMetadata table : tables)
+            {
+                Set<InetAddressAndPort> endpoints = replication.getNaturalReplicas(range.right).filter(FailureDetector.isReplicaAlive).endpoints();
+                if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, endpoints))
+                {
+                    Set<InetAddressAndPort> downEndpoints = replication.getNaturalReplicas(range.right).filter(e -> !endpoints.contains(e)).endpoints();
+                    downEndpoints.removeAll(endpoints);
+
+                    throw new RuntimeException(String.format("Insufficient live nodes to repair paxos for %s in %s for %s.\n" +
+                                                             "There must be enough live nodes to satisfy EACH_QUORUM, but the following nodes are down: %s\n" +
+                                                             "This check can be skipped by setting either the yaml property skip_paxos_repair_on_topology_change or " +
+                                                             "the system property cassandra.skip_paxos_repair_on_topology_change to false. The jmx property " +
+                                                             "StorageService.SkipPaxosRepairOnTopologyChange can also be set to false to temporarily disable without " +
+                                                             "restarting the node\n" +
+                                                             "Individual keyspaces can be skipped with the yaml property skip_paxos_repair_on_topology_change_keyspaces, the" +
+                                                             "system property cassandra.skip_paxos_repair_on_topology_change_keyspaces, or temporarily with the jmx" +
+                                                             "property StorageService.SkipPaxosRepairOnTopologyChangeKeyspaces\n" +
+                                                             "Skipping this check can lead to paxos correctness issues",
+                                                             range, ksName, reason, downEndpoints));
+                }
+                EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(range.right, ksName);
+                if (pending.size() > 1 && !Boolean.getBoolean("cassandra.paxos_repair_allow_multiple_pending_unsafe"))
+                {
+                    throw new RuntimeException(String.format("Cannot begin paxos auto repair for %s in %s.%s, multiple pending endpoints exist for range (%s). " +
+                                                             "Set -Dcassandra.paxos_repair_allow_multiple_pending_unsafe=true to skip this check",
+                                                             range, table.keyspace, table.name, pending));
+
+                }
+                Future<Void> future = PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
+                futures.add(future);
+            }
+        }
+
+        return FutureCombiner.allOf(futures);
+    }
+
+    public int getPaxosRepairParallelism()
+    {
+        return DatabaseDescriptor.getPaxosRepairParallelism();
+    }
+
+    public void setPaxosRepairParallelism(int v)
+    {
+        DatabaseDescriptor.setPaxosRepairParallelism(v);
+    }
+
+    public void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, clearSnapshotExecutor);
     }
 }
