@@ -63,7 +63,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.isToolInitialized;
  * notifications are sent to the registered listeners.
  * When the schema change is applied by the update handler (regardless it is initiated locally or received from outside),
  * the registered callback is executed which performs the remaining updates for tables metadata refs and keyspace
- * instances (see {@link #mergeAndUpdateVersion(SchemaTransformationResult)}).
+ * instances (see {@link #mergeAndUpdateVersion(SchemaTransformationResult, boolean)}).
  */
 public class Schema implements SchemaProvider
 {
@@ -227,11 +227,11 @@ public class Schema implements SchemaProvider
         return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
 
-    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName)
+    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, boolean dropData)
     {
         try
         {
-            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, Keyspace::unload);
+            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, keyspace -> keyspace.unload(dropData));
         }
         catch (LoadingMap.UnloadExecutionException e)
         {
@@ -596,13 +596,13 @@ public class Schema implements SchemaProvider
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
     @VisibleForTesting
-    public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result)
+    public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result, boolean dropData)
     {
         if (online)
             SystemKeyspace.updateSchemaVersion(result.after.getVersion());
         result = localDiff(result);
         schemaChangeNotifier.notifyPreChanges(result);
-        merge(result.diff);
+        merge(result.diff, dropData);
         updateVersion(result.after.getVersion());
     }
 
@@ -632,14 +632,14 @@ public class Schema implements SchemaProvider
         logger.info("Local schema reset is complete.");
     }
 
-    private void merge(KeyspacesDiff diff)
+    private void merge(KeyspacesDiff diff, boolean removeData)
     {
-        diff.dropped.forEach(this::dropKeyspace);
+        diff.dropped.forEach(keyspace -> dropKeyspace(keyspace, removeData));
         diff.created.forEach(this::createKeyspace);
-        diff.altered.forEach(this::alterKeyspace);
+        diff.altered.forEach(delta -> alterKeyspace(delta, removeData));
     }
 
-    private void alterKeyspace(KeyspaceDiff delta)
+    private void alterKeyspace(KeyspaceDiff delta, boolean dropData)
     {
         SchemaDiagnostics.keyspaceAltering(this, delta);
 
@@ -652,8 +652,8 @@ public class Schema implements SchemaProvider
             assert delta.before.name.equals(delta.after.name);
 
             // drop tables and views
-            delta.views.dropped.forEach(v -> dropView(keyspace, v));
-            delta.tables.dropped.forEach(t -> dropTable(keyspace, t));
+            delta.views.dropped.forEach(v -> dropView(keyspace, v, dropData));
+            delta.tables.dropped.forEach(t -> dropTable(keyspace, t, dropData));
         }
 
         load(delta.after);
@@ -696,7 +696,7 @@ public class Schema implements SchemaProvider
         }
     }
 
-    private void dropKeyspace(KeyspaceMetadata keyspace)
+    private void dropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
     {
         SchemaDiagnostics.keyspaceDropping(this, keyspace);
 
@@ -707,11 +707,11 @@ public class Schema implements SchemaProvider
             if (ks == null)
                 return;
 
-            keyspace.views.forEach(v -> dropView(ks, v));
-            keyspace.tables.forEach(t -> dropTable(ks, t));
+            keyspace.views.forEach(v -> dropView(ks, v, dropData));
+            keyspace.tables.forEach(t -> dropTable(ks, t, dropData));
 
             // remove the keyspace from the static instances
-            maybeRemoveKeyspaceInstance(keyspace.name);
+            maybeRemoveKeyspaceInstance(keyspace.name, dropData);
         }
 
         unload(keyspace);
@@ -725,16 +725,16 @@ public class Schema implements SchemaProvider
         SchemaDiagnostics.keyspaceDropped(this, keyspace);
     }
 
-    private void dropView(Keyspace keyspace, ViewMetadata metadata)
+    private void dropView(Keyspace keyspace, ViewMetadata metadata, boolean dropData)
     {
         keyspace.viewManager.dropView(metadata.name());
-        dropTable(keyspace, metadata.metadata);
+        dropTable(keyspace, metadata.metadata, dropData);
     }
 
-    private void dropTable(Keyspace keyspace, TableMetadata metadata)
+    private void dropTable(Keyspace keyspace, TableMetadata metadata, boolean dropData)
     {
         SchemaDiagnostics.tableDropping(this, metadata);
-        keyspace.dropCf(metadata.id);
+        keyspace.dropCf(metadata.id, dropData);
         SchemaDiagnostics.tableDropped(this, metadata);
     }
 

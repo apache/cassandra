@@ -382,32 +382,32 @@ public class Keyspace
         replicationParams = ksm.params.replication;
     }
 
-    // best invoked on the compaction mananger.
-    public void dropCf(TableId tableId)
+    // best invoked on the compaction manager.
+    public void dropCf(TableId tableId, boolean dropData)
     {
         ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
         if (cfs == null)
             return;
 
         cfs.onTableDropped();
-        unloadCf(cfs);
+        unloadCf(cfs, dropData);
     }
 
     /**
      * Unloads all column family stores and releases metrics.
      */
-    public void unload()
+    public void unload(boolean dropData)
     {
         for (ColumnFamilyStore cfs : getColumnFamilyStores())
-            unloadCf(cfs);
+            unloadCf(cfs, dropData);
         metric.release();
     }
 
     // disassociate a cfs from this keyspace instance.
-    private void unloadCf(ColumnFamilyStore cfs)
+    private void unloadCf(ColumnFamilyStore cfs, boolean dropData)
     {
         cfs.forceBlockingFlush();
-        cfs.invalidate();
+        cfs.invalidate(true, dropData);
     }
 
     /**

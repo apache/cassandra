@@ -20,7 +20,7 @@ package org.apache.cassandra.schema;
 
 import java.time.Duration;
 import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,11 +36,11 @@ public class OfflineSchemaUpdateHandler implements SchemaUpdateHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(OfflineSchemaUpdateHandler.class);
 
-    private final Consumer<SchemaTransformationResult> updateCallback;
+    private final BiConsumer<SchemaTransformationResult, Boolean> updateCallback;
 
     private volatile DistributedSchema schema = DistributedSchema.EMPTY;
 
-    public OfflineSchemaUpdateHandler(Consumer<SchemaTransformationResult> updateCallback)
+    public OfflineSchemaUpdateHandler(BiConsumer<SchemaTransformationResult, Boolean> updateCallback)
     {
         this.updateCallback = updateCallback;
     }
@@ -71,7 +71,7 @@ public class OfflineSchemaUpdateHandler implements SchemaUpdateHandler
         SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
         this.schema = after;
         logger.debug("Schema updated: {}", update);
-        updateCallback.accept(update);
+        updateCallback.accept(update, true);
 
         return update;
     }

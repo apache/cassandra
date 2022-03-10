@@ -780,10 +780,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Remove all indexes
      */
-    public void dropAllIndexes()
+    public void dropAllIndexes(boolean dropData)
     {
         markAllIndexesRemoved();
-        invalidateAllIndexesBlocking();
+        if (dropData)
+        if (dropData)
+            invalidateAllIndexesBlocking();
     }
 
     @VisibleForTesting
