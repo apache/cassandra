@@ -1,4 +1,5 @@
 4.1
+ * Remove all usages of junit.framework and ban them via Checkstyle (CASSANDRA-17316)
  * Add guardrail for SELECT IN terms and their cartesian product (CASSANDRA-17187)
  * remove unused imports in cqlsh.py and cqlshlib (CASSANDRA-17413)
  * deprecate property windows_timer_interval (CASSANDRA-17404)

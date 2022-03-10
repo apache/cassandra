@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import static junit.framework.Assert.fail;
-
 import java.io.Closeable;
 import java.util.concurrent.ExecutionException;
 
@@ -36,6 +34,8 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
+
+import static org.junit.Assert.fail;
 
 /**
  * Test that TombstoneOverwhelmingException gets thrown when it should be and doesn't when it shouldn't be.
