@@ -28,13 +28,13 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -43,7 +43,6 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.view.View;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
@@ -70,6 +69,22 @@ public abstract class GuardrailTester extends CQLTester
     private static final String PASSWORD = "guardrail_password";
 
     protected static ClientState systemClientState, userClientState, superClientState;
+
+    /**
+     * The tested guardrail, if we are testing a specific one.
+     */
+    @Nullable
+    protected final Guardrail guardrail;
+
+    public GuardrailTester()
+    {
+        this(null);
+    }
+
+    public GuardrailTester(@Nullable Guardrail guardrail)
+    {
+        this.guardrail = guardrail;
+    }
 
     @BeforeClass
     public static void setUpClass()
@@ -162,7 +177,7 @@ public abstract class GuardrailTester extends CQLTester
             function.apply();
             assertEmptyWarnings();
         }
-        catch (InvalidRequestException e)
+        catch (GuardrailViolatedException e)
         {
             fail("Expected not to fail, but failed with error message: " + e.getMessage());
         }
@@ -213,12 +228,20 @@ public abstract class GuardrailTester extends CQLTester
             if (thrown)
                 fail("Expected to fail, but it did not");
         }
-        catch (InvalidRequestException | InvalidQueryException e)
+        catch (GuardrailViolatedException e)
         {
             assertTrue("Expect no exception thrown", thrown);
 
             // the last message is the one raising the guardrail failure, the previous messages are warnings
             String failMessage = messages[messages.length - 1];
+
+            if (guardrail != null)
+            {
+                String prefix = guardrail.decorateMessage("");
+                assertTrue(format("Full error message '%s' doesn't start with the prefix '%s'", e.getMessage(), prefix),
+                           e.getMessage().startsWith(prefix));
+            }
+
             assertTrue(format("Full error message '%s' does not contain expected message '%s'", e.getMessage(), failMessage),
                        e.getMessage().contains(failMessage));
 
@@ -263,8 +286,16 @@ public abstract class GuardrailTester extends CQLTester
 
         for (int i = 0; i < messages.length; i++)
         {
-            String message = messages[i];
             String warning = warnings.get(i);
+
+            String message = messages[i];
+            if (guardrail != null)
+            {
+                String prefix = guardrail.decorateMessage("");
+                assertTrue(format("Warning log message '%s' doesn't start with the prefix '%s'", warning, prefix),
+                           warning.startsWith(prefix));
+            }
+
             assertTrue(format("Warning log message '%s' does not contain expected message '%s'", warning, message),
                        warning.contains(message));
         }

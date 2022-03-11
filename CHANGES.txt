@@ -1,4 +1,5 @@
 4.1
+ * Improve guardrails messages (CASSANDRA-17430)
  * Remove all usages of junit.framework and ban them via Checkstyle (CASSANDRA-17316)
  * Add guardrails for read/write consistency levels (CASSANDRA-17188)
  * Add guardrail for SELECT IN terms and their cartesian product (CASSANDRA-17187)

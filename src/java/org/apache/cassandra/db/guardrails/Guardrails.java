@@ -52,7 +52,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the total number of user keyspaces.
      */
     public static final Threshold keyspaces =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
+    new Threshold("keyspaces",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating keyspace %s, current number of keyspaces %s exceeds warning threshold of %s.",
@@ -64,7 +65,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the total number of tables on user keyspaces.
      */
     public static final Threshold tables =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
+    new Threshold("tables",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getTablesFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating table %s, current number of tables %s exceeds warning threshold of %s.",
@@ -76,7 +78,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of columns per table.
      */
     public static final Threshold columnsPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
+    new Threshold("columns_per_table",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("The table %s has %s columns, this exceeds the warning threshold of %s.",
@@ -85,7 +88,8 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, value, what));
 
     public static final Threshold secondaryIndexesPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
+    new Threshold("secondary_indexes_per_table",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating secondary index %s, current number of indexes %s exceeds warning threshold of %s.",
@@ -97,7 +101,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of materialized views per table.
      */
     public static final Threshold materializedViewsPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
+    new Threshold("materialized_views_per_table",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
@@ -109,7 +114,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail warning about, ignoring or rejecting the usage of certain table properties.
      */
     public static final Values<String> tableProperties =
-    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesWarned(),
+    new Values<>("table_properties",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesWarned(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesIgnored(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesDisallowed(),
                  "Table Properties");
@@ -118,14 +124,16 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail disabling user-provided timestamps.
      */
     public static final DisableFlag userTimestampsEnabled =
-    new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
+    new DisableFlag("user_timestamps",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
                     "User provided timestamps (USING TIMESTAMP)");
 
     /**
      * Guardrail on the number of elements returned within page.
      */
     public static final Threshold pageSize =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
+    new Threshold("page_size",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
@@ -137,7 +145,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of partition keys in the IN clause.
      */
     public static final Threshold partitionKeysInSelect =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
+    new Threshold("partition_keys_in_select",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
@@ -151,14 +160,16 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail disabling operations on lists that require read before write.
      */
     public static final DisableFlag readBeforeWriteListOperationsEnabled =
-    new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
+    new DisableFlag("read_before_write_list_operations",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
                     "List operation requiring read before write");
 
     /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
      */
     public static final Threshold inSelectCartesianProduct =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
+    new Threshold("in_select_cartesian_product",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("The cartesian product of the IN restrictions on %s produces %d values, " +
@@ -171,7 +182,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on read consistency levels.
      */
     public static final Values<ConsistencyLevel> readConsistencyLevels =
-    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsWarned(),
+    new Values<>("read_consistency_levels",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsWarned(),
                  state -> Collections.emptySet(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsDisallowed(),
                  "read consistency levels");
@@ -180,7 +192,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on write consistency levels.
      */
     public static final Values<ConsistencyLevel> writeConsistencyLevels =
-    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsWarned(),
+    new Values<>("write_consistency_levels",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsWarned(),
                  state -> Collections.emptySet(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsDisallowed(),
                  "write consistency levels");

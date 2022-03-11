@@ -43,7 +43,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisabledThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new Threshold(state -> DISABLED, state -> DISABLED, errorMessageProvider));
+        testDisabledThreshold(new Threshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
     private void testDisabledThreshold(Threshold guard) throws Throwable
@@ -60,7 +60,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThreshold() throws Throwable
     {
-        Threshold guard = new Threshold(state -> 10,
+        Threshold guard = new Threshold("x", 
+                                        state -> 10,
                                         state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
@@ -78,7 +79,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testWarnOnlyThreshold() throws Throwable
     {
-        Threshold guard = new Threshold(state -> 10,
+        Threshold guard = new Threshold("x",
+                                        state -> 10,
                                         state -> DISABLED,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
@@ -92,7 +94,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testFailOnlyThreshold() throws Throwable
     {
-        Threshold guard = new Threshold(state -> DISABLED,
+        Threshold guard = new Threshold("x",
+                                        state -> DISABLED,
                                         state -> 10,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
@@ -106,7 +109,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThresholdUsers() throws Throwable
     {
-        Threshold guard = new Threshold(state -> 10,
+        Threshold guard = new Threshold("x",
+                                        state -> 10,
                                         state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
@@ -133,23 +137,23 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testDisableFlag() throws Throwable
     {
-        assertFails(() -> new DisableFlag(state -> true, "X").ensureEnabled(userClientState), "X is not allowed");
-        assertValid(() -> new DisableFlag(state -> false, "X").ensureEnabled(userClientState));
+        assertFails(() -> new DisableFlag("x", state -> true, "X").ensureEnabled(userClientState), "X is not allowed");
+        assertValid(() -> new DisableFlag("x", state -> false, "X").ensureEnabled(userClientState));
 
-        assertFails(() -> new DisableFlag(state -> true, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
-        assertValid(() -> new DisableFlag(state -> false, "X").ensureEnabled("Y", userClientState));
+        assertFails(() -> new DisableFlag("x", state -> true, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
+        assertValid(() -> new DisableFlag("x", state -> false, "X").ensureEnabled("Y", userClientState));
     }
 
     @Test
     public void testDisableFlagUsers() throws Throwable
     {
-        DisableFlag enabled = new DisableFlag(state -> false, "X");
+        DisableFlag enabled = new DisableFlag("x", state -> false, "X");
         assertValid(() -> enabled.ensureEnabled(null));
         assertValid(() -> enabled.ensureEnabled(userClientState));
         assertValid(() -> enabled.ensureEnabled(systemClientState));
         assertValid(() -> enabled.ensureEnabled(superClientState));
 
-        DisableFlag disabled = new DisableFlag(state -> true, "X");
+        DisableFlag disabled = new DisableFlag("x", state -> true, "X");
         assertFails(() -> disabled.ensureEnabled(null), "X is not allowed");
         assertFails(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> disabled.ensureEnabled(systemClientState));
@@ -160,7 +164,8 @@ public class GuardrailsTest extends GuardrailTester
     public void testValuesWarned() throws Throwable
     {
         // Using a sorted set below to ensure the order in the warning message checked below is not random
-        Values<Integer> warned = new Values<>(state -> insertionOrderedSet(4, 6, 20),
+        Values<Integer> warned = new Values<>("x", 
+                                              state -> insertionOrderedSet(4, 6, 20),
                                               state -> Collections.emptySet(),
                                               state -> Collections.emptySet(),
                                               "integer");
@@ -179,7 +184,8 @@ public class GuardrailsTest extends GuardrailTester
     public void testValuesIgnored() throws Throwable
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
-        Values<Integer> ignored = new Values<>(state -> Collections.emptySet(),
+        Values<Integer> ignored = new Values<>("x", 
+                                               state -> Collections.emptySet(),
                                                state -> insertionOrderedSet(4, 6, 20),
                                                state -> Collections.emptySet(),
                                                "integer");
@@ -212,7 +218,8 @@ public class GuardrailsTest extends GuardrailTester
     public void testValuesDisallowed() throws Throwable
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
-        Values<Integer> disallowed = new Values<>(state -> Collections.emptySet(),
+        Values<Integer> disallowed = new Values<>("x", 
+                                                  state -> Collections.emptySet(),
                                                   state -> Collections.emptySet(),
                                                   state -> insertionOrderedSet(4, 6, 20),
                                                   "integer");
@@ -236,7 +243,8 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testValuesUsers() throws Throwable
     {
-        Values<Integer> disallowed = new Values<>(state -> Collections.singleton(2),
+        Values<Integer> disallowed = new Values<>("x", 
+                                                  state -> Collections.singleton(2),
                                                   state -> Collections.singleton(3),
                                                   state -> Collections.singleton(4),
                                                   "integer");
