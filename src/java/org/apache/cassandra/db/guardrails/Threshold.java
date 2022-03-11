@@ -40,14 +40,17 @@ public class Threshold extends Guardrail
     /**
      * Creates a new threshold guardrail.
      *
+     * @param name            the identifying name of the guardrail
      * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
      * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
-    public Threshold(ToLongFunction<ClientState> warnThreshold,
+    public Threshold(String name,
+                     ToLongFunction<ClientState> warnThreshold,
                      ToLongFunction<ClientState> failThreshold,
                      ErrorMessageProvider messageProvider)
     {
+        super(name);
         this.warnThreshold = warnThreshold;
         this.failThreshold = failThreshold;
         this.messageProvider = messageProvider;

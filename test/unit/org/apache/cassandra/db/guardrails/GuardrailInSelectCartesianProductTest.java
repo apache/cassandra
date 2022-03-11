@@ -46,7 +46,7 @@ public class GuardrailInSelectCartesianProductTest extends ThresholdTester
     {
         super(WARN_THRESHOLD,
               FAIL_THRESHOLD,
-              "in_select_cartesian_product",
+              Guardrails.inSelectCartesianProduct,
               Guardrails::setInSelectCartesianProductThreshold,
               Guardrails::getInSelectCartesianProductWarnThreshold,
               Guardrails::getInSelectCartesianProductFailThreshold);

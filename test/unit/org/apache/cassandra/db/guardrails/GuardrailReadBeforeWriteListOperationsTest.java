@@ -42,6 +42,11 @@ public class GuardrailReadBeforeWriteListOperationsTest extends GuardrailTester
         return Arrays.asList(false, true);
     }
 
+    public GuardrailReadBeforeWriteListOperationsTest()
+    {
+        super(Guardrails.readBeforeWriteListOperationsEnabled);
+    }
+
     @Before
     public void before()
     {

@@ -42,6 +42,7 @@ public class GuardrailWriteConsistencyLevelsTest extends GuardrailConsistencyLev
     {
         super("write_consistency_levels_warned",
               "write_consistency_levels_disallowed",
+              Guardrails.writeConsistencyLevels,
               Guardrails::getWriteConsistencyLevelsWarned,
               Guardrails::getWriteConsistencyLevelsDisallowed,
               Guardrails::getWriteConsistencyLevelsWarnedCSV,

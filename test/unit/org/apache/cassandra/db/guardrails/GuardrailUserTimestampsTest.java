@@ -26,6 +26,11 @@ import org.junit.Test;
  */
 public class GuardrailUserTimestampsTest extends GuardrailTester
 {
+    public GuardrailUserTimestampsTest()
+    {
+        super(Guardrails.userTimestampsEnabled);
+    }
+
     @Before
     public void setupTest()
     {

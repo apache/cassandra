@@ -34,7 +34,7 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
     {
         super(COLUMNS_PER_TABLE_WARN_THRESHOLD,
               COLUMNS_PER_TABLE_FAIL_THRESHOLD,
-              "columns_per_table",
+              Guardrails.columnsPerTable,
               Guardrails::setColumnsPerTableThreshold,
               Guardrails::getColumnsPerTableWarnThreshold,
               Guardrails::getColumnsPerTableFailThreshold);

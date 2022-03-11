@@ -24,7 +24,7 @@ import org.junit.Test;
 import static java.lang.String.format;
 
 /**
- * Tests the guardrail for the number of secondary indexes in a table, {@link Guardrails#secondaryIndexesPerTable}.
+ * Tests the guardrail for the number of materialized views in a table, {@link Guardrails#materializedViewsPerTable}.
  */
 public class GuardrailViewsPerTableTest extends ThresholdTester
 {
@@ -39,7 +39,7 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
     {
         super(VIEWS_PER_TABLE_WARN_THRESHOLD,
               VIEWS_PER_TABLE_FAIL_THRESHOLD,
-              "materialized_views_per_table",
+              Guardrails.materializedViewsPerTable,
               Guardrails::setMaterializedViewsPerTableThreshold,
               Guardrails::getMaterializedViewsPerTableWarnThreshold,
               Guardrails::getMaterializedViewsPerTableFailThreshold);
@@ -110,8 +110,7 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
         String viewName = createViewName();
         assertThresholdWarns(format(CREATE_VIEW, viewName),
                              format("Creating materialized view %s on table %s, current number of views %s exceeds warning threshold of %s.",
-                                    viewName, currentTable(), currentValue() + 1, guardrails().getMaterializedViewsPerTableWarnThreshold())
-        );
+                                    viewName, currentTable(), currentValue() + 1, guardrails().getMaterializedViewsPerTableWarnThreshold()));
     }
 
     private void assertCreateViewFails() throws Throwable
@@ -119,7 +118,6 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
         String viewName = createViewName();
         assertThresholdFails(format(CREATE_VIEW, viewName),
                              format("aborting the creation of materialized view %s on table %s",
-                                    viewName, currentTable())
-        );
+                                    viewName, currentTable()));
     }
 }

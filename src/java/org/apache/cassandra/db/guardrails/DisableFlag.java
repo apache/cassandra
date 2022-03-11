@@ -38,13 +38,15 @@ public class DisableFlag extends Guardrail
     /**
      * Creates a new {@link DisableFlag} guardrail.
      *
+     * @param name     the identifying name of the guardrail
      * @param disabled a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
      *                 guardrail must be disabled.
      * @param what     The feature that is guarded by this guardrail (for reporting in error messages),
      *                 {@link DisableFlag#ensureEnabled(String, ClientState)} can specify a different {@code what}.
      */
-    public DisableFlag(Predicate<ClientState> disabled, String what)
+    public DisableFlag(String name, Predicate<ClientState> disabled, String what)
     {
+        super(name);
         this.disabled = disabled;
         this.what = what;
     }

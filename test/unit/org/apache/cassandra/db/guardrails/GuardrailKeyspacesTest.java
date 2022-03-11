@@ -36,7 +36,7 @@ public class GuardrailKeyspacesTest extends ThresholdTester
     {
         super(WARN_THRESHOLD,
               FAIL_THRESHOLD,
-              "keyspaces",
+              Guardrails.keyspaces,
               Guardrails::setKeyspacesThreshold,
               Guardrails::getKeyspacesWarnThreshold,
               Guardrails::getKeyspacesFailThreshold);

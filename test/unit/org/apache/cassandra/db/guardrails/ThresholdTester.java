@@ -30,6 +30,7 @@ import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
@@ -37,7 +38,6 @@ import static org.junit.Assert.fail;
  */
 public abstract class ThresholdTester extends GuardrailTester
 {
-    private final String name;
     private final long warnThreshold;
     private final long failThreshold;
     private final TriConsumer<Guardrails, Long, Long> setter;
@@ -47,12 +47,12 @@ public abstract class ThresholdTester extends GuardrailTester
 
     protected ThresholdTester(long warnThreshold,
                               long failThreshold,
-                              String name,
+                              Threshold threshold,
                               TriConsumer<Guardrails, Long, Long> setter,
                               ToLongFunction<Guardrails> warnGetter,
                               ToLongFunction<Guardrails> failGetter)
     {
-        this.name = name;
+        super(threshold);
         this.warnThreshold = warnThreshold;
         this.failThreshold = failThreshold;
         this.setter = setter;
@@ -62,12 +62,12 @@ public abstract class ThresholdTester extends GuardrailTester
 
     protected ThresholdTester(int warnThreshold,
                               int failThreshold,
-                              String name,
+                              Threshold threshold,
                               TriConsumer<Guardrails, Integer, Integer> setter,
                               ToIntFunction<Guardrails> warnGetter,
                               ToIntFunction<Guardrails> failGetter)
     {
-        this.name = name;
+        super(threshold);
         this.warnThreshold = warnThreshold;
         this.failThreshold = failThreshold;
         this.setter = (g, w, a) -> setter.accept(g, w.intValue(), a.intValue());
@@ -91,7 +91,8 @@ public abstract class ThresholdTester extends GuardrailTester
     @Test
     public void testConfigValidation()
     {
-        testValidationOfThresholdProperties(name + "_warn_threshold", name + "_fail_threshold");
+        assertNotNull(guardrail);
+        testValidationOfThresholdProperties(guardrail.name + "_warn_threshold", guardrail.name + "_fail_threshold");
     }
 
     protected void testValidationOfThresholdProperties(String warnName, String failName)
@@ -104,7 +105,7 @@ public abstract class ThresholdTester extends GuardrailTester
         setter.accept(guardrails(), -1L, -1L);
         Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), 2L, 1L))
                   .hasMessageContaining(format("The warn threshold 2 for %s should be lower than the fail threshold 1",
-                                               name + "_warn_threshold"));
+                                               guardrail.name + "_warn_threshold"));
     }
 
     protected void assertThresholdValid(String query) throws Throwable

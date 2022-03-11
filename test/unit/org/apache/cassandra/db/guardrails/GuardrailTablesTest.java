@@ -36,7 +36,7 @@ public class GuardrailTablesTest extends ThresholdTester
     {
         super(TABLES_LIMIT_WARN_THRESHOLD,
               TABLES_LIMIT_FAIL_THRESHOLD,
-              "tables",
+              Guardrails.tables,
               Guardrails::setTablesThreshold,
               Guardrails::getTablesWarnThreshold,
               Guardrails::getTablesFailThreshold);

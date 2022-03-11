@@ -39,6 +39,7 @@ public class GuardrailReadConsistencyLevelsTest extends GuardrailConsistencyLeve
     {
         super("read_consistency_levels_warned",
               "read_consistency_levels_disallowed",
+              Guardrails.readConsistencyLevels,
               Guardrails::getReadConsistencyLevelsWarned,
               Guardrails::getReadConsistencyLevelsDisallowed,
               Guardrails::getReadConsistencyLevelsWarnedCSV,

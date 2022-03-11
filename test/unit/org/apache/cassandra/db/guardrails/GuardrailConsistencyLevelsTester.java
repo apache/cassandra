@@ -49,6 +49,7 @@ public abstract class GuardrailConsistencyLevelsTester extends GuardrailTester
 
     public GuardrailConsistencyLevelsTester(String warnedPropertyName,
                                             String disallowePropertyName,
+                                            Values<ConsistencyLevel> guardrail,
                                             Function<Guardrails, Set<ConsistencyLevel>> warnedGetter,
                                             Function<Guardrails, Set<ConsistencyLevel>> disallowedGetter,
                                             Function<Guardrails, String> warnedCSVGetter,
@@ -58,6 +59,7 @@ public abstract class GuardrailConsistencyLevelsTester extends GuardrailTester
                                             BiConsumer<Guardrails, String> warnedCSVSetter,
                                             BiConsumer<Guardrails, String> disallowedCSVSetter)
     {
+        super(guardrail);
         this.warnedPropertyName = warnedPropertyName;
         this.disallowePropertyName = disallowePropertyName;
         this.warnedGetter = warnedGetter;
