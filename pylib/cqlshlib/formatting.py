@@ -14,15 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import binascii
 import calendar
 import datetime
 import math
 import os
 import re
 import sys
-
-from six import ensure_text
 
 from collections import defaultdict
 
@@ -121,7 +118,7 @@ class DateTimeFormat:
         self.milliseconds_only = milliseconds_only  # the microseconds part, .NNNNNN, wil be rounded to .NNN
 
 
-class CqlType(object):
+class CqlType:
     """
     A class for converting a string into a cql type name that can match a formatter
     and a list of its sub-types, if any.
@@ -203,7 +200,7 @@ class CqlType(object):
 
 
 def format_value_default(val, colormap, **_):
-    val = ensure_text(str(val))
+    val = str(val)
     escapedval = val.replace('\\', '\\\\')
     bval = controlchars_re.sub(_show_control_chars, escapedval)
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap)
@@ -235,7 +232,7 @@ def formatter_for(typname):
     return registrator
 
 
-class BlobType(object):
+class BlobType:
     def __init__(self, val):
         self.val = val
 
@@ -245,7 +242,7 @@ class BlobType(object):
 
 @formatter_for('BlobType')
 def format_value_blob(val, colormap, **_):
-    bval = ensure_text('0x') + ensure_text(binascii.hexlify(val))
+    bval = '0x' + val.hex()
     return colorme(bval, colormap, 'blob')
 
 
@@ -255,7 +252,7 @@ formatter_for('blob')(format_value_blob)
 
 
 def format_python_formatted_type(val, colormap, color, quote=False):
-    bval = ensure_text(str(val))
+    bval = str(val)
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, color)
@@ -325,7 +322,7 @@ formatter_for('double')(format_floating_point_type)
 def format_integer_type(val, colormap, thousands_sep=None, **_):
     # base-10 only for now; support others?
     bval = format_integer_with_thousands_sep(val, thousands_sep) if thousands_sep else str(val)
-    bval = ensure_text(bval)
+    bval = str(bval)
     return colorme(bval, colormap, 'int')
 
 
@@ -360,7 +357,7 @@ def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
         if date_time_format.milliseconds_only:
             bval = round_microseconds(bval)
     else:
-        bval = ensure_text(str(val))
+        bval = str(val)
 
     if quote:
         bval = "'%s'" % bval
