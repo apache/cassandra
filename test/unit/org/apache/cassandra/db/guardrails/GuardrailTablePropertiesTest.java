@@ -45,49 +45,79 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
                                               "WHERE pk IS NOT null and ck IS NOT null PRIMARY KEY(ck, pk) %s";
     private static final String ALTER_VIEW = "ALTER MATERIALIZED VIEW %s.%s WITH %s";
 
+    private static final String WARNED_PROPERTY_NAME = "table_properties_warned";
     private static final String IGNORED_PROPERTY_NAME = "table_properties_ignored";
     private static final String DISALLOWED_PROPERTY_NAME = "table_properties_disallowed";
 
     @Before
     public void before()
     {
-        // only allow "gc_grace_seconds" and "comments"
-        Set<String> allowed = new HashSet<>(Arrays.asList("gc_grace_seconds", "comment"));
+        // only allow "gc_grace_seconds", "comments" and "default_time_to_live"
+        Set<String> allowed = new HashSet<>(Arrays.asList("gc_grace_seconds", "comment", "default_time_to_live"));
         guardrails().setTablePropertiesDisallowed(TableAttributes.validKeywords()
                                                                  .stream()
                                                                  .filter(p -> !allowed.contains(p))
                                                                  .map(String::toUpperCase)
                                                                  .collect(Collectors.toSet()));
-        // but actually warn about "comment"
-        guardrails().setTablePropertiesIgnored(Collections.singleton("comment"));
+        // but actually ignore "comment" and warn about "default_time_to_live"
+        guardrails().setTablePropertiesIgnored("comment");
+        guardrails().setTablePropertiesWarned("default_time_to_live");
     }
 
     @Test
     public void testConfigValidation()
     {
         String message = "Invalid value for %s: null is not allowed";
+        assertInvalidProperty(Guardrails::setTablePropertiesWarned, (Set<String>) null, message, WARNED_PROPERTY_NAME);
         assertInvalidProperty(Guardrails::setTablePropertiesIgnored, (Set<String>) null, message, IGNORED_PROPERTY_NAME);
         assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, (Set<String>) null, message, DISALLOWED_PROPERTY_NAME);
 
         assertValidProperty(Collections.emptySet());
         assertValidProperty(TableAttributes.allKeywords());
+
+        assertValidPropertyCSV("");
+        assertValidPropertyCSV(String.join(",", TableAttributes.allKeywords()));
+
         assertInvalidProperty(Collections.singleton("invalid"), Collections.singleton("invalid"));
         assertInvalidProperty(ImmutableSet.of("comment", "invalid1", "invalid2"), ImmutableSet.of("invalid1", "invalid2"));
         assertInvalidProperty(ImmutableSet.of("invalid1", "invalid2", "comment"), ImmutableSet.of("invalid1", "invalid2"));
         assertInvalidProperty(ImmutableSet.of("invalid1", "comment", "invalid2"), ImmutableSet.of("invalid1", "invalid2"));
+
+        assertInvalidPropertyCSV("invalid", "[invalid]");
+        assertInvalidPropertyCSV("comment,invalid1,invalid2", "[invalid1, invalid2]");
+        assertInvalidPropertyCSV("invalid1,invalid2,comment", "[invalid1, invalid2]");
+        assertInvalidPropertyCSV("invalid1,comment,invalid2", "[invalid1, invalid2]");
     }
 
     private void assertValidProperty(Set<String> properties)
     {
-        assertValidProperty(Guardrails::setTablePropertiesIgnored, properties);
-        assertValidProperty(Guardrails::setTablePropertiesDisallowed, properties);
+        assertValidProperty(Guardrails::setTablePropertiesWarned, Guardrails::getTablePropertiesWarned, properties);
+        assertValidProperty(Guardrails::setTablePropertiesIgnored, Guardrails::getTablePropertiesIgnored, properties);
+        assertValidProperty(Guardrails::setTablePropertiesDisallowed, Guardrails::getTablePropertiesDisallowed, properties);
+    }
+
+    private void assertValidPropertyCSV(String csv)
+    {
+        csv = sortCSV(csv);
+        assertValidProperty(Guardrails::setTablePropertiesWarnedCSV, g -> sortCSV(g.getTablePropertiesWarnedCSV()), csv);
+        assertValidProperty(Guardrails::setTablePropertiesIgnoredCSV, g -> sortCSV(g.getTablePropertiesIgnoredCSV()), csv);
+        assertValidProperty(Guardrails::setTablePropertiesDisallowedCSV, g -> sortCSV(g.getTablePropertiesDisallowedCSV()), csv);
     }
 
     private void assertInvalidProperty(Set<String> properties, Set<String> rejected)
     {
         String message = "Invalid value for %s: '%s' do not parse as valid table properties";
+        assertInvalidProperty(Guardrails::setTablePropertiesWarned, properties, message, WARNED_PROPERTY_NAME, rejected);
         assertInvalidProperty(Guardrails::setTablePropertiesIgnored, properties, message, IGNORED_PROPERTY_NAME, rejected);
         assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, properties, message, DISALLOWED_PROPERTY_NAME, rejected);
+    }
+
+    private void assertInvalidPropertyCSV(String properties, String rejected)
+    {
+        String message = "Invalid value for %s: '%s' do not parse as valid table properties";
+        assertInvalidProperty(Guardrails::setTablePropertiesWarnedCSV, properties, message, WARNED_PROPERTY_NAME, rejected);
+        assertInvalidProperty(Guardrails::setTablePropertiesIgnoredCSV, properties, message, IGNORED_PROPERTY_NAME, rejected);
+        assertInvalidProperty(Guardrails::setTablePropertiesDisallowedCSV, properties, message, DISALLOWED_PROPERTY_NAME, rejected);
     }
 
     @Test
@@ -112,6 +142,13 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
                                     keyspace(),
                                     tableName.get()).one().getString("comment"));
 
+        // default_time_to_live is "warned". So it should warn, and getting the default ttl on the created table should
+        // not be empty, since we don't ignore it.
+        assertWarns(() -> tableName.set(createTableWithProperties("with default_time_to_live = 1000")), "[default_time_to_live]");
+        assertEquals(1000, executeNet("SELECT default_time_to_live FROM system_schema.tables WHERE keyspace_name=? AND table_name=?",
+                                      keyspace(),
+                                      tableName.get()).one().getInt("default_time_to_live"));
+
         // alter column is allowed
         assertValid(this::createTableWithProperties);
         assertValid("ALTER TABLE %s ADD v1 int");
@@ -130,8 +167,6 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
 
         // alter mv properties except "gc_grace_seconds" is not allowed
         assertValid(() -> alterViewWithProperties("gc_grace_seconds = 1000"));
-        assertFails(() -> alterViewWithProperties("compaction = { 'class': 'SizeTieredCompactionStrategy' } AND default_time_to_live = 1"),
-                    "[compaction, default_time_to_live]");
         assertFails(() -> alterViewWithProperties("compaction = { 'class': 'SizeTieredCompactionStrategy' } AND crc_check_chance = 1"),
                     "[compaction, crc_check_chance]");
     }

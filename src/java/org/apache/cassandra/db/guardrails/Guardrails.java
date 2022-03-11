@@ -18,13 +18,18 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Collections;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -101,10 +106,11 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, what));
 
     /**
-     * Guardrail ignoring/disallowing the usage of certain table properties.
+     * Guardrail warning about, ignoring or rejecting the usage of certain table properties.
      */
     public static final Values<String> tableProperties =
-    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesIgnored(),
+    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesWarned(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesIgnored(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesDisallowed(),
                  "Table Properties");
 
@@ -161,6 +167,23 @@ public final class Guardrails implements GuardrailsMBean
                             : format("Aborting query because the cartesian product of the IN restrictions on %s " +
                                      "produces %d values, this exceeds fail threshold of %s.",
                                      what, value, threshold));
+    /**
+     * Guardrail on read consistency levels.
+     */
+    public static final Values<ConsistencyLevel> readConsistencyLevels =
+    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsWarned(),
+                 state -> Collections.emptySet(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsDisallowed(),
+                 "read consistency levels");
+
+    /**
+     * Guardrail on write consistency levels.
+     */
+    public static final Values<ConsistencyLevel> writeConsistencyLevels =
+    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsWarned(),
+                 state -> Collections.emptySet(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsDisallowed(),
+                 "write consistency levels");
 
     private Guardrails()
     {
@@ -281,6 +304,35 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public Set<String> getTablePropertiesWarned()
+    {
+        return DEFAULT_CONFIG.getTablePropertiesWarned();
+    }
+
+    @Override
+    public String getTablePropertiesWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getTablePropertiesWarned());
+    }
+
+    public void setTablePropertiesWarned(String... properties)
+    {
+        setTablePropertiesWarned(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setTablePropertiesWarned(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setTablePropertiesWarned(properties);
+    }
+
+    @Override
+    public void setTablePropertiesWarnedCSV(String properties)
+    {
+        setTablePropertiesWarned(fromCSV(properties));
+    }
+
+    @Override
     public Set<String> getTablePropertiesDisallowed()
     {
         return DEFAULT_CONFIG.getTablePropertiesDisallowed();
@@ -368,6 +420,7 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setPageSizeThreshold(warn, fail);
     }
 
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return DEFAULT_CONFIG.getReadBeforeWriteListOperationsEnabled();
@@ -415,13 +468,118 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setInSelectCartesianProductThreshold(warn, fail);
     }
 
+    public Set<ConsistencyLevel> getReadConsistencyLevelsWarned()
+    {
+        return DEFAULT_CONFIG.getReadConsistencyLevelsWarned();
+    }
+
+    @Override
+    public String getReadConsistencyLevelsWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getReadConsistencyLevelsWarned(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsWarned(consistencyLevels);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsWarnedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsWarned(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed()
+    {
+        return DEFAULT_CONFIG.getReadConsistencyLevelsDisallowed();
+    }
+
+    @Override
+    public String getReadConsistencyLevelsDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getReadConsistencyLevelsDisallowed(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsDisallowed(consistencyLevels);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsDisallowedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsDisallowed(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyLevelsWarned()
+    {
+        return DEFAULT_CONFIG.getWriteConsistencyLevelsWarned();
+    }
+
+    @Override
+    public String getWriteConsistencyLevelsWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyLevelsWarned(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsWarned(consistencyLevels);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsWarnedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsWarned(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed()
+    {
+        return DEFAULT_CONFIG.getWriteConsistencyLevelsDisallowed();
+    }
+
+    @Override
+    public String getWriteConsistencyLevelsDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyLevelsDisallowed(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(consistencyLevels);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
     private static String toCSV(Set<String> values)
     {
-        return values == null ? "" : String.join(",", values);
+        return values == null || values.isEmpty() ? "" : String.join(",", values);
+    }
+
+    private static <T> String toCSV(Set<T> values, Function<T, String> formatter)
+    {
+        return values == null || values.isEmpty() ? "" : values.stream().map(formatter).collect(Collectors.joining(","));
     }
 
     private static Set<String> fromCSV(String csv)
     {
-        return csv == null ? null : ImmutableSet.copyOf(csv.split(","));
+        return StringUtils.isEmpty(csv) ? Collections.emptySet() : ImmutableSet.copyOf(csv.split(","));
+    }
+
+    private static <T> Set<T> fromCSV(String csv, Function<String, T> parser)
+    {
+        return StringUtils.isEmpty(csv) ? Collections.emptySet() : fromCSV(csv).stream().map(parser).collect(Collectors.toSet());
     }
 }

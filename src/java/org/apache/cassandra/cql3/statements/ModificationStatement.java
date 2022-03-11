@@ -460,6 +460,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
+        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                queryState.getClientState());
+
         return hasConditions()
              ? executeWithCondition(queryState, options, queryStartNanoTime)
              : executeWithoutCondition(queryState, options, queryStartNanoTime);

@@ -240,6 +240,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         checkNotNull(cl, "Invalid empty consistency level");
 
         cl.validateForRead();
+        Guardrails.readConsistencyLevels.guard(EnumSet.of(cl), state.getClientState());
 
         int nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
