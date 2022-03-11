@@ -45,7 +45,7 @@ public class GuardrailPageSizeTest extends ThresholdTester
     {
         super(PAGE_SIZE_WARN_THRESHOLD,
               PAGE_SIZE_FAIL_THRESHOLD,
-              "page_size",
+              Guardrails.pageSize,
               Guardrails::setPageSizeThreshold,
               Guardrails::getPageSizeWarnThreshold,
               Guardrails::getPageSizeFailThreshold);
