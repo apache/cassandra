@@ -1054,8 +1054,8 @@ dropMaterializedViewStatement returns [DropViewStatement.Raw stmt]
 /**
   * TRUNCATE <CF>;
   */
-truncateStatement returns [TruncateStatement stmt]
-    : K_TRUNCATE (K_COLUMNFAMILY)? cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
+truncateStatement returns [TruncateStatement.Raw stmt]
+    : K_TRUNCATE (K_COLUMNFAMILY)? cf=columnFamilyName { $stmt = new TruncateStatement.Raw(cf); }
     ;
 
 /**
