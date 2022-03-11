@@ -329,7 +329,12 @@ public enum CassandraRelevantProperties
 
     NEVER_PURGE_TOMBSTONES_PROPERTY("cassandra.never_purge_tombstones"),
 
-    USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete");
+    SYSTEM_DISTRIBUTED_NTS_RF_OVERRIDE_PROPERTY("cassandra.system_distributed_replication_per_dc"),
+    SYSTEM_DISTRIBUTED_NTS_DC_OVERRIDE_PROPERTY("cassandra.system_distributed_replication_dc_names"),
+
+    ;
+
+
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
