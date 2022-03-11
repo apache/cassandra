@@ -649,6 +649,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 else
                 {
+                    Schema.instance.startSync();
                     Stream peers = cluster.stream().filter(instance -> ((IInstance) instance).isValid());
                     SystemKeyspace.setLocalHostId(config.hostId());
                     if (config.has(BLANK_GOSSIP))
