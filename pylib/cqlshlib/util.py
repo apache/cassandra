@@ -21,7 +21,7 @@ import pstats
 
 
 from datetime import timedelta, tzinfo
-from six import StringIO
+from io import StringIO
 
 try:
     from line_profiler import LineProfiler
