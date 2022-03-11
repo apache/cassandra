@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 
@@ -34,24 +35,39 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-public class TruncateStatement extends QualifiedStatement<TruncateStatement> implements CQLStatement.SingleKeyspaceCqlStatement
+import static org.apache.cassandra.config.CassandraRelevantProperties.TRUNCATE_STATEMENT_PROVIDER;
+
+public class TruncateStatement implements CQLStatement, CQLStatement.SingleKeyspaceCqlStatement
 {
-    public TruncateStatement(QualifiedName name)
+    private final String rawCQLStatement;
+    private final QualifiedName qualifiedName;
+
+    public TruncateStatement(String queryString, QualifiedName name)
     {
-        super(name);
+        this.rawCQLStatement = queryString;
+        this.qualifiedName = name;
     }
 
     @Override
-    public TruncateStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
+    public String getRawCQLStatement()
     {
-        setKeyspace(state);
-        String ks = keyspaceMapper.apply(keyspace());
-        if (ks.equals(keyspace()))
-            return this;
-        return new TruncateStatement(new QualifiedName(ks, name()));
+        return rawCQLStatement;
+    }
+
+    @Override
+    public String keyspace()
+    {
+        return qualifiedName.getKeyspace();
+    }
+
+    public String name()
+    {
+        return qualifiedName.getName();
     }
 
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
@@ -98,14 +114,19 @@ public class TruncateStatement extends QualifiedStatement<TruncateStatement> imp
             if (metaData.isVirtual())
                 throw new InvalidRequestException("Cannot truncate virtual tables");
 
-            ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
-            cfs.truncateBlocking();
+            doTruncateBlocking();
         }
         catch (Exception e)
         {
             throw new TruncateException(e);
         }
         return null;
+    }
+
+    protected void doTruncateBlocking()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
+        cfs.truncateBlocking();
     }
 
     @Override
@@ -118,5 +139,58 @@ public class TruncateStatement extends QualifiedStatement<TruncateStatement> imp
     public AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.TRUNCATE, keyspace(), name());
+    }
+
+    public static final class Raw extends QualifiedStatement<TruncateStatement>
+    {
+        public Raw(QualifiedName name)
+        {
+            super(name);
+        }
+
+        @Override
+        public TruncateStatement prepare(ClientState state, UnaryOperator<String> keyspaceMapper)
+        {
+            setKeyspace(state);
+            String ks = keyspaceMapper.apply(keyspace());
+            QualifiedName qual = qualifiedName;
+            if (!ks.equals(qual.getKeyspace()))
+                qual = new QualifiedName(ks, qual.getName());
+            return provider.createTruncateStatement(rawCQLStatement, qual);
+        }
+    }
+
+    private static TruncateStatementProvider getProviderFromProperty()
+    {
+        try
+        {
+            return (TruncateStatementProvider)FBUtilities.classForName(TRUNCATE_STATEMENT_PROVIDER.getString(),
+                                                                       "Truncate statement provider")
+                                                         .getConstructor().newInstance();
+        }
+        catch (NoSuchMethodException | IllegalAccessException | InstantiationException |
+               InvocationTargetException e)
+        {
+            throw new RuntimeException("Unable to find a truncate statement provider with name " +
+                                       TRUNCATE_STATEMENT_PROVIDER.getString(), e);
+        }
+    }
+
+    private static final TruncateStatementProvider provider = TRUNCATE_STATEMENT_PROVIDER.isPresent() ?
+                                                              getProviderFromProperty() :
+                                                              new DefaultTruncateStatementProvider();
+
+    public static interface TruncateStatementProvider
+    {
+        public TruncateStatement createTruncateStatement(String rawCQLStatement, QualifiedName qual);
+    }
+
+    public static final class DefaultTruncateStatementProvider implements TruncateStatementProvider
+    {
+        @Override
+        public TruncateStatement createTruncateStatement(String rawCQLStatement, QualifiedName qual)
+        {
+            return new TruncateStatement(rawCQLStatement, qual);
+        }
     }
 }
