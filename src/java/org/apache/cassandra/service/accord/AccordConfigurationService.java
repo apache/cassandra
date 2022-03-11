@@ -60,7 +60,7 @@ public class AccordConfigurationService implements ConfigurationService
     }
 
     @Override
-    public Future<Void> fetchTopologyForEpoch(long epoch)
+    public void fetchTopologyForEpoch(long epoch)
     {
         throw new UnsupportedOperationException();
     }

@@ -71,4 +71,32 @@ public abstract class AbstractKeyIndexed<T extends AccordKey>
                 consumer.accept(items.get(i));
         }
     }
+
+    private int findFirst(Key key)
+    {
+        if (keys.isEmpty()) return -1;
+
+        int i = keys.search(0, keys.size(), key,
+                            (k, r) -> ((Key) r).compareTo((Key) k) < 0 ? -1 : 1);
+
+        int minIdx = -1 - i;
+
+        return minIdx < keys.size() ? minIdx : i;
+    }
+
+    void forEachIntersecting(AccordKey key, Consumer<T> consumer)
+    {
+        // there may be multiple items for a given key, so start with the first
+        int idx = findFirst(key);
+        if (idx < 0)
+            return;
+
+        for (;idx<keys.size(); idx++)
+        {
+            T item = items.get(idx);
+            if (AccordKey.compare(key, item) != 0)
+                return;
+            consumer.accept(item);
+        }
+    }
 }

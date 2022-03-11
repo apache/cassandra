@@ -24,9 +24,9 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
+import accord.api.Key;
 import accord.api.Store;
 import accord.api.Write;
-import accord.topology.KeyRanges;
 import accord.txn.Timestamp;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
@@ -36,6 +36,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
+import org.apache.cassandra.service.accord.api.AccordKey;
 
 public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements Write
 {
@@ -47,10 +48,11 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     }
 
     @Override
-    public void apply(KeyRanges ranges, Timestamp executeAt, Store store)
+    public void apply(Key key, Timestamp executeAt, Store store)
     {
         long timestamp = AccordTimestamps.timestampToMicros(executeAt);
-        forEachIntersecting(ranges, update -> {
+        forEachIntersecting(((AccordKey) key), update -> {
+            // TODO: accumulate updates
             Mutation mutation = new Mutation(new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build());
             mutation.apply();
         });
