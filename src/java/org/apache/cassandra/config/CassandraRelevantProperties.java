@@ -198,6 +198,11 @@ public enum CassandraRelevantProperties
     REMOTE_STORAGE_HANDLER("cassandra.remote_storage_handler"),
 
     /**
+     * To provide a provider to a different implementation of the truncate statement.
+     */
+    TRUNCATE_STATEMENT_PROVIDER("cassandra.truncate_statement_provider"),
+
+    /**
      * custom native library for os access
      */
     CUSTOM_NATIVE_LIBRARY("cassandra.custom_native_library"),
