@@ -85,13 +85,13 @@ final class GossipInfoTable extends AbstractVirtualTable
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
             APPLICATION_STATE_SET.forEach(applicationState -> {
-                String state = applicationState.name().toLowerCase();
-                if (!"tokens".equals(state))
+                String lowercaseName = applicationState.name().toLowerCase();
+                if (!"tokens".equals(lowercaseName))
                 {
                     // do not a column for the ApplicationState.TOKENS value
-                    dataSet.column(state, getValue(localState, applicationState));
+                    dataSet.column(lowercaseName, getValue(localState, applicationState));
                 }
-                dataSet.column(state + "_version", getVersion(localState, applicationState));
+                dataSet.column(lowercaseName + "_version", getVersion(localState, applicationState));
             });
         }
         return result;
@@ -168,13 +168,13 @@ final class GossipInfoTable extends AbstractVirtualTable
         APPLICATION_STATE_SET.stream()
                              .map(Enum::name)
                              .map(String::toLowerCase)
-                             .forEach(state -> {
-                                 if (!"tokens".equals(state))
+                             .forEach(lowercaseName -> {
+                                 if (!"tokens".equals(lowercaseName))
                                  {
                                      // do not a column for the ApplicationState.TOKENS value
-                                     builder.addRegularColumn(state, UTF8Type.instance);
+                                     builder.addRegularColumn(lowercaseName, UTF8Type.instance);
                                  }
-                                 builder.addRegularColumn(state + "_version", Int32Type.instance);
+                                 builder.addRegularColumn(lowercaseName + "_version", Int32Type.instance);
                              });
 
         return builder.build();
