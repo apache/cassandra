@@ -17,17 +17,30 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_NTS_DC_OVERRIDE_PROPERTY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_NTS_RF_OVERRIDE_PROPERTY;
 
 /**
  * An immutable class representing keyspace parameters (durability and replication).
  */
 public final class KeyspaceParams
 {
+    private static final Logger logger = LoggerFactory.getLogger(KeyspaceParams.class);
+
     public static final boolean DEFAULT_DURABLE_WRITES = true;
 
     /**
@@ -52,6 +65,8 @@ public final class KeyspaceParams
 
     public final boolean durableWrites;
     public final ReplicationParams replication;
+
+    private static final Map<String, String> SYSTEM_DISTRIBUTED_NTS_OVERRIDE = getSystemDistributedNtsOverride();
 
     public KeyspaceParams(boolean durableWrites, ReplicationParams replication)
     {
@@ -94,6 +109,25 @@ public final class KeyspaceParams
         replication.validate(name);
     }
 
+    /**
+     * Used to pick the default replication strategy for all distributed system keyspaces.
+     * The default will be SimpleStrategy and a hard coded RF factor.
+     * <p>
+     * One can change this default to NTS by passing in system properties:
+     * -Dcassandra.system_distributed_replication_per_dc=3
+     * -Dcassandra.system_distributed_replication_dc_names=cloud-east,cloud-west
+     */
+    public static KeyspaceParams systemDistributed(int rf)
+    {
+        if (!SYSTEM_DISTRIBUTED_NTS_OVERRIDE.isEmpty())
+        {
+            logger.info("Using override for distributed system keyspaces: {}", SYSTEM_DISTRIBUTED_NTS_OVERRIDE);
+            return create(true, SYSTEM_DISTRIBUTED_NTS_OVERRIDE);
+        }
+
+        return simple(rf);
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -121,5 +155,42 @@ public final class KeyspaceParams
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
                           .toString();
+    }
+
+    @VisibleForTesting
+    static Map<String, String> getSystemDistributedNtsOverride()
+    {
+        int rfOverride = -1;
+        List<String> dcOverride = Collections.emptyList();
+        ImmutableMap.Builder<String, String> ntsOverride = ImmutableMap.builder();
+
+        try
+        {
+            rfOverride = SYSTEM_DISTRIBUTED_NTS_RF_OVERRIDE_PROPERTY.getInt(-1);
+            dcOverride = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(SYSTEM_DISTRIBUTED_NTS_DC_OVERRIDE_PROPERTY.getString(","));
+        }
+        catch (RuntimeException ex)
+        {
+            logger.error("Error parsing system distributed replication override properties", ex);
+        }
+
+        if (rfOverride != -1 && !dcOverride.isEmpty())
+        {
+            // Validate reasonable defaults
+            if (rfOverride <= 0 || rfOverride > 5)
+            {
+                logger.error("Invalid value for {}", SYSTEM_DISTRIBUTED_NTS_RF_OVERRIDE_PROPERTY.getKey());
+            }
+            else
+            {
+                for (String dc : dcOverride)
+                    ntsOverride.put(dc, String.valueOf(rfOverride));
+
+                ntsOverride.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getCanonicalName());
+                return ntsOverride.build();
+            }
+        }
+
+        return Collections.emptyMap();
     }
 }
