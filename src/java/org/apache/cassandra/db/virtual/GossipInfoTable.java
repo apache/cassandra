@@ -88,7 +88,7 @@ final class GossipInfoTable extends AbstractVirtualTable
                 String lowercaseName = applicationState.name().toLowerCase();
                 if (!"tokens".equals(lowercaseName))
                 {
-                    // do not a column for the ApplicationState.TOKENS value
+                    // do not add a column for the ApplicationState.TOKENS value
                     dataSet.column(lowercaseName, getValue(localState, applicationState));
                 }
                 dataSet.column(lowercaseName + "_version", getVersion(localState, applicationState));
@@ -171,7 +171,7 @@ final class GossipInfoTable extends AbstractVirtualTable
                              .forEach(lowercaseName -> {
                                  if (!"tokens".equals(lowercaseName))
                                  {
-                                     // do not a column for the ApplicationState.TOKENS value
+                                     // do not add a column for the ApplicationState.TOKENS value
                                      builder.addRegularColumn(lowercaseName, UTF8Type.instance);
                                  }
                                  builder.addRegularColumn(lowercaseName + "_version", Int32Type.instance);
