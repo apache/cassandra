@@ -75,6 +75,9 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.diag.DiagnosticEventServiceMBean;
+import org.apache.cassandra.diag.DiagnosticLogOptions;
+import org.apache.cassandra.diag.DiagnosticLogOptionsCompositeData;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -149,6 +152,7 @@ public class NodeProbe implements AutoCloseable
     protected BatchlogManagerMBean bmProxy;
     protected ActiveRepairServiceMBean arsProxy;
     protected AuditLogManagerMBean almProxy;
+    protected DiagnosticEventServiceMBean desProxy;
     protected PasswordAuthenticator.CredentialsCacheMBean ccProxy;
     protected AuthorizationProxy.JmxPermissionsCacheMBean jpcProxy;
     protected NetworkPermissionsCacheMBean npcProxy;
@@ -268,6 +272,8 @@ public class NodeProbe implements AutoCloseable
             arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
             name = new ObjectName(AuditLogManager.MBEAN_NAME);
             almProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuditLogManagerMBean.class);
+            name = new ObjectName(DiagnosticEventServiceMBean.MBEAN_NAME);
+            desProxy = JMX.newMBeanProxy(mbeanServerConn, name, DiagnosticEventServiceMBean.class);
             name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
             ccProxy = JMX.newMBeanProxy(mbeanServerConn, name, PasswordAuthenticator.CredentialsCacheMBean.class);
             name = new ObjectName(AuthCache.MBEAN_NAME_BASE + AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME);
@@ -1975,6 +1981,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.disableAuditLog();
     }
 
+    public void disableDiagnosticLog()
+    {
+        desProxy.disableDiagnosticLog();
+    }
+
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces,
                                String includedCategories, String excludedCategories, String includedUsers, String excludedUsers)
     {
@@ -1995,6 +2006,12 @@ public class NodeProbe implements AutoCloseable
                                maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
 
+    public void enableDiagnosticLog(String loggerName, Map<String, String> parameters, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                                    Long maxLogSize, Integer maxQueueWeight, String archiveCommand)
+    {
+        desProxy.enableDiagnosticLog(loggerName, parameters, maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
+    }
+
     public void enableOldProtocolVersions()
     {
         ssProxy.enableNativeTransportOldProtocolVersions();
@@ -2008,6 +2025,11 @@ public class NodeProbe implements AutoCloseable
     public MessagingServiceMBean getMessagingServiceProxy()
     {
         return msProxy;
+    }
+
+    public DiagnosticEventServiceMBean getDiagnosticEventServiceProxy()
+    {
+        return desProxy;
     }
 
     public void enableFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, @Nullable String archiveCommand, int maxArchiveRetries)
@@ -2043,6 +2065,11 @@ public class NodeProbe implements AutoCloseable
     public int getDefaultKeyspaceReplicationFactor()
     {
         return ssProxy.getDefaultKeyspaceReplicationFactor();
+    }
+
+    public DiagnosticLogOptions getDiagnosticLogOptions()
+    {
+        return DiagnosticLogOptionsCompositeData.fromCompositeData(desProxy.getDiagnosticLogOptionsData());
     }
 }
 

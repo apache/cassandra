@@ -22,11 +22,17 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.SortedMap;
 
+import javax.management.openmbean.CompositeData;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 /**
  * Provides JMX enabled attributes and operations implemented by {@link DiagnosticEventService}.
  */
 public interface DiagnosticEventServiceMBean
 {
+    final String MBEAN_NAME = "org.apache.cassandra.diag:type=DiagnosticEventService";
+
     /*
      * Indicates if any events will be published.
      */
@@ -39,11 +45,16 @@ public interface DiagnosticEventServiceMBean
     void disableDiagnostics();
 
     /**
+     * Enabling of diagnostic framework without restarting the node.
+     */
+    void enableDiagnostics();
+
+    /**
      * Retrieved all events of specified type starting with provided key. Result will be sorted chronologically.
      *
      * @param eventClazz fqn of event class
-     * @param lastKey ID of first event to retrieve
-     * @param limit number of results to return
+     * @param lastKey    ID of first event to retrieve
+     * @param limit      number of results to return
      */
     SortedMap<Long, Map<String, Serializable>> readEvents(String eventClazz, Long lastKey, int limit);
 
@@ -56,4 +67,21 @@ public interface DiagnosticEventServiceMBean
      * Stop storing events.
      */
     void disableEventPersistence(String eventClazz);
+
+    void enableDiagnosticLog();
+
+    void enableDiagnosticLog(String loggerName,
+                             Map<String, String> parameters,
+                             Integer maxArchiveRetries,
+                             Boolean block,
+                             String rollCycle,
+                             Long maxLogSize,
+                             Integer maxQueueWeight,
+                             String archiveCommand) throws ConfigurationException;
+
+    void disableDiagnosticLog();
+
+    boolean isDiagnosticLogEnabled();
+
+    CompositeData getDiagnosticLogOptionsData();
 }

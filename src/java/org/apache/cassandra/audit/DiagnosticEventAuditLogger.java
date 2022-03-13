@@ -18,15 +18,13 @@
 
 package org.apache.cassandra.audit;
 
-import java.util.Map;
-
 import org.apache.cassandra.diag.DiagnosticEventService;
 
 public class DiagnosticEventAuditLogger implements IAuditLogger
 {
-    public DiagnosticEventAuditLogger(Map<String, String> params)
+    public DiagnosticEventAuditLogger(AuditLogOptions options)
     {
-        
+
     }
 
     public void log(AuditLogEntry logMessage)

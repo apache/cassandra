@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.audit;
 
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +30,7 @@ public class FileAuditLogger implements IAuditLogger
 
     private volatile boolean enabled;
 
-    public FileAuditLogger(Map<String, String> params)
+    public FileAuditLogger(AuditLogOptions options)
     {
         enabled = true;
     }

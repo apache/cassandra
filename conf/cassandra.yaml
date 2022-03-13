@@ -1593,6 +1593,19 @@ audit_logging_options:
 # on internal state and temporal relationships across events, accessible by clients via JMX.
 diagnostic_events_enabled: false
 
+diagnostic_logging_options:
+    enabled: false
+    logger:
+      - class_name: BinDiagnosticLogger
+    # diagnostic_log_dir:
+    # roll_cycle: HOURLY
+    # block: true
+    # max_queue_weight: 268435456 # 256 MiB
+    # max_log_size: 17179869184 # 16 GiB
+    ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+    # archive_command:
+    # max_archive_retries: 10
+
 # Use native transport TCP message coalescing. If on upgrade to 4.0 you found your throughput decreasing, and in
 # particular you run an old kernel or have very fewer client connections, this option might be worth evaluating.
 #native_transport_flush_in_batches_legacy: false

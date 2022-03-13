@@ -58,8 +58,10 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.audit.IAuditLogger;
+
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
+import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
@@ -72,6 +74,8 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.diag.DiagnosticLogOptions;
+import org.apache.cassandra.diag.IDiagnosticLogger;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -648,7 +652,7 @@ public class FBUtilities
         return FBUtilities.construct(className, "network authorizer");
     }
 
-    public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
+    public static IAuditLogger newAuditLogger(String className, AuditLogOptions options) throws ConfigurationException
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.audit." + className;
@@ -656,7 +660,7 @@ public class FBUtilities
         try
         {
             Class<?> auditLoggerClass = FBUtilities.classForName(className, "Audit logger");
-            return (IAuditLogger) auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
+            return (IAuditLogger) auditLoggerClass.getConstructor(AuditLogOptions.class).newInstance(options);
         }
         catch (Exception ex)
         {
@@ -677,6 +681,22 @@ public class FBUtilities
         catch (Exception ex)
         {
             throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
+        }
+    }
+
+    public static IDiagnosticLogger newDiagnosticLogger(String className, DiagnosticLogOptions options) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.diag." + className;
+
+        try
+        {
+            Class<?> diagnosticLoggerClass = FBUtilities.classForName(className, "Diagnostic logger");
+            return (IDiagnosticLogger) diagnosticLoggerClass.getConstructor(DiagnosticLogOptions.class).newInstance(options);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IDiagnosticLogger.", ex);
         }
     }
 
