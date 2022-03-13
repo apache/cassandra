@@ -15,40 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+package org.apache.cassandra.log;
 
-/**
- * No-Op implementation of {@link IAuditLogger} to be used as a default audit logger when audit logging is disabled.
- */
-public class NoOpAuditLogger implements IAuditLogger
+public interface ILogger<T>
 {
-    public NoOpAuditLogger()
-    {
-        this(DatabaseDescriptor.getAuditLoggingOptions());
-    }
+    boolean isEnabled();
 
-    public NoOpAuditLogger(AuditLogOptions options)
-    {
+    /**
+     * Logs a log entry. This method might be called after {@link #stop()},
+     * hence implementations need to handle the race condition.
+     */
+    void log(T logEntry);
 
-    }
-
-    @Override
-    public boolean isEnabled()
-    {
-        return false;
-    }
-
-    @Override
-    public void log(AuditLogEntry logMessage)
-    {
-
-    }
-
-    @Override
-    public void stop()
-    {
-
-    }
+    /**
+     * Stop and cleanup any resources of ILogger implementations. Please note that
+     * {@link #log(T)} might be called after being stopped.
+     */
+    void stop();
 }

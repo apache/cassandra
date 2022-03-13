@@ -18,6 +18,12 @@
 
 package org.apache.cassandra.utils.binlog;
 
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
 
 public class BinLogOptions
@@ -50,4 +56,104 @@ public class BinLogOptions
      * Limit the number of times to retry a command.
      */
     public int max_archive_retries = 10;
+
+    public static class Builder
+    {
+        private String archiveCommand;
+        private String rollCycle;
+        private boolean block = true;
+        private int maxQueueWeight;
+        private long maxLogSize;
+        private int maxArchiveRetries;
+
+        public Builder(BinLogOptions options)
+        {
+            this.archiveCommand = options.archive_command;
+            this.rollCycle = options.roll_cycle;
+            this.block = options.block;
+            this.maxLogSize = options.max_log_size;
+            this.maxQueueWeight = options.max_queue_weight;
+            this.maxArchiveRetries = options.max_archive_retries;
+        }
+
+        public Builder()
+        {
+            this(new BinLogOptions());
+        }
+
+        public Builder withRollCycle(final String rollCycle)
+        {
+            sanitise(rollCycle).map(v -> this.rollCycle = v.toUpperCase());
+            return this;
+        }
+
+        public Builder withArchiveCommand(final String archiveCommand)
+        {
+            if (archiveCommand != null)
+            {
+                this.archiveCommand = archiveCommand;
+            }
+            return this;
+        }
+
+        public Builder withBlock(final Boolean block)
+        {
+            if (block != null)
+            {
+                this.block = block;
+            }
+            return this;
+        }
+
+        public Builder withMaxLogSize(final long maxLogSize)
+        {
+            if (maxLogSize != Long.MIN_VALUE)
+            {
+                this.maxLogSize = maxLogSize;
+            }
+            return this;
+        }
+
+        public Builder withMaxArchiveRetries(final int maxArchiveRetries)
+        {
+            if (maxArchiveRetries != Integer.MIN_VALUE)
+            {
+                this.maxArchiveRetries = maxArchiveRetries;
+            }
+            return this;
+        }
+
+        public Builder withMaxQueueWeight(final int maxQueueWeight)
+        {
+            if (maxQueueWeight != Integer.MIN_VALUE)
+            {
+                this.maxQueueWeight = maxQueueWeight;
+            }
+            return this;
+        }
+
+        public BinLogOptions build()
+        {
+            BinLogOptions options = new BinLogOptions();
+            options.max_queue_weight = this.maxQueueWeight;
+            options.roll_cycle = this.rollCycle;
+            options.max_log_size = this.maxLogSize;
+            options.block = this.block;
+            options.archive_command = this.archiveCommand;
+            options.max_archive_retries = this.maxArchiveRetries;
+            return options;
+        }
+
+        public static Optional<String> sanitise(final String input)
+        {
+            if (input == null || input.trim().isEmpty())
+                return Optional.empty();
+
+            return Optional.of(Arrays.stream(input.split(","))
+                                     .map(String::trim)
+                                     .map(Strings::emptyToNull)
+                                     .filter(Objects::nonNull)
+                                     .collect(Collectors.joining(",")));
+        }
+    }
 }

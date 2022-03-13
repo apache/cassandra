@@ -15,23 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
+
+package org.apache.cassandra.diag;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-/**
- * No-Op implementation of {@link IAuditLogger} to be used as a default audit logger when audit logging is disabled.
- */
-public class NoOpAuditLogger implements IAuditLogger
+public class NoOpDiagnosticLogger implements IDiagnosticLogger
 {
-    public NoOpAuditLogger()
+    public NoOpDiagnosticLogger()
     {
-        this(DatabaseDescriptor.getAuditLoggingOptions());
+        this(DatabaseDescriptor.getDiagnosticLoggingOptions());
     }
 
-    public NoOpAuditLogger(AuditLogOptions options)
+    public NoOpDiagnosticLogger(DiagnosticLogOptions options)
     {
-
     }
 
     @Override
@@ -41,13 +38,13 @@ public class NoOpAuditLogger implements IAuditLogger
     }
 
     @Override
-    public void log(AuditLogEntry logMessage)
+    public void stop()
     {
-
+        DiagnosticEventService.instance().unsubscribe(this);
     }
 
     @Override
-    public void stop()
+    public void accept(DiagnosticEvent diagnosticEvent)
     {
 
     }

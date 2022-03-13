@@ -80,7 +80,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         else
         {
             logger.debug("Audit logging is disabled.");
-            auditLogger = new NoOpAuditLogger(Collections.emptyMap());
+            auditLogger = new NoOpAuditLogger();
         }
 
         filter = AuditLogFilter.create(auditLogOptions);
@@ -101,7 +101,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
         if (logger != null && logger.class_name != null)
         {
-            return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
+            return FBUtilities.newAuditLogger(logger.class_name, options);
         }
 
         return new BinAuditLogger(options);
@@ -175,7 +175,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     {
         unregisterAsListener();
         IAuditLogger oldLogger = auditLogger;
-        auditLogger = new NoOpAuditLogger(Collections.emptyMap());
+        auditLogger = new NoOpAuditLogger(auditLogOptions);
         oldLogger.stop();
     }
 

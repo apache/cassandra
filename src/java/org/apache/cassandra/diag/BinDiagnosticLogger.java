@@ -15,40 +15,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
+
+package org.apache.cassandra.diag;
 
 import java.nio.file.Paths;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.wire.WireOut;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.log.AbstractBinLogger;
 import org.apache.cassandra.utils.binlog.BinLog;
 
-public class BinAuditLogger extends AbstractBinLogger<AuditLogEntry, AuditLogOptions> implements IAuditLogger
+public class BinDiagnosticLogger extends AbstractBinLogger<DiagnosticEvent, DiagnosticLogOptions> implements IDiagnosticLogger
 {
     public static final long CURRENT_VERSION = 0;
-    public static final String AUDITLOG_TYPE = "audit";
-    public static final String AUDITLOG_MESSAGE = "message";
-    protected static final Logger logger = LoggerFactory.getLogger(BinAuditLogger.class);
+    public static final String DIAGNOSTIC_LOG_TYPE = "diagnostic";
+    public static final String DIAGNOSTIC_LOG_MESSAGE = "message";
 
-    public BinAuditLogger(AuditLogOptions options)
+    public BinDiagnosticLogger(DiagnosticLogOptions options)
     {
         super(options);
-        this.binLog = new BinLog.Builder(options).path(Paths.get(options.audit_logs_dir)).build(false);
+        binLog = new BinLog.Builder(options).path(Paths.get(options.diagnostic_log_dir)).build(false);
     }
 
     @Override
-    public void log(AuditLogEntry logEntry)
+    public boolean isEnabled()
     {
-        BinLog binLog = this.binLog;
-        if (binLog == null || logEntry == null)
-        {
+        return DatabaseDescriptor.diagnosticEventsEnabled() && options.enabled;
+    }
+
+    @Override
+    public synchronized void stop()
+    {
+        DiagnosticEventService.instance().unsubscribe(this);
+        super.stop();
+    }
+
+    @Override
+    public void accept(DiagnosticEvent diagnosticEvent)
+    {
+        if (!isEnabled() || binLog == null || diagnosticEvent == null)
             return;
-        }
-        binLog.logRecord(new Message(logEntry.getLogString()));
+
+        binLog.logRecord(new Message(diagnosticEvent.getLogString()));
     }
 
     @VisibleForTesting
@@ -68,13 +78,13 @@ public class BinAuditLogger extends AbstractBinLogger<AuditLogEntry, AuditLogOpt
         @Override
         protected String type()
         {
-            return AUDITLOG_TYPE;
+            return DIAGNOSTIC_LOG_TYPE;
         }
 
         @Override
         public void writeMarshallablePayload(WireOut wire)
         {
-            wire.write(AUDITLOG_MESSAGE).text(message);
+            wire.write(DIAGNOSTIC_LOG_MESSAGE).text(message);
         }
     }
 }
