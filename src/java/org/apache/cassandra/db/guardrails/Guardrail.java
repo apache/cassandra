@@ -96,7 +96,7 @@ public abstract class Guardrail
     @VisibleForTesting
     String decorateMessage(String message)
     {
-        // Add a prefix to error message so user know that thew warning or failure is caused by guardrails
+        // Add a prefix to error message so user knows what threw the warning or cause the failure
         return String.format("Guardrail %s violated: %s", name, message);
     }
 }

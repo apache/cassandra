@@ -24,7 +24,7 @@ import org.junit.Test;
 import static java.lang.String.format;
 
 /**
- * Tests the guardrail for the number of materialized veiews in a table, {@link Guardrails#materializedViewsPerTable}.
+ * Tests the guardrail for the number of materialized views in a table, {@link Guardrails#materializedViewsPerTable}.
  */
 public class GuardrailViewsPerTableTest extends ThresholdTester
 {
