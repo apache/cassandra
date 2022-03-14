@@ -8,6 +8,7 @@ Merged from 3.11:
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
 Merged from 3.0:
+ * Require ant >= 1.10 (CASSANDRA-17428)
  * Disallow CONTAINS for UPDATE and DELETE (CASSANDRA-15266)
  * Suppress inapplicable CVEs (CASSANDRA-17368)
  * Fix flaky test - test_cqlsh_completion.TestCqlshCompletion (CASSANDRA-17338)
