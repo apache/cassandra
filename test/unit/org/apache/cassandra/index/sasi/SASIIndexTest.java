@@ -40,6 +40,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -156,7 +157,6 @@ public class SASIIndexTest
             data.put(UUID.randomUUID().toString(), Pair.create(UUID.randomUUID().toString(), r.nextInt()));
 
         ColumnFamilyStore store = loadData(data, true);
-        store.forceMajorCompaction();
 
         Set<SSTableReader> ssTableReaders = store.getLiveSSTables();
         Set<Component> sasiComponents = new HashSet<>();
@@ -170,6 +170,10 @@ public class SASIIndexTest
         try
         {
             store.snapshot(snapshotName);
+            // Compact to make true snapshot size != 0
+            store.forceMajorCompaction();
+            LifecycleTransaction.waitForDeletions();
+
             FileReader reader = new FileReader(store.getDirectories().getSnapshotManifestFile(snapshotName));
             JSONObject manifest = (JSONObject) new JSONParser().parse(reader);
             JSONArray files = (JSONArray) manifest.get("files");
@@ -202,8 +206,7 @@ public class SASIIndexTest
 
                 for (Component c : components)
                 {
-                    Path componentPath = Paths.get(sstable.descriptor + "-" + c.name);
-                    long componentSize = Files.size(componentPath);
+                    long componentSize = Files.size(Paths.get(snapshotSSTable.filenameFor(c)));
                     if (Component.Type.fromRepresentation(c.name) == Component.Type.SECONDARY_INDEX)
                         indexSize += componentSize;
                     else
@@ -214,7 +217,7 @@ public class SASIIndexTest
             Map<String, Pair<Long, Long>> details = store.getSnapshotDetails();
 
             // check that SASI components are included in the computation of snapshot size
-            Assert.assertEquals((long) details.get(snapshotName).right, tableSize + indexSize);
+            Assert.assertEquals(tableSize + indexSize, (long) details.get(snapshotName).right);
         }
         finally
         {
@@ -2636,12 +2639,16 @@ public class SASIIndexTest
 
     private static Set<String> getIndexed(ColumnFamilyStore store, ColumnFilter columnFilter, int maxResults, Expression... expressions)
     {
-        return getKeys(getIndexed(store, columnFilter, null, maxResults, expressions));
+        ReadCommand command = getIndexReadCommand(store, columnFilter, null, maxResults, expressions);
+        try (ReadExecutionController controller = command.executionController();
+             UnfilteredPartitionIterator rows = command.executeLocally(controller))
+        {
+            return getKeys(rows);
+        }
     }
 
     private static Set<DecoratedKey> getPaged(ColumnFamilyStore store, int pageSize, Expression... expressions)
     {
-        UnfilteredPartitionIterator currentPage;
         Set<DecoratedKey> uniqueKeys = new TreeSet<>();
 
         DecoratedKey lastKey = null;
@@ -2650,28 +2657,32 @@ public class SASIIndexTest
         do
         {
             count = 0;
-            currentPage = getIndexed(store, ColumnFilter.all(store.metadata), lastKey, pageSize, expressions);
-            if (currentPage == null)
-                break;
+            ReadCommand command = getIndexReadCommand(store, ColumnFilter.all(store.metadata), lastKey, pageSize, expressions);
 
-            while (currentPage.hasNext())
+            try (ReadExecutionController controller = command.executionController();
+                 UnfilteredPartitionIterator currentPage = command.executeLocally(controller))
             {
-                try (UnfilteredRowIterator row = currentPage.next())
+                if (currentPage == null)
+                    break;
+
+                while (currentPage.hasNext())
                 {
-                    uniqueKeys.add(row.partitionKey());
-                    lastKey = row.partitionKey();
-                    count++;
+                    try (UnfilteredRowIterator row = currentPage.next())
+                    {
+                        uniqueKeys.add(row.partitionKey());
+                        lastKey = row.partitionKey();
+                        count++;
+                    }
                 }
             }
 
-            currentPage.close();
         }
         while (count == pageSize);
 
         return uniqueKeys;
     }
 
-    private static UnfilteredPartitionIterator getIndexed(ColumnFamilyStore store, ColumnFilter columnFilter, DecoratedKey startKey, int maxResults, Expression... expressions)
+    private static ReadCommand getIndexReadCommand(ColumnFamilyStore store, ColumnFilter columnFilter, DecoratedKey startKey, int maxResults, Expression[] expressions)
     {
         DataRange range = (startKey == null)
                             ? DataRange.allData(PARTITIONER)
@@ -2682,15 +2693,13 @@ public class SASIIndexTest
             filter.add(store.metadata.getColumnDefinition(e.name), e.op, e.value);
 
         ReadCommand command =
-            PartitionRangeReadCommand.create(false,
-                                             store.metadata,
+            PartitionRangeReadCommand.create(false, store.metadata,
                                              FBUtilities.nowInSeconds(),
                                              columnFilter,
                                              filter,
-                                             DataLimits.thriftLimits(maxResults, DataLimits.NO_LIMIT),
+                                             DataLimits.cqlLimits(maxResults),
                                              range);
-
-        return command.executeLocally(command.executionController());
+        return command;
     }
 
     private static Mutation newMutation(String key, String firstName, String lastName, int age, long timestamp)
