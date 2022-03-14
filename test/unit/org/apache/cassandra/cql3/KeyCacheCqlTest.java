@@ -50,7 +50,6 @@ import static org.junit.Assert.assertTrue;
 
 public class KeyCacheCqlTest extends CQLTester
 {
-
     private static final String commonColumnsDef =
     "part_key_a     int," +
     "part_key_b     text," +
@@ -618,8 +617,13 @@ public class KeyCacheCqlTest extends CQLTester
             flushTask.call();
     }
 
+    private long lastFP = 0;
+
     private long recentBloomFilterFalsePositives()
     {
-        return getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).metric.recentBloomFilterFalsePositives.getValue();
+        long currentFP = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).metric.bloomFilterFalsePositives.getValue();
+        long result = currentFP - lastFP;
+        lastFP = currentFP;
+        return result;
     }
 }
