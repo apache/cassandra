@@ -204,6 +204,8 @@ public abstract class AbstractReplicationStrategy
 
     public abstract void validateOptions() throws ConfigurationException;
 
+    public abstract void maybeWarnOnOptions();
+
     /*
      * The options recognized by the strategy.
      * The empty collection means that no options are accepted, but null means
@@ -272,6 +274,7 @@ public abstract class AbstractReplicationStrategy
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
+        strategy.maybeWarnOnOptions();
     }
 
     public static Class<AbstractReplicationStrategy> getClass(String cls) throws ConfigurationException

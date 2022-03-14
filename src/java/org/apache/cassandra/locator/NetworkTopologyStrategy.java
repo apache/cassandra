@@ -24,14 +24,18 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 
 /**
  * <p>
@@ -222,6 +226,37 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (e.getKey().equalsIgnoreCase("replication_factor"))
                 throw new ConfigurationException("replication_factor is an option for SimpleStrategy, not NetworkTopologyStrategy");
             validateReplicationFactor(e.getValue());
+        }
+    }
+
+    public void maybeWarnOnOptions()
+    {
+        if (!SchemaConstants.isLocalSystemKeyspace(keyspaceName) && !SchemaConstants.isReplicatedSystemKeyspace(keyspaceName))
+        {
+            ImmutableMultimap<String, InetAddress> dcsNodes = Multimaps.index(StorageService.instance.getTokenMetadata().getAllEndpoints(), snitch::getDatacenter);
+
+            for (Entry<String, String> e : this.configOptions.entrySet())
+            {
+                String dc = e.getKey();
+                int rf = getReplicationFactor(dc);
+                int nodeCount = dcsNodes.get(dc).size();
+                // nodeCount==0 on many tests
+                if (rf > nodeCount && nodeCount != 0)
+                {
+                    String msg = "Your replication factor " + rf
+                                 + " for keyspace "
+                                 + keyspaceName
+                                 + " is higher than the number of nodes "
+                                 + nodeCount
+                                 + " for datacenter "
+                                 + dc;
+                    if (ClientWarn.instance.getWarnings() == null || !ClientWarn.instance.getWarnings().contains(msg))
+                    {
+                        ClientWarn.instance.warn(msg);
+                        logger.warn(msg);
+                    }
+                }
+            }
         }
     }
 
