@@ -63,7 +63,7 @@ public final class PathUtils
     private static final boolean consistentDirectoryListings = CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS.getBoolean();
 
     private static final Set<StandardOpenOption> READ_OPTIONS = unmodifiableSet(EnumSet.of(READ));
-    private static final Set<StandardOpenOption> WRITE_OPTIONS = unmodifiableSet(EnumSet.of(WRITE, CREATE));
+    private static final Set<StandardOpenOption> WRITE_OPTIONS = unmodifiableSet(EnumSet.of(WRITE, CREATE, TRUNCATE_EXISTING));
     private static final Set<StandardOpenOption> WRITE_APPEND_OPTIONS = unmodifiableSet(EnumSet.of(WRITE, CREATE, APPEND));
     private static final Set<StandardOpenOption> READ_WRITE_OPTIONS = unmodifiableSet(EnumSet.of(READ, WRITE, CREATE));
     private static final FileAttribute<?>[] NO_ATTRIBUTES = new FileAttribute[0];
