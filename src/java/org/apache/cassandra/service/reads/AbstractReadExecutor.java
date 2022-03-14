@@ -39,6 +39,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.metrics.ReadCoordinationMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.QueryInfoTracker;
@@ -46,6 +47,7 @@ import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -74,6 +76,11 @@ public abstract class AbstractReadExecutor
     protected volatile PartitionIterator result = null;
     protected final QueryInfoTracker.ReadTracker readTracker;
 
+    static
+    {
+        MessagingService.instance().latencySubscribers.subscribe(ReadCoordinationMetrics::updateReplicaLatency);
+    }
+    
     AbstractReadExecutor(ColumnFamilyStore cfs,
                          ReadCommand command,
                          ReplicaPlan.ForTokenRead replicaPlan,
@@ -200,6 +207,15 @@ public abstract class AbstractReadExecutor
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
         ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(keyspace, command.partitionKey().getToken(), command.indexQueryPlan(), consistencyLevel, retry);
+
+        if (replicaPlan.candidates().stream().noneMatch(replica -> replica.endpoint().equals(FBUtilities.getBroadcastAddressAndPort())))
+        {
+            ReadCoordinationMetrics.nonreplicaRequests.inc();
+        }
+        else if (replicaPlan.contacts().stream().noneMatch(replica -> replica.endpoint().equals(FBUtilities.getBroadcastAddressAndPort())))
+        {
+            ReadCoordinationMetrics.preferredOtherReplicas.inc();
+        }
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
