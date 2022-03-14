@@ -18,6 +18,15 @@
          xmlns:artifact="antlib:org.apache.maven.artifact.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
+
+    <fail message="You need to use Ant of version at least 1.10 to continue.">
+      <condition>
+        <not>
+          <antversion atleast="1.10"/>
+        </not>
+      </condition>
+    </fail>
+
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
