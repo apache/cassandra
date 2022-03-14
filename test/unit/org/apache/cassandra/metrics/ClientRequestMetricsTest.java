@@ -20,6 +20,7 @@ package org.apache.cassandra.metrics;
 
 import java.io.IOException;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -39,12 +40,10 @@ import static org.junit.Assert.assertEquals;
 
 public class ClientRequestMetricsTest extends SchemaLoader
 {
-    private static EmbeddedCassandraService cassandra;
-
     private static Cluster cluster;
     private static Session session;
 
-    private static String KEYSPACE = "junit";
+    private static final String KEYSPACE = "junit";
     private static final String TABLE = "clientrequestsmetricstest";
 
     private static PreparedStatement writePS;
@@ -60,7 +59,7 @@ public class ClientRequestMetricsTest extends SchemaLoader
     {
         Schema.instance.clear();
 
-        cassandra = new EmbeddedCassandraService();
+        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
         cassandra.start();
 
         cluster = builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
@@ -74,6 +73,12 @@ public class ClientRequestMetricsTest extends SchemaLoader
         paxosPS = session.prepare("INSERT INTO " + KEYSPACE + '.' + TABLE + " (id, ord, val) VALUES (?, ?, ?) IF NOT EXISTS;");
         readPS = session.prepare("SELECT * FROM " + KEYSPACE + '.' + TABLE + " WHERE id=?;");
         readRangePS = session.prepare("SELECT * FROM " + KEYSPACE + '.' + TABLE + " WHERE id=? AND ord>=? AND ord <= ?;");
+    }
+    
+    @AfterClass
+    public static void teardown()
+    {
+        cluster.close();
     }
 
     @Test
@@ -158,10 +163,10 @@ public class ClientRequestMetricsTest extends SchemaLoader
 
     private static class ClientRequestMetricsContainer
     {
-        private ClientRequestMetrics metrics;
+        private final ClientRequestMetrics metrics;
 
-        private long localRequests;
-        private long remoteRequests;
+        private final long localRequests;
+        private final long remoteRequests;
 
         public ClientRequestMetricsContainer(ClientRequestMetrics clientRequestMetrics)
         {
