@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.base.Predicate;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,6 +80,7 @@ public class Dispatcher
     public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
         requestExecutor.submit(() -> processRequest(channel, request, forFlusher, backpressure));
+        ClientMetrics.instance.markRequestDispatched();
     }
 
     /**

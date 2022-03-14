@@ -46,6 +46,7 @@ public final class ClientMetrics
     private Gauge<Integer> pausedConnectionsGauge;
     
     private Meter requestDiscarded;
+    private Meter requestDispatched;
 
     private Meter protocolException;
     private Meter unknownException;
@@ -68,6 +69,7 @@ public final class ClientMetrics
     public void unpauseConnection() { pausedConnections.decrementAndGet(); }
 
     public void markRequestDiscarded() { requestDiscarded.mark(); }
+    public void markRequestDispatched() { requestDispatched.mark(); }
 
     public List<ConnectedClient> allConnectedClients()
     {
@@ -119,6 +121,7 @@ public final class ClientMetrics
         pausedConnections = new AtomicInteger();
         pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
         requestDiscarded = registerMeter("RequestDiscarded");
+        requestDispatched = registerMeter("RequestDispatched");
 
         protocolException = registerMeter("ProtocolException");
         unknownException = registerMeter("UnknownException");

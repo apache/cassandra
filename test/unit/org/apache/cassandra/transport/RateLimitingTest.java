@@ -19,14 +19,17 @@
 package org.apache.cassandra.transport;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import com.codahale.metrics.Meter;
 import com.google.common.base.Ticker;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.service.StorageService;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -43,6 +46,7 @@ import org.apache.cassandra.utils.Throwables;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.transport.ProtocolVersion.V4;
@@ -254,7 +258,9 @@ public class RateLimitingTest extends CQLTester
     private void testThrowOnOverload(int payloadSize, SimpleClient client)
     {
         // The first query takes the one available permit...
+        long dispatchedPrior = getRequestDispatchedMeter().getCount();
         client.execute(queryMessage(payloadSize));
+        assertEquals(dispatchedPrior + 1, getRequestDispatchedMeter().getCount());
         
         try
         {   
@@ -266,10 +272,15 @@ public class RateLimitingTest extends CQLTester
             assertTrue(Throwables.anyCauseMatches(e, cause -> cause instanceof OverloadedException));
         }
 
+        // The last request attempt was rejected and therefore not dispatched.
+        assertEquals(dispatchedPrior + 1, getRequestDispatchedMeter().getCount());
+
         // Advance the timeline and verify that we can take a permit again.
         // (Note that we don't take one when we throw on overload.)
         tick.addAndGet(ClientResourceLimits.GLOBAL_REQUEST_LIMITER.getIntervalNanos());
         client.execute(queryMessage(payloadSize));
+
+        assertEquals(dispatchedPrior + 2, getRequestDispatchedMeter().getCount());
     }
 
     private QueryMessage queryMessage(int length)
@@ -304,5 +315,14 @@ public class RateLimitingTest extends CQLTester
                                    QueryOptions.DEFAULT.getSerialConsistency(),
                                    version,
                                    KEYSPACE);
+    }
+
+    protected static Meter getRequestDispatchedMeter()
+    {
+        String metricName = "org.apache.cassandra.metrics.Client.RequestDispatched";
+        Map<String, Meter> metrics = CassandraMetricsRegistry.Metrics.getMeters((name, metric) -> name.equals(metricName));
+        if (metrics.size() != 1)
+            fail(String.format("Expected a single registered metric for request dispatched, found %s",metrics.size()));
+        return metrics.get(metricName);
     }
 }
