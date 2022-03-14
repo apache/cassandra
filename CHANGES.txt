@@ -151,6 +151,7 @@ Merged from 4.0:
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
+ * Fix snapshot true size calculation (CASSANDRA-17267)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
  * Add key validation to ssstablescrub (CASSANDRA-16969)
