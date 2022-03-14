@@ -5,6 +5,7 @@
  * Streaming tasks handle empty SSTables correctly (CASSANDRA-16349)
  * Prevent SSTableLoader from doing unnecessary work (CASSANDRA-16349)
 Merged from 3.11:
+ * Fix snapshot true size calculation (CASSANDRA-17267)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
 Merged from 3.0:
