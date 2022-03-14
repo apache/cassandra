@@ -110,6 +110,12 @@ if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
+third_parties = ('futures-')
+for lib in third_parties:
+    lib_zip = find_zip(lib)
+    if lib_zip:
+        sys.path.insert(0, lib_zip)
+
 import configparser
 from io import StringIO
 
