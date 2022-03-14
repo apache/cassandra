@@ -22,6 +22,8 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiPredicate;
+import java.util.stream.Collectors;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -1156,11 +1158,11 @@ public class Directories
 
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
-        private final HashSet<File> toSkip;
+        private final Set<String> toSkip;
         SSTableSizeSummer(File path, List<File> files)
         {
             super(path);
-            toSkip = new HashSet<>(files);
+            toSkip = files.stream().map(f -> f.getName()).collect(Collectors.toSet());
         }
 
         @Override
@@ -1171,7 +1173,7 @@ public class Directories
             return desc != null
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
-                && !toSkip.contains(file);
+                && !toSkip.contains(file.getName());
         }
     }
 

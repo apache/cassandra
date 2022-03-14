@@ -32,10 +32,13 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.utils.Pair;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -252,6 +255,46 @@ public class ColumnFamilyStoreTest
 
         //test cleanup
         cfs.clearSnapshot("");
+    }
+
+    @Test
+    public void testSnapshotSize()
+    {
+        // cleanup any previous test gargbage
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        cfs.clearSnapshot("");
+
+        // Add row
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+        .clustering("Column1")
+        .add("val", "asdf")
+        .build()
+        .applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        // snapshot
+        cfs.snapshot("basic", null, false, false);
+
+        // check snapshot was created
+        Map<String, Directories.SnapshotSizeDetails> snapshotDetails = cfs.getSnapshotDetails();
+        assertThat(snapshotDetails).hasSize(1);
+        assertThat(snapshotDetails).containsKey("basic");
+
+        // check that sizeOnDisk > trueSize = 0
+        Directories.SnapshotSizeDetails details = snapshotDetails.get("basic");
+        assertThat(details.sizeOnDiskBytes).isGreaterThan(details.dataSizeBytes);
+        assertThat(details.dataSizeBytes).isZero();
+
+        // compact base table to make trueSize > 0
+        cfs.forceMajorCompaction();
+        LifecycleTransaction.waitForDeletions();
+
+        // sizeOnDisk > trueSize because trueSize does not include manifest.json
+        // Check that truesize now is > 0
+        snapshotDetails = cfs.getSnapshotDetails();
+        details = snapshotDetails.get("basic");
+        assertThat(details.sizeOnDiskBytes).isGreaterThan(details.dataSizeBytes);
+        assertThat(details.dataSizeBytes).isPositive();
     }
 
     @Test
