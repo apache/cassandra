@@ -1,4 +1,5 @@
 4.1
+ * reduce hot-path object allocations required to record local/remote requests against the client request metrics (CASSANDRA-17424)
  * Disallow removing DC from system_auth while nodes are active in the DC (CASSANDRA-17478)
  * Add guardrail for the number of fields per UDT (CASSANDRA-17385)
  * Allow users to change cqlsh history location using env variable (CASSANDRA-17448)
