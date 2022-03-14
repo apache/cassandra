@@ -31,13 +31,9 @@ public class AccordCommand extends InMemoryCommand
         super(commandStore, txnId);
     }
 
-    public static AccordCommand load(int generation, int index, TxnId txnId)
-    {
-        return null;
-    }
-
-    public void save() throws IOException
+    void save() throws IOException
     {
         AccordKeyspace.saveCommand(this);
     }
+    // TODO: accumulate changes and flush to partition update at end
 }

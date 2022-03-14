@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import com.google.common.base.Preconditions;
 
 import accord.api.Agent;
 import accord.api.Key;
@@ -35,44 +38,111 @@ import accord.topology.KeyRanges;
 import accord.topology.Topology;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
+import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandStore extends CommandStore
 {
     private final ExecutorService executor;
 
-    public AccordCommandStore(int generation, int index, int numShards, Node.Id nodeId, Function<Timestamp, Timestamp> uniqueNow, Agent agent, Store store, KeyRanges ranges, Supplier<Topology> localTopologySupplier)
+    private class ProcessingContext extends AsyncPromise<Void> implements Runnable
+    {
+        private final Consumer<? super CommandStore> consumer;
+        private final HashSet<AccordCommand> commands = new HashSet<>();
+        private final HashSet<AccordCommandsForKey> commandsForKeys = new HashSet<>();
+
+        public ProcessingContext(Consumer<? super CommandStore> consumer)
+        {
+            this.consumer = consumer;
+        }
+
+        private void persistChanges() throws IOException
+        {
+            // TODO: accumulate updates and return partition updates
+            for (AccordCommand command : commands)
+                command.save();
+            for (AccordCommandsForKey commandsForKey : commandsForKeys)
+                commandsForKey.save();
+        }
+
+        @Override
+        public void run()
+        {
+            Preconditions.checkState(currentCtx == null);
+            try
+            {
+                consumer.accept(AccordCommandStore.this);
+                persistChanges();
+                setSuccess(null);
+            }
+            catch (Throwable e)
+            {
+                tryFailure(e);
+            }
+            finally
+            {
+                Preconditions.checkState(currentCtx == this);
+                currentCtx = null;
+            }
+
+        }
+    }
+
+    private ProcessingContext currentCtx = null;
+
+    public AccordCommandStore(int generation,
+                              int index,
+                              int numShards,
+                              Node.Id nodeId,
+                              Function<Timestamp, Timestamp> uniqueNow,
+                              Agent agent,
+                              Store store,
+                              KeyRanges ranges,
+                              Supplier<Topology> localTopologySupplier, ExecutorService executor)
     {
         super(generation, index, numShards, nodeId, uniqueNow, agent, store, ranges, localTopologySupplier);
-        executor = Executors.newSingleThreadExecutor(r -> {
-            Thread thread = new Thread(r);
-            thread.setName(CommandStore.class.getSimpleName() + '[' + nodeId + ':' + index + ']');
-            return thread;
-        });
+        this.executor = executor;
     }
 
     @Override
     public Command command(TxnId txnId)
     {
-        return null;
+        Preconditions.checkState(currentCtx != null);
+        try
+        {
+            AccordCommand command = AccordKeyspace.loadCommand(this, txnId);
+            currentCtx.commands.add(command);
+            return command;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public CommandsForKey commandsForKey(Key key)
     {
-        throw new UnsupportedOperationException("TODO");
+        Preconditions.checkState(currentCtx != null);
+        Preconditions.checkArgument(key instanceof AccordKey.PartitionKey);
+        AccordCommandsForKey commandsForKey = AccordKeyspace.loadCommandsForKey(this, (AccordKey.PartitionKey) key);
+        currentCtx.commandsForKeys.add(commandsForKey);
+        return commandsForKey;
     }
 
     @Override
     protected void onRangeUpdate(KeyRanges previous, KeyRanges current)
     {
-
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public Future<Void> process(Consumer<? super CommandStore> consumer)
     {
-        throw new UnsupportedOperationException("TODO");
+        ProcessingContext ctx = new ProcessingContext(consumer);
+        executor.execute(ctx);
+        return ctx;
     }
 
     @Override

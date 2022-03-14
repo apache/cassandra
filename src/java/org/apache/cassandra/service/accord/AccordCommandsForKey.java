@@ -44,6 +44,10 @@ public class AccordCommandsForKey extends CommandsForKey
         }
     }
 
+    // TODO: should this just be in memory? If it's just (timestamp) pointers, it will be 56 bytes per entry. A little extra if we duplicate status into here as well
+    // TODO: work out a compact timestamp serialization format. These should all be unsigned so it shouldn't be hard. Could just be byte arrays
+    // TODO: the 2 by id only need a single 28b timestamp plus metadata
+    // TODO: need txnId, isWrite, a lot of uses need deps, but that need a command
     private class Series implements CommandTimeseries
     {
         private final SeriesKind kind;
@@ -154,5 +158,10 @@ public class AccordCommandsForKey extends CommandsForKey
             return;
         max = timestamp;
         AccordKeyspace.updateCommandsForKeyMaxTimestamp(commandStore, key, max);
+    }
+
+    public void save()
+    {
+        // TODO: save accumulated updates
     }
 }

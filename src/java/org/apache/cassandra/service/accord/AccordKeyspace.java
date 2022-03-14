@@ -205,7 +205,7 @@ public class AccordKeyspace
         return deserializeTimestamp(row.getBlob(name), factory);
     }
 
-    public static Command loadCommand(CommandStore commandStore, TxnId txnId) throws IOException
+    public static AccordCommand loadCommand(CommandStore commandStore, TxnId txnId) throws IOException
     {
         String cql = "SELECT * FROM %s.%s " +
                      "WHERE store_generation=? " +
@@ -222,7 +222,7 @@ public class AccordKeyspace
 
         UntypedResultSet.Row row = result.one();
         Preconditions.checkState(deserializeTimestamp(row, "txn_id", TxnId::new).equals(txnId));
-        InMemoryCommand command = new InMemoryCommand(commandStore, txnId);
+        AccordCommand command = new AccordCommand(commandStore, txnId);
         int version = row.getInt("serializer_version");
         command.status(Status.values()[row.getInt("status")]);
         command.txn(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, version));
