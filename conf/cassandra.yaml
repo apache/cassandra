@@ -800,6 +800,16 @@ native_transport_allow_older_protocols: true
 # Idle connection timeouts are disabled by default.
 # native_transport_idle_timeout: 60000ms
 
+# When enabled, limits the number of native transport requests dispatched for processing per second.
+# Behavior once the limit has been breached depends on the value of THROW_ON_OVERLOAD specified in
+# the STARTUP message sent by the client during connection establishment. (See section "4.1.1. STARTUP"
+# in "CQL BINARY PROTOCOL v5".) With the THROW_ON_OVERLOAD flag enabled, messages that breach the limit
+# are dropped, and an OverloadedException is thrown for the client to handle. When the flag is not
+# enabled, the server will stop consuming messages from the channel/socket, putting backpressure on
+# the client while already dispatched messages are processed.
+# native_transport_rate_limiting_enabled: false
+# native_transport_max_requests_per_second: 1000000
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.
