@@ -101,6 +101,12 @@ public class AccordCommandsForKey extends CommandsForKey
         {
             return idsToCommands(AccordKeyspace.allCommandsForKeysSeriesEntries(commandStore, key, kind));
         }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return AccordKeyspace.allCommandsForKeysSeriesEntries(commandStore, key, kind).isEmpty();
+        }
     }
 
     private final CommandStore commandStore;

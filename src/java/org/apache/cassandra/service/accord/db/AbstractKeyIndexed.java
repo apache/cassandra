@@ -46,6 +46,11 @@ public abstract class AbstractKeyIndexed<T extends AccordKey>
         return new Keys(keys);
     }
 
+    public Keys keys()
+    {
+        return keys;
+    }
+
     @Override
     public String toString()
     {

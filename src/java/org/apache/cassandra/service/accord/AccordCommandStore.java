@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -36,6 +35,7 @@ import accord.topology.KeyRanges;
 import accord.topology.Topology;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -64,13 +64,13 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public <R> CompletionStage<R> process(Function<? super CommandStore, R> function)
+    protected void onRangeUpdate(KeyRanges previous, KeyRanges current)
     {
-        throw new UnsupportedOperationException("TODO");
+
     }
 
     @Override
-    public CompletionStage<Void> process(Consumer<? super CommandStore> consumer)
+    public Future<Void> process(Consumer<? super CommandStore> consumer)
     {
         throw new UnsupportedOperationException("TODO");
     }

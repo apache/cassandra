@@ -33,7 +33,6 @@ import accord.api.Write;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.Node.Id;
-import accord.local.Status;
 import accord.topology.KeyRanges;
 import accord.topology.Shard;
 import accord.topology.Topology;
@@ -45,6 +44,7 @@ import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class AccordTestUtils
@@ -113,9 +113,13 @@ public class AccordTestUtils
 
         Txn txn = command.txn();
         KeyRanges ranges = fullRangesFromKeys(txn.keys);
-        Data read = txn.read.read(ranges, command.executeAt(), null);
-        Write write = txn.update.apply(read);
+        AccordRead read = (AccordRead) txn.read;
+        Data readData = read.keys().accumulate(ranges, (key, accumulate) -> {
+            Data data = read.read(key, command.executeAt(), null);
+            return accumulate != null ? accumulate.merge(data) : data;
+        });
+        Write write = txn.update.apply(readData);
         command.writes(new Writes(command.executeAt(), txn.keys(), write));
-        command.result(txn.query.compute(read));
+        command.result(txn.query.compute(readData));
     }
 }
