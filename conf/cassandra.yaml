@@ -1632,6 +1632,22 @@ drop_compact_storage_enabled: false
 # Guardrail to warn about or reject write consistency levels. By default, all consistency levels are allowed.
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
+# Guardrail to warn or fail when encountering larger size of collection data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to 0KiB to disable.
+# collection_size_warn_threshold: 0KiB
+# collection_size_fail_threshold: 0KiB
+# Guardrail to warn or fail when encountering more elements in collection than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to -1 to disable.
+# items_per_collection_warn_threshold: -1
+# items_per_collection_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

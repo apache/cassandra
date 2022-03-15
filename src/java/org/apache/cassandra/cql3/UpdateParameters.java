@@ -146,17 +146,18 @@ public class UpdateParameters
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
 
-    public void addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
+    public Cell<?> addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
     {
-        addCell(column, null, value);
+        return addCell(column, null, value);
     }
 
-    public void addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
+    public Cell<?> addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
+        return cell;
     }
 
     public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException

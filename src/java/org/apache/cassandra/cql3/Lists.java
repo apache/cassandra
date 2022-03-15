@@ -492,26 +492,43 @@ public abstract class Lists
 
         static void doAppend(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
-            if (column.type.isMultiCell())
+            if (value == null)
             {
+                // for frozen lists, we're overwriting the whole cell value
+                if (!column.type.isMultiCell())
+                    params.addTombstone(column);
+
                 // If we append null, do nothing. Note that for Setter, we've
                 // already removed the previous value so we're good here too
-                if (value == null)
+                return;
+            }
+
+            List<ByteBuffer> elements = ((Value) value).elements;
+
+            if (column.type.isMultiCell())
+            {
+                if (elements.size() == 0)
                     return;
 
-                for (ByteBuffer buffer : ((Value) value).elements)
+                // Guardrails about collection size are only checked for the added elements without considering
+                // already existent elements. This is done so to avoid read-before-write, having additional checks
+                // during SSTable write.
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), params.clientState);
+
+                int dataSize = 0;
+                for (ByteBuffer buffer : elements)
                 {
                     ByteBuffer uuid = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
-                    params.addCell(column, CellPath.create(uuid), buffer);
+                    Cell<?> cell = params.addCell(column, CellPath.create(uuid), buffer);
+                    dataSize += cell.dataSize();
                 }
+                Guardrails.collectionSize.guard(dataSize, column.name.toString(), params.clientState);
             }
             else
             {
-                // for frozen lists, we're overwriting the whole cell value
-                if (value == null)
-                    params.addTombstone(column);
-                else
-                    params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), params.clientState);
+                Cell<?> cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), params.clientState);
             }
         }
     }

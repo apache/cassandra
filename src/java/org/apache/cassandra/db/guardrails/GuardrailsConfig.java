@@ -20,6 +20,7 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
@@ -183,4 +184,24 @@ public interface GuardrailsConfig
      * @return The consistency levels that are disallowed when writing.
      */
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
+
+    /*
+     * @return The threshold to warn when encountering a collection with larger data size than threshold.
+     */
+    DataStorageSpec getCollectionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with larger data size than threshold.
+     */
+    DataStorageSpec getCollectionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering more elements in a collection than threshold.
+     */
+    int getItemsPerCollectionWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with more elements than threshold.
+     */
+    int getItemsPerCollectionFailThreshold();
 }

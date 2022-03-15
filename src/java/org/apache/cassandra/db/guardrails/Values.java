@@ -93,7 +93,10 @@ public class Values<T> extends Guardrail
      * @param ignoreAction An action called on the subset of {@code values} that should be ignored. This action
      *                     should do whatever is necessary to make sure the value is ignored.
      * @param state        The client state, used to skip the check if the query is internal or is done by a superuser.
-     *                     A {@code null} value means that the check should be done regardless of the query.
+     *                     A {@code null} value means that the check should be done regardless of the query, although it
+     *                     won't throw any exception if the failure threshold is exceeded. This is so because checks
+     *                     without an associated client come from asynchronous processes such as compaction, and we
+     *                     don't want to interrupt such processes.
      */
     public void guard(Set<T> values, Consumer<T> ignoreAction, @Nullable ClientState state)
     {
@@ -104,7 +107,7 @@ public class Values<T> extends Guardrail
         Set<T> toDisallow = Sets.intersection(values, disallowed);
         if (!toDisallow.isEmpty())
             fail(format("Provided values %s are not allowed for %s (disallowed values are: %s)",
-                        toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed));
+                        toDisallow.stream().sorted().collect(Collectors.toList()), what, disallowed), state);
 
         Set<T> ignored = ignoredValues.apply(state);
         Set<T> toIgnore = Sets.intersection(values, ignored);

@@ -27,6 +27,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -178,6 +179,7 @@ public final class Guardrails implements GuardrailsMBean
                             : format("Aborting query because the cartesian product of the IN restrictions on %s " +
                                      "produces %d values, this exceeds fail threshold of %s.",
                                      what, value, threshold));
+
     /**
      * Guardrail on read consistency levels.
      */
@@ -197,6 +199,32 @@ public final class Guardrails implements GuardrailsMBean
                  state -> Collections.emptySet(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsDisallowed(),
                  "write consistency levels");
+
+    /**
+     * Guardrail on the size of a collection.
+     */
+    public static final Threshold collectionSize =
+    new Threshold("collection_size",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold().toBytes(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold().toBytes(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Detected collection %s of size %s, this exceeds the warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Detected collection %s of size %s, this exceeds the failure threshold of %s.",
+                                     what, value, threshold));
+
+    /**
+     * Guardrail on the number of items of a collection.
+     */
+    public static final Threshold itemsPerCollection =
+    new Threshold("items_per_collection",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
+                                     what, value, threshold));
 
     private Guardrails()
     {
@@ -446,12 +474,6 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setPartitionKeysInSelectThreshold(int warn, int fail)
-    {
-        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
-    }
-
-    @Override
     public int getPartitionKeysInSelectWarnThreshold()
     {
         return DEFAULT_CONFIG.getPartitionKeysInSelectWarnThreshold();
@@ -461,6 +483,48 @@ public final class Guardrails implements GuardrailsMBean
     public int getPartitionKeysInSelectFailThreshold()
     {
         return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
+    }
+
+    @Override
+    public void setPartitionKeysInSelectThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
+    }
+
+    public long getCollectionSizeWarnThresholdInKiB()
+    {
+        return DEFAULT_CONFIG.getCollectionSizeWarnThreshold().toKibibytes();
+    }
+
+    @Override
+    public long getCollectionSizeFailThresholdInKiB()
+    {
+        return DEFAULT_CONFIG.getCollectionSizeFailThreshold().toKibibytes();
+    }
+
+    @Override
+    public void setCollectionSizeThresholdInKiB(long warnInKiB, long failInKiB)
+    {
+        DEFAULT_CONFIG.setCollectionSizeThreshold(DataStorageSpec.inKibibytes(warnInKiB),
+                                                  DataStorageSpec.inKibibytes(failInKiB));
+    }
+
+    @Override
+    public int getItemsPerCollectionWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getItemsPerCollectionWarnThreshold();
+    }
+
+    @Override
+    public int getItemsPerCollectionFailThreshold()
+    {
+        return DEFAULT_CONFIG.getItemsPerCollectionFailThreshold();
+    }
+
+    @Override
+    public void setItemsPerCollectionThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setItemsPerCollectionThreshold(warn, fail);
     }
 
     @Override

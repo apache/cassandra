@@ -55,7 +55,7 @@ import static java.util.stream.Collectors.toSet;
 public class GuardrailsOptions implements GuardrailsConfig
 {
     private static final Logger logger = LoggerFactory.getLogger(GuardrailsOptions.class);
-    
+
     private final Config config;
 
     public GuardrailsOptions(Config config)
@@ -77,6 +77,8 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
+        validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, "collection_size");
+        validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
     }
 
     @Override
@@ -423,6 +425,55 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.write_consistency_levels_disallowed = x);
     }
 
+    public DataStorageSpec getCollectionSizeWarnThreshold()
+    {
+        return config.collection_size_warn_threshold;
+    }
+
+    @Override
+    public DataStorageSpec getCollectionSizeFailThreshold()
+    {
+        return config.collection_size_fail_threshold;
+    }
+
+    public void setCollectionSizeThreshold(DataStorageSpec warn, DataStorageSpec fail)
+    {
+        validateSizeThreshold(warn, fail, "collection_size");
+        updatePropertyWithLogging("collection_size_warn_threshold",
+                                  warn,
+                                  () -> config.collection_size_warn_threshold,
+                                  x -> config.collection_size_warn_threshold = x);
+        updatePropertyWithLogging("collection_size_fail_threshold",
+                                  fail,
+                                  () -> config.collection_size_fail_threshold,
+                                  x -> config.collection_size_fail_threshold = x);
+    }
+
+    @Override
+    public int getItemsPerCollectionWarnThreshold()
+    {
+        return config.items_per_collection_warn_threshold;
+    }
+
+    @Override
+    public int getItemsPerCollectionFailThreshold()
+    {
+        return config.items_per_collection_fail_threshold;
+    }
+
+    public void setItemsPerCollectionThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "items_per_collection");
+        updatePropertyWithLogging("items_per_collection_warn_threshold",
+                                  warn,
+                                  () -> config.items_per_collection_warn_threshold,
+                                  x -> config.items_per_collection_warn_threshold = x);
+        updatePropertyWithLogging("items_per_collection_fail_threshold",
+                                  fail,
+                                  () -> config.items_per_collection_fail_threshold,
+                                  x -> config.items_per_collection_fail_threshold = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
@@ -433,36 +484,31 @@ public class GuardrailsOptions implements GuardrailsConfig
         }
     }
 
-    private static void validatePositiveNumeric(long value, long maxValue, boolean allowZero, String name)
+    private static void validatePositiveNumeric(long value, long maxValue, String name)
     {
+        if (value == Config.DISABLED_GUARDRAIL)
+            return;
+
         if (value > maxValue)
             throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
                                                       value, name, maxValue));
 
-        if (value == 0 && !allowZero)
+        if (value == 0)
             throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
                                                       "if attempting to disable use %d",
                                                       name, Config.DISABLED_GUARDRAIL));
 
         // We allow -1 as a general "disabling" flag. But reject anything lower to avoid mistakes.
-        if (value < Config.DISABLED_GUARDRAIL)
+        if (value <= 0)
             throw new IllegalArgumentException(format("Invalid value %d for %s: negative values are not allowed, " +
                                                       "outside of %d which disables the guardrail",
                                                       value, name, Config.DISABLED_GUARDRAIL));
     }
 
-    private static void validateStrictlyPositiveInteger(long value, String name)
-    {
-        // We use 'long' for generality, but most numeric guardrail cannot effectively be more than a 'int' for various
-        // internal reasons. Not that any should ever come close in practice ...
-        // Also, in most cases, zero does not make sense (allowing 0 tables or columns is not exactly useful).
-        validatePositiveNumeric(value, Integer.MAX_VALUE, false, name);
-    }
-
     private static void validateIntThreshold(int warn, int fail, String name)
     {
-        validateStrictlyPositiveInteger(warn, name + "_warn_threshold");
-        validateStrictlyPositiveInteger(fail, name + "_fail_threshold");
+        validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
+        validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
@@ -474,6 +520,16 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (fail < warn)
             throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be lower " +
                                                       "than the fail threshold %d", warn, name, fail));
+    }
+
+    private static void validateSizeThreshold(DataStorageSpec warn, DataStorageSpec fail, String name)
+    {
+        if (warn.equals(Config.DISABLED_SIZE_GUARDRAIL) || fail.equals(Config.DISABLED_SIZE_GUARDRAIL))
+            return;
+
+        if (fail.toBytes() < warn.toBytes())
+            throw new IllegalArgumentException(format("The warn threshold %s for %s_warn_threshold should be lower " +
+                                                      "than the fail threshold %s", warn, name, fail));
     }
 
     private static Set<String> validateTableProperties(Set<String> properties, String name)

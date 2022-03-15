@@ -79,7 +79,7 @@ public abstract class Guardrail
         Tracing.trace(message);
     }
 
-    protected void fail(String message)
+    protected void fail(String message, @Nullable ClientState state)
     {
         message = decorateMessage(message);
 
@@ -90,7 +90,8 @@ public abstract class Guardrail
         // Similarly, tracing will also ignore the message if we're not running tracing on the current thread.
         Tracing.trace(message);
 
-        throw new GuardrailViolatedException(message);
+        if (state != null)
+            throw new GuardrailViolatedException(message);
     }
 
     @VisibleForTesting

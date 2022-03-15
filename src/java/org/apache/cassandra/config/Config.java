@@ -771,6 +771,7 @@ public class Config
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
     public static final int DISABLED_GUARDRAIL = -1;
+    public static final DataStorageSpec DISABLED_SIZE_GUARDRAIL = DataStorageSpec.inBytes(0);
     public volatile boolean guardrails_enabled = false;
     public volatile int keyspaces_warn_threshold = DISABLED_GUARDRAIL;
     public volatile int keyspaces_fail_threshold = DISABLED_GUARDRAIL;
@@ -797,6 +798,10 @@ public class Config
     public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
+    public volatile DataStorageSpec collection_size_warn_threshold = DISABLED_SIZE_GUARDRAIL;
+    public volatile DataStorageSpec collection_size_fail_threshold = DISABLED_SIZE_GUARDRAIL;
+    public volatile int items_per_collection_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int items_per_collection_fail_threshold = DISABLED_GUARDRAIL;
 
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
     public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);

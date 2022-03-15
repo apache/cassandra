@@ -113,7 +113,7 @@ public class GuardrailsTest extends GuardrailTester
                                         state -> 10,
                                         state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
-                                                                       isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                       isWarn ? "Warning" : "Failure", what, v, t));
 
         // value under both thresholds
         assertValid(() -> guard.guard(5, "x", null));
@@ -127,9 +127,10 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> guard.guard(100, "y", systemClientState));
         assertValid(() -> guard.guard(100, "y", superClientState));
 
-        // value over fail threshold
-        assertFails(() -> guard.guard(101, "z", null), "Aborting: for z, 101 > 100");
-        assertFails(() -> guard.guard(101, "z", userClientState), "Aborting: for z, 101 > 100");
+        // value over fail threshold. An undefined user means that the check comes from a background process,
+        // so we warn instead of failing to prevent interrupting that process.
+        assertWarns(() -> guard.guard(101, "z", null), "Failure: for z, 101 > 100");
+        assertFails(() -> guard.guard(101, "z", userClientState), "Failure: for z, 101 > 100");
         assertValid(() -> guard.guard(101, "z", systemClientState));
         assertValid(() -> guard.guard(101, "z", superClientState));
     }
@@ -154,7 +155,6 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> enabled.ensureEnabled(superClientState));
 
         DisableFlag disabled = new DisableFlag("x", state -> true, "X");
-        assertFails(() -> disabled.ensureEnabled(null), "X is not allowed");
         assertFails(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> disabled.ensureEnabled(systemClientState));
         assertValid(() -> disabled.ensureEnabled(superClientState));
@@ -234,9 +234,9 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> disallowed.guard(set(200), action, userClientState));
         assertValid(() -> disallowed.guard(set(1, 2, 3), action, userClientState));
 
-        assertFails(() -> disallowed.guard(set(4, 6), action, null),
+        assertWarns(() -> disallowed.guard(set(4, 6), action, null),
                     "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
-        assertFails(() -> disallowed.guard(set(4, 5, 6, 7), action, null),
+        assertWarns(() -> disallowed.guard(set(4, 5, 6, 7), action, null),
                     "Provided values [4, 6] are not allowed for integer (disallowed values are: [4, 6, 20])");
     }
 
@@ -271,7 +271,7 @@ public class GuardrailsTest extends GuardrailTester
         Assert.assertEquals(list(3, 3), triggeredOn);
 
         message = "Provided values [4] are not allowed for integer (disallowed values are: [4])";
-        assertFails(() -> disallowed.guard(set(4), action, null), message);
+        assertWarns(() -> disallowed.guard(set(4), action, null), message);
         assertFails(() -> disallowed.guard(set(4), action, userClientState), message);
         assertValid(() -> disallowed.guard(set(4), action, systemClientState));
         assertValid(() -> disallowed.guard(set(4), action, superClientState));
