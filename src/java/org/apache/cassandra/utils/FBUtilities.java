@@ -532,7 +532,7 @@ public class FBUtilities
     /**
      * Returns a new {@link Future} wrapping the given list of futures and returning a list of their results.
      */
-    public static Future<List> allOf(Collection<Future> futures)
+    public static Future<List> allOf(Collection<Future<?>> futures)
     {
         if (futures.isEmpty())
             return CompletableFuture.completedFuture(null);
