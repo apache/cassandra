@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.repair.AutoRepair;
 import org.apache.cassandra.repair.AutoRepairUtils;
 
 import javax.management.MBeanServer;
@@ -42,6 +43,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private Pattern repairOnlyKeyspaces;
     private long autoRepairTableMaxRepairTimeInSec;
     private Set<String> autoRepairIgnoreDCs;
+    private Set<Set<String>> autoRepairDCGroups;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -69,6 +71,11 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void startAutoRepair()
     {
         autoRepairStarted = true;
+    }
+
+    public void runAutoRepairOnce(long millisToWait)
+    {
+        AutoRepair.runRepair(millisToWait);
     }
 
     @Override
@@ -189,5 +196,13 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setIgnoreDCs(Set<String> ignorDCs)
     {
         this.autoRepairIgnoreDCs = ignorDCs;
+    }
+
+    public void setDCGourps(Set<Set<String>> dcGourps) {
+        autoRepairDCGroups = dcGourps;
+    }
+
+    public Set<Set<String>> getDCGroups() {
+        return autoRepairDCGroups;
     }
 }

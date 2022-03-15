@@ -666,6 +666,10 @@ public class Config
 
     public Boolean auto_repair_enabled = true;
 
+    // This should be false for production, this is only set to true for Cassandra dtest so auto repair won't be triggerd
+    // by the auto repair executor scheduleWithFixedDelay function
+    public Boolean auto_repair_auto_schedule = true;
+
     public Integer auto_repair_no_of_subranges = 1;
 
     public Integer auto_repair_number_of_repair_threads = 1;
@@ -681,6 +685,13 @@ public class Config
     public Integer auto_repair_min_repair_frequency_in_hours = 24;
 
     public String auto_repair_ignore_dc = "";
+
+    // by default, the value is empty, it means the all nodes are in one ring and the repair in that ring should be done
+    // node by node. Adding this config for special case(cstar-peloton) that certain keyspace data is only stored in
+    // certain cluster. We can run multiple node repair at the same time without worrying about the conflict. For example,
+    // if the value is "dca1,phx2|dca11|phx3|phx4,dca5,dca6", there will be 4 groups {dca1, phx2}, {dca11}, {phx3} and
+    // {phx4, dca5, dca6}. This means we can run repair parallely on 4 nodes, each in one group.
+    public String auto_repair_dc_groups = "";
 
     public Long auto_repair_table_max_repair_time_in_sec = 6 * 60 * 60L;
     /**

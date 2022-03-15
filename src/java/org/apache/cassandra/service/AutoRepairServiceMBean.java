@@ -39,6 +39,12 @@ public interface AutoRepairServiceMBean
     public void startAutoRepair();
 
     /**
+     * run Auto repair once on this node
+     */
+    public void runAutoRepairOnce(long millisToWait);
+
+
+    /**
      * Check if AutoRepair is started for this node
      */
     public boolean isAutoRepairStarted();

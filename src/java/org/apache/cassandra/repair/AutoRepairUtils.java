@@ -42,6 +42,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.serializers.SetSerializer;
@@ -60,7 +61,9 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -96,14 +99,14 @@ public class AutoRepairUtils
             "INSERT INTO %s.%s (%s, %s, %s, %s) values (?, ?, ?, ?)"
             , KEYSPACE_NAME, REPAIR_STATUS, COL_PID, COL_HOST_ID, COL_REPAIR_STATUS, COL_REPAIR_TS);
     final static String SELECT_REPAIR_STATUS = String.format(
-            "SELECT %s, %s, %s, %s FROM %s.%s WHERE pid = 0"
+            "SELECT %s, %s, %s, %s FROM %s.%s WHERE pid = ?"
             , COL_HOST_ID, COL_REPAIR_STATUS, COL_REPAIR_TS, COL_REPAIR_PRIORITY, KEYSPACE_NAME, REPAIR_STATUS);
     final static String DEL_REPAIR_STATUS = String.format(
             "DELETE FROM %s.%s WHERE pid = ?", KEYSPACE_NAME, REPAIR_STATUS);
     final static String DEL_REPAIR_PRIORITY = String.format(
             "DELETE %s[?] FROM %s.%s WHERE pid = ?", COL_REPAIR_PRIORITY, KEYSPACE_NAME, REPAIR_STATUS);
     final static String ADD_PRIORITY_HOST = String.format(
-            "UPDATE %s.%s SET %s = %s + ?  WHERE pid = 0", KEYSPACE_NAME, REPAIR_STATUS, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY);
+            "UPDATE %s.%s SET %s = %s + ?  WHERE pid = ?", KEYSPACE_NAME, REPAIR_STATUS, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY);
 
     static ModificationStatement modificationStatementRepairStatus;
     static ModificationStatement delStatementRepairStatus;
@@ -123,6 +126,7 @@ public class AutoRepairUtils
     {
         TableMetadata currentRepairSchema = CreateTableStatement.parse(REPAIR_SCHEMA, KEYSPACE_NAME)
                                                                 .comment("current repair status details")
+                                                                .id(TableId.forSystemTable(KEYSPACE_NAME, REPAIR_STATUS))
                                                                 .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90))
                                                                 .build();
         return KeyspaceMetadata.create(KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(currentRepairSchema));
@@ -186,25 +190,97 @@ public class AutoRepairUtils
     {
         //get current repair status
         ResultMessage.Rows repairStatusRows = selectStatementRepairStatus.execute(QueryState.forInternalCalls(), QueryOptions
-                .forInternalCalls(internalQueryCL, null), Dispatcher.RequestTime.forImmediateExecution());
+                .forInternalCalls(internalQueryCL, Lists.newArrayList(ByteBufferUtil.bytes(getLocalDCGroup().hashCode()))), Dispatcher.RequestTime.forImmediateExecution());
         UntypedResultSet repairStatusResult = UntypedResultSet.create(repairStatusRows.result);
 
         if (repairStatusResult.size() > 0)
         {
-            UntypedResultSet.Row row = repairStatusResult.one();
-            UUID hostIdWithOnGoingRepair = row.getUUID(COL_HOST_ID);
-            int currentRepairStatus = row.getInt(COL_REPAIR_STATUS);
-            long repairFinishedTs = row.getLong(COL_REPAIR_TS);
-            Set<UUID> priority = row.getSet(COL_REPAIR_PRIORITY, UUIDType.instance);
-            logger.debug("Latest repair status hostIdWithOnGoingRepair {}, currentRepairStatus {}, " +
-                            "repair_finished_ts {}", hostIdWithOnGoingRepair,
-                    currentRepairStatus, repairFinishedTs);
-            CurrentRepairStatus status = new CurrentRepairStatus(hostIdWithOnGoingRepair, currentRepairStatus,
-                    repairFinishedTs, priority);
+            TreeSet<UUID> hostIdsInCurrentRing = getHostIdsInCurrentRing(StorageService.instance.getTokenMetadata().getAllEndpoints());
+            UntypedResultSet.Row row = null;
+            if (AutoRepairService.instance.getDCGroups().isEmpty()) {
+                // all nodes are in one single ring
+                row = repairStatusResult.one();
+            } else {
+                for (Iterator<UntypedResultSet.Row> it = repairStatusResult.iterator(); it.hasNext(); )
+                {
+                    row = it.next();
+                    if (hostIdsInCurrentRing.contains(row.getUUID(COL_HOST_ID))) {
+                        break;
+                    }
+                }
+            }
+            if (row != null) {
+                UUID hostIdWithOnGoingRepair = row.getUUID(COL_HOST_ID);
+                int currentRepairStatus = row.getInt(COL_REPAIR_STATUS);
+                long repairFinishedTs = row.getLong(COL_REPAIR_TS);
+                Set<UUID> priority = row.getSet(COL_REPAIR_PRIORITY, UUIDType.instance);
+                logger.debug("Latest repair status hostIdWithOnGoingRepair {}, currentRepairStatus {}, " +
+                             "repair_finished_ts {}", hostIdWithOnGoingRepair,
+                             currentRepairStatus, repairFinishedTs);
+                CurrentRepairStatus status = new CurrentRepairStatus(hostIdWithOnGoingRepair, currentRepairStatus,
+                                                                     repairFinishedTs, priority);
 
-            return status;
+                return status;
+            }
         }
         return null;
+    }
+
+    public static Set<String> getLocalDCGroup() {
+        String localDataCenter = DatabaseDescriptor.getLocalDataCenter();
+        Set<String> localGroup = new HashSet<>();
+        for (Set<String> group : AutoRepairService.instance.getDCGroups()) {
+            if (group.contains(localDataCenter)) {
+                localGroup = group;
+                break;
+            }
+        }
+        return localGroup;
+    }
+
+    // if dc groups is empty(not set), return the input value. If groups are set, only return the nodes in the same group
+    private static Set<InetAddressAndPort> processNodesByGroup(Set<InetAddressAndPort> allNodesInRing) {
+        if (AutoRepairService.instance.getDCGroups().isEmpty()) {
+            logger.info("No data center groups is defined, will use all nodes in ring as one group.");
+            return allNodesInRing;
+        }
+        Set<String> localGroup = getLocalDCGroup();
+        logger.info("Auto repair local group is " + localGroup.toString());
+
+        Set<InetAddressAndPort> localGroupNodes = new HashSet<>();
+        for (InetAddressAndPort node : allNodesInRing) {
+            if (localGroup.contains(DatabaseDescriptor.getEndpointSnitch().getDatacenter(node))) {
+                localGroupNodes.add(node);
+            }
+        }
+        logger.info("Total number of nodes in group {} is {}, local nodes: {}.", localGroup.toString(), localGroupNodes.size(), localGroupNodes);
+        return localGroupNodes;
+    }
+
+    private static TreeSet<UUID> getHostIdsInCurrentRing(Set<InetAddressAndPort> allNodesInRing)
+    {
+        TreeSet<UUID> hostIdsInCurrentRing = new TreeSet<>();
+        allNodesInRing = processNodesByGroup(allNodesInRing);
+        for (InetAddressAndPort node : allNodesInRing)
+        {
+            String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node);
+            if (AutoRepairService.instance.getIgnoreDCs().contains(nodeDC))
+            {
+                logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
+                continue;
+            }
+            /** Check if endpoint state exists in gossip or not. If it
+             * does not then this maybe a ghost node so ignore it
+             */
+            if (Gossiper.instance.isAlive(node))
+            {
+                UUID hostId = Gossiper.instance.getHostId(node);
+                hostIdsInCurrentRing.add(hostId);
+            } else {
+                logger.info("Node is not present in Gossipe cache node {}", node, nodeDC);
+            }
+        }
+        return hostIdsInCurrentRing;
     }
 
     @VisibleForTesting
@@ -215,26 +291,7 @@ public class AutoRepairUtils
         {
             Set<InetAddressAndPort> allNodesInRing = StorageService.instance.getTokenMetadata().getAllEndpoints();
             logger.info("Total nodes in ring {}", allNodesInRing.size());
-            TreeSet<UUID> hostIdsInCurrentRing = new TreeSet<>();
-            for (InetAddressAndPort node : allNodesInRing)
-            {
-                String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node);
-                if (AutoRepairService.instance.getIgnoreDCs().contains(nodeDC))
-                {
-                    logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
-                    continue;
-                }
-                /** Check if endpoint state exists in gossip or not. If it
-                 * does not then this maybe a ghost node so ignore it
-                 */
-                if (Gossiper.instance.isAlive(node))
-                {
-                    UUID hostId = Gossiper.instance.getHostId(node);
-                    hostIdsInCurrentRing.add(hostId);
-                } else {
-                    logger.info("Node is not present in Gossipe cache node {}", node, nodeDC);
-                }
-            }
+            TreeSet<UUID> hostIdsInCurrentRing = getHostIdsInCurrentRing(allNodesInRing);
             logger.info("Total nodes qualified for repair {}", hostIdsInCurrentRing.size());
 
             //get my previous neighbour
@@ -258,6 +315,7 @@ public class AutoRepairUtils
 
             //get current repair status
             CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus();
+
             if (currentRepairStatus != null)
             {
                 logger.info("Latest repair status {}", currentRepairStatus.toString());
@@ -276,7 +334,7 @@ public class AutoRepairUtils
                             currentRepairStatus.hostIdWithOnGoingRepair, currentRepairStatus, currentRepairStatus.repairFinishedTs);
                     delStatementRepairStatus.execute(QueryState.forInternalCalls(),
                             QueryOptions.forInternalCalls(internalQueryCL,
-                                    Lists.newArrayList(ByteBufferUtil.bytes(0))), Dispatcher.RequestTime.forImmediateExecution());
+                                    Lists.newArrayList(ByteBufferUtil.bytes(getLocalDCGroup().hashCode()))), Dispatcher.RequestTime.forImmediateExecution());
                     return NOT_MY_TURN;
                 }
 
@@ -339,10 +397,9 @@ public class AutoRepairUtils
 
     static void updateRepairStatus(UUID myId, AutoRepair.RepairCurrentStatus repairStatus)
     {
-        //mark current hostId as repaired
         modificationStatementRepairStatus.execute(QueryState.forInternalCalls(),
                                                   QueryOptions.forInternalCalls(internalQueryCL,
-                        Lists.newArrayList(ByteBufferUtil.bytes(0),
+                        Lists.newArrayList(ByteBufferUtil.bytes(getLocalDCGroup().hashCode()),
                                 ByteBufferUtil.bytes(myId),
                                 ByteBufferUtil.bytes(repairStatus.ordinal()),
                                 ByteBufferUtil.bytes(System.currentTimeMillis()))), Dispatcher.RequestTime.forImmediateExecution());
@@ -367,7 +424,8 @@ public class AutoRepairUtils
             SetSerializer<UUID> serializer = SetSerializer.getInstance(UUIDSerializer.instance, UTF8Type.instance.comparatorSet);
             addPriorityHost.execute(QueryState.forInternalCalls(),
                     QueryOptions.forInternalCalls(internalQueryCL,
-                            Lists.newArrayList(serializer.serialize(hostIds))), Dispatcher.RequestTime.forImmediateExecution());
+                            Lists.newArrayList(serializer.serialize(hostIds),
+                                               ByteBufferUtil.bytes(getLocalDCGroup().hashCode()))), Dispatcher.RequestTime.forImmediateExecution());
         }
     }
 
@@ -377,7 +435,7 @@ public class AutoRepairUtils
         delStatementPriorityStatus.execute(QueryState.forInternalCalls(),
                 QueryOptions.forInternalCalls(internalQueryCL,
                         Lists.newArrayList(ByteBufferUtil.bytes(hostId),
-                                ByteBufferUtil.bytes(0))), Dispatcher.RequestTime.forImmediateExecution());
+                                ByteBufferUtil.bytes(getLocalDCGroup().hashCode()))), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public static Set<InetAddress> getPriorityHosts()

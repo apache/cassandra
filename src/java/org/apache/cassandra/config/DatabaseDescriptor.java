@@ -4802,6 +4802,11 @@ public class DatabaseDescriptor
         return conf.auto_repair_enabled;
     }
 
+    public static Boolean getAutoRepairAutoSchedule()
+    {
+        return conf.auto_repair_auto_schedule;
+    }
+
     public static Integer getAutoRepairNumberOfSubRanges()
     {
         return conf.auto_repair_no_of_subranges;
@@ -4840,6 +4845,11 @@ public class DatabaseDescriptor
     public static String getAutoRepairIgnoreDC()
     {
         return conf.auto_repair_ignore_dc;
+    }
+
+    public static String getAutoRepairDCGroups()
+    {
+        return conf.auto_repair_dc_groups;
     }
 
     public static long getAutoRepairTableMaxRepairTimeInSec()

@@ -105,7 +105,7 @@ public class AutoRepair
     static int repairTableSkipCount = 0;
     static int repairTableFailureCount = 0;
 
-    private ScheduledExecutorPlus repairExecutor;
+    private static ScheduledExecutorPlus repairExecutor;
     public static AutoRepair instance = new AutoRepair();
 
     private AutoRepair()
@@ -123,6 +123,9 @@ public class AutoRepair
     {
         return totalTablesConsideredForRepair;
     }
+
+    @VisibleForTesting
+    public static void setLastRepairTimeInMs(long lastRepairTime) {lastRepairTimeInMs = lastRepairTime; }
 
     public static int getClusterRepairTimeInSec()
     {
@@ -182,15 +185,34 @@ public class AutoRepair
         }
         AutoRepairService.instance.setIgnoreDCs(ignoreDCs);
 
+        Set<Set<String>> DCGroups = new HashSet<>();
+        if (DatabaseDescriptor.getAutoRepairDCGroups().length() > 0) {
+            for (String group : DatabaseDescriptor.getAutoRepairDCGroups().split("\\|")) {
+                Set<String> dataCenters = new HashSet<>();
+                for (String dc : group.split(",")) {
+                    dataCenters.add(dc);
+                }
+                DCGroups.add(dataCenters);
+            }
+        }
+
+        AutoRepairService.instance.setDCGourps(DCGroups);
+
         AutoRepairUtils.setup();
-        repairExecutor.scheduleWithFixedDelay(() -> repair(false),
-                30,
-                DatabaseDescriptor.getAutoRepairCheckInterval(),
-                TimeUnit.SECONDS);
+
+        if (DatabaseDescriptor.getAutoRepairAutoSchedule())
+            repairExecutor.scheduleWithFixedDelay(() -> repair(60000),
+                    30,
+                    DatabaseDescriptor.getAutoRepairCheckInterval(),
+                    TimeUnit.SECONDS);
+    }
+
+    public static void runRepair(long millisToWait) {
+        AutoRepair.repairExecutor.submit(() -> repair(millisToWait));
     }
 
     @VisibleForTesting
-    public static void repair(boolean skipWait)
+    public static void repair(long millisToWait)
     {
         if (!AutoRepairService.instance.isAutoRepairStarted())
         {
@@ -200,7 +222,7 @@ public class AutoRepair
 
         try
         {
-            String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+            String localDC = DatabaseDescriptor.getLocalDataCenter();
             if (AutoRepairService.instance.getIgnoreDCs().contains(localDC))
             {
                 logger.info("Not running repair as this node belongs to datacenter {}", localDC);
@@ -229,9 +251,9 @@ public class AutoRepair
                 }
 
                 Stopwatch stopWatch = Stopwatch.createStarted();
-                logger.info("My turn to run repair...");
-
+                logger.info("My turn to run repair..., my id: {}", myId);
                 AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_NOT_DONE);
+
                 int repairKeyspaceCount = 0;
                 int repairTableSuccessCount = 0;
                 repairTableFailureCount = 0;
@@ -376,7 +398,7 @@ public class AutoRepair
                             {
                                 repairTableFailureCount++;
                             }
-                            logger.debug("Repair completed for {}.{}", keyspaceName, tableName);
+                            logger.info("Repair completed for {}.{}", keyspaceName, tableName);
                         }
                         catch (Exception e)
                         {
@@ -384,7 +406,6 @@ public class AutoRepair
                         }
                     }
                 }
-                AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_DONE);
 
                 //if it was due to priority then remove it now
                 if (turn == MY_TURN_DUE_TO_PRIORITY)
@@ -409,13 +430,15 @@ public class AutoRepair
                     logger.info("Cluster repair time {} day(s)", TimeUnit.SECONDS.toDays(clusterRepairTimeInSec));
                 }
                 lastRepairTimeInMs = System.currentTimeMillis();
-                if (timeInHours == 0 && !skipWait)
+                if (timeInHours == 0 && millisToWait > 0)
                 {
                     //If repair finished quickly, happens for an empty instance, in such case
                     //wait for a minute so that the JMX metrics can detect the repairInProgress
-                    Thread.sleep(60000);
+                    logger.info("Wait for {} milliseconds.", millisToWait);
+                    Thread.sleep(millisToWait);
                 }
                 repairInProgress = 0;
+                AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_DONE);
             }
             else
             {

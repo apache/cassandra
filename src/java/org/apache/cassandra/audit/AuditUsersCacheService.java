@@ -35,6 +35,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -135,11 +136,11 @@ public class AuditUsersCacheService
         insertDosaRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_DOSA_ROLE_QUERY,
                 ClientState.forInternalCalls());
 
-        insertCassandraRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
-        insertPinglessRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
-        insertOdinWorkerRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
-        insertUqlRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
-        insertDosaRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), System.nanoTime());
+        insertCassandraRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
+        insertPinglessRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
+        insertOdinWorkerRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
+        insertUqlRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
+        insertDosaRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
 
         Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
         if (ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class)
@@ -161,7 +162,7 @@ public class AuditUsersCacheService
         {
             // Refresh cache
             ResultMessage.Rows rows = selectStatement.execute(QueryState.forInternalCalls(),
-                    QueryOptions.forInternalCalls(cl, null), System.nanoTime());
+                    QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
             UntypedResultSet result = UntypedResultSet.create(rows.result);
             for (UntypedResultSet.Row row : result)
             {

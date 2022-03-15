@@ -101,6 +101,8 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.dht.IPartitioner;
+
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -277,9 +279,15 @@ public class Util
         boolean endpointTokenPrefilled = endpointTokens != null && !endpointTokens.isEmpty();
         for (int i=0; i<howMany; i++)
         {
-            if(!endpointTokenPrefilled)
-                endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
-            keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
+            if (partitioner instanceof Murmur3Partitioner) {
+                if(!endpointTokenPrefilled)
+                    endpointTokens.add(new Murmur3Partitioner.LongToken(10*i));
+                keyTokens.add(new Murmur3Partitioner.LongToken(10 * i + 5));
+            } else {
+                if(!endpointTokenPrefilled)
+                    endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
+                keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
+            }
             hostIds.add(hostIdPool.get(i));
         }
 

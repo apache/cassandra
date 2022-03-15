@@ -197,6 +197,7 @@ public class NodeTool
                 SetAuthCacheConfig.class,
                 SetBadQueryThreshold.class,
                 SetAutoRepairConfig.class,
+                RunAutoRepairOnce.class,
                 SetBatchlogReplayThrottle.class,
                 SetCacheCapacity.class,
                 SetCacheKeysToSave.class,

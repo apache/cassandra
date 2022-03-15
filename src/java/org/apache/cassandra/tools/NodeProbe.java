@@ -2280,6 +2280,11 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.isAutoRepairEnabled();
     }
 
+    public void runAutoRepairOnce(long millisToWait)
+    {
+        autoRepairProxy.runAutoRepairOnce(millisToWait);
+    }
+
     public void startAutoRepair()
     {
         autoRepairProxy.startAutoRepair();
