@@ -189,40 +189,28 @@ public class AutoRepairUtils
     private static CurrentRepairStatus getCurrentRepairStatus()
     {
         //get current repair status
+        logger.info("Getting repair status for pid = " + getLocalDCGroup().hashCode());
         ResultMessage.Rows repairStatusRows = selectStatementRepairStatus.execute(QueryState.forInternalCalls(), QueryOptions
                 .forInternalCalls(internalQueryCL, Lists.newArrayList(ByteBufferUtil.bytes(getLocalDCGroup().hashCode()))), Dispatcher.RequestTime.forImmediateExecution());
         UntypedResultSet repairStatusResult = UntypedResultSet.create(repairStatusRows.result);
 
         if (repairStatusResult.size() > 0)
         {
-            TreeSet<UUID> hostIdsInCurrentRing = getHostIdsInCurrentRing(StorageService.instance.getTokenMetadata().getAllEndpoints());
-            UntypedResultSet.Row row = null;
-            if (AutoRepairService.instance.getDCGroups().isEmpty()) {
-                // all nodes are in one single ring
-                row = repairStatusResult.one();
-            } else {
-                for (Iterator<UntypedResultSet.Row> it = repairStatusResult.iterator(); it.hasNext(); )
-                {
-                    row = it.next();
-                    if (hostIdsInCurrentRing.contains(row.getUUID(COL_HOST_ID))) {
-                        break;
-                    }
-                }
-            }
-            if (row != null) {
-                UUID hostIdWithOnGoingRepair = row.getUUID(COL_HOST_ID);
-                int currentRepairStatus = row.getInt(COL_REPAIR_STATUS);
-                long repairFinishedTs = row.getLong(COL_REPAIR_TS);
-                Set<UUID> priority = row.getSet(COL_REPAIR_PRIORITY, UUIDType.instance);
-                logger.debug("Latest repair status hostIdWithOnGoingRepair {}, currentRepairStatus {}, " +
-                             "repair_finished_ts {}", hostIdWithOnGoingRepair,
-                             currentRepairStatus, repairFinishedTs);
-                CurrentRepairStatus status = new CurrentRepairStatus(hostIdWithOnGoingRepair, currentRepairStatus,
-                                                                     repairFinishedTs, priority);
+            // we will always get one row returned because the query is selecting with primary key
+            UntypedResultSet.Row row = repairStatusResult.one();
+            UUID hostIdWithOnGoingRepair = row.getUUID(COL_HOST_ID);
+            int currentRepairStatus = row.getInt(COL_REPAIR_STATUS);
+            long repairFinishedTs = row.getLong(COL_REPAIR_TS);
+            Set<UUID> priority = row.getSet(COL_REPAIR_PRIORITY, UUIDType.instance);
+            logger.info("Latest repair status hostIdWithOnGoingRepair {}, currentRepairStatus {}, " +
+                         "repair_finished_ts {}", hostIdWithOnGoingRepair,
+                         currentRepairStatus, repairFinishedTs);
+            CurrentRepairStatus status = new CurrentRepairStatus(hostIdWithOnGoingRepair, currentRepairStatus,
+                                                                 repairFinishedTs, priority);
 
-                return status;
-            }
+            return status;
         }
+        logger.info("No repair status for pid = " + getLocalDCGroup().hashCode() + " found!");
         return null;
     }
 
