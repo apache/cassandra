@@ -1,4 +1,5 @@
 4.0.4
+ * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
  * Fix timestamp tz parsing (CASSANDRA-17467)
  * Suppress CVE-2021-44521 from driver (CASSANDRA-17459)
  * Upgrade jackson to 2.13.2 (CASSANDRA-17460)

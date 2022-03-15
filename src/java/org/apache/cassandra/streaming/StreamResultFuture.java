@@ -119,7 +119,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind);
             StreamManager.instance.registerFollower(future);
         }
-        future.attachConnection(from, sessionIndex, channel);
+        future.attachConnection(from, sessionIndex);
         logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} channel.remote {} channel.local {} channel.id {}",
                     planId, sessionIndex, streamOperation.getDescription(), from, channel.remoteAddress(), channel.localAddress(), channel.id());
         return future;
@@ -137,12 +137,13 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return coordinator;
     }
 
-    private void attachConnection(InetAddressAndPort from, int sessionIndex, Channel channel)
+    private void attachConnection(InetAddressAndPort from, int sessionIndex)
     {
         StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
         session.init(this);
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     public void addEventListener(StreamEventHandler listener)
     {
         Futures.addCallback(this, listener, MoreExecutors.directExecutor());
@@ -218,6 +219,11 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             {
                 logger.warn("[Stream #{}] Stream failed", planId);
                 setException(new StreamException(finalState, "Stream failed"));
+            }
+            else if (finalState.hasAbortedSession())
+            {
+                logger.info("[Stream #{}] Stream aborted", planId);
+                set(finalState);
             }
             else
             {

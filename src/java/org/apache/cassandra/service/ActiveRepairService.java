@@ -897,4 +897,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     {
         return parentRepairSessions.size();
     }
+
+    @VisibleForTesting
+    public int sessionCount()
+    {
+        return sessions.size();
+    }
 }

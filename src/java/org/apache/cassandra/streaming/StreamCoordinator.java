@@ -18,6 +18,7 @@
 package org.apache.cassandra.streaming;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -39,7 +40,7 @@ public class StreamCoordinator
 
     private final boolean connectSequentially;
 
-    private final Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
+    private final Map<InetAddressAndPort, HostStreamingData> peerSessions = new ConcurrentHashMap<>();
     private final StreamOperation streamOperation;
     private final int connectionsPerHost;
     private final boolean follower;

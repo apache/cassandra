@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -57,6 +58,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private final RepairJobDesc desc;
     private final RepairParallelism parallelismDegree;
     private final ListeningExecutorService taskExecutor;
+    
+    private final List<SyncTask> syncTasks = new CopyOnWriteArrayList<>();
 
     /**
      * Create repair job to run on specific columnfamily
@@ -91,6 +94,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      * This sets up necessary task and runs them on given {@code taskExecutor}.
      * After submitting all tasks, waits until validation with replica completes.
      */
+    @SuppressWarnings("UnstableApiUsage")
     public void run()
     {
         Keyspace ks = Keyspace.open(desc.keyspace);
@@ -148,6 +152,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         // When all sync complete, set the final result
         Futures.addCallback(syncResults, new FutureCallback<List<SyncStat>>()
         {
+            @Override
             public void onSuccess(List<SyncStat> stats)
             {
                 if (!session.previewKind.isPreview())
@@ -162,8 +167,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             /**
              * Snapshot, validation and sync failures are all handled here
              */
+            @Override
             public void onFailure(Throwable t)
             {
+                syncTasks.forEach(SyncTask::abort);
+
                 if (!session.previewKind.isPreview())
                 {
                     logger.warn("{} {}.{} sync failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
@@ -272,19 +280,22 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         return executeTasks(syncTasks);
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     @VisibleForTesting
-    ListenableFuture<List<SyncStat>> executeTasks(List<SyncTask> syncTasks)
+    ListenableFuture<List<SyncStat>> executeTasks(List<SyncTask> tasks)
     {
         // this throws if the parent session has failed
         ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
-        for (SyncTask task : syncTasks)
+        syncTasks.addAll(tasks);
+
+        for (SyncTask task : tasks)
         {
             if (!task.isLocal())
                 session.trackSyncCompletion(Pair.create(desc, task.nodePair()), (CompletableRemoteSyncTask) task);
             taskExecutor.submit(task);
         }
 
-        return Futures.allAsList(syncTasks);
+        return Futures.allAsList(tasks);
     }
 
     static List<SyncTask> createOptimisedSyncingSyncTasks(RepairJobDesc desc,
@@ -362,6 +373,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      * @param endpoints Endpoint addresses to send validation request
      * @return Future that can get all {@link TreeResponse} from replica, if all validation succeed.
      */
+    @SuppressWarnings("UnstableApiUsage")
     private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);

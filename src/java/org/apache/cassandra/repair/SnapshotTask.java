@@ -83,7 +83,6 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
-            //listener.failedSnapshot();
             task.setException(new RuntimeException("Could not create snapshot at " + from));
         }
     }
