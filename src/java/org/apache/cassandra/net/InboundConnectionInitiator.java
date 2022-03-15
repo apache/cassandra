@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
@@ -232,20 +233,30 @@ public class InboundConnectionInitiator
                 failHandshake(ctx);
             }, HandshakeProtocol.TIMEOUT_MILLIS, MILLISECONDS);
 
-            authenticate(ctx.channel().remoteAddress());
+            if (!authenticate(ctx.channel().remoteAddress()))
+            {
+                failHandshake(ctx);
+            }
         }
 
-        private void authenticate(SocketAddress socketAddress) throws IOException
+        private boolean authenticate(SocketAddress socketAddress) throws IOException
         {
             if (socketAddress.getClass().getSimpleName().equals("EmbeddedSocketAddress"))
-                return;
+                return true;
 
             if (!(socketAddress instanceof InetSocketAddress))
                 throw new IOException(String.format("Unexpected SocketAddress type: %s, %s", socketAddress.getClass(), socketAddress));
 
             InetSocketAddress addr = (InetSocketAddress)socketAddress;
             if (!settings.authenticate(addr.getAddress(), addr.getPort()))
-                throw new IOException("Authentication failure for inbound connection from peer " + addr);
+            {
+                // Log at info level as anything that can reach the inbound port could hit this
+                // and trigger a log of noise.  Failed outbound connections to known cluster endpoints
+                // still fail with an ERROR message and exception to alert operators that aren't watching logs closely.
+                logger.info("Authenticate rejected inbound internode connection from {}", addr);
+                return false;
+            }
+            return true;
         }
 
         @Override
@@ -376,14 +387,22 @@ public class InboundConnectionInitiator
 
         private void exceptionCaught(Channel channel, Throwable cause)
         {
-            logger.error("Failed to properly handshake with peer {}. Closing the channel.", channel.remoteAddress(), cause);
+            final SocketAddress remoteAddress = channel.remoteAddress();
+            boolean reportingExclusion = DatabaseDescriptor.getInternodeErrorReportingExclusions().contains(remoteAddress);
+
+            if (reportingExclusion)
+                logger.debug("Excluding internode exception for {}; address contained in internode_error_reporting_exclusions", remoteAddress, cause);
+            else
+                logger.error("Failed to properly handshake with peer {}. Closing the channel.", remoteAddress, cause);
+
             try
             {
                 failHandshake(channel);
             }
             catch (Throwable t)
             {
-                logger.error("Unexpected exception in {}.exceptionCaught", this.getClass().getSimpleName(), t);
+                if (!reportingExclusion)
+                    logger.error("Unexpected exception in {}.exceptionCaught", this.getClass().getSimpleName(), t);
             }
         }
 
@@ -394,9 +413,24 @@ public class InboundConnectionInitiator
 
         private void failHandshake(Channel channel)
         {
-            channel.close();
+            // Cancel the handshake timeout as early as possible as it calls this method
             if (handshakeTimeout != null)
                 handshakeTimeout.cancel(true);
+
+            // prevent further decoding of buffered data by removing this handler before closing
+            // otherwise the pending bytes will be decoded again on close, throwing further exceptions.
+            try
+            {
+                channel.pipeline().remove(this);
+            }
+            catch (NoSuchElementException ex)
+            {
+                // possible race with the handshake timeout firing and removing this handler already
+            }
+            finally
+            {
+                channel.close();
+            }
         }
 
         private void setupStreamingPipeline(InetAddressAndPort from, ChannelHandlerContext ctx)

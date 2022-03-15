@@ -20,8 +20,11 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -29,6 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.*;
 import java.util.regex.Matcher;
 
@@ -44,6 +50,7 @@ import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
+import org.awaitility.Awaitility;
 import org.caffinitas.ohc.histo.EstimatedHistogram;
 import org.junit.After;
 import org.junit.Assert;
@@ -57,10 +64,12 @@ import static org.junit.Assert.*;
 public class MessagingServiceTest
 {
     private final static long[] bucketOffsets = new EstimatedHistogram(160).getBucketOffsets();
+    public static AtomicInteger rejectedConnections = new AtomicInteger();
     public static final IInternodeAuthenticator ALLOW_NOTHING_AUTHENTICATOR = new IInternodeAuthenticator()
     {
         public boolean authenticate(InetAddress remoteAddress, int remotePort)
         {
+            rejectedConnections.incrementAndGet();
             return false;
         }
 
@@ -92,6 +101,7 @@ public class MessagingServiceTest
         messagingService.metrics.resetDroppedMessages();
         messagingService.closeOutbound(InetAddressAndPort.getByName("127.0.0.2"));
         messagingService.closeOutbound(InetAddressAndPort.getByName("127.0.0.3"));
+        DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
     }
 
     @After
@@ -216,19 +226,51 @@ public class MessagingServiceTest
      * @throws Exception
      */
     @Test
-    public void testFailedInternodeAuth() throws Exception
+    public void testFailedOutboundInternodeAuth() throws Exception
     {
         MessagingService ms = MessagingService.instance();
         DatabaseDescriptor.setInternodeAuthenticator(ALLOW_NOTHING_AUTHENTICATOR);
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.250");
 
         //Should return null
-        Message messageOut = Message.out(Verb.ECHO_REQ, NoPayload.noPayload);
-        assertFalse(ms.isConnected(address, messageOut));
+        int rejectedBefore = rejectedConnections.get();
+        Message<?> messageOut = Message.out(Verb.ECHO_REQ, NoPayload.noPayload);
+        ms.send(messageOut, address);
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> rejectedConnections.get() > rejectedBefore);
 
         //Should tolerate null
         ms.closeOutbound(address);
         ms.send(messageOut, address);
+    }
+
+    @Test
+    public void testFailedInboundInternodeAuth() throws IOException, InterruptedException
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
+            .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
+
+        DatabaseDescriptor.setInternodeAuthenticator(ALLOW_NOTHING_AUTHENTICATOR);
+        InetAddress listenAddress = FBUtilities.getJustLocalAddress();
+
+        InboundConnectionSettings settings = new InboundConnectionSettings().withEncryption(serverEncryptionOptions);
+        InboundSockets connections = new InboundSockets(settings);
+
+        try (AsynchronousSocketChannel testChannel = AsynchronousSocketChannel.open())
+        {
+            connections.open().await();
+            Assert.assertTrue(connections.isListening());
+
+            int rejectedBefore = rejectedConnections.get();
+            Future<Void> connectFuture = testChannel.connect(new InetSocketAddress(listenAddress, DatabaseDescriptor.getStoragePort()));
+            Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> rejectedConnections.get() > rejectedBefore);
+
+            connectFuture.cancel(true);
+        }
+        finally
+        {
+            connections.close().await();
+            Assert.assertFalse(connections.isListening());
+        }
     }
 
 //    @Test
