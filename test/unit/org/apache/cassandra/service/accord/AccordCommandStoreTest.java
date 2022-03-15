@@ -30,7 +30,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.impl.InMemoryCommand;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.Node;
@@ -95,14 +94,19 @@ public class AccordCommandStoreTest
                               .withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 2)")
                               .withCondition("ks", "tbl", 0, 0, "v", EQUAL, 1).build();
 
+        TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        InMemoryCommand command = new InMemoryCommand(commandStore, txnId);
+        AccordCommand command = new AccordCommand(commandStore, txnId);
         command.txn(txn);
         command.promised(ballot(1, clock.incrementAndGet(), 0, 1));
         command.accepted(ballot(1, clock.incrementAndGet(), 0, 1));
         command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
         command.savedDeps(dependencies);
         command.status(Status.Accepted);
+        command.addWaitingOnCommit(oldTxnId1, new AccordCommand(commandStore, oldTxnId1));
+        command.addWaitingOnApplyIfAbsent(oldTimestamp, new AccordCommand(commandStore, oldTxnId2));
         processCommandResult(command);
 
         AccordKeyspace.saveCommand(command);

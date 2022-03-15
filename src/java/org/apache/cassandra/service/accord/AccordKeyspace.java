@@ -23,12 +23,14 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 
-import accord.impl.InMemoryCommand;
-import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Status;
@@ -62,11 +64,13 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 // TODO: rework all of the io methods to emit/accumulate mutations
 public class AccordKeyspace
 {
     public static final String COMMANDS = "commands";
+    public static final String COMMAND_SERIES = "command_series";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
 
     private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, int, bigint>";
@@ -90,6 +94,9 @@ public class AccordKeyspace
               + "dependencies blob,"
               + "writes blob,"
               + "result blob,"
+              + format("waiting_on_commit map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
+              + format("waiting_on_apply map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
+              + "listeners set<blob>,"
               + "PRIMARY KEY((store_generation, store_index, txn_id))"
               + ')');
 
@@ -155,7 +162,31 @@ public class AccordKeyspace
         return bytes != null ? deserialize(bytes, serializer, version) : null;
     }
 
-    public static void saveCommand(Command command) throws IOException
+    private static Map<ByteBuffer, ByteBuffer> serializeWaitingOn(Map<? extends Timestamp, TxnId> waitingOn)
+    {
+        Map<ByteBuffer, ByteBuffer> result = Maps.newHashMapWithExpectedSize(waitingOn.size());
+        for (Map.Entry<? extends Timestamp, TxnId> entry : waitingOn.entrySet())
+            result.put(serializeTimestamp(entry.getKey()), serializeTimestamp(entry.getValue()));
+        return result;
+    }
+
+    private static <T extends Timestamp> NavigableMap<T, TxnId> deserializeWaitingOn(Map<ByteBuffer, ByteBuffer> serialized, TimestampFactory<T> factory)
+    {
+        if (serialized == null || serialized.isEmpty())
+            return null;
+
+        NavigableMap<T, TxnId> result = new TreeMap<>();
+        for (Map.Entry<ByteBuffer, ByteBuffer> entry : serialized.entrySet())
+            result.put(deserializeTimestamp(entry.getKey(), factory), deserializeTimestamp(entry.getValue(), TxnId::new));
+        return result;
+    }
+
+    private static <T extends Timestamp> NavigableMap<T, TxnId> deserializeWaitingOn(UntypedResultSet.Row row, String name, TimestampFactory<T> factory)
+    {
+        return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance), factory);
+    }
+
+    public static void saveCommand(AccordCommand command) throws IOException
     {
         int version = MessagingService.current_version;
         TxnId txnId = command.txnId();
@@ -171,7 +202,9 @@ public class AccordKeyspace
                      "serializer_version=?, " +
                      "dependencies=?, " +
                      "writes=?, " +
-                     "result=? " +
+                     "result=?, " +
+                     "waiting_on_commit=?, " +
+                     "waiting_on_apply=? " +
                      "WHERE store_generation=? AND store_index=? AND txn_id=(?, ?, ?, ?)";
         executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
                             command.status().ordinal(),
@@ -183,11 +216,17 @@ public class AccordKeyspace
                             serialize(command.savedDeps(), CommandSerializers.deps, version),
                             serializeOrNull(command.writes(), CommandSerializers.writes, version),
                             serializeOrNull((AccordData) command.result(), AccordData.serializer, version),
+                            serializeWaitingOn(command.getWaitingOnCommit()),
+                            serializeWaitingOn(command.getWaitingOnApply()),
                             command.commandStore().generation(),
                             command.commandStore().index(),
                             txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
     }
 
+    private static ByteBuffer serializeTimestamp(Timestamp timestamp)
+    {
+        return TupleType.buildValue(new ByteBuffer[]{bytes(timestamp.epoch), bytes(timestamp.real), bytes(timestamp.logical), bytes(timestamp.node.id)});
+    }
 
     private interface TimestampFactory<T extends Timestamp>
     {
@@ -232,6 +271,8 @@ public class AccordKeyspace
         command.savedDeps(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, version));
         command.writes(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
         command.result(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
+        command.setWaitingOnCommit(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
+        command.setWaitingOnApply(deserializeWaitingOn(row, "waiting_on_applygg", Timestamp::new));
         return command;
     }
 

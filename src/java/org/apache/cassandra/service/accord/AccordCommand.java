@@ -45,6 +45,7 @@ public class AccordCommand extends Command
     private Txn txn;
     private Ballot promised = Ballot.ZERO, accepted = Ballot.ZERO;
     private Timestamp executeAt;
+    // TODO: optionally load some fields, and throw exceptions if reads are attempted on un-loaded fields
     private Dependencies deps = new Dependencies();
     private Writes writes;
     private Result result;
@@ -52,9 +53,9 @@ public class AccordCommand extends Command
     private Status status = NotWitnessed;
 
     // TODO: compact binary format for below collections, with a step to materialize when needed
-    private NavigableMap<TxnId, Command> waitingOnCommit;
-    private NavigableMap<Timestamp, Command> waitingOnApply;
-    private final Listeners listeners = new Listeners();
+    private NavigableMap<TxnId, TxnId> waitingOnCommit;
+    private NavigableMap<Timestamp, TxnId> waitingOnApply;
+    private Listeners listeners;
 
     boolean isDirty = false;
 
@@ -220,6 +221,8 @@ public class AccordCommand extends Command
     public Command addListener(Listener listener)
     {
         isDirty = true;
+        if (listeners == null)
+            listeners = new Listeners();
         listeners.add(listener);
         return this;
     }
@@ -228,13 +231,16 @@ public class AccordCommand extends Command
     public void removeListener(Listener listener)
     {
         isDirty = true;
-        listeners.remove(listener);
+        if (listeners != null)
+            listeners.remove(listener);
     }
 
     @Override
     public void notifyListeners()
     {
-        listeners.forEach(this);
+        // TODO: defer to executor
+        if (listeners != null)
+            listeners.forEach(this);
     }
 
     @Override
@@ -250,7 +256,7 @@ public class AccordCommand extends Command
         if (waitingOnCommit == null)
             waitingOnCommit = new TreeMap<>();
 
-        waitingOnCommit.put(txnId, command);
+        waitingOnCommit.put(txnId, command.txnId());
     }
 
     @Override
@@ -271,7 +277,7 @@ public class AccordCommand extends Command
     @Override
     public Command firstWaitingOnCommit()
     {
-        return isWaitingOnCommit() ? waitingOnCommit.firstEntry().getValue() : null;
+        return isWaitingOnCommit() ? commandStore.command(waitingOnCommit.firstEntry().getValue()) : null;
     }
 
     @Override
@@ -287,7 +293,7 @@ public class AccordCommand extends Command
         if (waitingOnApply == null)
             waitingOnApply = new TreeMap<>();
 
-        waitingOnApply.putIfAbsent(timestamp, command);
+        waitingOnApply.putIfAbsent(timestamp, command.txnId());
     }
 
     @Override
@@ -308,6 +314,36 @@ public class AccordCommand extends Command
     @Override
     public Command firstWaitingOnApply()
     {
-        return isWaitingOnApply() ? waitingOnApply.firstEntry().getValue() : null;
+        return isWaitingOnApply() ? commandStore.command(waitingOnApply.firstEntry().getValue()) : null;
+    }
+
+    public void setWaitingOnCommit(NavigableMap<TxnId, TxnId> waitingOnCommit)
+    {
+        this.waitingOnCommit = waitingOnCommit;
+    }
+
+    public NavigableMap<TxnId, TxnId> getWaitingOnCommit()
+    {
+        return waitingOnCommit;
+    }
+
+    public void setWaitingOnApply(NavigableMap<Timestamp, TxnId> waitingOnApply)
+    {
+        this.waitingOnApply = waitingOnApply;
+    }
+
+    public NavigableMap<Timestamp, TxnId> getWaitingOnApply()
+    {
+        return waitingOnApply;
+    }
+
+    public Listeners getListeners()
+    {
+        return listeners;
+    }
+
+    public void setListeners(Listeners listeners)
+    {
+        this.listeners = listeners;
     }
 }
