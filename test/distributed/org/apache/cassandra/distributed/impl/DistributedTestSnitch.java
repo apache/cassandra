@@ -31,6 +31,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -39,6 +40,20 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     private static NetworkTopology mapping = null;
     private static final Map<InetAddressAndPort, InetSocketAddress> cache = new ConcurrentHashMap<>();
     private static final Map<InetSocketAddress, InetAddressAndPort> cacheInverse = new ConcurrentHashMap<>();
+    public static volatile InetAddressAndPort sortByProximityAddressOverride = null;
+
+    public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C unsortedAddress)
+    {
+        C s;
+        if (sortByProximityAddressOverride != null)
+        {
+            return super.sortedByProximity(sortByProximityAddressOverride, unsortedAddress);
+        }
+        else
+        {
+            return super.sortedByProximity(address, unsortedAddress);
+        }
+    }
 
     public static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
     {
