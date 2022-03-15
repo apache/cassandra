@@ -49,7 +49,6 @@ final class GossipInfoTable extends AbstractVirtualTable
     static final String HEARTBEAT = "heartbeat";
 
     static final List<ApplicationState> APPLICATION_STATES = Arrays.stream(ApplicationState.values())
-                                                                   .filter(applicationState -> applicationState != ApplicationState.X_11_PADDING)
                                                                    .collect(Collectors.toList());
 
     /**
