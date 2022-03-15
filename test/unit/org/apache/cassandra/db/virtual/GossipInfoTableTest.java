@@ -80,7 +80,7 @@ public class GossipInfoTableTest extends CQLTester
             assertThat(entry).isNotEmpty();
 
             UntypedResultSet.Row row = resultSet.one();
-            assertThat(row.getColumns().size()).isEqualTo(40);
+            assertThat(row.getColumns().size()).isEqualTo(60);
 
             InetAddressAndPort endpoint = entry.get().getKey();
             EndpointState localState = entry.get().getValue();
@@ -109,6 +109,16 @@ public class GossipInfoTableTest extends CQLTester
             assertValue(row, "native_address_and_port", localState, ApplicationState.NATIVE_ADDRESS_AND_PORT);
             assertValue(row, "status_with_port", localState, ApplicationState.STATUS_WITH_PORT);
             assertValue(row, "sstable_versions", localState, ApplicationState.SSTABLE_VERSIONS);
+            assertValue(row, "x1", localState, ApplicationState.X1);
+            assertValue(row, "x2", localState, ApplicationState.X2);
+            assertValue(row, "x3", localState, ApplicationState.X3);
+            assertValue(row, "x4", localState, ApplicationState.X4);
+            assertValue(row, "x5", localState, ApplicationState.X5);
+            assertValue(row, "x6", localState, ApplicationState.X6);
+            assertValue(row, "x7", localState, ApplicationState.X7);
+            assertValue(row, "x8", localState, ApplicationState.X8);
+            assertValue(row, "x9", localState, ApplicationState.X9);
+            assertValue(row, "x10", localState, ApplicationState.X10);
 
             assertVersion(row, "status_version", localState, ApplicationState.STATUS);
             assertVersion(row, "load_version", localState, ApplicationState.LOAD);
@@ -128,6 +138,16 @@ public class GossipInfoTableTest extends CQLTester
             assertVersion(row, "native_address_and_port_version", localState, ApplicationState.NATIVE_ADDRESS_AND_PORT);
             assertVersion(row, "status_with_port_version", localState, ApplicationState.STATUS_WITH_PORT);
             assertVersion(row, "sstable_versions_version", localState, ApplicationState.SSTABLE_VERSIONS);
+            assertVersion(row, "x1", localState, ApplicationState.X1);
+            assertVersion(row, "x2", localState, ApplicationState.X2);
+            assertVersion(row, "x3", localState, ApplicationState.X3);
+            assertVersion(row, "x4", localState, ApplicationState.X4);
+            assertVersion(row, "x5", localState, ApplicationState.X5);
+            assertVersion(row, "x6", localState, ApplicationState.X6);
+            assertVersion(row, "x7", localState, ApplicationState.X7);
+            assertVersion(row, "x8", localState, ApplicationState.X8);
+            assertVersion(row, "x9", localState, ApplicationState.X9);
+            assertVersion(row, "x10", localState, ApplicationState.X10);
         }
         finally
         {

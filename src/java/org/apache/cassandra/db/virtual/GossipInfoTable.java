@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.EnumSet;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -47,15 +48,9 @@ final class GossipInfoTable extends AbstractVirtualTable
     static final String GENERATION = "generation";
     static final String HEARTBEAT = "heartbeat";
 
-    @SuppressWarnings("deprecation")
-    static final Set<ApplicationState> APPLICATION_STATE_SET =
-    EnumSet.of(ApplicationState.STATUS, ApplicationState.LOAD, ApplicationState.SCHEMA, ApplicationState.DC,
-               ApplicationState.RACK, ApplicationState.RELEASE_VERSION, ApplicationState.REMOVAL_COORDINATOR,
-               ApplicationState.INTERNAL_IP, ApplicationState.RPC_ADDRESS, ApplicationState.SEVERITY,
-               ApplicationState.NET_VERSION, ApplicationState.HOST_ID, ApplicationState.TOKENS,
-               ApplicationState.RPC_READY, ApplicationState.INTERNAL_ADDRESS_AND_PORT,
-               ApplicationState.NATIVE_ADDRESS_AND_PORT, ApplicationState.STATUS_WITH_PORT,
-               ApplicationState.SSTABLE_VERSIONS);
+    static final List<ApplicationState> APPLICATION_STATES = Arrays.stream(ApplicationState.values())
+                                                                   .filter(applicationState -> applicationState != ApplicationState.X_11_PADDING)
+                                                                   .collect(Collectors.toList());
 
     /**
      * Construct a new {@link GossipInfoTable} for the given {@code keyspace}.
@@ -84,15 +79,12 @@ final class GossipInfoTable extends AbstractVirtualTable
                                           .column(GENERATION, getGeneration(localState))
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
-            APPLICATION_STATE_SET.forEach(applicationState -> {
-                String lowercaseName = applicationState.name().toLowerCase();
-                if (!"tokens".equals(lowercaseName))
-                {
-                    // do not add a column for the ApplicationState.TOKENS value
-                    dataSet.column(lowercaseName, getValue(localState, applicationState));
-                }
-                dataSet.column(lowercaseName + "_version", getVersion(localState, applicationState));
-            });
+            APPLICATION_STATES.stream()
+                              // do not add a column for the ApplicationState.TOKENS value
+                              .filter(applicationState -> !"tokens".equalsIgnoreCase(applicationState.name()))
+                              .forEach(applicationState -> dataSet.column(applicationState.name().toLowerCase(), getValue(localState, applicationState)));
+
+            APPLICATION_STATES.forEach(applicationState -> dataSet.column(applicationState.name().toLowerCase() + "_version", getVersion(localState, applicationState)));
         }
         return result;
     }
@@ -165,17 +157,17 @@ final class GossipInfoTable extends AbstractVirtualTable
                                                      .addRegularColumn(GENERATION, Int32Type.instance)
                                                      .addRegularColumn(HEARTBEAT, Int32Type.instance);
 
-        APPLICATION_STATE_SET.stream()
-                             .map(Enum::name)
-                             .map(String::toLowerCase)
-                             .forEach(lowercaseName -> {
-                                 if (!"tokens".equals(lowercaseName))
-                                 {
-                                     // do not add a column for the ApplicationState.TOKENS value
-                                     builder.addRegularColumn(lowercaseName, UTF8Type.instance);
-                                 }
-                                 builder.addRegularColumn(lowercaseName + "_version", Int32Type.instance);
-                             });
+        APPLICATION_STATES.stream()
+                          .map(Enum::name)
+                          .map(String::toLowerCase)
+                          // do not add a column for the ApplicationState.TOKENS value
+                          .filter(lowercaseName -> !"tokens".equals(lowercaseName))
+                          .forEach(lowercaseName -> builder.addRegularColumn(lowercaseName, UTF8Type.instance));
+
+        APPLICATION_STATES.stream()
+                          .map(Enum::name)
+                          .map(String::toLowerCase)
+                          .forEach(lowercaseName -> builder.addRegularColumn(lowercaseName + "_version", Int32Type.instance));
 
         return builder.build();
     }
