@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.EnumSet;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.apache.cassandra.db.marshal.InetAddressType;
@@ -48,7 +48,11 @@ final class GossipInfoTable extends AbstractVirtualTable
     static final String GENERATION = "generation";
     static final String HEARTBEAT = "heartbeat";
 
-    static final EnumSet<ApplicationState> STATES = EnumSet.allOf(ApplicationState.class);
+    static final ApplicationState[] STATES = ApplicationState.values();
+    // do not add a column for the ApplicationState.TOKENS value
+    static final ApplicationState[] STATES_MINUS_TOKENS = Arrays.stream(ApplicationState.values())
+                                                                .filter(state -> state != TOKENS)
+                                                                .toArray(v -> new ApplicationState[ApplicationState.values().length - 1]);
 
     /**
      * Construct a new {@link GossipInfoTable} for the given {@code keyspace}.
@@ -77,12 +81,11 @@ final class GossipInfoTable extends AbstractVirtualTable
                                           .column(GENERATION, getGeneration(localState))
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
-            STATES.stream()
-                  // do not add a column for the ApplicationState.TOKENS value
-                  .filter(state -> state != TOKENS)
-                  .forEach(state -> dataSet.column(state.name().toLowerCase(), getValue(localState, state)));
+            for (ApplicationState state : STATES_MINUS_TOKENS)
+                dataSet.column(state.name().toLowerCase(), getValue(localState, state));
 
-            STATES.forEach(state -> dataSet.column(state.name().toLowerCase() + "_version", getVersion(localState, state)));
+            for (ApplicationState state : STATES)
+                dataSet.column(state.name().toLowerCase() + "_version", getVersion(localState, state));
         }
         return result;
     }
@@ -155,12 +158,11 @@ final class GossipInfoTable extends AbstractVirtualTable
                                                      .addRegularColumn(GENERATION, Int32Type.instance)
                                                      .addRegularColumn(HEARTBEAT, Int32Type.instance);
 
-        STATES.stream()
-              // do not add a column for the ApplicationState.TOKENS value
-              .filter(state -> state != TOKENS)
-              .forEach(state -> builder.addRegularColumn(state.name().toLowerCase(), UTF8Type.instance));
+        for (ApplicationState state : STATES_MINUS_TOKENS)
+            builder.addRegularColumn(state.name().toLowerCase(), UTF8Type.instance);
 
-        STATES.forEach(state -> builder.addRegularColumn(state.name().toLowerCase() + "_version", Int32Type.instance));
+        for (ApplicationState state : STATES)
+            builder.addRegularColumn(state.name().toLowerCase() + "_version", Int32Type.instance);
 
         return builder.build();
     }
