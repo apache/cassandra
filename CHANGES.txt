@@ -1,4 +1,5 @@
 4.1
+ * Expose gossip information in system_views.gossip_info virtual table (CASSANDRA-17002)
  * Add guardrails for collection items and size (CASSANDRA-17153)
  * Improve guardrails messages (CASSANDRA-17430)
  * Remove all usages of junit.framework and ban them via Checkstyle (CASSANDRA-17316)
