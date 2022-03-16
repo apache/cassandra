@@ -29,13 +29,36 @@ public class AccordStateCacheTest
     private static final long KEY_SIZE = 4;
     private static final long DEFAULT_NODE_SIZE = nodeSize(DEFAULT_ITEM_SIZE);
 
-    private static class Item
+    private static class Item implements AccordStateCache.AccordState<Integer, Item>
     {
         long size = DEFAULT_ITEM_SIZE;
-    }
 
-    private static final AccordStateCache.Weigher<Integer> keyWeigher = v -> KEY_SIZE;
-    private static final AccordStateCache.Weigher<Item> valueWeigher = v -> v.size;
+        final Integer key;
+
+        public Item(Integer key)
+        {
+            this.key = key;
+        }
+
+        @Override
+        public Node<Integer, Item> createNode()
+        {
+            return new Node<>(this)
+            {
+                @Override
+                long sizeInBytes(Item value)
+                {
+                    return size;
+                }
+            };
+        }
+
+        @Override
+        public Integer key()
+        {
+            return key;
+        }
+    }
 
     private static long nodeSize(long itemSize)
     {
@@ -52,7 +75,7 @@ public class AccordStateCacheTest
     @Test
     public void testAcquisitionAndRelease()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(k -> new Item(), keyWeigher, valueWeigher, 500);
+        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, 500);
         assertCacheState(cache, 0, 0, 0);
 
         Item item1 = cache.acquire(1);
@@ -78,7 +101,7 @@ public class AccordStateCacheTest
     @Test
     public void testRotation()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(k -> new Item(), keyWeigher, valueWeigher, DEFAULT_NODE_SIZE * 5);
+        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 5);
         assertCacheState(cache, 0, 0, 0);
 
         Item[] items = new Item[3];
@@ -106,7 +129,7 @@ public class AccordStateCacheTest
     @Test
     public void testEvictionOnAcquire()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(k -> new Item(), keyWeigher, valueWeigher, DEFAULT_NODE_SIZE * 5);
+        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 5);
         assertCacheState(cache, 0, 0, 0);
 
         Item[] items = new Item[5];
@@ -132,7 +155,7 @@ public class AccordStateCacheTest
     @Test
     public void testEvictionOnRelease()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(k -> new Item(), keyWeigher, valueWeigher, DEFAULT_NODE_SIZE * 4);
+        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 4);
         assertCacheState(cache, 0, 0, 0);
 
         Item[] items = new Item[5];
@@ -160,7 +183,7 @@ public class AccordStateCacheTest
     @Test
     public void testAcquisitionFailure()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(k -> new Item(), keyWeigher, valueWeigher, DEFAULT_NODE_SIZE * 4);
+        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 4);
         assertCacheState(cache, 0, 0, 0);
 
         Assert.assertNotNull(cache.acquire(0));

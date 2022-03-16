@@ -20,9 +20,9 @@ package org.apache.cassandra.service.accord;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.utils.ObjectSizes;
@@ -55,41 +55,59 @@ import org.apache.cassandra.utils.ObjectSizes;
  * @param <K>
  * @param <V>
  */
-public class AccordStateCache<K, V>
+public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
 {
     public interface Weigher<T>
     {
         long weigh(T obj);
     }
 
-    // TODO: consider making intrusive
-    static class Node<K, V>
+    public interface AccordState<K, V extends AccordState<K, V>>
     {
-        static final long EMPTY_SIZE = ObjectSizes.measure(new Node(null, null));
-        final K key;
+        Node<K, V> createNode();
+        K key();
+    }
+
+    static abstract class Node<K, V extends AccordStateCache.AccordState<K, V>>
+    {
+        static final long EMPTY_SIZE = ObjectSizes.measure(new Node<Object, AccordState>(null)
+        {
+            @Override
+            long sizeInBytes(AccordState value)
+            {
+                return 0;
+            }
+        });
+
         final V value;
         private Node<K, V> prev;
         private Node<K, V> next;
         private boolean active = false;
         private long lastQueriedSize = 0;
 
-        private Node(K key, V value)
+        Node(V value)
         {
-            this.key = key;
             this.value = value;
         }
 
-        long size(Weigher<K> keyWeigher, Weigher<V> valueWeigher)
+        abstract long sizeInBytes(V value);
+
+        long size()
         {
-            long result = EMPTY_SIZE + keyWeigher.weigh(key) + valueWeigher.weigh(value);
+            long result = EMPTY_SIZE + sizeInBytes(value);
             lastQueriedSize = result;
             return result;
         }
 
-        long sizeDelta(Weigher<K> keyWeigher, Weigher<V> valueWeigher)
+        long sizeDelta()
         {
             long prevSize = lastQueriedSize;
-            return size(keyWeigher, valueWeigher) - prevSize;
+            return size() - prevSize;
+        }
+
+        K key()
+        {
+            return value.key();
         }
     }
 
@@ -99,16 +117,12 @@ public class AccordStateCache<K, V>
     Node<K, V> head;
     Node<K, V> tail;
     private final Function<K, V> factory;
-    private final Weigher<K> keyWeigher;
-    private final Weigher<V> valueWeigher;
     private final long maxSizeInBytes;
     private long bytesCached = 0;
 
-    public AccordStateCache(Function<K, V> factory, Weigher<K> keyWeigher, Weigher<V> valueWeigher, long maxSizeInBytes)
+    public AccordStateCache(Function<K, V> factory, long maxSizeInBytes)
     {
         this.factory = factory;
-        this.keyWeigher = keyWeigher;
-        this.valueWeigher = valueWeigher;
         this.maxSizeInBytes = maxSizeInBytes;
     }
 
@@ -175,7 +189,7 @@ public class AccordStateCache<K, V>
             tail = node.prev;
         }
 
-        if (cache.remove(node.key) == null)
+        if (cache.remove(node.key()) == null)
             throw new IllegalStateException("Popped node was not in cache");
 
         node.prev = null;
@@ -185,7 +199,7 @@ public class AccordStateCache<K, V>
 
     private void updateSize(Node<K, V> node)
     {
-        bytesCached += node.sizeDelta(keyWeigher, valueWeigher);
+        bytesCached += node.sizeDelta();
     }
 
     private void maybeEvict()
@@ -199,7 +213,7 @@ public class AccordStateCache<K, V>
             if (node == null)
                 return;
 
-            bytesCached -= node.size(keyWeigher, valueWeigher);
+            bytesCached -= node.size();
         }
     }
 
@@ -217,7 +231,8 @@ public class AccordStateCache<K, V>
 
         if (node == null)
         {
-            node = new Node<>(key, factory.apply(key));
+            V value = factory.apply(key);
+            node = value.createNode();
             updateSize(node);
         }
         else
