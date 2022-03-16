@@ -367,6 +367,11 @@ public class SortedStringTableCursor implements SSTableCursor
                     throw new AssertionError();
             }
         }
+        catch (CorruptSSTableException e)
+        {
+            sstable.markSuspect();
+            throw e;
+        }
         catch (IOException | IndexOutOfBoundsException e)
         {
             sstable.markSuspect();
