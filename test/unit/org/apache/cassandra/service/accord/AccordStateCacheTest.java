@@ -48,7 +48,7 @@ public class AccordStateCacheTest
                 @Override
                 long sizeInBytes(Item value)
                 {
-                    return size;
+                    return size + KEY_SIZE;
                 }
             };
         }

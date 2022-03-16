@@ -57,11 +57,6 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
 {
-    public interface Weigher<T>
-    {
-        long weigh(T obj);
-    }
-
     public interface AccordState<K, V extends AccordState<K, V>>
     {
         Node<K, V> createNode();
@@ -70,14 +65,18 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
 
     static abstract class Node<K, V extends AccordStateCache.AccordState<K, V>>
     {
-        static final long EMPTY_SIZE = ObjectSizes.measure(new Node<Object, AccordState>(null)
+        // just for measuring empty size on heap
+        private static class MeasurableState implements AccordState<Object, MeasurableState>
         {
             @Override
-            long sizeInBytes(AccordState value)
+            public Node<Object, MeasurableState> createNode()
             {
-                return 0;
+                return new Node<>(this) { @Override long sizeInBytes(MeasurableState value) { return 0; } };
             }
-        });
+            @Override
+            public Object key() { return null; }
+        }
+        static final long EMPTY_SIZE = ObjectSizes.measure(new MeasurableState().createNode());
 
         final V value;
         private Node<K, V> prev;

@@ -35,11 +35,14 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
+import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.local.Status.NotWitnessed;
 
-public class AccordCommand extends Command
+public class AccordCommand extends Command implements AccordStateCache.AccordState<TxnId, AccordCommand>
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
+
     private final CommandStore commandStore;
     private final TxnId txnId;
     private Txn txn;
@@ -99,6 +102,30 @@ public class AccordCommand extends Command
     public int hashCode()
     {
         return Objects.hash(commandStore, txnId, txn, promised, accepted, executeAt, deps, writes, result, status, waitingOnCommit, waitingOnApply, listeners);
+    }
+
+    @Override
+    public AccordStateCache.Node<TxnId, AccordCommand> createNode()
+    {
+        return new AccordStateCache.Node<>(this)
+        {
+            @Override
+            long sizeInBytes(AccordCommand value)
+            {
+                return value.unshardSizeOnHeap();
+            }
+        };
+    }
+
+    @Override
+    public TxnId key()
+    {
+        return txnId;
+    }
+
+    private long unshardSizeOnHeap()
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override
