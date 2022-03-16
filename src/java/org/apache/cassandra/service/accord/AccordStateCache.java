@@ -19,7 +19,10 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -52,10 +55,8 @@ import org.apache.cassandra.utils.ObjectSizes;
  *  cached objects could be asked to reduce their size (unload things unlikely to be used) instead of
  *      immediately evicting
  *  track cache hits, misses, and key contention
- * @param <K>
- * @param <V>
  */
-public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
+public class AccordStateCache
 {
     public interface AccordState<K, V extends AccordState<K, V>>
     {
@@ -79,8 +80,8 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
         static final long EMPTY_SIZE = ObjectSizes.measure(new MeasurableState().createNode());
 
         final V value;
-        private Node<K, V> prev;
-        private Node<K, V> next;
+        private Node<?, ?> prev;
+        private Node<?, ?> next;
         private boolean active = false;
         private long lastQueriedSize = 0;
 
@@ -110,25 +111,30 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
         }
     }
 
-    public final Map<K, Node<K, V>> active = new HashMap<>();
-    private final Map<K, Node<K, V>> cache = new HashMap<>();
+    public final Map<Object, Node<?, ?>> active = new HashMap<>();
+    private final Map<Object, Node<?, ?>> cache = new HashMap<>();
+    private final Set<Instance<?, ?>> instances = new HashSet<>();
 
-    Node<K, V> head;
-    Node<K, V> tail;
-    private final Function<K, V> factory;
-    private final long maxSizeInBytes;
+    Node<?, ?> head;
+    Node<?, ?> tail;
+    private long maxSizeInBytes;
     private long bytesCached = 0;
 
-    public AccordStateCache(Function<K, V> factory, long maxSizeInBytes)
+    public AccordStateCache(long maxSizeInBytes)
     {
-        this.factory = factory;
         this.maxSizeInBytes = maxSizeInBytes;
     }
 
-    private void unlink(Node<K, V> node)
+    public void maxSizeInBytes(long size)
     {
-        Node<K, V> prev = node.prev;
-        Node<K, V> next = node.next;
+        maxSizeInBytes = size;
+        maybeEvict();
+    }
+
+    private void unlink(Node<?, ?> node)
+    {
+        Node<?, ?> prev = node.prev;
+        Node<?, ?> next = node.next;
 
         if (prev == null)
         {
@@ -154,7 +160,7 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
         node.next = null;
     }
 
-    private void push(Node<K, V> node)
+    private void push(Node<?, ?> node)
     {
         if (head != null)
         {
@@ -170,12 +176,12 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
         }
     }
 
-    private Node<K, V> pop()
+    private Node<?, ?> pop()
     {
         if (tail == null)
             return null;
 
-        Node<K, V> node = tail;
+        Node<?, ?> node = tail;
         if (node == head)
         {
             Preconditions.checkState(node.prev == null);
@@ -196,7 +202,7 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
         return node;
     }
 
-    private void updateSize(Node<K, V> node)
+    private void updateSize(Node<?, ?> node)
     {
         bytesCached += node.sizeDelta();
     }
@@ -208,7 +214,7 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
 
         while (bytesCached > maxSizeInBytes)
         {
-            Node<K, V> node = pop();
+            Node<?, ?> node = pop();
             if (node == null)
                 return;
 
@@ -221,12 +227,12 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
      * @param key
      * @return
      */
-    public V acquire(K key)
+    private <K, V extends AccordStateCache.AccordState<K, V>> V acquireInternal(K key, Function<K, V> factory)
     {
         if (active.containsKey(key))
             return null;
 
-        Node<K, V> node = cache.remove(key);
+        Node<K, V> node = (Node<K, V>) cache.remove(key);
 
         if (node == null)
         {
@@ -248,9 +254,9 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
         return node.value;
     }
 
-    public void release(K key, V value)
+    private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(K key, V value)
     {
-        Node<K, V> node = active.remove(key);
+        Node<K, V> node = (Node<K, V>) active.remove(key);
         Preconditions.checkState(node != null && node.active);
         Preconditions.checkState(node.value == value);
         node.active = false;
@@ -259,6 +265,61 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
 
         updateSize(node);
         maybeEvict();
+    }
+
+    public class Instance<K, V extends AccordStateCache.AccordState<K, V>>
+    {
+        private final Class<K> keyClass;
+        private final Class<V> valClass;
+        private final Function<K, V> factory;
+
+        public Instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
+        {
+            this.keyClass = keyClass;
+            this.valClass = valClass;
+            this.factory = factory;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Instance<?, ?> instance = (Instance<?, ?>) o;
+            return keyClass.equals(instance.keyClass) && valClass.equals(instance.valClass);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(keyClass, valClass);
+        }
+
+        /**
+         * Should we block and load, or return uninitialized objects to support blind writes?
+         * @param key
+         * @return
+         */
+        public V acquire(K key)
+        {
+            return acquireInternal(key, factory);
+        }
+
+        public void release(K key, V value)
+        {
+            releaseInternal(key, value);
+        }
+    }
+
+    public <K, V extends AccordStateCache.AccordState<K, V>> Instance<K, V> instance(Class<K> keyClass,
+                                                                                     Class<V> valClass,
+                                                                                     Function<K, V> factory)
+    {
+        Instance<K, V> instance = new Instance<>(keyClass, valClass, factory);
+        if (!instances.add(instance))
+            throw new IllegalArgumentException(String.format("Cache instances for types %s -> %s already exists",
+                                                             keyClass.getName(), valClass.getName()));
+        return instance;
     }
 
     @VisibleForTesting
@@ -280,13 +341,13 @@ public class AccordStateCache<K, V extends AccordStateCache.AccordState<K, V>>
     }
 
     @VisibleForTesting
-    boolean keyIsActive(K key)
+    boolean keyIsActive(Object key)
     {
         return active.containsKey(key);
     }
 
     @VisibleForTesting
-    boolean keyIsCached(K key)
+    boolean keyIsCached(Object key)
     {
         return cache.containsKey(key);
     }

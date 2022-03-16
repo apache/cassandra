@@ -65,7 +65,7 @@ public class AccordStateCacheTest
         return itemSize + KEY_SIZE + Node.EMPTY_SIZE;
     }
 
-    private static void assertCacheState(AccordStateCache<?, ?> cache, int active, int cached, long bytes)
+    private static void assertCacheState(AccordStateCache cache, int active, int cached, long bytes)
     {
         Assert.assertEquals(active, cache.numActiveEntries());
         Assert.assertEquals(cached, cache.numCachedEntries());
@@ -75,23 +75,24 @@ public class AccordStateCacheTest
     @Test
     public void testAcquisitionAndRelease()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, 500);
+        AccordStateCache cache = new AccordStateCache(500);
+        AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
-        Item item1 = cache.acquire(1);
+        Item item1 = instance.acquire(1);
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
         Assert.assertNull(cache.head);
         Assert.assertNull(cache.tail);
 
         item1.size = 110;
-        cache.release(1, item1);
+        instance.release(1, item1);
         assertCacheState(cache, 0, 1, nodeSize(110));
         Assert.assertSame(item1, cache.tail.value);
         Assert.assertSame(item1, cache.head.value);
 
-        Item item2 = cache.acquire(2);
+        Item item2 = instance.acquire(2);
         assertCacheState(cache, 1, 1, DEFAULT_NODE_SIZE + nodeSize(110));
-        cache.release(2, item2);
+        instance.release(2, item2);
         assertCacheState(cache, 0, 2, DEFAULT_NODE_SIZE + nodeSize(110));
 
         Assert.assertSame(item1, cache.tail.value);
@@ -101,26 +102,27 @@ public class AccordStateCacheTest
     @Test
     public void testRotation()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 5);
+        AccordStateCache cache = new AccordStateCache(DEFAULT_NODE_SIZE * 5);
+        AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
         Item[] items = new Item[3];
         for (int i=0; i<3; i++)
         {
-            Item item = cache.acquire(i);
+            Item item = instance.acquire(i);
             items[i] = item;
-            cache.release(i, item);
+            instance.release(i, item);
         }
 
         Assert.assertSame(items[0], cache.tail.value);
         Assert.assertSame(items[2], cache.head.value);
         assertCacheState(cache, 0, 3, DEFAULT_NODE_SIZE * 3);
 
-        Item item = cache.acquire(1);
+        Item item = instance.acquire(1);
         assertCacheState(cache, 1, 2, DEFAULT_NODE_SIZE * 3);
 
         // releasing item should return it to the head
-        cache.release(1, item);
+        instance.release(1, item);
         assertCacheState(cache, 0, 3, DEFAULT_NODE_SIZE * 3);
         Assert.assertSame(items[0], cache.tail.value);
         Assert.assertSame(items[1], cache.head.value);
@@ -129,22 +131,23 @@ public class AccordStateCacheTest
     @Test
     public void testEvictionOnAcquire()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 5);
+        AccordStateCache cache = new AccordStateCache(DEFAULT_NODE_SIZE * 5);
+        AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
         Item[] items = new Item[5];
         for (int i=0; i<5; i++)
         {
-            Item item = cache.acquire(i);
+            Item item = instance.acquire(i);
             items[i] = item;
-            cache.release(i, item);
+            instance.release(i, item);
         }
 
         assertCacheState(cache, 0, 5, DEFAULT_NODE_SIZE * 5);
         Assert.assertSame(items[0], cache.tail.value);
         Assert.assertSame(items[4], cache.head.value);
 
-        cache.acquire(5);
+        instance.acquire(5);
         assertCacheState(cache, 1, 4, DEFAULT_NODE_SIZE * 5);
         Assert.assertSame(items[1], cache.tail.value);
         Assert.assertSame(items[4], cache.head.value);
@@ -155,13 +158,14 @@ public class AccordStateCacheTest
     @Test
     public void testEvictionOnRelease()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 4);
+        AccordStateCache cache = new AccordStateCache(DEFAULT_NODE_SIZE * 4);
+        AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
         Item[] items = new Item[5];
         for (int i=0; i<5; i++)
         {
-            Item item = cache.acquire(i);
+            Item item = instance.acquire(i);
             items[i] = item;
         }
 
@@ -169,12 +173,12 @@ public class AccordStateCacheTest
         Assert.assertNull(cache.head);
         Assert.assertNull(cache.tail);
 
-        cache.release(2, items[2]);
+        instance.release(2, items[2]);
         assertCacheState(cache, 4, 0, DEFAULT_NODE_SIZE * 4);
         Assert.assertNull(cache.head);
         Assert.assertNull(cache.tail);
 
-        cache.release(4, items[4]);
+        instance.release(4, items[4]);
         assertCacheState(cache, 3, 1, DEFAULT_NODE_SIZE * 4);
         Assert.assertSame(items[4], cache.tail.value);
         Assert.assertSame(items[4], cache.head.value);
@@ -183,13 +187,14 @@ public class AccordStateCacheTest
     @Test
     public void testAcquisitionFailure()
     {
-        AccordStateCache<Integer, Item> cache = new AccordStateCache<>(Item::new, DEFAULT_NODE_SIZE * 4);
+        AccordStateCache cache = new AccordStateCache(DEFAULT_NODE_SIZE * 4);
+        AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
-        Assert.assertNotNull(cache.acquire(0));
+        Assert.assertNotNull(instance.acquire(0));
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
 
-        Assert.assertNull(cache.acquire(0));
+        Assert.assertNull(instance.acquire(0));
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
     }
 }
