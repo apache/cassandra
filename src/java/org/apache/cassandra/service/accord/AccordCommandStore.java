@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -34,18 +33,21 @@ import accord.api.Store;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
-import accord.local.Listener;
 import accord.local.Node;
 import accord.topology.KeyRanges;
 import accord.topology.Topology;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandStore extends CommandStore
 {
+    public static long maxCacheSize()
+    {
+        return 5 << 20; // TODO: make configurable
+    }
 
     private class ProcessingContext extends AsyncPromise<Void> implements Runnable
     {
@@ -67,6 +69,12 @@ public class AccordCommandStore extends CommandStore
                 commandsForKey.save();
         }
 
+        private void releaseResources()
+        {
+            commands.forEach(commandCache::release);
+            commandsForKeys.forEach(commandsForKeyCache::release);
+        }
+
         @Override
         public void run()
         {
@@ -75,6 +83,7 @@ public class AccordCommandStore extends CommandStore
             {
                 consumer.accept(AccordCommandStore.this);
                 persistChanges();
+                releaseResources();
                 setSuccess(null);
             }
             catch (Throwable e)
@@ -86,11 +95,13 @@ public class AccordCommandStore extends CommandStore
                 Preconditions.checkState(currentCtx == this);
                 currentCtx = null;
             }
-
         }
     }
 
     private final ExecutorService executor;
+    private final AccordStateCache stateCache;
+    private final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
+    private final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> commandsForKeyCache;
     private ProcessingContext currentCtx = null;
 
     public AccordCommandStore(int generation,
@@ -105,30 +116,34 @@ public class AccordCommandStore extends CommandStore
     {
         super(generation, index, numShards, nodeId, uniqueNow, agent, store, ranges, localTopologySupplier);
         this.executor = executor;
+        this.stateCache = new AccordStateCache(maxCacheSize() / numShards);
+        this.commandCache = stateCache.instance(TxnId.class,
+                                                AccordCommand.class,
+                                                txnId -> AccordKeyspace.loadCommand(this, txnId));
+        this.commandsForKeyCache = stateCache.instance(PartitionKey.class,
+                                                       AccordCommandsForKey.class,
+                                                       key -> AccordKeyspace.loadCommandsForKey(this, key));
     }
 
     @Override
     public Command command(TxnId txnId)
     {
+        // FIXME: these should be pre-loaded and fetched from the context
         Preconditions.checkState(currentCtx != null);
-        try
-        {
-            AccordCommand command = AccordKeyspace.loadCommand(this, txnId);
-            currentCtx.commands.add(command);
-            return command;
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        AccordCommand command = commandCache.acquire(txnId);
+        Preconditions.checkArgument(command != null);
+        currentCtx.commands.add(command);
+        return command;
     }
 
     @Override
     public CommandsForKey commandsForKey(Key key)
     {
+        // FIXME: these should be pre-loaded and fetched from the context
         Preconditions.checkState(currentCtx != null);
-        Preconditions.checkArgument(key instanceof AccordKey.PartitionKey);
-        AccordCommandsForKey commandsForKey = AccordKeyspace.loadCommandsForKey(this, (AccordKey.PartitionKey) key);
+        Preconditions.checkArgument(key instanceof PartitionKey);
+        AccordCommandsForKey commandsForKey = commandsForKeyCache.acquire((PartitionKey) key);
+        Preconditions.checkArgument(commandsForKey != null);
         currentCtx.commandsForKeys.add(commandsForKey);
         return commandsForKey;
     }

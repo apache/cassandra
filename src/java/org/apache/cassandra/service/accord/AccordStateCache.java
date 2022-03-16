@@ -254,8 +254,9 @@ public class AccordStateCache
         return node.value;
     }
 
-    private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(K key, V value)
+    private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(V value)
     {
+        K key = value.key();
         Node<K, V> node = (Node<K, V>) active.remove(key);
         Preconditions.checkState(node != null && node.active);
         Preconditions.checkState(node.value == value);
@@ -305,9 +306,9 @@ public class AccordStateCache
             return acquireInternal(key, factory);
         }
 
-        public void release(K key, V value)
+        public void release(V value)
         {
-            releaseInternal(key, value);
+            releaseInternal(value);
         }
     }
 

@@ -112,7 +112,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
             @Override
             long sizeInBytes(AccordCommand value)
             {
-                return value.unshardSizeOnHeap();
+                return value.unsharedSizeOnHeap();
             }
         };
     }
@@ -123,7 +123,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         return txnId;
     }
 
-    private long unshardSizeOnHeap()
+    private long unsharedSizeOnHeap()
     {
         throw new UnsupportedOperationException();
     }

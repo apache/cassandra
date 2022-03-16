@@ -85,14 +85,14 @@ public class AccordStateCacheTest
         Assert.assertNull(cache.tail);
 
         item1.size = 110;
-        instance.release(1, item1);
+        instance.release(item1);
         assertCacheState(cache, 0, 1, nodeSize(110));
         Assert.assertSame(item1, cache.tail.value);
         Assert.assertSame(item1, cache.head.value);
 
         Item item2 = instance.acquire(2);
         assertCacheState(cache, 1, 1, DEFAULT_NODE_SIZE + nodeSize(110));
-        instance.release(2, item2);
+        instance.release(item2);
         assertCacheState(cache, 0, 2, DEFAULT_NODE_SIZE + nodeSize(110));
 
         Assert.assertSame(item1, cache.tail.value);
@@ -111,7 +111,7 @@ public class AccordStateCacheTest
         {
             Item item = instance.acquire(i);
             items[i] = item;
-            instance.release(i, item);
+            instance.release(item);
         }
 
         Assert.assertSame(items[0], cache.tail.value);
@@ -122,7 +122,7 @@ public class AccordStateCacheTest
         assertCacheState(cache, 1, 2, DEFAULT_NODE_SIZE * 3);
 
         // releasing item should return it to the head
-        instance.release(1, item);
+        instance.release(item);
         assertCacheState(cache, 0, 3, DEFAULT_NODE_SIZE * 3);
         Assert.assertSame(items[0], cache.tail.value);
         Assert.assertSame(items[1], cache.head.value);
@@ -140,7 +140,7 @@ public class AccordStateCacheTest
         {
             Item item = instance.acquire(i);
             items[i] = item;
-            instance.release(i, item);
+            instance.release(item);
         }
 
         assertCacheState(cache, 0, 5, DEFAULT_NODE_SIZE * 5);
@@ -173,12 +173,12 @@ public class AccordStateCacheTest
         Assert.assertNull(cache.head);
         Assert.assertNull(cache.tail);
 
-        instance.release(2, items[2]);
+        instance.release(items[2]);
         assertCacheState(cache, 4, 0, DEFAULT_NODE_SIZE * 4);
         Assert.assertNull(cache.head);
         Assert.assertNull(cache.tail);
 
-        instance.release(4, items[4]);
+        instance.release(items[4]);
         assertCacheState(cache, 3, 1, DEFAULT_NODE_SIZE * 4);
         Assert.assertSame(items[4], cache.tail.value);
         Assert.assertSame(items[4], cache.head.value);

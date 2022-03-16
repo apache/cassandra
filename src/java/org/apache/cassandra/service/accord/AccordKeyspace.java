@@ -280,7 +280,7 @@ public class AccordKeyspace
         return deserializeTimestamp(row.getBlob(name), factory);
     }
 
-    public static AccordCommand loadCommand(CommandStore commandStore, TxnId txnId) throws IOException
+    public static AccordCommand loadCommand(CommandStore commandStore, TxnId txnId)
     {
         String cql = "SELECT * FROM %s.%s " +
                      "WHERE store_generation=? " +
@@ -295,22 +295,29 @@ public class AccordKeyspace
         if (result.isEmpty())
             return null;
 
-        UntypedResultSet.Row row = result.one();
-        Preconditions.checkState(deserializeTimestamp(row, "txn_id", TxnId::new).equals(txnId));
-        AccordCommand command = new AccordCommand(commandStore, txnId);
-        int version = row.getInt("serializer_version");
-        command.status(Status.values()[row.getInt("status")]);
-        command.txn(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, version));
-        command.executeAt(deserializeTimestamp(row, "execute_at", Timestamp::new));
-        command.promised(deserializeTimestamp(row, "promised_ballot", Ballot::new));
-        command.accepted(deserializeTimestamp(row, "accepted_ballot", Ballot::new));
-        command.savedDeps(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, version));
-        command.writes(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
-        command.result(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
-        command.setWaitingOnCommit(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
-        command.setWaitingOnApply(deserializeWaitingOn(row, "waiting_on_apply", Timestamp::new));
-        command.setListeners(deserializeListeners(commandStore, row, "listeners"));
-        return command;
+        try
+        {
+            UntypedResultSet.Row row = result.one();
+            Preconditions.checkState(deserializeTimestamp(row, "txn_id", TxnId::new).equals(txnId));
+            AccordCommand command = new AccordCommand(commandStore, txnId);
+            int version = row.getInt("serializer_version");
+            command.status(Status.values()[row.getInt("status")]);
+            command.txn(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, version));
+            command.executeAt(deserializeTimestamp(row, "execute_at", Timestamp::new));
+            command.promised(deserializeTimestamp(row, "promised_ballot", Ballot::new));
+            command.accepted(deserializeTimestamp(row, "accepted_ballot", Ballot::new));
+            command.savedDeps(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, version));
+            command.writes(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
+            command.result(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
+            command.setWaitingOnCommit(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
+            command.setWaitingOnApply(deserializeWaitingOn(row, "waiting_on_apply", Timestamp::new));
+            command.setListeners(deserializeListeners(commandStore, row, "listeners"));
+            return command;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static AccordCommandsForKey loadCommandsForKey(CommandStore commandStore, AccordKey.PartitionKey key)

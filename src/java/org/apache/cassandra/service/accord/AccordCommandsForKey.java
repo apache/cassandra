@@ -27,9 +27,9 @@ import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
-public class AccordCommandsForKey extends CommandsForKey
+public class AccordCommandsForKey extends CommandsForKey implements AccordStateCache.AccordState<PartitionKey, AccordCommandsForKey>
 {
     enum SeriesKind {
         UNCOMMITTED(Command::txnId),
@@ -114,17 +114,41 @@ public class AccordCommandsForKey extends CommandsForKey
     }
 
     private final CommandStore commandStore;
-    private final AccordKey.PartitionKey key;
+    private final PartitionKey key;
     private Timestamp max;
     private final Series uncommitted = new Series(SeriesKind.UNCOMMITTED);
     private final Series committedById = new Series(SeriesKind.COMMITTED_BY_ID);
     private final Series committedByExecuteAt = new Series(SeriesKind.COMMITTED_BY_EXECUTE_AT);
 
-    public AccordCommandsForKey(CommandStore commandStore, AccordKey.PartitionKey key, Timestamp maxTimestamp)
+    public AccordCommandsForKey(CommandStore commandStore, PartitionKey key, Timestamp maxTimestamp)
     {
         this.commandStore = commandStore;
         this.key = key;
         max = maxTimestamp;
+    }
+
+    @Override
+    public AccordStateCache.Node<PartitionKey, AccordCommandsForKey> createNode()
+    {
+        return new AccordStateCache.Node<>(this)
+        {
+            @Override
+            long sizeInBytes(AccordCommandsForKey value)
+            {
+                return unsharedSizeOnHeap();
+            }
+        };
+    }
+
+    @Override
+    public PartitionKey key()
+    {
+        return key;
+    }
+
+    private long unsharedSizeOnHeap()
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -158,11 +182,6 @@ public class AccordCommandsForKey extends CommandsForKey
             return;
         max = timestamp;
         AccordKeyspace.updateCommandsForKeyMaxTimestamp(commandStore, key, max);
-    }
-
-    public AccordKey.PartitionKey key()
-    {
-        return key;
     }
 
     public void save()
