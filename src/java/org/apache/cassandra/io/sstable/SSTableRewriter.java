@@ -33,6 +33,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
