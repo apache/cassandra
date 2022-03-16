@@ -24,10 +24,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Futures;
 
@@ -45,6 +47,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.CachedBTreePartition;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
@@ -119,7 +122,15 @@ public class CacheService implements CacheServiceMBean
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
         ICache<KeyCacheKey, BigTableRowIndexEntry> kc;
         kc = CaffeineCache.create(keyCacheInMemoryCapacity);
-        AutoSavingCache<KeyCacheKey, BigTableRowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
+
+        AutoSavingCache<KeyCacheKey, BigTableRowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer(), () -> {
+            Set<Descriptor> liveDescriptors = Keyspace.allExisting()
+                                                      .flatMap(keyspace -> keyspace.getColumnFamilyStores().stream()
+                                                                                   .flatMap(cfs -> cfs.getLiveSSTables().stream()
+                                                                                                      .map(SSTableReader::getDescriptor)))
+                                                      .collect(Collectors.toSet());
+            return key -> liveDescriptors.contains(key.desc);
+        });
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 
@@ -151,7 +162,7 @@ public class CacheService implements CacheServiceMBean
 
         // cache object
         ICache<RowCacheKey, IRowCacheEntry> rc = cacheProvider.create();
-        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
+        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<>(rc, CacheType.ROW_CACHE, new RowCacheSerializer(), null);
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
 
@@ -169,7 +180,8 @@ public class CacheService implements CacheServiceMBean
         AutoSavingCache<CounterCacheKey, ClockAndCount> cache =
             new AutoSavingCache<>(CaffeineCache.create(capacity),
                                   CacheType.COUNTER_CACHE,
-                                  new CounterCacheSerializer());
+                                  new CounterCacheSerializer(),
+                                  null);
 
         int keysToSave = DatabaseDescriptor.getCounterCacheKeysToSave();
 
@@ -181,7 +193,6 @@ public class CacheService implements CacheServiceMBean
 
         return cache;
     }
-
 
     public int getRowCacheSavePeriodInSeconds()
     {

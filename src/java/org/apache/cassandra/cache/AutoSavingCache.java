@@ -32,6 +32,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -85,6 +87,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     private final CacheSerializer<K, V> cacheLoader;
 
+    private final Supplier<Predicate<K>> keyFilterSupplier;
+
     /*
      * CASSANDRA-10155 required a format change to fix 2i indexes and caching.
      * 2.2 is already at version "c" and 3.0 is at "d".
@@ -124,11 +128,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         AutoSavingCache.streamFactory = streamFactory;
     }
 
-    public AutoSavingCache(ICache<K, V> cache, CacheService.CacheType cacheType, CacheSerializer<K, V> cacheloader)
+    public AutoSavingCache(ICache<K, V> cache, CacheService.CacheType cacheType, CacheSerializer<K, V> cacheloader, Supplier<Predicate<K>> keyFilterSupplier)
     {
         super(cacheType, cache);
         this.cacheType = cacheType;
         this.cacheLoader = cacheloader;
+        this.keyFilterSupplier = keyFilterSupplier;
     }
 
     public File getCacheDataPath(String version)
@@ -307,6 +312,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         private final OperationProgress info;
         private long keysWritten;
         private final long keysEstimate;
+        private final Predicate<K> keyFilter;
 
         protected Writer(int keysToSave)
         {
@@ -321,6 +327,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 keyIterator = hotKeyIterator(keysToSave);
                 keysEstimate = keysToSave;
             }
+            this.keyFilter = keyFilterSupplier != null ? keyFilterSupplier.get() : null;
 
             OperationType type;
             if (cacheType == CacheService.CacheType.KEY_CACHE)
@@ -368,7 +375,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             Pair<File, File> cacheFilePaths = tempCacheFiles();
             try (WrappedDataOutputStreamPlus writer = new WrappedDataOutputStreamPlus(streamFactory.getOutputStream(cacheFilePaths.left, cacheFilePaths.right)))
             {
-
                 //Need to be able to check schema version because CF names are ambiguous
                 UUID schemaVersion = Schema.instance.getVersion();
                 writer.writeLong(schemaVersion.getMostSignificantBits());
@@ -377,18 +383,23 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 while (keyIterator.hasNext())
                 {
                     K key = keyIterator.next();
+                    ColumnFamilyStore cfs;
+                    if ((keyFilter == null || keyFilter.test(key)) && (cfs = Schema.instance.getColumnFamilyStoreInstance(key.tableId)) != null)
+                    {
+                        if (key.indexName != null)
+                            cfs = cfs.indexManager.getIndexByName(key.indexName).getBackingTable().orElse(null);
 
-                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(key.tableId);
-                    if (cfs == null)
-                        continue; // the table or 2i has been dropped.
-                    if (key.indexName != null)
-                        cfs = cfs.indexManager.getIndexByName(key.indexName).getBackingTable().orElse(null);
+                        cacheLoader.serialize(key, writer, cfs);
 
-                    cacheLoader.serialize(key, writer, cfs);
-
-                    keysWritten++;
-                    if (keysWritten >= keysEstimate)
-                        break;
+                        keysWritten++;
+                        if (keysWritten >= keysEstimate)
+                            break;
+                    }
+                    else
+                    {
+                        // remove stale entry from cache before saving basing on the existence of a table and provided filter
+                        keyIterator.remove();
+                    }
                 }
             }
             catch (FileNotFoundException | NoSuchFileException e)
