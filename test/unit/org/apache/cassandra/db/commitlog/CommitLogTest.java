@@ -188,6 +188,7 @@ public abstract class CommitLogTest
     public void afterTest()
     {
         CommitLogSegmentReader.setAllowSkipSyncMarkerCrc(false);
+        System.clearProperty("cassandra.replayList");
         testKiller.reset();
     }
 
@@ -929,6 +930,7 @@ public abstract class CommitLogTest
         }
     }
 
+    @Test
     public void testUnwriteableFlushRecovery() throws ExecutionException, InterruptedException, IOException
     {
         CommitLog.instance.resetUnsafe(true);
@@ -1009,7 +1011,6 @@ public abstract class CommitLogTest
         // persisted all data in the commit log. Because we know there was an error, there must be something left to
         // replay.
         assertEquals(1, CommitLog.instance.resetUnsafe(false));
-        System.clearProperty("cassandra.replayList");
     }
 
     BiConsumer<ColumnFamilyStore, Memtable> flush = (cfs, current) ->
