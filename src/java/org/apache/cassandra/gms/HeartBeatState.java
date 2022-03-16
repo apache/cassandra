@@ -70,7 +70,7 @@ public class HeartBeatState
         return version == EMPTY_VERSION;
     }
 
-    int getGeneration()
+    public int getGeneration()
     {
         return generation;
     }
@@ -80,7 +80,7 @@ public class HeartBeatState
         version = VersionGenerator.getNextVersion();
     }
 
-    int getHeartBeatVersion()
+    public int getHeartBeatVersion()
     {
         return version;
     }
