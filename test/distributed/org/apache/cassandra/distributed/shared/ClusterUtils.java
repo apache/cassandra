@@ -865,15 +865,18 @@ public class ClusterUtils
     {
         System.setSecurityManager(new SecurityManager()
         {
+            @Override
             public void checkExit(int status)
             {
                 throw new SystemExitException(status);
             }
 
+            @Override
             public void checkPermission(Permission perm)
             {
             }
 
+            @Override
             public void checkPermission(Permission perm, Object context)
             {
             }

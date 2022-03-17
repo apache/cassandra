@@ -70,8 +70,8 @@ public class SSTableIdFactory
     public SSTableId.Builder<SSTableId> defaultBuilder()
     {
         SSTableId.Builder<? extends SSTableId> builder = DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled()
-                                                                                     ? UUIDBasedSSTableId.Builder.instance
-                                                                                     : SequenceBasedSSTableId.Builder.instance;
+                                                         ? UUIDBasedSSTableId.Builder.instance
+                                                         : SequenceBasedSSTableId.Builder.instance;
         return (SSTableId.Builder<SSTableId>) builder;
     }
 

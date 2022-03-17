@@ -590,10 +590,11 @@ public class StartupChecks
                 throw new StartupException(StartupException.ERR_WRONG_CONFIG,
                                            "UUID generation identifiers are disabled but some sstables have been " +
                                            "created with UUID generation identifier. You have to either delete those " +
-                                           "sstables (if you are ok with loosing that data on this node, and then let " +
-                                           "the repair bring them back) or enabled UUID based generation identifers in " +
-                                           "cassandra.yaml (enable_uuid_generation_identifiers). The list of affected " +
-                                           "sstables is: " + Joiner.on(", ").join(withIllegalGenId));
+                                           "sstables or enabled UUID based generation identifers in cassandra.yaml " +
+                                           "(enable_uuid_generation_identifiers). The list of affected sstables is: " +
+                                           Joiner.on(", ").join(withIllegalGenId) + ". If you decide to delete sstables, " +
+                                           "and have that data replicated over other healthy nodes, those will be brought" +
+                                           "back during repair");
         }
     };
 

@@ -320,11 +320,11 @@ public final class SystemKeyspace
                 "historic sstable read rates",
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
-                + "columnfamily_name text,"
+                + "table_name text,"
                 + "generation blob,"
                 + "rate_120m double,"
                 + "rate_15m double,"
-                + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation)))")
+                + "PRIMARY KEY ((keyspace_name, table_name, generation)))")
                 .build();
 
     @Deprecated
@@ -1442,7 +1442,7 @@ public final class SystemKeyspace
      */
     public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId generation)
     {
-        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and columnfamily_name=? and generation=?";
+        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and generation=?";
         UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, generation.asBytes());
 
         if (results.isEmpty())
@@ -1460,7 +1460,7 @@ public final class SystemKeyspace
     public static void persistSSTableReadMeter(String keyspace, String table, SSTableId generation, RestorableMeter meter)
     {
         // Store values with a one-day TTL to handle corner cases where cleanup might not occur
-        String cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
+        String cql = "INSERT INTO system.%s (keyspace_name, table_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2),
                         keyspace,
                         table,
@@ -1472,6 +1472,7 @@ public final class SystemKeyspace
         {
             // we do this in order to make it possible to downgrade until we swtich in cassandra.yaml to UUID based ids
             // see the discussion on CASSANDRA-17048
+            cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
             executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY),
                             keyspace,
                             table,
@@ -1486,12 +1487,13 @@ public final class SystemKeyspace
      */
     public static void clearSSTableReadMeter(String keyspace, String table, SSTableId generation)
     {
-        String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
+        String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND table_name=? and generation=?";
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, generation.asBytes());
         if (!DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled() && generation instanceof SequenceBasedSSTableId)
         {
             // we do this in order to make it possible to downgrade until we swtich in cassandra.yaml to UUID based ids
             // see the discussion on CASSANDRA-17048
+            cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
             executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY), keyspace, table, ((SequenceBasedSSTableId) generation).generation);
         }
     }

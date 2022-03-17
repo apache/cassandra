@@ -150,7 +150,7 @@ public class SystemKeyspaceMigrator41
         migrateTable(CassandraVersion.CASSANDRA_4_1.compareTo(prevVersion) > 0,
                      SystemKeyspace.LEGACY_SSTABLE_ACTIVITY,
                      SystemKeyspace.SSTABLE_ACTIVITY_V2,
-                     new String[]{ "keyspace_name", "columnfamily_name", "generation", "rate_120m", "rate_15m" },
+                     new String[]{ "keyspace_name", "table_name", "generation", "rate_120m", "rate_15m" },
                      row ->
                      Collections.singletonList(new Object[]{ row.getString("keyspace_name"),
                                                              row.getString("columnfamily_name"),
@@ -161,6 +161,16 @@ public class SystemKeyspaceMigrator41
         );
     }
 
+    /**
+     * Perform table migration by reading data from the old table, converting it, and adding to the new table.
+     *
+     * @param truncateIfExists truncate the existing table if it exists before migration; if it is disabled
+     *                         and the new table is not empty, no migration is performed
+     * @param oldName          old table name
+     * @param newName          new table name
+     * @param columns          columns to fill in the new table in the same order as returned by the transformation
+     * @param transformation   transformation function which gets the row from the old table and returns a row for the new table
+     */
     @VisibleForTesting
     static void migrateTable(boolean truncateIfExists, String oldName, String newName, String[] columns, Function<UntypedResultSet.Row, Collection<Object[]>> transformation)
     {

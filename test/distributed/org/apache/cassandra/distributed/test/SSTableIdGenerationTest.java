@@ -79,6 +79,9 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     public static void beforeClass() throws Throwable
     {
         TestBaseImpl.beforeClass();
+
+        // we prevent system exit and convert it to exception becuase this is one of the expected test outcomes,
+        // and we want to make an assertion on that
         ClusterUtils.preventSystemExit();
     }
 
@@ -145,7 +148,8 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     /**
      * The purpose of this test is to verify that we can compact using the given strategy the mix of sstables created
-     * with sequential id and with uuid. Then we verify whether the number of rows.
+     * with sequential id and with uuid. Then we verify whether the number results matches the number of rows which we
+     * would get by merging data from the initial sstables.
      */
     @SafeVarargs
     private final void testCompactionStrategiesWithMixedSSTables(final Class<? extends AbstractCompactionStrategy>... compactionStrategyClasses) throws Exception
@@ -481,8 +485,9 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static void checkSSTableActivityRow(String table, Object genId, boolean expectExists)
     {
-        String cql = "SELECT rate_15m, rate_120m FROM system.%s WHERE keyspace_name=? and columnfamily_name=? and generation=?";
-        UntypedResultSet results = executeInternal(format(cql, table), "ks", "tab", genId);
+        String tableColName = SSTABLE_ACTIVITY_V2.equals(table) ? "table_name" : "columnfamily_name";
+        String cql = "SELECT rate_15m, rate_120m FROM system.%s WHERE keyspace_name=? and %s=? and generation=?";
+        UntypedResultSet results = executeInternal(format(cql, table, tableColName), "ks", "tab", genId);
         assertThat(results).isNotNull();
 
         if (expectExists)
