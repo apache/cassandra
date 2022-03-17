@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.tools;
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Paths;
-import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import com.google.common.net.HostAndPort;
+import org.junit.Test;
 
 import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
 import static org.junit.Assert.*;
@@ -43,6 +45,19 @@ public class LoaderOptionsTest
         String[] args2 = {"-d", "127.9.9.1", "-f", config.getAbsolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
         options = LoaderOptions.builder().parseArgs(args2).build();
         assertEquals(9142, options.nativePort);
+
+        HostAndPort hap = HostAndPort.fromString("127.9.9.1");
+        InetAddress byName = InetAddress.getByName(hap.getHost());
+        assertTrue(options.hosts.contains(new InetSocketAddress(byName, 9142)));
+
+        // test native port set from command line
+
+        config = Paths.get(".", "test", "conf", "unit-test-conf/test-native-port.yaml").normalize().toFile();
+        String[] args3 = {"-d", "127.9.9.1", "-p", "9300", "-f", config.getAbsolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
+        options = LoaderOptions.builder().parseArgs(args3).build();
+        assertEquals(9300, options.nativePort);
+
+        assertTrue(options.hosts.contains(new InetSocketAddress(byName, 9300)));
     }
 
     /**
@@ -61,7 +76,6 @@ public class LoaderOptionsTest
                 "--ssl-alg", "SunX509", "--store-type", "JKS", "--ssl-protocol", "TLS",
                 sstableDirName("legacy_sstables", "legacy_ma_simple") };
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
-        options = LoaderOptions.builder().parseArgs(args).build();
         assertEquals("test.jks", options.clientEncOptions.keystore);
     }
 }
