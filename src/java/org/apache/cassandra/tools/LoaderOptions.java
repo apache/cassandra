@@ -386,6 +386,17 @@ public class LoaderOptions
                     config.inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
                 }
 
+                if (cmd.hasOption(NATIVE_PORT_OPTION))
+                {
+                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
+                }
+                else
+                {
+                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.isEnabled() || clientEncOptions.isEnabled()))
+                        nativePort = config.native_transport_port_ssl;
+                    else
+                        nativePort = config.native_transport_port;
+                }
 
                 if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
                 {
@@ -458,18 +469,6 @@ public class LoaderOptions
                             cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
                 {
                     clientEncOptions = clientEncOptions.withEnabled(true);
-                }
-
-                if (cmd.hasOption(NATIVE_PORT_OPTION))
-                {
-                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
-                }
-                else
-                {
-                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.isEnabled() || clientEncOptions.isEnabled()))
-                        nativePort = config.native_transport_port_ssl;
-                    else
-                        nativePort = config.native_transport_port;
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE))
