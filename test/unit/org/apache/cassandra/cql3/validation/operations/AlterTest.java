@@ -824,8 +824,7 @@ public class AlterTest extends CQLTester
     public void testAlterTableAddExistingColumnWithoutIfExists()
     {
         createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
-        assertAlterTableThrowsException(InvalidRequestException.class,
-                                        String.format("Column with name '%s' already exists", "a"), "ALTER TABLE IF EXISTS %s ADD a int");
+        assertAlterTableThrowsException(InvalidRequestException.class, String.format("Column with name '%s' already exists", "a"), "ALTER TABLE IF EXISTS %s ADD a int");
     }
 
     @Test

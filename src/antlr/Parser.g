@@ -987,7 +987,6 @@ alterMaterializedViewStatement returns [AlterViewStatement.Raw stmt]
 alterTypeStatement returns [AlterTypeStatement.Raw stmt]
     @init {
         boolean ifExists = false;
-        boolean ifNotExists = false;
     }
     : K_ALTER K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=userTypeName { $stmt = new AlterTypeStatement.Raw(name, ifExists); }
       (

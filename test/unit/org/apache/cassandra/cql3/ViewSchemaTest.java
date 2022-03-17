@@ -845,7 +845,6 @@ public class ViewSchemaTest extends ViewAbstractTest
     @Test
     public void testAlterViewIfExists() throws Throwable
     {
-        execute("USE " + keyspace());
         executeNet("USE " + keyspace());
         executeNet("ALTER MATERIALIZED VIEW IF EXISTS mv1_test WITH compaction = { 'class' : 'LeveledCompactionStrategy' }");
     }
