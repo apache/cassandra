@@ -320,14 +320,22 @@ public abstract class Selector
 
         public void add(ByteBuffer v)
         {
-            values[index++] = v;
+            values[index] = v;
+
+            if (timestamps != null)
+                timestamps[index] = Long.MIN_VALUE;
+
+            if (ttls != null)
+                ttls[index] = -1;
+
+            index++;
         }
 
         public void add(Cell<?> c, int nowInSec)
         {
             if (c == null)
             {
-                values[index++] = null;
+                add(null);
                 return;
             }
 
