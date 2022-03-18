@@ -22,8 +22,9 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.ScalarFunction;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFunction>
 {
@@ -58,6 +59,14 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
             s.reset();
         }
         return fun.execute(protocolVersion, args());
+    }
+
+    @Override
+    public void validateForGroupBy()
+    {
+        checkTrue(fun.isMonotonic(), "Only monotonic functions are supported in the GROUP BY clause. Got: %s ", fun);
+        for (int i = 0, m = argSelectors.size(); i < m; i++)
+            argSelectors.get(i).validateForGroupBy();
     }
 
     ScalarFunctionSelector(Function fun, List<Selector> argSelectors)

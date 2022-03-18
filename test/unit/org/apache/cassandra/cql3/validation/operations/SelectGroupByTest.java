@@ -19,7 +19,20 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import org.junit.Test;
 
+import com.datastax.driver.core.LocalDate;
+
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.UUID;
+
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.serializers.SimpleDateSerializer;
+import org.apache.cassandra.serializers.TimeSerializer;
+import org.apache.cassandra.serializers.TimestampSerializer;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class SelectGroupByTest extends CQLTester
 {
@@ -2131,5 +2144,460 @@ public class SelectGroupByTest extends CQLTester
                                                pageSize),
                           row(1, 1, 4L, 3L));
         }
+    }
+
+    @Test
+    public void testGroupByTimeRangesWithoutPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            // Test with timestamp type.
+            createTable("CREATE TABLE %s (pk int, time timestamp, v int, primary key (pk, time))" + compactOption);
+
+            assertInvalidMessage("Group by currently only support groups of columns following their declared order in the PRIMARY KEY",
+                                 "SELECT pk, floor(time, 2h, '2016-09-01'), v FROM %s GROUP BY floor(time, 2h, '2016-09-01')");
+
+            assertInvalidMessage("Only monotonic functions are supported in the GROUP BY clause. Got: system.floor : (timestamp, duration(constant), timestamp) -> timestamp",
+                                 "SELECT pk, floor(time, 2h, time), v FROM %s GROUP BY pk, floor(time, 2h, time)");
+
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:10:00 UTC', 1)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:12:00 UTC', 2)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:14:00 UTC', 3)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:15:00 UTC', 4)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:21:00 UTC', 5)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:22:00 UTC', 6)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:26:00 UTC', 7)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:26:20 UTC', 8)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-09-27 16:26:20 UTC', 10)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-09-27 16:30:00 UTC', 11)");
+
+            // Test prepared statement
+            assertRows(execute("SELECT pk, floor(time, 5m, ?), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m, ?)",
+                               toTimestamp("2016-09-27 00:00:00 UTC"),
+                               toTimestamp("2016-09-27 00:00:00 UTC")),
+                       row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                       row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                       row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                       row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                       row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
+                       row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
+
+            for (String startingTime : new String[]{"", ", '2016-09-27 UTC'"})
+            {
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ")"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
+                           row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
+
+                // Checks with duration lower than precisions
+                assertInvalidMessage("The floor cannot be computed for the 10us duration as precision is below 1 millisecond",
+                                     "SELECT pk, floor(time, 10us" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 10us" + startingTime + ")");
+
+                // Checks with a negative duration
+                assertInvalidMessage("Negative durations are not supported by the floor function",
+                                     "SELECT pk, floor(time, 10us" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, -5m" + startingTime + ")");
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") LIMIT 2"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L));
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") PER PARTITION LIMIT 1"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L));
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC"),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L));
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC LIMIT 2"),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L));
+            }
+
+            // Checks with start time is greater than the timestamp
+            assertInvalidMessage("The floor function starting time is greater than the provided time",
+                                 "SELECT pk, floor(time, 5m, '2016-10-27'), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m, '2016-10-27')");
+
+            // Test with timeUUID type.
+            createTable("CREATE TABLE %s (pk int, time timeuuid, v int, primary key (pk, time))" + compactOption);
+
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:10:00"), 1);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:12:00"), 2);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:14:00"), 3);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:15:00"), 4);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:21:00"), 5);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:22:00"), 6);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:26:00"), 7);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:26:20"), 8);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 2, toTimeUUID("2016-09-27 16:26:00"), 10);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 2, toTimeUUID("2016-09-27 16:30:00"), 11);
+
+            for (String startingTime : new String[]{"", ", '2016-09-27 UTC'"})
+            {
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ")"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
+                           row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
+
+                assertRows(execute("SELECT pk, floor(toTimestamp(time), 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(toTimestamp(time), 5m" + startingTime + ")"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
+                           row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
+
+                // Checks with duration lower than precisions
+                assertInvalidMessage("The floor cannot be computed for the 10us duration as precision is below 1 millisecond",
+                                     "SELECT pk, floor(time, 10us" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 10us" + startingTime + ")");
+
+                // Checks with a negative duration
+                assertInvalidMessage("Negative durations are not supported by the floor function",
+                                     "SELECT pk, floor(time, 10us" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, -5m" + startingTime + ")");
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") LIMIT 2"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L));
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") PER PARTITION LIMIT 1"),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                           row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L));
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC"),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                           row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                           row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L));
+
+                assertRows(execute("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC LIMIT 2"),
+                           row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                           row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L));
+            }
+
+            // Checks with start time is greater than the timestamp
+            assertInvalidMessage("The floor function starting time is greater than the provided time",
+                                 "SELECT pk, floor(time, 5m, '2016-10-27'), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m, '2016-10-27')");
+
+            // Test with date type.
+            createTable("CREATE TABLE %s (pk int, time date, v int, primary key (pk, time))" + compactOption);
+
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27', 1)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-28', 2)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-29', 3)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-30', 4)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-10-01', 5)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-10-04', 6)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-10-20', 7)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-11-27', 8)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-11-01', 10)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-11-02', 11)");
+
+            for (String startingTime : new String[]{"", ", '2016-06-01'"})
+            {
+                assertRows(execute("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo" + startingTime + ")"),
+                           row(1, toDate("2016-09-01"), 1, 4, 4L),
+                           row(1, toDate("2016-10-01"), 5, 7, 3L),
+                           row(1, toDate("2016-11-01"), 8, 8, 1L),
+                           row(2, toDate("2016-11-01"), 10, 11, 2L));
+
+                // Checks with duration lower than precisions
+                assertInvalidMessage("The floor on date values cannot be computed for the 1h duration as precision is below 1 day",
+                                     "SELECT pk, floor(time, 1h" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1h" + startingTime + ")");
+
+                // Checks with a negative duration
+                assertInvalidMessage("Negative durations are not supported by the floor function",
+                                     "SELECT pk, floor(time, -1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, -1mo" + startingTime + ")");
+
+                assertRows(execute("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo" + startingTime + ") LIMIT 2"),
+                           row(1, toDate("2016-09-01"), 1, 4, 4L),
+                           row(1, toDate("2016-10-01"), 5, 7, 3L));
+
+                assertRows(execute("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo" + startingTime + ") PER PARTITION LIMIT 1"),
+                           row(1, toDate("2016-09-01"), 1, 4, 4L),
+                           row(2, toDate("2016-11-01"), 10, 11, 2L));
+
+                assertRows(execute("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 1mo" + startingTime + ") ORDER BY time DESC"),
+                           row(1, toDate("2016-11-01"), 8, 8, 1L),
+                           row(1, toDate("2016-10-01"), 5, 7, 3L),
+                           row(1, toDate("2016-09-01"), 1, 4, 4L));
+
+                assertRows(execute("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 1mo" + startingTime + ") ORDER BY time DESC LIMIT 2"),
+                           row(1, toDate("2016-11-01"), 8, 8, 1L),
+                           row(1, toDate("2016-10-01"), 5, 7, 3L));
+            }
+
+            // Checks with start time is greater than the timestamp
+            assertInvalidMessage("The floor function starting time is greater than the provided time",
+                                 "SELECT pk, floor(time, 1mo, '2017-01-01'), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo, '2017-01-01')");
+
+            // Test with time type.
+            createTable("CREATE TABLE %s (pk int, date date, time time, v int, primary key (pk, date, time))" + compactOption);
+
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:10:00', 1)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:12:00', 2)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:14:00', 3)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:15:00', 4)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:21:00', 5)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:22:00', 6)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:26:00', 7)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:26:20', 8)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-28', '16:26:20', 9)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-28', '16:26:30', 10)");
+
+            assertInvalidMessage("Functions are only supported on the last element of the GROUP BY clause",
+                                 "SELECT pk, floor(date, 1w), time, min(v), max(v), count(v) FROM %s GROUP BY pk, floor(date, 1w), time");
+
+            assertRows(execute("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s GROUP BY pk, date, floor(time, 5m)"),
+                       row(1, toDate("2016-09-27"), toTime("16:10:00"), 1, 3, 3L),
+                       row(1, toDate("2016-09-27"), toTime("16:15:00"), 4, 4, 1L),
+                       row(1, toDate("2016-09-27"), toTime("16:20:00"), 5, 6, 2L),
+                       row(1, toDate("2016-09-27"), toTime("16:25:00"), 7, 8, 2L),
+                       row(1, toDate("2016-09-28"), toTime("16:25:00"), 9, 10, 2L));
+
+            // Checks with duration greater than dayprecisions
+            assertInvalidMessage("For time values, the floor can only be computed for durations smaller that a day",
+                                 "SELECT pk, date, floor(time, 10d), min(v), max(v), count(v) FROM %s GROUP BY pk, date, floor(time, 10d)");
+
+            // Checks with a negative duration
+            assertInvalidMessage("Negative durations are not supported by the floor function",
+                                 "SELECT pk, date, floor(time, -10m), min(v), max(v), count(v) FROM %s GROUP BY pk, date, floor(time, -10m)");
+
+            assertRows(execute("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s GROUP BY pk, date, floor(time, 5m) LIMIT 2"),
+                       row(1, toDate("2016-09-27"), toTime("16:10:00"), 1, 3, 3L),
+                       row(1, toDate("2016-09-27"), toTime("16:15:00"), 4, 4, 1L));
+
+            assertRows(execute("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, date, floor(time, 5m) ORDER BY date DESC, time DESC"),
+                       row(1, toDate("2016-09-28"), toTime("16:25:00"), 9, 10, 2L),
+                       row(1, toDate("2016-09-27"), toTime("16:25:00"), 7, 8, 2L),
+                       row(1, toDate("2016-09-27"), toTime("16:20:00"), 5, 6, 2L),
+                       row(1, toDate("2016-09-27"), toTime("16:15:00"), 4, 4, 1L),
+                       row(1, toDate("2016-09-27"), toTime("16:10:00"), 1, 3, 3L));
+
+            assertRows(execute("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, date, floor(time, 5m) ORDER BY date DESC, time DESC LIMIT 2"),
+                       row(1, toDate("2016-09-28"), toTime("16:25:00"), 9, 10, 2L),
+                       row(1, toDate("2016-09-27"), toTime("16:25:00"), 7, 8, 2L));
+        }
+    }
+
+    @Test
+    public void testGroupByTimeRangesWithPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            // Test with timestamp type.
+            createTable("CREATE TABLE %s (pk int, time timestamp, v int, primary key (pk, time))"
+                    + compactOption);
+
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:10:00 UTC', 1)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:12:00 UTC', 2)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:14:00 UTC', 3)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:15:00 UTC', 4)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:21:00 UTC', 5)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:22:00 UTC', 6)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:26:00 UTC', 7)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:26:20 UTC', 8)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-09-27 16:26:20 UTC', 10)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-09-27 16:30:00 UTC', 11)");
+
+            for (int pageSize = 1; pageSize < 10; pageSize++)
+            {
+                for (String startingTime : new String[]{"", ", '2016-09-27 UTC'"})
+                {
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ")", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                                  row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                                  row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                                  row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
+                                  row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") LIMIT 2", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                                  row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") PER PARTITION LIMIT 1", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                                  row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC LIMIT 2", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L));
+                }
+            }
+
+            // Test with timeUUID type.
+            createTable("CREATE TABLE %s (pk int, time timeuuid, v int, primary key (pk, time))" + compactOption);
+
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:10:00"), 1);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:12:00"), 2);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:14:00"), 3);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:15:00"), 4);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:21:00"), 5);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:22:00"), 6);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:26:00"), 7);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:26:20"), 8);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 2, toTimeUUID("2016-09-27 16:26:00"), 10);
+            execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 2, toTimeUUID("2016-09-27 16:30:00"), 11);
+
+            for (int pageSize = 1; pageSize < 10; pageSize++)
+            {
+                for (String startingTime : new String[]{"", ", '2016-09-27 UTC'"})
+                {
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ")", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                                  row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                                  row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                                  row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
+                                  row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") LIMIT 2", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                                  row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m" + startingTime + ") PER PARTITION LIMIT 1", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
+                                  row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
+                                  row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 5m" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 5m" + startingTime + ") ORDER BY time DESC LIMIT 2", pageSize),
+                                  row(1, toTimestamp("2016-09-27 16:25:00 UTC"), 7, 8, 2L),
+                                  row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L));
+                }
+            }
+
+            // Test with date type.
+            createTable("CREATE TABLE %s (pk int, time date, v int, primary key (pk, time))" + compactOption);
+
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27', 1)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-28', 2)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-29', 3)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-30', 4)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-10-01', 5)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-10-04', 6)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-10-20', 7)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-11-27', 8)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-11-01', 10)");
+            execute("INSERT INTO %s (pk, time, v) VALUES (2, '2016-11-02', 11)");
+
+            for (int pageSize = 1; pageSize < 10; pageSize++)
+            {
+                for (String startingTime : new String[]{"", ", '2016-06-01'"})
+                {
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo" + startingTime + ")", pageSize),
+                                  row(1, toLocalDate("2016-09-01"), 1, 4, 4L),
+                                  row(1, toLocalDate("2016-10-01"), 5, 7, 3L),
+                                  row(1, toLocalDate("2016-11-01"), 8, 8, 1L),
+                                  row(2, toLocalDate("2016-11-01"), 10, 11, 2L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo" + startingTime + ") LIMIT 2", pageSize),
+                                  row(1, toLocalDate("2016-09-01"), 1, 4, 4L),
+                                  row(1, toLocalDate("2016-10-01"), 5, 7, 3L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo" + startingTime + ") PER PARTITION LIMIT 1", pageSize),
+                                  row(1, toLocalDate("2016-09-01"), 1, 4, 4L),
+                                  row(2, toLocalDate("2016-11-01"), 10, 11, 2L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 1mo" + startingTime + ") ORDER BY time DESC", pageSize),
+                                  row(1, toLocalDate("2016-11-01"), 8, 8, 1L),
+                                  row(1, toLocalDate("2016-10-01"), 5, 7, 3L),
+                                  row(1, toLocalDate("2016-09-01"), 1, 4, 4L));
+
+                    assertRowsNet(executeNetWithPaging("SELECT pk, floor(time, 1mo" + startingTime + "), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, floor(time, 1mo" + startingTime + ") ORDER BY time DESC LIMIT 2", pageSize),
+                                  row(1, toLocalDate("2016-11-01"), 8, 8, 1L),
+                                  row(1, toLocalDate("2016-10-01"), 5, 7, 3L));
+                }
+            }
+
+            // Test with time type.
+            createTable("CREATE TABLE %s (pk int, date date, time time, v int, primary key (pk, date, time))" + compactOption);
+
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:10:00', 1)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:12:00', 2)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:14:00', 3)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:15:00', 4)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:21:00', 5)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:22:00', 6)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:26:00', 7)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:26:20', 8)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-28', '16:26:20', 9)");
+            execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-28', '16:26:30', 10)");
+
+            for (int pageSize = 1; pageSize < 10; pageSize++)
+            {
+                assertRowsNet(executeNetWithPaging("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s GROUP BY pk, date, floor(time, 5m)", pageSize),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:10:00"), 1, 3, 3L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:15:00"), 4, 4, 1L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:20:00"), 5, 6, 2L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:25:00"), 7, 8, 2L),
+                              row(1, toLocalDate("2016-09-28"), toTime("16:25:00"), 9, 10, 2L));
+
+                assertRowsNet(executeNetWithPaging("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s GROUP BY pk, date, floor(time, 5m) LIMIT 2", pageSize),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:10:00"), 1, 3, 3L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:15:00"), 4, 4, 1L));
+
+                assertRowsNet(executeNetWithPaging("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, date, floor(time, 5m) ORDER BY date DESC, time DESC", pageSize),
+                              row(1, toLocalDate("2016-09-28"), toTime("16:25:00"), 9, 10, 2L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:25:00"), 7, 8, 2L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:20:00"), 5, 6, 2L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:15:00"), 4, 4, 1L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:10:00"), 1, 3, 3L));
+
+                assertRowsNet(executeNetWithPaging("SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s WHERE pk = 1 GROUP BY pk, date, floor(time, 5m) ORDER BY date DESC, time DESC LIMIT 2", pageSize),
+                              row(1, toLocalDate("2016-09-28"), toTime("16:25:00"), 9, 10, 2L),
+                              row(1, toLocalDate("2016-09-27"), toTime("16:25:00"), 7, 8, 2L));
+            }
+        }
+    }
+
+    private UUID toTimeUUID(String string)
+    {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        LocalDateTime dateTime = LocalDateTime.parse(string, formatter);
+        long timeInMillis = dateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+        return TimeUUID.Generator.atUnixMillis(timeInMillis).asUUID();
+    }
+
+    private Date toTimestamp(String timestampAsString)
+    {
+        return new Date(TimestampSerializer.dateStringToTimestamp(timestampAsString));
+    }
+
+    private int toDate(String dateAsString)
+    {
+        return SimpleDateSerializer.dateStringToDays(dateAsString);
+    }
+
+    private LocalDate toLocalDate(String dateAsString)
+    {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        LocalDateTime dateTime = java.time.LocalDate.parse(dateAsString, formatter).atStartOfDay();
+        long timeInMillis = dateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+
+        return LocalDate.fromMillisSinceEpoch(timeInMillis);
+    }
+
+    private long toTime(String timeAsString)
+    {
+        return TimeSerializer.timeStringToLong(timeAsString);
     }
 }

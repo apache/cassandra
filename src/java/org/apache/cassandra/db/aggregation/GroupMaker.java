@@ -19,9 +19,11 @@ package org.apache.cassandra.db.aggregation;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A <code>GroupMaker</code> can be used to determine if some sorted rows belongs to the same group or not.
@@ -44,14 +46,31 @@ public abstract class GroupMaker
         }
     };
 
-    public static GroupMaker newInstance(ClusteringComparator comparator, int clusteringPrefixSize, GroupingState state)
+    public static GroupMaker newPkPrefixGroupMaker(ClusteringComparator comparator,
+                                                   int clusteringPrefixSize,
+                                                   GroupingState state)
     {
         return new PkPrefixGroupMaker(comparator, clusteringPrefixSize, state);
     }
 
-    public static GroupMaker newInstance(ClusteringComparator comparator, int clusteringPrefixSize)
+    public static GroupMaker newPkPrefixGroupMaker(ClusteringComparator comparator, int clusteringPrefixSize)
     {
         return new PkPrefixGroupMaker(comparator, clusteringPrefixSize);
+    }
+
+    public static GroupMaker newSelectorGroupMaker(ClusteringComparator comparator,
+                                                   int clusteringPrefixSize,
+                                                   Selector selector,
+                                                   GroupingState state)
+    {
+        return new SelectorGroupMaker(comparator, clusteringPrefixSize, selector, state);
+    }
+
+    public static GroupMaker newSelectorGroupMaker(ClusteringComparator comparator,
+                                                   int clusteringPrefixSize,
+                                                   Selector selector)
+    {
+        return new SelectorGroupMaker(comparator, clusteringPrefixSize, selector);
     }
 
     /**
@@ -75,27 +94,27 @@ public abstract class GroupMaker
         return false;
     }
 
-    private static final class PkPrefixGroupMaker extends GroupMaker
+    private static class PkPrefixGroupMaker extends GroupMaker
     {
         /**
          * The size of the clustering prefix used to make the groups
          */
-        private final int clusteringPrefixSize;
+        protected final int clusteringPrefixSize;
 
         /**
          * The comparator used to compare the clustering prefixes.
          */
-        private final ClusteringComparator comparator;
+        protected final ClusteringComparator comparator;
 
         /**
          * The last partition key seen
          */
-        private ByteBuffer lastPartitionKey;
+        protected ByteBuffer lastPartitionKey;
 
         /**
          * The last clustering seen
          */
-        private Clustering<?> lastClustering;
+        protected Clustering<?> lastClustering;
 
         public PkPrefixGroupMaker(ClusteringComparator comparator, int clusteringPrefixSize, GroupingState state)
         {
@@ -113,28 +132,94 @@ public abstract class GroupMaker
         @Override
         public boolean isNewGroup(DecoratedKey partitionKey, Clustering<?> clustering)
         {
-            boolean isNew = false;
+            // We are entering a new group if:
+            // - the partition key is a new one
+            // - the last clustering was not null and does not have the same prefix as the new clustering one
+            boolean isNew = !partitionKey.getKey().equals(lastPartitionKey)
+                            || lastClustering == null
+                            || comparator.compare(lastClustering, clustering, clusteringPrefixSize) != 0;
+
+            lastPartitionKey = partitionKey.getKey();
+            lastClustering =  Clustering.STATIC_CLUSTERING == clustering ? null : clustering;
+            return isNew;
+        }
+    }
+
+    private static class SelectorGroupMaker extends PkPrefixGroupMaker
+    {
+        /**
+         * The selector used to build the groups.
+         */
+        private final Selector selector;
+
+        /**
+         * The output of the selector call on the last clustering
+         */
+        private ByteBuffer lastOutput;
+
+        private Selector.InputRow input = new Selector.InputRow(1, false, false);
+
+        public SelectorGroupMaker(ClusteringComparator comparator,
+                                  int clusteringPrefixSize,
+                                  Selector selector,
+                                  GroupingState state)
+        {
+            super(comparator, clusteringPrefixSize, state);
+            this.selector = selector;
+            this.lastOutput = lastClustering == null ? null :
+                                                       executeSelector(lastClustering.bufferAt(clusteringPrefixSize - 1));
+        }
+
+        public SelectorGroupMaker(ClusteringComparator comparator,
+                                  int clusteringPrefixSize,
+                                  Selector selector)
+        {
+            super(comparator, clusteringPrefixSize);
+            this.selector = selector;
+        }
+
+        @Override
+        public boolean isNewGroup(DecoratedKey partitionKey, Clustering<?> clustering)
+        {
+            ByteBuffer output =
+                    Clustering.STATIC_CLUSTERING == clustering ? null
+                                                               : executeSelector(clustering.bufferAt(clusteringPrefixSize - 1));
 
             // We are entering a new group if:
             // - the partition key is a new one
             // - the last clustering was not null and does not have the same prefix as the new clustering one
-            if (!partitionKey.getKey().equals(lastPartitionKey))
-            {
-                lastPartitionKey = partitionKey.getKey();
-                isNew = true;
-                if (Clustering.STATIC_CLUSTERING == clustering)
-                {
-                    lastClustering = null;
-                    return true;
-                }
-            }
-            else if (lastClustering != null && comparator.compare(lastClustering, clustering, clusteringPrefixSize) != 0)
-            {
-                isNew = true;
-            }
+            boolean isNew = !partitionKey.getKey().equals(lastPartitionKey)
+                            || lastClustering == null
+                            || comparator.compare(lastClustering, clustering, clusteringPrefixSize - 1) != 0
+                            || compareOutput(output) != 0;
 
-            lastClustering = clustering;
+            lastPartitionKey = partitionKey.getKey();
+            lastClustering = Clustering.STATIC_CLUSTERING == clustering ? null : clustering;
+            lastOutput = output;
             return isNew;
+        }
+
+        private int compareOutput(ByteBuffer output)
+        {
+            if (output == null)
+                return lastOutput == null ? 0 : -1;
+            if (lastOutput == null)
+                return 1;
+
+            return selector.getType().compare(output, lastOutput);
+        }
+
+        private ByteBuffer executeSelector(ByteBuffer argument)
+        {
+            input.add(argument);
+
+            // For computing groups we do not need to use the client protocol version.
+            selector.addInput(ProtocolVersion.CURRENT, input);
+            ByteBuffer output = selector.getOutput(ProtocolVersion.CURRENT);
+            selector.reset();
+            input.reset(false);
+
+            return output;
         }
     }
 }

@@ -41,6 +41,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
 /**
  * A <code>Selector</code> is used to convert the data returned by the storage engine into the data requested by the
  * user. They correspond to the &lt;selector&gt; elements from the select clause.
@@ -463,6 +465,14 @@ public abstract class Selector
     public boolean isTerminal()
     {
         return false;
+    }
+
+    /**
+     * Checks that this selector is valid for GROUP BY clause.
+     */
+    public void validateForGroupBy()
+    {
+        throw invalidRequest("Only column names and monotonic scalar functions are supported in the GROUP BY clause.");
     }
 
     protected abstract int serializedSize(int version);

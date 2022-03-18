@@ -30,6 +30,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -421,7 +422,7 @@ public abstract class TimeFcts
 
          protected Long toTimeInMillis(ByteBuffer bytes)
          {
-             return UUIDGen.unixTimestamp(UUIDGen.getUUID(bytes));
+             return UUIDGen.getAdjustedTimestamp(UUIDGen.getUUID(bytes));
          }
      };
 

@@ -174,6 +174,11 @@ public final class SimpleSelector extends Selector
     }
 
     @Override
+    public void validateForGroupBy()
+    {
+    }
+
+    @Override
     public boolean equals(Object o)
     {
         if (this == o)
@@ -198,15 +203,13 @@ public final class SimpleSelector extends Selector
     protected int serializedSize(int version)
     {
         return ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes)
-                + TypeSizes.sizeof(idx)
-                + sizeOf(column.type);
+                + TypeSizes.sizeof(idx);
     }
 
     @Override
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
-        out.writeInt(idx);
-        writeType(out, column.type);
+        out.writeInt(idx);;
     }
 }
