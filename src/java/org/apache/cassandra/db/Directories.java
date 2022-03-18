@@ -26,7 +26,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -35,7 +37,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.beust.jcommander.internal.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.FSDiskFullWriteError;
@@ -317,6 +318,12 @@ public class Directories
         return null;
     }
 
+    /**
+     * This method looks for the file name passed in and resolves it into a descriptor
+     * if the file exists.
+     *
+     * @return a descriptor for the file name passed in
+     */
     public Descriptor find(String filename)
     {
         for (File dir : dataPaths)
@@ -326,6 +333,20 @@ public class Directories
                 return Descriptor.fromFilename(file);
         }
         return null;
+    }
+
+    /**
+     * This method resolves the filename against the specified directory number, whether
+     * the file exists or not.
+     *
+     * @return a descriptor for the passed in filename
+     */
+    public Descriptor resolve(String filename, int dirNumber)
+    {
+        Preconditions.checkArgument(dirNumber < dataPaths.length, "Invalid dir number: " + dirNumber);
+        File dir = dataPaths[dirNumber];
+        File path = dir.resolve(filename);
+        return Descriptor.fromFilename(path);
     }
 
     /**

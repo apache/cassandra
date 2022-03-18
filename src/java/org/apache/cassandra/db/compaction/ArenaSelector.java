@@ -107,12 +107,12 @@ public class ArenaSelector implements Comparator<CompactionSSTable>
      * between minimum and shardBoundaries[0], shard 1 is is between shardBoundaries[0] and shardBoundaries[1]), thus
      * finding the index of the first bigger boundary gives the index of the covering shard.
      */
-    public int shardFor(DecoratedKey key)
+    public int shardFor(PartitionPosition key)
     {
         return shardFor(key, shardBoundaries);
     }
 
-    public static int shardFor(DecoratedKey key, List<PartitionPosition> shardBoundaries)
+    public static int shardFor(PartitionPosition key, List<PartitionPosition> shardBoundaries)
     {
         int pos = Collections.binarySearch(shardBoundaries, key);
         assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal to a DecoratedKey
@@ -124,7 +124,7 @@ public class ArenaSelector implements Comparator<CompactionSSTable>
         if (shardBoundaries.size() <= 1)
             return 1;
         int startIdx = shardFor(rdr.getFirst(), shardBoundaries);
-        DecoratedKey last = rdr.getLast();
+        PartitionPosition last = rdr.getLast();
         if (last.compareTo(shardBoundaries.get(startIdx)) < 0)
             return 1;   // quick path, end boundary is in the same shard
         return shardFor(last, shardBoundaries) - startIdx + 1;

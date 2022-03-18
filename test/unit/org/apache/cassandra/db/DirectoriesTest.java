@@ -52,6 +52,7 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -241,6 +242,22 @@ public class DirectoriesTest
             assertThat(Stream.generate(uidGen).limit(100).filter(MockSchema.sstableIds::containsValue).collect(Collectors.toList())).isEmpty();
         }
     }
+
+    @Test
+    public void testResolve() throws IOException
+    {
+        TableMetadata cfm = CFM.iterator().next();
+        Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
+
+        Descriptor resolved = directories.resolve("me-123-big-Data.db", 0);
+
+        assertEquals(cfm.keyspace, resolved.ksname);
+        assertEquals(cfm.name, resolved.cfname);
+        assertEquals(SSTableFormat.Type.BIG, resolved.formatType);
+        assertEquals(BigFormat.instance.getVersion("me"), resolved.version);
+        assertEquals("123", resolved.id.toString());
+    }
+
 
     @Test
     public void testSecondaryIndexDirectories()
