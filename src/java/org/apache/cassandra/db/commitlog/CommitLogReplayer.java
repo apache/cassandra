@@ -368,7 +368,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 .get(); // iteration is per known-CF, there must be at least one.
     }
 
-    abstract static class ReplayFilter
+    public abstract static class ReplayFilter
     {
         public abstract Iterable<PartitionUpdate> filter(Mutation mutation);
 
@@ -377,11 +377,21 @@ public class CommitLogReplayer implements CommitLogReadHandler
         public static ReplayFilter create()
         {
             // If no replaylist is supplied an empty array of strings is used to replay everything.
-            if (System.getProperty("cassandra.replayList") == null)
+            String replayList = System.getProperty("cassandra.replayList");
+            if (replayList == null)
+            {
+                String customReplayFilter = System.getProperty("cassandra.custom_replay_filter_class");
+                if (customReplayFilter != null)
+                    return FBUtilities.construct(customReplayFilter, "custom_replay_filter");
                 return new AlwaysReplayFilter();
+            }
+            else
+            {
+                logger.info("Commit log replay list set by cassandra.replayList property to: {}", replayList);
+            }
 
             Multimap<String, String> toReplay = HashMultimap.create();
-            for (String rawPair : System.getProperty("cassandra.replayList").split(","))
+            for (String rawPair : replayList.split(","))
             {
                 String[] pair = StringUtils.split(rawPair.trim(), '.');
                 if (pair.length != 2)
