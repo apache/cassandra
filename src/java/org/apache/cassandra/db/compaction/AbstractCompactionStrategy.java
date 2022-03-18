@@ -22,9 +22,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
@@ -53,6 +55,9 @@ abstract class AbstractCompactionStrategy implements CompactionStrategy
     protected static final Logger logger = LoggerFactory.getLogger(AbstractCompactionStrategy.class);
 
     protected final CompactionStrategyOptions options;
+    /** The column family store should only be used when creating writers. However it is currently also used
+     * by legacy strategies and compaction tasks.
+     */
     protected final CompactionRealm realm;
 
     protected final CompactionLogger compactionLogger;
@@ -76,11 +81,13 @@ abstract class AbstractCompactionStrategy implements CompactionStrategy
 
     protected AbstractCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Map<String, String> options)
     {
-        assert factory != null;
-        this.realm = factory.getRealm();
-        this.compactionLogger = factory.getCompactionLogger();
+        Preconditions.checkNotNull(factory);
+        Preconditions.checkNotNull(backgroundCompactions);
+
+        this.realm = Objects.requireNonNull(factory.getRealm());
+        this.compactionLogger = Objects.requireNonNull(factory.getCompactionLogger());
         this.options = new CompactionStrategyOptions(getClass(), options, false);
-        this.directories = realm.getDirectories();
+        this.directories = Objects.requireNonNull(realm.getDirectories());
         this.backgroundCompactions = backgroundCompactions;
     }
 
@@ -89,6 +96,7 @@ abstract class AbstractCompactionStrategy implements CompactionStrategy
         return options;
     }
 
+    @Override
     public CompactionLogger getCompactionLogger()
     {
         return compactionLogger;

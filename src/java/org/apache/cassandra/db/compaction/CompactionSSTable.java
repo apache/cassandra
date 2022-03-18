@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -59,12 +60,12 @@ public interface CompactionSSTable
     /**
      * @return the position of the first partition in the sstable
      */
-    DecoratedKey getFirst();
+    PartitionPosition getFirst();
 
     /**
      * @return the position of the last partition in the sstable
      */
-    DecoratedKey getLast();
+    PartitionPosition getLast();
 
     /**
      * @return the bounds spanned by this sstable, from first to last keys.
