@@ -25,6 +25,8 @@ import java.io.IOError;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -148,6 +150,8 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -1241,5 +1245,17 @@ public class Util
         StorageService.instance.onChange(address,
                     ApplicationState.STATUS_WITH_PORT,
                     new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
+    }
+    public static boolean isListeningOn(InetSocketAddress address)
+    {
+        try (ServerSocket socket = new ServerSocket())
+        {
+            socket.bind(address);
+            return false;
+        }
+        catch (IOException ex)
+        {
+            return true;
+        }
     }
 }
