@@ -436,6 +436,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         long token = tokenSupplier.token(nodeNum);
         NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
         InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, Long.toString(token), datadirCount);
+        logger.info("Instance {} config: {}", nodeNum, config);
         config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
         if (configUpdater != null)
             configUpdater.accept(config);
@@ -800,7 +801,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         protected boolean isCompleted()
         {
-            return instances.stream().allMatch(i -> !i.config().has(Feature.GOSSIP) || i.liveMemberCount() == instances.size());
+            return instances.stream().allMatch(i -> {
+                if (!i.config().has(Feature.GOSSIP))
+                    return true;
+
+                logger.info("Instance {} reports {} live members count, required {}", i, i.liveMemberCount(), instances.size());
+                return i.liveMemberCount() == instances.size();
+            });
         }
 
         protected String getMonitorTimeoutMessage()
