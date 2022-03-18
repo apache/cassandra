@@ -727,7 +727,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<InetAddressAndPort, EndpointState> epStates = Gossiper.instance.doShadowRound(peers);
 
         if (epStates.isEmpty() && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort()))
-            logger.info("Unable to gossip with any peers but continuing anyway since node is in its own seed list");
+            logger.info("Unable to gossip with any peers but continuing anyway since node is in its own seed list. Broadcast address: {}, seeds: {}", FBUtilities.getBroadcastAddressAndPort(), DatabaseDescriptor.getSeeds());
 
         // If bootstrapping, check whether any previously known status for the endpoint makes it unsafe to do so.
         // If not bootstrapping, compare the host id for this endpoint learned from gossip (if any) with the local
