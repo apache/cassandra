@@ -207,6 +207,7 @@ public abstract class CommitLogTest
     @After
     public void afterTest()
     {
+        System.clearProperty("cassandra.replayList");
         testKiller.reset();
     }
 
@@ -940,7 +941,7 @@ public abstract class CommitLogTest
         }
     }
 
-    public void testUnwriteableFlushRecovery() throws ExecutionException, InterruptedException, IOException
+    private void prepareUnwriteableFlushRecovery() throws ExecutionException, InterruptedException, IOException
     {
         CommitLog.instance.resetUnsafe(true);
 
@@ -981,11 +982,43 @@ public abstract class CommitLogTest
         }
 
         CommitLog.instance.sync(true);
+    }
+
+    @Test
+    public void testUnwriteableFlushRecoveryNoFilter() throws ExecutionException, InterruptedException, IOException
+    {
+        prepareUnwriteableFlushRecovery();
+
+        Map<Keyspace, Integer> replayedKeyspaces = CommitLog.instance.resetUnsafe(false);
+        Assert.assertEquals(1, replayedKeyspaces.size());
+        Map.Entry<Keyspace, Integer> firstKeyspace = replayedKeyspaces.entrySet().iterator().next();
+        Assert.assertEquals(KEYSPACE1, firstKeyspace.getKey().getName());
+        Assert.assertEquals(1, (long)firstKeyspace.getValue());
+    }
+
+    @Test
+    public void testUnwriteableFlushRecoveryIncludingFilter() throws ExecutionException, InterruptedException, IOException
+    {
+        prepareUnwriteableFlushRecovery();
+
         System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
-        Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
-        System.clearProperty("cassandra.replayList");
+        Map<Keyspace, Integer> replayedKeyspaces = CommitLog.instance.resetUnsafe(false);
+        Assert.assertEquals(1, replayedKeyspaces.size());
+        Map.Entry<Keyspace, Integer> firstKeyspace = replayedKeyspaces.entrySet().iterator().next();
+        Assert.assertEquals(KEYSPACE1, firstKeyspace.getKey().getName());
+        Assert.assertEquals(1, (long)firstKeyspace.getValue());
+    }
+
+    @Test
+    public void testUnwriteableFlushRecoveryNotmachingFilter() throws ExecutionException, InterruptedException, IOException
+    {
+        prepareUnwriteableFlushRecovery();
+
+        System.setProperty("cassandra.replayList", KEYSPACE2 + "." + STANDARD2);
+        Map<Keyspace, Integer> replayedKeyspaces = CommitLog.instance.resetUnsafe(false);
+        Assert.assertEquals(0, replayedKeyspaces.size());
     }
 
     public void testOutOfOrderFlushRecovery(BiConsumer<ColumnFamilyStore, Memtable> flushAction, boolean performCompaction)
