@@ -172,6 +172,7 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * ConnectionLimitHandler may leaks connection count if remote connection drops (CASSANDRA-17252)
  * Require ant >= 1.10 (CASSANDRA-17428)
  * Disallow CONTAINS for UPDATE and DELETE (CASSANDRA-15266)
  * Suppress inapplicable CVEs (CASSANDRA-17368)
