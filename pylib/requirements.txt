@@ -2,11 +2,5 @@
 # Used ccm version is tracked by cassandra-test branch in ccm repo. Please create a PR there for fixes or upgrades to new releases.
 -e git+https://github.com/riptano/ccm.git@cassandra-test#egg=ccm
 coverage
-decorator
-docopt
-flaky
-mock
 parse
-psutil
-pycodestyle
 pytest
