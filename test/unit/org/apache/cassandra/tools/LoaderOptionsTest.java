@@ -19,8 +19,11 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Paths;
 
+import com.google.common.net.HostAndPort;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.File;
@@ -28,7 +31,7 @@ import org.apache.cassandra.io.util.File;
 import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 // LoaderOptionsTester for custom configuration
 public class LoaderOptionsTest
@@ -47,6 +50,19 @@ public class LoaderOptionsTest
         String[] args2 = { "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
         options = LoaderOptions.builder().parseArgs(args2).build();
         assertEquals(9142, options.nativePort);
+
+        HostAndPort hap = HostAndPort.fromString("127.9.9.1");
+        InetAddress byName = InetAddress.getByName(hap.getHost());
+        assertTrue(options.hosts.contains(new InetSocketAddress(byName, 9142)));
+
+        // test native port set from command line
+
+        config = new File(Paths.get(".", "test", "conf", "unit-test-conf/test-native-port.yaml").normalize().toFile());
+        String[] args3 = {"-d", "127.9.9.1", "-p", "9300", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
+        options = LoaderOptions.builder().parseArgs(args3).build();
+        assertEquals(9300, options.nativePort);
+
+        assertTrue(options.hosts.contains(new InetSocketAddress(byName, 9300)));
     }
 
     /**
