@@ -274,8 +274,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         // we could assert not-null, but having isAlive fail screws a node over so badly that
         // it's worth being defensive here so minor bugs don't cause disproportionate
         // badness.  (See CASSANDRA-1463 for an example).
-        if (epState == null)
-            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException(""));
+        if (epState == null && Gossiper.instance.isEnabled())
+            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException("Unknown endpoint: " + ep));
         return epState != null && epState.isAlive();
     }
 

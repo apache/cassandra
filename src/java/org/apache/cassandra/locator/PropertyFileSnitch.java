@@ -24,8 +24,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import com.google.common.collect.Sets;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,13 +35,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
-import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.commons.lang3.StringUtils;
 
 /**
- * <p>
  * Used to determine if two IP's are in the same datacenter or on the same rack.
- * </p>
+ *
  * Based on a properties file in the following format:
  *
  * 10.0.0.13=DC1:RAC2
@@ -71,13 +70,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         try
         {
             FBUtilities.resourceToFile(SNITCH_PROPERTIES_FILENAME);
-            Runnable runnable = new WrappedRunnable()
-            {
-                protected void runMayThrow() throws ConfigurationException
-                {
-                    reloadConfiguration(true);
-                }
-            };
+            Callable<Boolean> runnable = () -> reloadConfiguration(true);
             ResourceWatcher.watch(SNITCH_PROPERTIES_FILENAME, runnable, refreshPeriodInSeconds * 1000);
         }
         catch (ConfigurationException ex)
@@ -137,7 +130,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         return info[1];
     }
 
-    public void reloadConfiguration(boolean isUpdate) throws ConfigurationException
+    public boolean reloadConfiguration(boolean isUpdate) throws ConfigurationException
     {
         HashMap<InetAddressAndPort, String[]> reloadedMap = new HashMap<>();
         String[] reloadedDefaultDCRack = null;
@@ -161,9 +154,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             {
                 String[] newDefault = value.split(":");
                 if (newDefault.length < 2)
-                    reloadedDefaultDCRack = new String[] { "default", "default" };
+                    reloadedDefaultDCRack = new String[]{ "default", "default" };
                 else
-                    reloadedDefaultDCRack = new String[] { newDefault[0].trim(), newDefault[1].trim() };
+                    reloadedDefaultDCRack = new String[]{ newDefault[0].trim(), newDefault[1].trim() };
             }
             else
             {
@@ -179,9 +172,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                 }
                 String[] token = value.split(":");
                 if (token.length < 2)
-                    token = new String[] { "default", "default" };
+                    token = new String[]{ "default", "default" };
                 else
-                    token = new String[] { token[0].trim(), token[1].trim() };
+                    token = new String[]{ token[0].trim(), token[1].trim() };
                 reloadedMap.put(host, token);
             }
         }
@@ -198,19 +191,20 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             reloadedMap.put(localAddress, localInfo);
 
         if (isUpdate && !livenessCheck(reloadedMap, reloadedDefaultDCRack))
-            return;
+            return false;
 
-        if (logger.isTraceEnabled())
+        if (logger.isDebugEnabled())
         {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<InetAddressAndPort, String[]> entry : reloadedMap.entrySet())
                 sb.append(entry.getKey()).append(':').append(Arrays.toString(entry.getValue())).append(", ");
-            logger.trace("Loaded network topology from property file: {}", StringUtils.removeEnd(sb.toString(), ", "));
+            logger.debug("Loaded network topology from property file: {}", StringUtils.removeEnd(sb.toString(), ", "));
         }
-
 
         defaultDCRack = reloadedDefaultDCRack;
         endpointMap = reloadedMap;
+
+        //noinspection ConstantConditions
         if (StorageService.instance != null) // null check tolerates circular dependency; see CASSANDRA-4145
         {
             if (isUpdate)
@@ -220,13 +214,18 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         }
 
         if (gossipStarted)
+        {
             StorageService.instance.gossipSnitchInfo();
+            return true;
+        }
+
+        return false;
     }
 
     /**
      * We cannot update rack or data-center for a live node, see CASSANDRA-10243.
      *
-     * @param reloadedMap - the new map of hosts to dc:rack properties
+     * @param reloadedMap           - the new map of hosts to dc:rack properties
      * @param reloadedDefaultDCRack - the default dc:rack or null if no default
      * @return true if we can continue updating (no live host had dc or rack updated)
      */
@@ -236,14 +235,14 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         // host quickly and interrupt the loop. Otherwise we only check the live hosts that were either
         // in the old set or in the new set
         Set<InetAddressAndPort> hosts = Arrays.equals(defaultDCRack, reloadedDefaultDCRack)
-                                 ? Sets.intersection(StorageService.instance.getLiveRingMembers(), // same default
-                                                     Sets.union(endpointMap.keySet(), reloadedMap.keySet()))
-                                 : StorageService.instance.getLiveRingMembers(); // default updated
+                                        ? Sets.intersection(StorageService.instance.getLiveRingMembers(), // same default
+                                                            Sets.union(endpointMap.keySet(), reloadedMap.keySet()))
+                                        : StorageService.instance.getLiveRingMembers(); // default updated
 
         for (InetAddressAndPort host : hosts)
         {
-            String[] origValue = endpointMap.containsKey(host) ? endpointMap.get(host) : defaultDCRack;
-            String[] updateValue = reloadedMap.containsKey(host) ? reloadedMap.get(host) : reloadedDefaultDCRack;
+            String[] origValue = endpointMap.getOrDefault(host, defaultDCRack);
+            String[] updateValue = reloadedMap.getOrDefault(host, reloadedDefaultDCRack);
 
             if (!Arrays.equals(origValue, updateValue))
             {
@@ -251,7 +250,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                              origValue,
                              updateValue,
                              host);
-                 return false;
+                return false;
             }
         }
 
