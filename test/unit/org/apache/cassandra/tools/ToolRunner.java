@@ -119,13 +119,11 @@ public class ToolRunner
 
         private final InputStream input;
         private final T out;
-        private final boolean autoCloseOut;
 
-        private StreamGobbler(InputStream input, T out, boolean autoCloseOut)
+        private StreamGobbler(InputStream input, T out)
         {
             this.input = input;
             this.out = out;
-            this.autoCloseOut = autoCloseOut;
         }
 
         public void run()
@@ -138,8 +136,6 @@ public class ToolRunner
                     int read = input.read(buffer);
                     if (read == -1)
                     {
-                        if (autoCloseOut)
-                            out.close();
                         return;
                     }
                     out.write(buffer, 0, read);
@@ -540,19 +536,19 @@ public class ToolRunner
             if (includeStdinWatcher)
                 numWatchers = 3;
             ioWatchers = new Thread[numWatchers];
-            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err, false));
+            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err));
             ioWatchers[0].setDaemon(true);
             ioWatchers[0].setName("IO Watcher stderr");
             ioWatchers[0].start();
 
-            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out, false));
+            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out));
             ioWatchers[1].setDaemon(true);
             ioWatchers[1].setName("IO Watcher stdout");
             ioWatchers[1].start();
 
             if (includeStdinWatcher)
             {
-                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream(), true));
+                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream()));
                 ioWatchers[2].setDaemon(true);
                 ioWatchers[2].setName("IO Watcher stdin");
                 ioWatchers[2].start();

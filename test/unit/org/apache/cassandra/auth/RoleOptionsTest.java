@@ -52,21 +52,8 @@ public class RoleOptionsTest
         assertInvalidOptions(opts, "Invalid value for property 'SUPERUSER'. It must be a boolean");
 
         opts = new RoleOptions();
-        opts.setOption(IRoleManager.Option.HASHED_PASSWORD, 99);
-        assertInvalidOptions(opts, "Invalid value for property 'HASHED_PASSWORD'. It must be a string");
-
-        opts = new RoleOptions();
-        opts.setOption(IRoleManager.Option.HASHED_PASSWORD, "invalid_hash");
-        assertInvalidOptions(opts, "Invalid hashed password value. Please use jBcrypt.");
-
-        opts = new RoleOptions();
         opts.setOption(IRoleManager.Option.OPTIONS, false);
         assertInvalidOptions(opts, "Invalid value for property 'OPTIONS'. It must be a map");
-
-        opts = new RoleOptions();
-        opts.setOption(IRoleManager.Option.PASSWORD, "abc");
-        opts.setOption(IRoleManager.Option.HASHED_PASSWORD, "$2a$10$JSJEMFm6GeaW9XxT5JIheuEtPvat6i7uKbnTcxX3c1wshIIsGyUtG");
-        assertInvalidOptions(opts, "Properties 'PASSWORD' and 'HASHED_PASSWORD' are mutually exclusive");
 
         opts = new RoleOptions();
         opts.setOption(IRoleManager.Option.LOGIN, true);
@@ -124,7 +111,7 @@ public class RoleOptionsTest
         }
         catch (InvalidRequestException e)
         {
-            assertEquals(message, e.getMessage());
+            assertTrue(e.getMessage().equals(message));
         }
     }
 

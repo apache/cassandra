@@ -135,10 +135,10 @@ public class CassandraRoleManager implements IRoleManager
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
+                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD)
                          : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
+                         ? ImmutableSet.of(Option.PASSWORD)
                          : ImmutableSet.<Option>of();
     }
 
@@ -172,20 +172,20 @@ public class CassandraRoleManager implements IRoleManager
     public void createRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException
     {
-        String insertCql = options.getPassword().isPresent() || options.getHashedPassword().isPresent()
+        String insertCql = options.getPassword().isPresent()
                          ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
-                                         options.getSuperuser().orElse(false),
-                                         options.getLogin().orElse(false),
-                                         options.getHashedPassword().orElseGet(() -> escape(hashpw(options.getPassword().get()))))
+                                         options.getSuperuser().or(false),
+                                         options.getLogin().or(false),
+                                         escape(hashpw(options.getPassword().get())))
                          : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
-                                         options.getSuperuser().orElse(false),
-                                         options.getLogin().orElse(false));
+                                         options.getSuperuser().or(false),
+                                         options.getLogin().or(false));
         process(insertCql, consistencyForRoleWrite(role.getRoleName()));
     }
 
@@ -511,8 +511,6 @@ public class CassandraRoleManager implements IRoleManager
                                        return String.format("is_superuser = %s", entry.getValue());
                                    case PASSWORD:
                                        return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
-                                   case HASHED_PASSWORD:
-                                       return String.format("salted_hash = '%s'", (String) entry.getValue());
                                    default:
                                        return null;
                                }

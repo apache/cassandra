@@ -1439,7 +1439,7 @@ syntax_rules += r'''
              ;
 
 <createUserStatement> ::= "CREATE" "USER" ( "IF" "NOT" "EXISTS" )? <username>
-                              ( "WITH" ("HASHED")? "PASSWORD" <stringLiteral> )?
+                              ( "WITH" "PASSWORD" <stringLiteral> )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 
@@ -1469,7 +1469,7 @@ syntax_rules += r'''
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                        ;
 
-<roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
+<roleProperty> ::= "PASSWORD" "=" <stringLiteral>
                  | "OPTIONS" "=" <mapLiteral>
                  | "SUPERUSER" "=" <boolean>
                  | "LOGIN" "=" <boolean>
