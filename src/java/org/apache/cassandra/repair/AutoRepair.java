@@ -376,15 +376,17 @@ public class AutoRepair
                                         //check repair status
                                         if (rs.success)
                                         {
-                                            logger.debug("Repair completed for range {}-{} for {}.{}", childStartToken
-                                            .toString(), childEndToken.toString(), keyspaceName, tableName);
+                                            logger.info("Repair completed for range {}-{} for {}.{}, total subranges: {}," +
+                                                        "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
+                                                        keyspaceName, tableName, totalSubRanges, totalProcessedSubRanges);
                                         }
                                         else
                                         {
                                             tableRepairSuccess = false;
                                             //in future we can add retry, etc.
-                                            logger.info("Repair failed for range {}-{} for {}.{}", childStartToken
-                                            .toString(), childEndToken.toString(), keyspaceName, tableName);
+                                            logger.info("Repair failed for range {}-{} for {}.{} total subranges: {}," +
+                                                        "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
+                                                        keyspaceName, tableName, totalSubRanges, totalProcessedSubRanges);
                                         }
                                         ranges.clear();
                                     }
