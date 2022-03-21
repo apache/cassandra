@@ -56,6 +56,7 @@
         <resolver:remoterepos id="all">
             <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
             <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+            <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" />
         </resolver:remoterepos>
 
         <macrodef name="resolve">
