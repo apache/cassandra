@@ -3480,10 +3480,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Set<InetAddressAndPort> getLiveRingMembers(boolean excludeDeadStates)
     {
-        Set<InetAddressAndPort> ret = new HashSet<>();
+        Set<InetAddressAndPort> allRingMembers = getTokenMetadata().getAllRingMembers();
+        Set<InetAddressAndPort> ret = new HashSet<>(allRingMembers.size());
         for (InetAddressAndPort ep : getTokenMetadata().getAllRingMembers())
         {
-            if (excludeDeadStates && !IFailureDetector.instance.isAlive(ep))
+            if (Gossiper.instance.isEnabled())
+            {
+                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
+                if (epState == null)
+                    continue;
+
+                if (excludeDeadStates && Gossiper.instance.isDeadState(epState))
+                    continue;
+            }
+
+            if (!IFailureDetector.instance.isAlive(ep))
                 continue;
 
             ret.add(ep);
