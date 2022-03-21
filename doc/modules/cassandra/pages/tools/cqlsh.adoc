@@ -46,52 +46,72 @@ Example config values and documentation can be found in the
 You can also view the latest version of the
 https://github.com/apache/cassandra/blob/trunk/conf/cqlshrc.sample[cqlshrc file online].
 
+[[cql_history]]
+== cql history
+
+All CQL commands you execute are written to a history file. By default, CQL history will be written to `~/.cassandra/cql_history`. You can change this default by setting the environment variable `CQL_HISTORY` like `~/some/other/path/to/cqlsh_history` where `cqlsh_history` is a file. All parent directories to history file will be created if they do not exist. If you do not want to persist history, you can do so by setting CQL_HISTORY to /dev/null.
+This feature is supported from Cassandra 4.1.
+
 == Command Line Options
 
-Usage:
+Usage: `cqlsh.py [options] [host [port]]`
 
-`cqlsh [options] [host [port]]`
+CQL Shell for Apache Cassandra
 
 Options:
 
+`--version`::
+  show program's version number and exit
+
+`-h` `--help`::
+  show this help message and exit
 `-C` `--color`::
-  Force color output
+  Always use color output
 `--no-color`::
-  Disable color output
-`--browser`::
-  Specify the browser to use for displaying cqlsh help. This can be one
-  of the https://docs.python.org/2/library/webbrowser.html[supported
-  browser names] (e.g. `firefox`) or a browser path followed by `%s`
-  (e.g. `/usr/bin/google-chrome-stable %s`).
+  Never use color output
+`--browser=BROWSER`::
+  The browser to use to display CQL help, where BROWSER can be:
+  one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
+  browser path followed by %s, example: /usr/bin/google-chrome-stable %s
 `--ssl`::
-  Use SSL when connecting to Cassandra
-`-u` `--user`::
-  Username to authenticate against Cassandra with
-`-p` `--password`::
-  Password to authenticate against Cassandra with, should be used in
-  conjunction with `--user`
-`-k` `--keyspace`::
-  Keyspace to authenticate to, should be used in conjunction with
-  `--user`
-`-f` `--file`::
-  Execute commands from the given file, then exit
+  Use SSL
+
+`-u USERNAME` `--username=USERNAME`::
+  Authenticate as user.
+`-p PASSWORD` `--password=PASSWORD`::
+  Authenticate using password.
+`-k KEYSPACE` `--keyspace=KEYSPACE`::
+  Authenticate to the given keyspace.
+`-f FILE` `--file=FILE`::
+  Execute commands from FILE, then exit
 `--debug`::
-  Print additional debugging information
-`--encoding`::
-  Specify a non-default encoding for output (defaults to UTF-8)
-`--cqlshrc`::
-  Specify a non-default location for the `cqlshrc` file
-`-e` `--execute`::
-  Execute the given statement, then exit
-`--connect-timeout`::
-  Specify the connection timeout in seconds (defaults to 2s)
-`--python /path/to/python`::
-  Specify the full path to Python interpreter to override default on
-  systems with multiple interpreters installed
-`--request-timeout`::
-  Specify the request timeout in seconds (defaults to 10s)
-`-t` `--tty`::
-  Force tty mode (command prompt)
+  Show additional debugging information
+`--coverage`::
+  Collect coverage data
+`--encoding=ENCODING`::
+  Specify a non-default encoding for output. (Default: utf-8)
+`--cqlshrc=CQLSHRC`::
+  Specify an alternative cqlshrc file location.
+`--credentials=CREDENTIALS`::
+  Specify an alternative credentials file location.
+`--cqlversion=CQLVERSION`::
+  Specify a particular CQL version, by default the
+  highest version supported by the server will be used.
+  Examples: "3.0.3", "3.1.0"
+`--protocol-version=PROTOCOL_VERSION`::
+  Specify a specific protcol version otherwise the
+  client will default and downgrade as necessary
+`-e EXECUTE` `--execute=EXECUTE`::
+  Execute the statement and quit.
+`--connect-timeout=CONNECT_TIMEOUT`::
+  Specify the connection timeout in seconds (default: 5 seconds).
+`--request-timeout=REQUEST_TIMEOUT`::
+  Specify the default request timeout in seconds
+  (default: 10 seconds).
+`-t, --tty`::
+  Force tty mode (command prompt).
+`-v` `--v`::
+  Print the current version of cqlsh.
 
 == Special Commands
 
