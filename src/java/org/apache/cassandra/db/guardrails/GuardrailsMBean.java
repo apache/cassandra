@@ -241,4 +241,14 @@ public interface GuardrailsMBean
      * -1 means disabled.
      */
     int getPartitionKeysInSelectFailThreshold();
+
+    /**
+     * @return the maximum replication factor for a data center.
+     */
+    int getMaxDCReplicationFactor();
+
+    /**
+     * @param max The maximum replcation factor for a data center. 
+     */
+    void setMaxDCReplicationFactor(int max);
 }

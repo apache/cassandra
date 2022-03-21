@@ -321,6 +321,20 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.read_before_write_list_operations_enabled = x);
     }
 
+    @Override
+    public int getMaxDCReplicationFactor()
+    {
+        return config.max_dc_replication_factor;
+    }
+
+    public void setMaxDCReplicationFactor(int max)
+    {
+        updatePropertyWithLogging("max_dc_replication_factor",
+                                  max,
+                                  () -> config.max_dc_replication_factor,
+                                  x -> config.max_dc_replication_factor = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();

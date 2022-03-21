@@ -148,6 +148,16 @@ public final class Guardrails implements GuardrailsMBean
     new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
                     "List operation requiring read before write");
 
+    /**
+     * Guardrail setting the maximum datacenter replication factor.
+     */
+    public static final Threshold maxDCReplicationFactor =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactor(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactor(),
+                  (isWarning, what, value, threshold) ->
+                   isWarning ? format("", what, value, threshold)
+                  :format("", what, value, threshold));
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -381,6 +391,18 @@ public final class Guardrails implements GuardrailsMBean
     public int getPartitionKeysInSelectFailThreshold()
     {
         return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
+    }
+
+    @Override
+    public int getMaxDCReplicationFactor()
+    {
+        DEFAULT_CONFIG.getMaxDCReplicationFactor();
+    }
+
+    @Override
+    public void setMaxDCReplicationFactor(int max)
+    {
+        DEFAULT_CONFIG.setMaxDCReplicationFactor(max);
     }
 
     private static String toCSV(Set<String> values)

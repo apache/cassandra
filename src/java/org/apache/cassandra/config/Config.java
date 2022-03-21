@@ -744,6 +744,7 @@ public class Config
     public volatile Set<String> table_properties_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
+    public volatile int max_dc_replication_factor = 3;
 
     public enum PaxosVariant
     {

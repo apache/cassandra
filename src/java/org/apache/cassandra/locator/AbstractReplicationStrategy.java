@@ -278,7 +278,10 @@ public abstract class AbstractReplicationStrategy
         return getAddressReplicas(temp, pendingAddress);
     }
 
-    public abstract void validateOptions() throws ConfigurationException;
+    public void validateOptions() throws ConfigurationException
+    {
+
+    }
 
     public abstract void maybeWarnOnOptions();
 

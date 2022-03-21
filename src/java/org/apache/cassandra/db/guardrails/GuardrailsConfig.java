@@ -144,4 +144,9 @@ public interface GuardrailsConfig
      * @return {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     boolean getReadBeforeWriteListOperationsEnabled();
+
+    /**
+     * @return the maximum replication factor for a data center.
+     */
+    int getMaxDCReplicationFactor();
 }
