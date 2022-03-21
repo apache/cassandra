@@ -1,4 +1,5 @@
 4.0.4
+ * Upgrade jackson to 2.13.2 (CASSANDRA-17460)
  * Make sstableloader honour native port option (CASSANDRA-17210)
  * Reject snapshot names with special character (CASSANDRA-15297)
  * Fix ObjectSizes implementation and usages (CASSANDRA-17402)
