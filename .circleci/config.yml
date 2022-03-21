@@ -4354,11 +4354,17 @@ workflows:
         requires:
         - start_utests_system_keyspace_directory
         - j8_build
+    - start_j8_dtest_jars_build:
+        type: approval
     - j8_dtest_jars_build:
         requires:
         - j8_build
+        - start_j8_dtest_jars_build
+    - start_jvm_upgrade_dtest:
+        type: approval
     - j8_jvm_upgrade_dtests:
         requires:
+        - start_jvm_upgrade_dtest
         - j8_dtest_jars_build
     - j8_dtests-with-vnodes:
         requires:
@@ -4366,8 +4372,11 @@ workflows:
     - j8_dtests-no-vnodes:
         requires:
         - j8_build
+    - start_upgrade_tests:
+        type: approval
     - j8_upgradetests-no-vnodes:
         requires:
+        - start_upgrade_tests
         - j8_build
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
