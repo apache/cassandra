@@ -145,7 +145,7 @@
     <property name="chronicle-wire.version" value="2.20.117" />
     <property name="chronicle-threads.version" value="2.20.111" />
 
-    <property name="dtest-api.version" value="0.0.12" />
+    <property name="dtest-api.version" value="0.0.13-SNAPSHOT" />
 
     <condition property="maven-ant-tasks.jar.exists">
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
