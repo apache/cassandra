@@ -48,6 +48,7 @@
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="build/.ratinclude">
                  <!-- Config files with not much creativity -->
+                 <exclude name="**/.asf.yaml"/>
                  <exclude name="**/ide/**/*"/>
                  <exclude name="**/metrics-reporter-config-sample.yaml"/>
                  <exclude name="**/cassandra.yaml"/>
