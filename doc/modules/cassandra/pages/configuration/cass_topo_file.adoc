@@ -1,10 +1,9 @@
-[[cassandra-topology]]
-cassandra-topologies.properties file ================================
+= cassandra-topologies.properties file
 
 The `PropertyFileSnitch` `snitch` option uses the
 `cassandra-topologies.properties` configuration file to determine which
 `datacenters` and racks cluster nodes belong to. If other snitches are
-used, the :ref:cassandra_rackdc must be used. The snitch determines
+used, the xref:configuration/cass_rackdc_file.adoc[cassandra-rackdc.properties] must be used. The snitch determines
 network topology (proximity by rack and datacenter) so that requests are
 routed efficiently and allows the database to distribute replicas
 evenly.
