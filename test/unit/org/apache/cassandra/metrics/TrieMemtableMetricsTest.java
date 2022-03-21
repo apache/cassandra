@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,11 +44,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
+import org.awaitility.Awaitility;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -131,11 +133,20 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
         writeAndFlush(10);
         assertEquals(10, metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount());
+
+        // lastFlushShardDataSize is updated asynchronously. Wait until we can see the result.
+        Awaitility.await()
+                  .atMost(30, TimeUnit.SECONDS)
+                  .until(() -> metrics.lastFlushShardDataSizes.maxGauge.getValue() > 0);
         Long maxShardSize = metrics.lastFlushShardDataSizes.maxGauge.getValue();
 
         // verify that metrics survive flush / memtable switching
         writeAndFlush(100);
         assertEquals(110, metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount());
+        // lastFlushShardDataSize is updated asynchronously. Wait until we can see the result.
+        Awaitility.await()
+                  .atMost(30, TimeUnit.SECONDS)
+                  .until(() -> metrics.lastFlushShardDataSizes.maxGauge.getValue() > maxShardSize);
         assertEquals(metrics.lastFlushShardDataSizes.toString(), NUM_SHARDS, (int) metrics.lastFlushShardDataSizes.numSamplesGauge.getValue());
         assertThat(metrics.lastFlushShardDataSizes.maxGauge.getValue(), greaterThan(maxShardSize));
     }
