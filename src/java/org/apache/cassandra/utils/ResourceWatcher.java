@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -27,7 +28,7 @@ import org.apache.cassandra.io.util.File;
 
 public class ResourceWatcher
 {
-    public static void watch(String resource, Runnable callback, int period)
+    public static void watch(String resource, Callable<Boolean> callback, int period)
     {
         ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(new WatchedResource(resource, callback), period, period, TimeUnit.MILLISECONDS);
     }
@@ -36,10 +37,10 @@ public class ResourceWatcher
     {
         private static final Logger logger = LoggerFactory.getLogger(WatchedResource.class);
         private final String resource;
-        private final Runnable callback;
+        private final Callable<Boolean> callback;
         private long lastLoaded;
 
-        public WatchedResource(String resource, Runnable callback)
+        public WatchedResource(String resource, Callable<Boolean> callback)
         {
             this.resource = resource;
             this.callback = callback;
@@ -54,8 +55,8 @@ public class ResourceWatcher
                 long lastModified = new File(filename).lastModified();
                 if (lastModified > lastLoaded)
                 {
-                    callback.run();
-                    lastLoaded = lastModified;
+                    if (callback.call())
+                        lastLoaded = lastModified;
                 }
             }
             catch (Throwable t)
