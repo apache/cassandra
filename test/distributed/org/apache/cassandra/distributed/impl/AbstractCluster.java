@@ -533,7 +533,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, tokens, datadirCount);
         config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
         if (configUpdater != null)
+        {
             configUpdater.accept(config);
+            // if the config set the initial tokens, then update num_tokens
+            config.set("num_tokens", ((String) config.get("initial_token")).split(",").length);
+        }
         return config;
     }
 
