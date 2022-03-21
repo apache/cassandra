@@ -40,6 +40,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.index.Index;
@@ -180,6 +181,13 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 return endOfData();
             currentKey = operation.next().loadDeferred();
 
+            // Collects row iterators for the current partition until the partition key changes,
+            // or until we reach the end of the data.
+            // Finally, the collected iterators are merged and returned.
+            // We need this because Cassandra coordinator does not handle multiple `UnfilteredRowIterator` objects
+            // for the same partition well.
+            final List<UnfilteredRowIterator> partitionIterators = new ArrayList<>();
+
             // IMPORTANT: The correctness of the entire query pipeline relies on the fact that we consume a token
             // and materialize its keys before moving on to the next token in the flow. This sequence must not be broken
             // with toList() or similar. (Both the union and intersection flow constructs, to avoid excessive object
@@ -187,7 +195,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             while (true)
             {
                 if (!lastPrimaryKey.token().isMinimum() && lastPrimaryKey.compareTo(currentKey) < 0)
-                    return endOfData();
+                    return merge(partitionIterators);
 
                 while (current != null)
                 {
@@ -199,7 +207,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         {
                             UnfilteredRowIterator partition = apply(currentKey);
                             if (partition != null)
-                                return partition;
+                                partitionIterators.add(partition);
                         }
                         break;
                     }
@@ -209,7 +217,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         if (keyRanges.hasNext())
                             current = keyRanges.next().keyRange();
                         else
-                            return endOfData();
+                            return merge(partitionIterators);
                     }
                     // smaller than current range
                     else
@@ -222,9 +230,20 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                     }
                 }
                 if (!operation.hasNext())
-                    return endOfData();
+                    return merge(partitionIterators);
+
+                // If we already got some matching data, but the next primary key belongs to a different partition,
+                // then return what we have collected so far.
+                if (!partitionIterators.isEmpty()
+                    && !operation.peek().loadDeferred().partitionKey().equals(currentKey.partitionKey()))
+                    return merge(partitionIterators);
+
                 currentKey = operation.next().loadDeferred();
             }
+        }
+
+        private UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators) {
+            return iterators.isEmpty() ? endOfData() : UnfilteredRowIterators.merge(iterators);
         }
 
         public UnfilteredRowIterator apply(PrimaryKey key)
