@@ -29,23 +29,13 @@ import static org.junit.Assert.assertEquals;
 
 public class PasswordObfuscatorTest
 {
-    private static final RoleOptions plainPwdOpts = new RoleOptions();
-    private static final RoleOptions hashedPwdOpts = new RoleOptions();
-    private static final String plainPwd = "testpassword";
-    private static final String hashedPwd = "$2a$10$1fI9MDCe13ZmEYW4XXZibuASNKyqOY828ELGUtml/t.0Mk/6Kqnsq";
+    private static final RoleOptions opts = new RoleOptions();
+    private static final String optsPassword = "testpassword";
 
     @BeforeClass
     public static void startup()
     {
-        plainPwdOpts.setOption(org.apache.cassandra.auth.IRoleManager.Option.PASSWORD, plainPwd);
-        hashedPwdOpts.setOption(org.apache.cassandra.auth.IRoleManager.Option.HASHED_PASSWORD, hashedPwd);
-    }
-
-    @Test
-    public void testSpecialCharsObfuscation()
-    {
-        assertEquals("ALTER ROLE testrole WITH HASHED PASSWORD = '" + OBFUSCATION_TOKEN + "'",
-                     obfuscate(format("ALTER ROLE testrole WITH HASHED PASSWORD = '%s'",hashedPwd), hashedPwdOpts));
+        opts.setOption(org.apache.cassandra.auth.IRoleManager.Option.PASSWORD, "testpassword");
     }
 
     @Test
@@ -55,13 +45,7 @@ public class PasswordObfuscatorTest
                      obfuscate("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '123'"));
 
         assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD = '" + hashedPwd + "'"));
-
-        assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD = '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD = '%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s'", optsPassword), opts));
     }
 
     @Test
@@ -71,20 +55,14 @@ public class PasswordObfuscatorTest
                      obfuscate("CREATE ROLE role1 WITH password = '123' AND LOGIN = true"));
 
         assertEquals(format("CREATE ROLE role1 WITH password = '%s' AND LOGIN = true", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH password = '%s' AND LOGIN = true", plainPwd), plainPwdOpts));
-
-        assertEquals(format("CREATE ROLE role1 WITH HASHED password %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH HASHED password = '%s' AND LOGIN = true", hashedPwd)));
-
-        assertEquals(format("CREATE ROLE role1 WITH HASHED password = '%s' AND LOGIN = true", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH HASHED password = '%s' AND LOGIN = true", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("CREATE ROLE role1 WITH password = '%s' AND LOGIN = true", optsPassword), opts));
     }
 
     @Test
     public void testCreateRoleWithoutPassword()
     {
         assertEquals("CREATE ROLE role1", obfuscate("CREATE ROLE role1"));
-        assertEquals("CREATE ROLE role1", obfuscate("CREATE ROLE role1", plainPwdOpts));
+        assertEquals("CREATE ROLE role1", obfuscate("CREATE ROLE role1", opts));
     }
 
     @Test
@@ -92,21 +70,13 @@ public class PasswordObfuscatorTest
     {
         assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD %s", OBFUSCATION_TOKEN),
                      obfuscate("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '123';" +
-                               "CREATE ROLE role2 WITH LOGIN = true AND PASSWORD = '123'"));
+                                                  "CREATE ROLE role2 WITH LOGIN = true AND PASSWORD = '123'"));
 
-        assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s';" +
-                            "CREATE ROLE role2 WITH LOGIN = true AND PASSWORD = '%s'", OBFUSCATION_TOKEN, OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s';" +
-                                      "CREATE ROLE role2 WITH LOGIN = true AND PASSWORD = '%s'", plainPwd, plainPwd), plainPwdOpts));
-
-        assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD = '%s';" +
-                               "CREATE ROLE role2 WITH LOGIN = true AND HASHED PASSWORD = '%s'", hashedPwd, hashedPwd)));
-
-        assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD = '%s';" +
-                            "CREATE ROLE role2 WITH LOGIN = true AND HASHED PASSWORD = '%s'", OBFUSCATION_TOKEN, OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND HASHED PASSWORD = '%s';" +
-                                      "CREATE ROLE role2 WITH LOGIN = true AND HASHED PASSWORD = '%s'", hashedPwd, hashedPwd), hashedPwdOpts));
+        assertEquals(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s';"
+                            + "CREATE ROLE role2 WITH LOGIN = true AND PASSWORD = '%s'", OBFUSCATION_TOKEN, OBFUSCATION_TOKEN),
+                     obfuscate(format("CREATE ROLE role1 WITH LOGIN = true AND PASSWORD = '%s';"
+                                                         + "CREATE ROLE role2 WITH LOGIN = true AND PASSWORD = '%s'", optsPassword, optsPassword),
+                                                  opts));
     }
 
     @Test
@@ -116,13 +86,7 @@ public class PasswordObfuscatorTest
                      obfuscate("ALTER ROLE role1 with PASSWORD = '123'"));
 
         assertEquals(format("ALTER ROLE role1 with PASSWORD = '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with PASSWORD = '%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("ALTER ROLE role1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with HASHED PASSWORD = '%s'", hashedPwd)));
-
-        assertEquals(format("ALTER ROLE role1 with HASHED PASSWORD = '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with HASHED PASSWORD = '%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("ALTER ROLE role1 with PASSWORD = '%s'", optsPassword), opts));
     }
 
     @Test
@@ -132,13 +96,7 @@ public class PasswordObfuscatorTest
                      obfuscate("ALTER ROLE role1 with PASSWORD='123'"));
 
         assertEquals(format("ALTER ROLE role1 with PASSWORD='%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with PASSWORD='%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("ALTER ROLE role1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with HASHED PASSWORD='%s'", hashedPwd)));
-
-        assertEquals(format("ALTER ROLE role1 with HASHED PASSWORD='%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with HASHED PASSWORD='%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("ALTER ROLE role1 with PASSWORD='%s'", optsPassword), opts));
     }
 
     @Test
@@ -148,13 +106,7 @@ public class PasswordObfuscatorTest
                      obfuscate("ALTER ROLE role1 with PASSWORD= '123'"));
 
         assertEquals(format("ALTER ROLE role1 with PASSWORD= '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with PASSWORD= '%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("ALTER ROLE role1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with HASHED PASSWORD= '%s'", hashedPwd)));
-
-        assertEquals(format("ALTER ROLE role1 with HASHED PASSWORD= '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER ROLE role1 with HASHED PASSWORD= '%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("ALTER ROLE role1 with PASSWORD= '%s'", optsPassword), opts));
     }
 
     @Test
@@ -162,9 +114,7 @@ public class PasswordObfuscatorTest
     {
         assertEquals("ALTER ROLE role1", obfuscate("ALTER ROLE role1"));
 
-        assertEquals("ALTER ROLE role1", obfuscate("ALTER ROLE role1", plainPwdOpts));
-
-        assertEquals("ALTER ROLE role1", obfuscate("ALTER ROLE role1", hashedPwdOpts));
+        assertEquals("ALTER ROLE role1", obfuscate("ALTER ROLE role1", opts));
     }
 
     @Test
@@ -174,13 +124,7 @@ public class PasswordObfuscatorTest
                      obfuscate("CREATE USER user1 with PASSWORD '123'"));
 
         assertEquals(format("CREATE USER user1 with PASSWORD '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE USER user1 with PASSWORD '%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("CREATE USER user1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE USER user1 with HASHED PASSWORD '%s'", hashedPwd)));
-
-        assertEquals(format("CREATE USER user1 with HASHED PASSWORD '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE USER user1 with HASHED PASSWORD '%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("CREATE USER user1 with PASSWORD '%s'", optsPassword), opts));
     }
 
     @Test
@@ -188,9 +132,7 @@ public class PasswordObfuscatorTest
     {
         assertEquals("CREATE USER user1", obfuscate("CREATE USER user1"));
 
-        assertEquals("CREATE USER user1", obfuscate("CREATE USER user1", plainPwdOpts));
-
-        assertEquals("CREATE USER user1", obfuscate("CREATE USER user1", hashedPwdOpts));
+        assertEquals("CREATE USER user1", obfuscate("CREATE USER user1", opts));
     }
 
     @Test
@@ -200,13 +142,7 @@ public class PasswordObfuscatorTest
                      obfuscate("ALTER USER user1 with PASSWORD '123'"));
 
         assertEquals(format("ALTER USER user1 with PASSWORD '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with PASSWORD '%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("ALTER USER user1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with HASHED PASSWORD '%s'", hashedPwd)));
-
-        assertEquals(format("ALTER USER user1 with HASHED PASSWORD '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with HASHED PASSWORD '%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("ALTER USER user1 with PASSWORD '%s'", optsPassword), opts));
     }
 
     @Test
@@ -216,13 +152,7 @@ public class PasswordObfuscatorTest
                      obfuscate("ALTER USER user1 with paSSwoRd '123'"));
 
         assertEquals(format("ALTER USER user1 with paSSwoRd '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with paSSwoRd '%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("ALTER USER user1 with HASHED paSSwoRd %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with HASHED paSSwoRd '%s'", hashedPwd)));
-
-        assertEquals(format("ALTER USER user1 with HASHED paSSwoRd '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with HASHED paSSwoRd '%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("ALTER USER user1 with paSSwoRd '%s'", optsPassword), opts));
     }
 
     @Test
@@ -232,13 +162,7 @@ public class PasswordObfuscatorTest
                      obfuscate("ALTER USER user1 with PASSWORD\n'123'"));
 
         assertEquals(format("ALTER USER user1 with PASSWORD\n'%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with PASSWORD\n'%s'", plainPwd), plainPwdOpts));
-
-        assertEquals(format("ALTER USER user1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with HASHED PASSWORD\n'%s'", hashedPwd)));
-
-        assertEquals(format("ALTER USER user1 with HASHED PASSWORD\n'%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("ALTER USER user1 with HASHED PASSWORD\n'%s'", hashedPwd), hashedPwdOpts));
+                     obfuscate(format("ALTER USER user1 with PASSWORD\n'%s'", optsPassword), opts));
     }
 
     @Test
@@ -251,12 +175,6 @@ public class PasswordObfuscatorTest
         newLinePassOpts.setOption(org.apache.cassandra.auth.IRoleManager.Option.PASSWORD, "test\npassword");
         assertEquals(String.format("CREATE USER user1 with PASSWORD '%s'", OBFUSCATION_TOKEN),
                      obfuscate(format("CREATE USER user1 with PASSWORD '%s'", "test\npassword"), newLinePassOpts));
-
-        assertEquals(String.format("CREATE USER user1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate("CREATE USER user1 with HASHED PASSWORD 'a\nb'"));
-
-        assertEquals(String.format("CREATE USER user1 with HASHED PASSWORD '%s'", OBFUSCATION_TOKEN),
-                     obfuscate(format("CREATE USER user1 with HASHED PASSWORD '%s'", "test\npassword"), newLinePassOpts));
     }
 
     @Test
@@ -269,12 +187,6 @@ public class PasswordObfuscatorTest
         emptyPassOpts.setOption(org.apache.cassandra.auth.IRoleManager.Option.PASSWORD, "");
         assertEquals("CREATE USER user1 with PASSWORD ''",
                      obfuscate("CREATE USER user1 with PASSWORD ''", emptyPassOpts));
-
-        assertEquals(String.format("CREATE USER user1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate("CREATE USER user1 with HASHED PASSWORD ''"));
-
-        assertEquals("CREATE USER user1 with HASHED PASSWORD ''",
-                     obfuscate("CREATE USER user1 with HASHED PASSWORD ''", emptyPassOpts));
     }
 
     @Test
@@ -282,9 +194,6 @@ public class PasswordObfuscatorTest
     {
         assertEquals(String.format("CREATE USER user1 with PASSWORD %s", OBFUSCATION_TOKEN),
                      obfuscate("CREATE USER user1 with PASSWORD 'p a ss wor d'"));
-
-        assertEquals(String.format("CREATE USER user1 with HASHED PASSWORD %s", OBFUSCATION_TOKEN),
-                     obfuscate("CREATE USER user1 with HASHED PASSWORD 'p a ss wor d'"));
     }
 
     @Test
@@ -302,23 +211,8 @@ public class PasswordObfuscatorTest
                             "APPLY BATCH;", OBFUSCATION_TOKEN),
                      obfuscate(format("BEGIN BATCH \n" +
                                       "    CREATE ROLE alice1 WITH PASSWORD = '%s' and LOGIN = true; \n" +
-                                      "APPLY BATCH;", plainPwd),
-                               plainPwdOpts));
-
-        assertEquals(format("BEGIN BATCH \n" +
-                            "    CREATE ROLE alice1 WITH HASHED PASSWORD %s",
-                            OBFUSCATION_TOKEN),
-                     obfuscate("BEGIN BATCH \n" +
-                               "    CREATE ROLE alice1 WITH HASHED PASSWORD = '" + hashedPwd + "' and LOGIN = true; \n" +
-                               "APPLY BATCH;"));
-
-        assertEquals(format("BEGIN BATCH \n" +
-                            "    CREATE ROLE alice1 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
-                            "APPLY BATCH;", OBFUSCATION_TOKEN),
-                     obfuscate(format("BEGIN BATCH \n" +
-                          "    CREATE ROLE alice1 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
-                          "APPLY BATCH;", hashedPwd),
-                               hashedPwdOpts));
+                                      "APPLY BATCH;", optsPassword),
+                               opts));
     }
 
     @Test
@@ -340,26 +234,7 @@ public class PasswordObfuscatorTest
                      obfuscate(format("BEGIN BATCH \n" +
                                       "    CREATE ROLE alice1 WITH PASSWORD = '%s' and LOGIN = true; \n" +
                                       "    CREATE ROLE alice2 WITH PASSWORD = '%s' and LOGIN = true; \n" +
-                                      "APPLY BATCH;", plainPwd, plainPwd),
-                               plainPwdOpts));
-
-        assertEquals(format("BEGIN BATCH \n" +
-                            "    CREATE ROLE alice1 WITH HASHED PASSWORD %s",
-                            OBFUSCATION_TOKEN),
-                     obfuscate("BEGIN BATCH \n" +
-                               "    CREATE ROLE alice1 WITH HASHED PASSWORD = '" + hashedPwd + "' and LOGIN = true; \n" +
-                               "    CREATE ROLE alice2 WITH HASHED PASSWORD = '" + hashedPwd + "' and LOGIN = true; \n" +
-                               "APPLY BATCH;"));
-
-        assertEquals(format("BEGIN BATCH \n" +
-                            "    CREATE ROLE alice1 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
-                            "    CREATE ROLE alice2 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
-                            "APPLY BATCH;"
-                            , OBFUSCATION_TOKEN, OBFUSCATION_TOKEN),
-                     obfuscate(format("BEGIN BATCH \n" +
-                                      "    CREATE ROLE alice1 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
-                                      "    CREATE ROLE alice2 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
-                                      "APPLY BATCH;", hashedPwd, hashedPwd),
-                               hashedPwdOpts));
+                                      "APPLY BATCH;", optsPassword, optsPassword),
+                               opts));
     }
 }
