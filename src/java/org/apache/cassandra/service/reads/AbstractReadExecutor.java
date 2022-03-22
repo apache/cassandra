@@ -370,10 +370,15 @@ public abstract class AbstractReadExecutor
         this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().readCandidates().endpointList());
     }
 
+    public void awaitResponses() throws ReadTimeoutException
+    {
+        awaitResponses(false);
+    }
+
     /**
      * Wait for the CL to be satisfied by responses
      */
-    public void awaitResponses() throws ReadTimeoutException
+    public void awaitResponses(boolean logBlockingReadRepairAttempt) throws ReadTimeoutException
     {
         try
         {
@@ -401,6 +406,13 @@ public abstract class AbstractReadExecutor
         {
             Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
             readRepair.startRepair(digestResolver, this::setResult);
+            if (logBlockingReadRepairAttempt)
+            {
+                logger.info("Blocking Read Repair triggered for query [{}] at CL.{} with endpoints {}",
+                            command.toCQLString(),
+                            replicaPlan().consistencyLevel(),
+                            replicaPlan().contacts());
+            }
         }
     }
 

@@ -91,6 +91,8 @@ public interface StorageProxyMBean
     public String getIdealConsistencyLevel();
     public String setIdealConsistencyLevel(String cl);
 
+    public void logBlockingReadRepairAttemptsForNSeconds(int seconds);
+
     /**
      * Tracking and reporting of variances in the repaired data set across replicas at read time
      */

@@ -194,6 +194,8 @@ public class StorageProxy implements StorageProxyMBean
 
     private static final PartitionDenylist partitionDenylist = new PartitionDenylist();
 
+    private volatile long logBlockingReadRepairAttemptsUntil = Long.MIN_VALUE;
+
     private StorageProxy()
     {
     }
@@ -2058,9 +2060,10 @@ public class StorageProxy implements StorageProxyMBean
 
         // wait for enough responses to meet the consistency level. If there's a digest mismatch, begin the read
         // repair process by sending full data reads to all replicas we received responses from.
+        boolean logBlockingRepairAttempts = currentTimeMillis() <= StorageProxy.instance.logBlockingReadRepairAttemptsUntil;
         for (int i=0; i<cmdCount; i++)
         {
-            reads[i].awaitResponses();
+            reads[i].awaitResponses(logBlockingRepairAttempts);
         }
 
         // read repair - if it looks like we may not receive enough full data responses to meet CL, send
@@ -2747,6 +2750,12 @@ public class StorageProxy implements StorageProxyMBean
         ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase());
         DatabaseDescriptor.setIdealConsistencyLevel(newCL);
         return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
+    }
+
+    @Override
+    public void logBlockingReadRepairAttemptsForNSeconds(int seconds)
+    {
+        logBlockingReadRepairAttemptsUntil = currentTimeMillis() + TimeUnit.SECONDS.toMillis(seconds);
     }
 
     @Deprecated
