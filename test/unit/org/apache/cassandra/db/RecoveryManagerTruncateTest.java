@@ -29,6 +29,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogReplayer;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
@@ -93,7 +95,7 @@ public class RecoveryManagerTruncateTest
     public void testTruncate() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
         // add a single cell
         new RowUpdateBuilder(cfs.metadata(), 0, "key1")
@@ -112,5 +114,107 @@ public class RecoveryManagerTruncateTest
 
         // and validate truncation.
         Util.assertEmptyUnfiltered(Util.cmd(cfs).build());
+    }
+
+    @Test
+    public void testTruncateWithReplay() throws IOException
+    {
+        // Tests that a the recovery (commitlog replay) in combination with a truncate operation works.
+        //
+        // Test procedure:
+        // 1. add two mutations
+        // 2. perform truncate
+        // 3. add another mutation
+        // 4. replay CL - there must be exactly one replayed mutation and two skipped mutations
+        // 5. truncate again
+        // 6. replay CL - since there was no activity on the CL, there should be no segments and nothing being replayed or skipped
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+
+        // add some data
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+        .clustering("cc")
+        .add("val", "val1")
+        .build()
+        .apply();
+        new RowUpdateBuilder(cfs.metadata(), 0, "key2")
+        .clustering("dd")
+        .add("val", "val2")
+        .build()
+        .apply();
+
+        // Make sure data was written
+        assertEquals(2, Util.getAll(Util.cmd(cfs).build()).size());
+
+        // and now truncate it
+        cfs.truncateBlocking();
+
+        // add another single cell
+        new RowUpdateBuilder(cfs.metadata(), 0, "key3")
+        .clustering("ee")
+        .add("val", "val3")
+        .build()
+        .apply();
+
+        CommitLogReplayer.MutationInitiator originalInitiator = CommitLogReplayer.mutationInitiator;
+        FilteringInitiator filteringInitiator = new FilteringInitiator();
+        CommitLogReplayer.mutationInitiator = filteringInitiator;
+        try
+        {
+            // Expect exactly three records, only one replayed (the 3rd row-update above)
+            CommitLog.instance.resetUnsafe(false);
+            assertEquals(1, filteringInitiator.replayed);
+            assertEquals(2, filteringInitiator.skipped);
+
+            // and validate truncation.
+            assertEquals(1, Util.getAll(Util.cmd(cfs).build()).size());
+
+            filteringInitiator.reset();
+
+            // another truncate
+            cfs.truncateBlocking();
+
+            // No replayed mutations this time
+            CommitLog.instance.resetUnsafe(false);
+            assertEquals(0, filteringInitiator.replayed);
+            assertEquals(0, filteringInitiator.skipped);
+        }
+        finally
+        {
+            CommitLogReplayer.mutationInitiator = originalInitiator;
+        }
+
+        // and validate truncation.
+        assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
+    }
+
+    private static class FilteringInitiator extends CommitLogReplayer.MutationInitiator
+    {
+        volatile int replayed;
+        volatile int skipped;
+
+        @Override
+        protected void onReplayed(PartitionUpdate update)
+        {
+            if (KEYSPACE1.equals(update.metadata().keyspace))
+            {
+                replayed++;
+            }
+        }
+
+        @Override
+        protected void onSkipped(PartitionUpdate update)
+        {
+            if (KEYSPACE1.equals(update.metadata().keyspace))
+            {
+                skipped++;
+            }
+        }
+
+        public void reset()
+        {
+            replayed = skipped = 0;
+        }
     }
 }
