@@ -208,8 +208,24 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // if running as vnode but test sets disallowVNodes(), then skip the test
             // AbstractCluster.createInstanceConfig has similar logic, but handles the cases where the test
             // attempts to control tokens via config
-            Assume.assumeFalse("vnode is not supported", !isAllowVnodes() && getTokenCount() > 1);
+            Assume.assumeFalse("vnode is not supported", !isAllowVnodes() && isVnode());
+
+            // when token supplier is defined, use this to see if vnodes is supported or not
+            // if token count > 1 and isVnode, then good
+            // if token count == 1 and isVnode == false, then good
+            if (isVnode())
+                Assume.assumeTrue("no-vnode is requested but not supported", getTokenCount() > 1);
+            else
+                Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
             return super.createWithoutStarting();
+        }
+
+        private boolean isVnode()
+        {
+            TokenSupplier ts = getTokenSupplier();
+            return ts == null
+                   ? getTokenCount() > 1 // token supplier wasn't defined yet, so rely on getTokenCount()
+                   : ts.tokens(1).size() > 1; // token supplier is defined... check the first instance to see what tokens are used
         }
     }
 
@@ -535,6 +551,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
         // if a test sets num_tokens directly, then respect it and only run if vnode or no-vnode is defined
         int defaultTokenCount = config.getInt("num_tokens");
+        assert tokens.size() == defaultTokenCount : String.format("num_tokens=%d but tokens are %s; size does not match", defaultTokenCount, tokens);
         String defaultTokens = config.getString("initial_token");
         if (configUpdater != null)
         {
