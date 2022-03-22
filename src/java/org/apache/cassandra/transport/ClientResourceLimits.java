@@ -61,12 +61,12 @@ public class ClientResourceLimits
 
     public static long getGlobalLimit()
     {
-        return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes();
+        return DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightInBytes();
     }
 
     public static void setGlobalLimit(long newLimit)
     {
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(newLimit);
+        DatabaseDescriptor.setNativeTransportConcurrentRequestDataInFlightInBytes(newLimit);
         long existingLimit = GLOBAL_LIMIT.setLimit(getGlobalLimit());
         logger.info("Changed native_max_transport_requests_in_bytes from {} to {}", existingLimit, newLimit);
     }
@@ -78,13 +78,13 @@ public class ClientResourceLimits
 
     public static long getEndpointLimit()
     {
-        return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
+        return DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightPerIpInBytes();
     }
 
     public static void setEndpointLimit(long newLimit)
     {
-        long existingLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(newLimit); // ensure new instances get the new limit
+        long existingLimit = DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightPerIpInBytes();
+        DatabaseDescriptor.setNativeTransportMaxRequestDataInFlightPerIpInBytes(newLimit); // ensure new instances get the new limit
         for (Allocator allocator : PER_ENDPOINT_ALLOCATORS.values())
             existingLimit = allocator.endpointAndGlobal.endpoint().setLimit(newLimit);
         logger.info("Changed native_max_transport_requests_in_bytes_per_ip from {} to {}", existingLimit, newLimit);

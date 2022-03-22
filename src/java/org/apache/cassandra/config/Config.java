@@ -77,19 +77,19 @@ public class Config
     public volatile SmallestDurationMilliseconds permissions_validity = new SmallestDurationMilliseconds("2s");
     public volatile int permissions_cache_max_entries = 1000;
     @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public volatile SmallestDurationMilliseconds permissions_update_interval = new SmallestDurationMilliseconds("0ms");
+    public volatile SmallestDurationMilliseconds permissions_update_interval = null;
     public volatile boolean permissions_cache_active_update = false;
     @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
     public volatile SmallestDurationMilliseconds roles_validity = new SmallestDurationMilliseconds("2s");
     public volatile int roles_cache_max_entries = 1000;
     @Replaces(oldName = "roles_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public volatile SmallestDurationMilliseconds roles_update_interval= new SmallestDurationMilliseconds("0ms");
+    public volatile SmallestDurationMilliseconds roles_update_interval = null;
     public volatile boolean roles_cache_active_update = false;
     @Replaces(oldName = "credentials_validity_in_ms", converter = Converters.MILLIS_DURATION, deprecated = true)
     public volatile SmallestDurationMilliseconds credentials_validity = new SmallestDurationMilliseconds("2s");
     public volatile int credentials_cache_max_entries = 1000;
     @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public volatile SmallestDurationMilliseconds credentials_update_interval= new SmallestDurationMilliseconds("0ms");
+    public volatile SmallestDurationMilliseconds credentials_update_interval = null;
     public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
@@ -257,12 +257,16 @@ public class Config
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
-    public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
-    public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    // Below 2 parameters were fixed in 4.0 + to get default value when ==-1 (old name and value format) or ==null(new name and value format),
+    // not <=0 as it is in previous versions. Throwing config exceptions on < -1
+    @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes_per_ip", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
+    public volatile DataStorageSpec native_transport_max_request_data_in_flight_per_ip = null;
+    @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
+    public volatile DataStorageSpec native_transport_max_request_data_in_flight = null;
     public volatile boolean native_transport_rate_limiting_enabled = false;
     public volatile int native_transport_max_requests_per_second = 1000000;
-    // not exposed in the yaml
-    public int native_transport_receive_queue_capacity_in_bytes = 1 << 20; // 1MiB
+    @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec native_transport_receive_queue_capacity = new DataStorageSpec("1MiB");
 
     @Deprecated
     public Integer native_transport_max_negotiable_protocol_version = null;
@@ -425,7 +429,7 @@ public class Config
 
     public SmallestDataStorageMebibytes paxos_cache_size = null;
 
-    @Replaces(oldName = "cache_load_timeout_seconds ", converter = Converters.SECONDS_DURATION, deprecated = true)
+    @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.SECONDS_DURATION, deprecated = true)
     public SmallestDurationSeconds cache_load_timeout = new SmallestDurationSeconds("30s");
 
     private static boolean isClientMode = false;
@@ -565,19 +569,17 @@ public class Config
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    //TO DO: transfer below parameter to the new config framework (DurationSpec)
-    //Below parameter is in ms
-    public long user_defined_function_warn_timeout = 500;
+    @Replaces(oldName = "user_defined_function_warn_timeout", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds user_defined_functions_warn_timeout = new SmallestDurationMilliseconds("500ms");
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
      * user_function_timeout_policy will take place.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    //TO DO: transfer below parameter to the new config framework (DurationSpec)
-    //Below parameter is in ms
-    public long user_defined_function_fail_timeout = 1500;
+    @Replaces(oldName = "user_defined_function_fail_timeout", converter = Converters.MILLIS_DURATION, deprecated = true)
+    public SmallestDurationMilliseconds user_defined_functions_fail_timeout = new SmallestDurationMilliseconds("1500ms");
     /**
-     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout.
+     * Defines what to do when a UDF ran longer than user_defined_functions_fail_timeout.
      * Possible options are:
      * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
      * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).
@@ -660,11 +662,13 @@ public class Config
     public volatile boolean snapshot_on_repaired_data_mismatch = false;
 
     /**
-     * number of seconds to set nowInSec into the future when performing validation previews against repaired data
+     * Number of seconds to set nowInSec into the future when performing validation previews against repaired data
      * this (attempts) to prevent a race where validations on different machines are started on different sides of
      * a tombstone being compacted away
      */
-    public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
+
+    @Replaces(oldName = "validation_preview_purge_head_start_in_sec", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
+    public volatile SmallestDurationSeconds validation_preview_purge_head_start = new SmallestDurationSeconds("3600s");
 
     public boolean auth_cache_warming_enabled = false;
 

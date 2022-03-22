@@ -60,7 +60,7 @@ final class SettingsTable extends AbstractVirtualTable
 
     // CASSANDRA-15234 - a few configuration parameters kept their names but added unit to their value, only the
     // new value format is displayed for them
-    private final List<String> EXCLUDED_CONFIG = new ArrayList<String>()
+    private static final List<String> EXCLUDED_CONFIG = new ArrayList<String>()
     {
         {
             add("key_cache_save_period");

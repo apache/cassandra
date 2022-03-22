@@ -72,7 +72,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testInvalidValue()
     {
-        assertSetInvalidColumnIndexSize("2097152", "column_index_size must be positive value < 2097151B, but was 2147483648B", 2);
+        assertSetInvalidColumnIndexSize("2097152", "column_index_size must be positive value <= 2147483647B, but was 2147483648B", 2);
     }
 
     @Test

@@ -41,8 +41,8 @@ Accepted units: seconds, minutes, hours, days.
 
 Why was this needed?
 Because we can run into precision issues. The full solution to the problem is to convert internally all parameters’ values
-to be manipulated with the smallest supported by Cassandra unit. A series of tickets to assess and migrate to the smallest unit
-our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSANDRA-15234[CASSANDRA-15234]) will be opened soon.
+to be manipulated with the smallest supported by Cassandra unit. A series of tickets to assess and maybe migrate to the smallest unit
+our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSANDRA-15234[CASSANDRA-15234]) will be opened in the future.
 
 
 [cols=",,",options="header",]
@@ -51,7 +51,6 @@ our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSAN
 |permissions_validity_in_ms |permissions_validity |ms
 |permissions_update_interval_in_ms |permissions_update_interval |ms
 |roles_validity_in_ms |roles_validity |ms
-|roles_update_interval_in_ms |roles_update_interval |ms
 |roles_update_interval_in_ms |roles_update_interval |ms
 |credentials_validity_in_ms |credentials_validity |ms
 |credentials_update_interval_in_ms |credentials_update_interval |ms
@@ -131,9 +130,12 @@ our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSAN
 |enable_drop_compact_storage |drop_compact_storage_enabled |-
 |enable_user_defined_functions_threads |user_defined_functions_threads_enabled |-
 |enable_legacy_ssl_storage_port |legacy_ssl_storage_port_enabled |-
+|user_defined_function_fail_timeout |user_defined_functions_fail_timeout |ms
+|user_defined_function_warn_timeout |user_defined_functions_warn_timeout |ms
+|cache_load_timeout_seconds |cache_load_timeout |s
 |===
 
-Another TO DO is to add JMX methods supporting the new format. However, we may abandon this if virtual tables support for
+Another TO DO is to add JMX methods supporting the new format. However, we may abandon this if virtual tables support
 configuration changes in the near future.
 
 *Notes for Cassandra Developers*:
@@ -155,7 +157,9 @@ If the parameter is of type duration, data rate or data storage, its value shoul
 - If for some reason you consider the smallest unit shouldn’t be the one that is supported as such in Cassandra, please,
 use the extended classes `SmallestDuration*`, `SmallestDataStorage*`.
 
-- New parameters should be added as non-negative numbers.
+- New parameters should be added as non-negative numbers. For parameters where you would have set -1 to disable in the past, you might
+want to consider a separate flag parameter or null value. In case you use the null value, please, ensure that any default value
+introduced in the DatabaDescriptor to handle it is also duplicated in any related setters.
 
 - Any time you add @Replaces with a name change, we need to add an entry in this https://github.com/riptano/ccm/blob/808b6ca13526785b0fddfe1ead2383c060c4b8b6/ccmlib/common.py#L62[Python dictionary in CCM] to support the same backward compatibility as SnakeYAML.
 

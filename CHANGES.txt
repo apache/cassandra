@@ -1,4 +1,9 @@
 4.1
+ * Migrate advanced config parameters to the new Config types (CASSANDRA-17431)
+ * Make null to be meaning disabled and leave 0 as a valid value for permissions_update_interval, roles_update_interval, credentials_update_interval (CASSANDRA-17431)
+ * Fix typo in Config annotation (CASSANDRA-17431)
+ * Made Converters type safe and fixed a few cases where converters used the wrong type (CASSANDRA-17431)
+ * Fix null bug in DataStorageSpec and DurationSpec and require units to be added when providing 0 value (CASSANDRA-17431)
  * Shutdown ScheduledExecutors as part of node drainage (CASSANDRA-17493)
  * Provide JMX endpoint to allow transient logging of blocking read repairs (CASSANDRA-17471)
  * Add guardrail for GROUP BY queries (CASSANDRA-17509)

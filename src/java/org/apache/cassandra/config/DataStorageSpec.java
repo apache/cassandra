@@ -57,13 +57,6 @@ public class DataStorageSpec
 
     public DataStorageSpec(String value)
     {
-        if (value == null || value.equals("null"))
-        {
-            quantity = 0;
-            unit = MEBIBYTES; // the unit doesn't really matter as 0 is 0 in all units
-            return;
-        }
-
         //parse the string field value
         Matcher matcher = STORAGE_UNITS_PATTERN.matcher(value);
 
@@ -88,13 +81,6 @@ public class DataStorageSpec
 
     public DataStorageSpec (String value, DataStorageUnit minUnit)
     {
-        if (value == null || value.equals("null") || value.equals("0"))
-        {
-            quantity = 0;
-            unit = minUnit;
-            return;
-        }
-
         if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
             throw new ConfigurationException("Invalid smallest unit set for " + value);
 
