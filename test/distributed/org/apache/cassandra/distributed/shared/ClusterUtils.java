@@ -628,6 +628,17 @@ public class ClusterUtils
     }
 
     /**
+     * Get the number of tokens for the instance via config.
+     *
+     * @param instance to get token count from
+     * @return number of tokens
+     */
+    public static int getTokenCount(IInvokableInstance instance)
+    {
+        return instance.config().getInt("num_tokens");
+    }
+
+    /**
      * Get all data directories for the given instance.
      *
      * @param instance to get data directories for

@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
@@ -266,6 +267,7 @@ public class PreviewRepairTest extends TestBaseImpl
         ExecutorService es = Executors.newSingleThreadExecutor();
         try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
         {
+            int tokenCount = ClusterUtils.getTokenCount(cluster.get(1));
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
 
             insert(cluster.coordinator(1), 0, 100);
@@ -289,7 +291,7 @@ public class PreviewRepairTest extends TestBaseImpl
                 return res;
             });
 
-            assertEquals(2, localRanges.size());
+            assertEquals(2 * tokenCount, localRanges.size());
             Future<RepairResult> repairStatusFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true, false, localRanges.get(0)))));
             previewRepairStarted.await(); // wait for node1 to start validation compaction
             // this needs to finish before the preview repair is unpaused on node2
@@ -318,6 +320,7 @@ public class PreviewRepairTest extends TestBaseImpl
                                                                      .with(NETWORK))
                                           .start()))
         {
+            int tokenCount = ClusterUtils.getTokenCount(cluster.get(1));
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
             insert(cluster.coordinator(1), 0, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
@@ -341,7 +344,7 @@ public class PreviewRepairTest extends TestBaseImpl
                 return res;
             });
 
-            assertEquals(2, localRanges.size());
+            assertEquals(2 * tokenCount, localRanges.size());
             String [] previewedRange = localRanges.get(0).split(":");
             String [] repairedRange = localRanges.get(1).split(":");
             Future<NodeToolResult> repairStatusFuture = es.submit(() -> cluster.get(1).nodetoolResult("repair", "-st", repairedRange[0], "-et", repairedRange[1], KEYSPACE, "tbl"));

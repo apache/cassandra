@@ -202,9 +202,8 @@ public class RepairTest extends TestBaseImpl
         // The test uses its own keyspace with rf == 2
         String forceRepairKeyspace = "test_force_repair_keyspace";
         int rf = 2;
+        int tokenCount = ClusterUtils.getTokenCount(cluster.get(1));
         cluster.schemaChange("CREATE KEYSPACE " + forceRepairKeyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-
-        int numTokens = cluster.get(1).config().getInt("num_tokens");
 
         try
         {
@@ -214,9 +213,9 @@ public class RepairTest extends TestBaseImpl
                 Set<String> requestedRanges = row.getSet("requested_ranges");
                 Assert.assertNotNull("Found no successful ranges", successfulRanges);
                 Assert.assertNotNull("Found no requested ranges", requestedRanges);
-                Assert.assertEquals("Requested ranges count should equals to replication factor", rf * numTokens, requestedRanges.size());
-                Assert.assertTrue("Given clusterSize = 3, RF = 2 and 1 node down in the replica set, it should yield only " + numTokens + " successful repaired range.",
-                                  successfulRanges.size() == numTokens && !successfulRanges.contains("")); // the successful ranges set should not only contain empty string
+                Assert.assertEquals("Requested ranges count should equals to replication factor", rf * tokenCount, requestedRanges.size());
+                Assert.assertTrue("Given clusterSize = 3, RF = 2 and 1 node down in the replica set, it should yield only " + tokenCount + " successful repaired range.",
+                                  successfulRanges.size() == tokenCount && !successfulRanges.contains("")); // the successful ranges set should not only contain empty string
             });
         }
         finally
