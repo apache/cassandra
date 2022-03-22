@@ -110,6 +110,7 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Upgrade jackson to 2.13.2 (CASSANDRA-17460)
  * Make sstableloader honour native port option (CASSANDRA-17210)
  * Reject snapshot names with special character (CASSANDRA-15297)
  * Fix ObjectSizes implementation and usages (CASSANDRA-17402)
