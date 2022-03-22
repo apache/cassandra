@@ -68,7 +68,8 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @AfterClass
     public static void teardown()
     {
-        cluster.close();
+        if (cluster != null)
+            cluster.close();
     }
 
     @Test
