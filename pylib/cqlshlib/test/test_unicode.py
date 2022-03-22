@@ -18,7 +18,7 @@
 import os
 
 from .basecase import BaseTestCase
-from .cassconnect import (get_cassandra_connection, create_keyspace, testrun_cqlsh)
+from .cassconnect import (get_cassandra_connection, create_keyspace, remove_db, testrun_cqlsh)
 
 
 class TestCqlshUnicode(BaseTestCase):
@@ -33,6 +33,10 @@ class TestCqlshUnicode(BaseTestCase):
         env = os.environ.copy()
         env['LC_CTYPE'] = 'UTF-8'
         cls.default_env = env
+
+    @classmethod
+    def tearDownClass(cls):
+        remove_db()
 
     def test_unicode_value_round_trip(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
