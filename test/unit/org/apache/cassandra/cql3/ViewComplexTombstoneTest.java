@@ -102,7 +102,7 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
             ColumnFamilyStore cfs = ks.getColumnFamilyStore(currentView());
             List<String> sstables = cfs.getLiveSSTables()
                                        .stream()
-                                       .sorted(Comparator.comparing(s -> s.descriptor.generation, SSTableIdFactory.COMPARATOR))
+                                       .sorted(Comparator.comparing(s -> s.descriptor.id, SSTableIdFactory.COMPARATOR))
                                        .map(SSTableReader::getFilename)
                                        .collect(Collectors.toList());
             String dataFiles = String.join(",", Arrays.asList(sstables.get(1), sstables.get(2)));

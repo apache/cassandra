@@ -273,7 +273,7 @@ public class CompactionsTest
         assertEquals(1, sstables.size());
         SSTableReader sstable = sstables.iterator().next();
 
-        SSTableId prevGeneration = sstable.descriptor.generation;
+        SSTableId prevGeneration = sstable.descriptor.id;
         String file = new File(sstable.descriptor.filenameFor(Component.DATA)).absolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
@@ -285,7 +285,7 @@ public class CompactionsTest
         // CF should have only one sstable with generation number advanced
         sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
-        assertThat(SSTableIdFactory.COMPARATOR.compare(prevGeneration, sstables.iterator().next().descriptor.generation)).isLessThan(0);
+        assertThat(SSTableIdFactory.COMPARATOR.compare(prevGeneration, sstables.iterator().next().descriptor.id)).isLessThan(0);
     }
 
     public static void writeSSTableWithRangeTombstoneMaskingOneColumn(ColumnFamilyStore cfs, TableMetadata table, int[] dks) {

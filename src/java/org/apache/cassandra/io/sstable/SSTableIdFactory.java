@@ -69,7 +69,7 @@ public class SSTableIdFactory
     @SuppressWarnings("unchecked")
     public SSTableId.Builder<SSTableId> defaultBuilder()
     {
-        SSTableId.Builder<? extends SSTableId> builder = DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled()
+        SSTableId.Builder<? extends SSTableId> builder = DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled()
                                                          ? UUIDBasedSSTableId.Builder.instance
                                                          : SequenceBasedSSTableId.Builder.instance;
         return (SSTableId.Builder<SSTableId>) builder;

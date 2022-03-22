@@ -460,7 +460,7 @@ public class CompactionStrategyManagerTest
         int firstKey = Integer.parseInt(new String(ByteBufferUtil.getArray(reader.first.getKey())));
         while (boundaries[index] <= firstKey)
             index++;
-        logger.debug("Index for SSTable {} on boundary {} is {}", reader.descriptor.generation, Arrays.toString(boundaries), index);
+        logger.debug("Index for SSTable {} on boundary {} is {}", reader.descriptor.id, Arrays.toString(boundaries), index);
         return index;
     }
 

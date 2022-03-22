@@ -77,7 +77,7 @@ class LeveledGenerations
     private static final Comparator<SSTableReader> nonL0Comparator = (o1, o2) -> {
         int cmp = SSTableReader.sstableComparator.compare(o1, o2);
         if (cmp == 0)
-            cmp = SSTableIdFactory.COMPARATOR.compare(o1.descriptor.generation, o2.descriptor.generation);
+            cmp = SSTableIdFactory.COMPARATOR.compare(o1.descriptor.id, o2.descriptor.id);
         return cmp;
     };
 

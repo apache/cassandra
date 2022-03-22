@@ -839,8 +839,8 @@ public class Util
     {
         LifecycleTransaction.waitForDeletions();
         assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
-        Set<SSTableId> liveGenerations = cfs.getLiveSSTables().stream()
-                                            .map(sstable -> sstable.descriptor.generation)
+        Set<SSTableId> liveIdentifiers = cfs.getLiveSSTables().stream()
+                                            .map(sstable -> sstable.descriptor.id)
                                             .collect(Collectors.toSet());
         int fileCount = 0;
         for (File f : cfs.getDirectories().getCFDirectories())
@@ -850,7 +850,7 @@ public class Util
                 if (sst.name().contains("Data"))
                 {
                     Descriptor d = Descriptor.fromFilename(sst.absolutePath());
-                    assertTrue(liveGenerations.contains(d.generation));
+                    assertTrue(liveIdentifiers.contains(d.id));
                     fileCount++;
                 }
             }

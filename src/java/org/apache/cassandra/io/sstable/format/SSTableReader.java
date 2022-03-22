@@ -169,8 +169,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static final Comparator<SSTableReader> sstableComparator = (o1, o2) -> o1.first.compareTo(o2.first);
 
-    public static final Comparator<SSTableReader> generationComparator = Comparator.comparing(t -> t.descriptor.generation, SSTableIdFactory.COMPARATOR);
-    public static final Comparator<SSTableReader> generationReverseComparator = generationComparator.reversed();
+    public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
+    public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();
 
     public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
 
@@ -2102,7 +2102,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 @Override
                 public String toString()
                 {
-                    return "Tidy " + descriptor.ksname + '.' + descriptor.cfname + '-' + descriptor.generation;
+                    return "Tidy " + descriptor.ksname + '.' + descriptor.cfname + '-' + descriptor.id;
                 }
             });
         }
@@ -2164,7 +2164,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 return;
             }
 
-            readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+            readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
             // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
             readMeterSyncFuture = new WeakReference<>(syncExecutor.scheduleAtFixedRate(new Runnable()
             {
@@ -2173,7 +2173,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     if (obsoletion == null)
                     {
                         meterSyncThrottle.acquire();
-                        SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
+                        SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.id, readMeter);
                     }
                 }
             }, 1, 5, TimeUnit.MINUTES));

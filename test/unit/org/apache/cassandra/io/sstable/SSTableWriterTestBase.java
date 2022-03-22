@@ -130,7 +130,7 @@ public class SSTableWriterTestBase extends SchemaLoader
         {
             assertFalse(sstable.isMarkedCompacted());
             assertEquals(1, sstable.selfRef().globalCount());
-            liveDescriptors.add(sstable.descriptor.generation);
+            liveDescriptors.add(sstable.descriptor.id);
             spaceUsed += sstable.bytesOnDisk();
         }
         for (File dir : cfs.getDirectories().getCFDirectories())
@@ -140,7 +140,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                 if (f.name().contains("Data"))
                 {
                     Descriptor d = Descriptor.fromFilename(f.absolutePath());
-                    assertTrue(d.toString(), liveDescriptors.contains(d.generation));
+                    assertTrue(d.toString(), liveDescriptors.contains(d.id));
                 }
             }
         }

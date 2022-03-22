@@ -96,7 +96,7 @@ public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBas
         private final static Pattern PATTERN = Pattern.compile("\\d+");
 
         /**
-         * Generates a sequential number to represent an sstables 'generation'. The first generated identifier will be
+         * Generates a sequential number to represent an sstables identifier. The first generated identifier will be
          * greater by one than the largest generation number found across the provided existing identifiers.
          */
         @Override

@@ -4092,8 +4092,8 @@ public class DatabaseDescriptor
         }
     }
 
-    public static boolean isUUIDGenerationIdentifiersEnabled()
+    public static boolean isUUIDSSTableIdentifiersEnabled()
     {
-        return conf.enable_uuid_generation_identifiers;
+        return conf.enable_uuid_sstable_identifiers;
     }
 }

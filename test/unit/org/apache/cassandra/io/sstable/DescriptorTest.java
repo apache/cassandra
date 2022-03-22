@@ -103,7 +103,7 @@ public class DescriptorTest
         assertEquals(original.ksname, desc.ksname);
         assertEquals(original.cfname, desc.cfname);
         assertEquals(original.version, desc.version);
-        assertEquals(original.generation, desc.generation);
+        assertEquals(original.id, desc.id);
         assertEquals(Component.DATA, pair.right);
     }
 

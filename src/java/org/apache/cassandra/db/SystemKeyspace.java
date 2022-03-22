@@ -1438,12 +1438,12 @@ public final class SystemKeyspace
      * from values in system.sstable_activity if present.
      * @param keyspace the keyspace the sstable belongs to
      * @param table the table the sstable belongs to
-     * @param generation the generation id for the sstable
+     * @param id the generation id for the sstable
      */
-    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId generation)
+    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
         String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
-        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, generation.asBytes());
+        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.asBytes());
 
         if (results.isEmpty())
             return new RestorableMeter();
@@ -1457,18 +1457,18 @@ public final class SystemKeyspace
     /**
      * Writes the current read rates for a given SSTable to system.sstable_activity
      */
-    public static void persistSSTableReadMeter(String keyspace, String table, SSTableId generation, RestorableMeter meter)
+    public static void persistSSTableReadMeter(String keyspace, String table, SSTableId id, RestorableMeter meter)
     {
         // Store values with a one-day TTL to handle corner cases where cleanup might not occur
         String cql = "INSERT INTO system.%s (keyspace_name, table_name, id, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2),
                         keyspace,
                         table,
-                        generation.asBytes(),
+                        id.asBytes(),
                         meter.fifteenMinuteRate(),
                         meter.twoHourRate());
 
-        if (!DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled() && generation instanceof SequenceBasedSSTableId)
+        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && id instanceof SequenceBasedSSTableId)
         {
             // we do this in order to make it possible to downgrade until we swtich in cassandra.yaml to UUID based ids
             // see the discussion on CASSANDRA-17048
@@ -1476,7 +1476,7 @@ public final class SystemKeyspace
             executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY),
                             keyspace,
                             table,
-                            ((SequenceBasedSSTableId) generation).generation,
+                            ((SequenceBasedSSTableId) id).generation,
                             meter.fifteenMinuteRate(),
                             meter.twoHourRate());
         }
@@ -1485,16 +1485,16 @@ public final class SystemKeyspace
     /**
      * Clears persisted read rates from system.sstable_activity for SSTables that have been deleted.
      */
-    public static void clearSSTableReadMeter(String keyspace, String table, SSTableId generation)
+    public static void clearSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
         String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND table_name=? and id=?";
-        executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, generation.asBytes());
-        if (!DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled() && generation instanceof SequenceBasedSSTableId)
+        executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.asBytes());
+        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && id instanceof SequenceBasedSSTableId)
         {
             // we do this in order to make it possible to downgrade until we swtich in cassandra.yaml to UUID based ids
             // see the discussion on CASSANDRA-17048
             cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
-            executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY), keyspace, table, ((SequenceBasedSSTableId) generation).generation);
+            executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY), keyspace, table, ((SequenceBasedSSTableId) id).generation);
         }
     }
 

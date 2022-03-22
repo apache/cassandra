@@ -315,7 +315,7 @@ public class ColumnFamilyStoreTest
             Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing),
                                              KEYSPACE2,
                                              CF_STANDARD1,
-                                             liveSSTable.descriptor.generation,
+                                             liveSSTable.descriptor.id,
                                              liveSSTable.descriptor.formatType);
             for (Component c : liveSSTable.getComponents())
                 assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());

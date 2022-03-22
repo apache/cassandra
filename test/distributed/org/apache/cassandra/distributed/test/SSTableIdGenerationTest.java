@@ -70,7 +70,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class SSTableIdGenerationTest extends TestBaseImpl
 {
-    private final static String ENABLE_UUID_FIELD_NAME = "enable_uuid_generation_identifiers";
+    private final static String ENABLE_UUID_FIELD_NAME = "enable_uuid_sstable_identifiers";
     private final static String SNAPSHOT_TAG = "test";
 
     private int v;
@@ -422,8 +422,8 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static void assertSSTablesCount(Set<Descriptor> descs, String tableName, int expectedSeqGenIds, int expectedUUIDGenIds)
     {
-        List<String> seqSSTables = descs.stream().filter(desc -> desc.generation instanceof SequenceBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
-        List<String> uuidSSTables = descs.stream().filter(desc -> desc.generation instanceof UUIDBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
+        List<String> seqSSTables = descs.stream().filter(desc -> desc.id instanceof SequenceBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
+        List<String> uuidSSTables = descs.stream().filter(desc -> desc.id instanceof UUIDBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
         assertThat(seqSSTables).describedAs("SSTables of %s with sequence based id", tableName).hasSize(expectedSeqGenIds);
         assertThat(uuidSSTables).describedAs("SSTables of %s with UUID based id", tableName).hasSize(expectedUUIDGenIds);
     }
@@ -486,8 +486,9 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     private static void checkSSTableActivityRow(String table, Object genId, boolean expectExists)
     {
         String tableColName = SSTABLE_ACTIVITY_V2.equals(table) ? "table_name" : "columnfamily_name";
-        String cql = "SELECT rate_15m, rate_120m FROM system.%s WHERE keyspace_name=? and %s=? and generation=?";
-        UntypedResultSet results = executeInternal(format(cql, table, tableColName), "ks", "tab", genId);
+        String idColName = SSTABLE_ACTIVITY_V2.equals(table) ? "id" : "generation";
+        String cql = "SELECT rate_15m, rate_120m FROM system.%s WHERE keyspace_name=? and %s=? and %s=?";
+        UntypedResultSet results = executeInternal(format(cql, table, tableColName, idColName), "ks", "tab", genId);
         assertThat(results).isNotNull();
 
         if (expectExists)

@@ -1211,7 +1211,7 @@ public class Directories
                                                               .list()
                                                               .keySet()
                                                               .spliterator(), Spliterator.DISTINCT, false)
-                                                .map(d -> d.generation);
+                                                .map(d -> d.id);
 
         return builder.generator(curIds);
     }

@@ -44,7 +44,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final TableMetadataRef metadata;
     protected final RegularAndStaticColumns columns;
     protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
-    protected static final AtomicReference<SSTableId> generation = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
+    protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
@@ -84,11 +84,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
 
     private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt) throws IOException
     {
-        SSTableId nextGen = getNextGeneration(directory, columnFamily);
+        SSTableId nextGen = getNextId(directory, columnFamily);
         return new Descriptor(directory, keyspace, columnFamily, nextGen, fmt);
     }
 
-    private static SSTableId getNextGeneration(File directory, final String columnFamily) throws IOException
+    private static SSTableId getNextId(File directory, final String columnFamily) throws IOException
     {
         while (true)
         {
@@ -97,11 +97,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                 Stream<SSTableId> existingIds = existingPaths.map(File::new)
                                                              .map(SSTable::tryDescriptorFromFilename)
                                                              .filter(d -> d != null && d.cfname.equals(columnFamily))
-                                                             .map(d -> d.generation);
+                                                             .map(d -> d.id);
 
-                SSTableId lastId = generation.get();
+                SSTableId lastId = id.get();
                 SSTableId newId = SSTableIdFactory.instance.defaultBuilder().generator(Stream.concat(existingIds, Stream.of(lastId))).get();
-                if (generation.compareAndSet(lastId, newId))
+                if (id.compareAndSet(lastId, newId))
                     return newId;
             }
         }

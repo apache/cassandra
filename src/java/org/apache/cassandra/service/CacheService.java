@@ -429,14 +429,14 @@ public class CacheService implements CacheServiceMBean
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
             ByteArrayUtil.writeWithLength(key.key, out);
-            if (key.desc.generation instanceof SequenceBasedSSTableId)
+            if (key.desc.id instanceof SequenceBasedSSTableId)
             {
-                out.writeInt(((SequenceBasedSSTableId) key.desc.generation).generation);
+                out.writeInt(((SequenceBasedSSTableId) key.desc.id).generation);
             }
             else
             {
                 out.writeInt(Integer.MIN_VALUE); // backwards compatibility for "int based generation only"
-                ByteBufferUtil.writeWithShortLength(key.desc.generation.asBytes(), out);
+                ByteBufferUtil.writeWithShortLength(key.desc.id.asBytes(), out);
             }
             out.writeBoolean(true);
 
@@ -472,7 +472,7 @@ public class CacheService implements CacheServiceMBean
                     generationToSSTableReader = new HashMap<>(cfs.getLiveSSTables().size());
                     for (SSTableReader ssTableReader : cfs.getSSTables(SSTableSet.CANONICAL))
                     {
-                        generationToSSTableReader.put(ssTableReader.descriptor.generation, ssTableReader);
+                        generationToSSTableReader.put(ssTableReader.descriptor.id, ssTableReader);
                     }
 
                     cachedSSTableReaders.putIfAbsent(qualifiedName, generationToSSTableReader);

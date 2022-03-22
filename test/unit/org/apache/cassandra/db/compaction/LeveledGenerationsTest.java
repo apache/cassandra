@@ -194,6 +194,6 @@ public class LeveledGenerationsTest extends CQLTester
 
     private void print(SSTableReader sstable)
     {
-        System.out.println(String.format("%d %s %s %d", sstable.descriptor.generation, sstable.first, sstable.last, sstable.getSSTableLevel()));
+        System.out.println(String.format("%d %s %s %d", sstable.descriptor.id, sstable.first, sstable.last, sstable.getSSTableLevel()));
     }
 }

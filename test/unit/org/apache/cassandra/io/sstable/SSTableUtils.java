@@ -71,7 +71,7 @@ public class SSTableUtils
     }
     */
 
-    public static File tempSSTableFile(String keyspaceName, String cfname, SSTableId generation) throws IOException
+    public static File tempSSTableFile(String keyspaceName, String cfname, SSTableId id) throws IOException
     {
         File tempdir = FileUtils.createTempFile(keyspaceName, cfname);
         if(!tempdir.tryDelete() || !tempdir.tryCreateDirectory())
@@ -80,7 +80,7 @@ public class SSTableUtils
         File cfDir = new File(tempdir, keyspaceName + File.pathSeparator() + cfname);
         cfDir.tryCreateDirectories();
         cfDir.deleteOnExit();
-        File datafile = new File(new Descriptor(cfDir, keyspaceName, cfname, generation, SSTableFormat.Type.BIG).filenameFor(Component.DATA));
+        File datafile = new File(new Descriptor(cfDir, keyspaceName, cfname, id, SSTableFormat.Type.BIG).filenameFor(Component.DATA));
         if (!datafile.createFileIfNotExists())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
@@ -133,7 +133,7 @@ public class SSTableUtils
         private String cfname = CFNAME;
         private Descriptor dest = null;
         private boolean cleanup = true;
-        private SSTableId generation = SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get();
+        private SSTableId id = SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get();
 
         Context() {}
 
@@ -163,9 +163,9 @@ public class SSTableUtils
         /**
          * Sets the identifier for the generated SSTable. Ignored if "dest()" is set.
          */
-        public Context generation(SSTableId generation)
+        public Context id(SSTableId id)
         {
-            this.generation = generation;
+            this.id = id;
             return this;
         }
 
@@ -216,7 +216,7 @@ public class SSTableUtils
 
         public Collection<SSTableReader> write(int expectedSize, Appender appender) throws IOException
         {
-            File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
+            File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, id) : new File(dest.filenameFor(Component.DATA));
             TableMetadata metadata = Schema.instance.getTableMetadata(ksname, cfname);
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
             SerializationHeader header = appender.header();

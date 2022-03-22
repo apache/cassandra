@@ -545,7 +545,7 @@ public class StartupChecks
                         if (!desc.isCompatible())
                             invalid.add(file.toString());
 
-                        if (!DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled() && desc.generation instanceof UUIDBasedSSTableId)
+                        if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && desc.id instanceof UUIDBasedSSTableId)
                             withIllegalGenId.add(file.toString());
                     }
                     catch (Exception e)
@@ -588,10 +588,10 @@ public class StartupChecks
 
             if (!withIllegalGenId.isEmpty())
                 throw new StartupException(StartupException.ERR_WRONG_CONFIG,
-                                           "UUID generation identifiers are disabled but some sstables have been " +
-                                           "created with UUID generation identifier. You have to either delete those " +
-                                           "sstables or enabled UUID based generation identifers in cassandra.yaml " +
-                                           "(enable_uuid_generation_identifiers). The list of affected sstables is: " +
+                                           "UUID sstable identifiers are disabled but some sstables have been " +
+                                           "created with UUID identifiers. You have to either delete those " +
+                                           "sstables or enabled UUID based sstable identifers in cassandra.yaml " +
+                                           "(enable_uuid_sstable_identifiers). The list of affected sstables is: " +
                                            Joiner.on(", ").join(withIllegalGenId) + ". If you decide to delete sstables, " +
                                            "and have that data replicated over other healthy nodes, those will be brought" +
                                            "back during repair");

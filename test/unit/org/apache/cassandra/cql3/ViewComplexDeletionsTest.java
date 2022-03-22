@@ -113,7 +113,7 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
             ColumnFamilyStore cfs = ks.getColumnFamilyStore(currentView());
             List<String> sstables = cfs.getLiveSSTables()
                                        .stream()
-                                       .sorted(SSTableReader.generationComparator)
+                                       .sorted(SSTableReader.idComparator)
                                        .map(SSTableReader::getFilename)
                                        .collect(Collectors.toList());
             String dataFiles = String.join(",", Arrays.asList(sstables.get(1), sstables.get(3), sstables.get(4)));
