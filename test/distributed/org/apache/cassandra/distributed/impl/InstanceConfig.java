@@ -191,6 +191,12 @@ public class InstanceConfig implements IInstanceConfig
         return this;
     }
 
+    public InstanceConfig remove(String fieldName)
+    {
+        getParams(fieldName).remove(fieldName);
+        return this;
+    }
+
     public InstanceConfig forceSet(String fieldName, Object value)
     {
         getParams(fieldName).put(fieldName, value);

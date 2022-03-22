@@ -207,6 +207,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         @Override
         public C createWithoutStarting() throws IOException
         {
+            // if running as vnode but test sets disallowVNodes(), then skip the test
+            // AbstractCluster.createInstanceConfig has similar logic, but handles the cases where the test
+            // attempts to control tokens via config
             Assume.assumeFalse("vnode is not supported", !isAllowVnodes() && getTokenCount() > 1);
             return super.createWithoutStarting();
         }
@@ -532,11 +535,35 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
         InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, tokens, datadirCount);
         config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
+        // if a test sets num_tokens directly, then respect it and only run if vnode or no-vnode is defined
+        int defaultTokenCount = config.getInt("num_tokens");
+        String defaultTokens = config.getString("initial_token");
         if (configUpdater != null)
         {
             configUpdater.accept(config);
-            // if the config set the initial tokens, then update num_tokens
-            config.set("num_tokens", ((String) config.get("initial_token")).split(",").length);
+            int testTokenCount = config.getInt("num_tokens");
+            if (defaultTokenCount != testTokenCount)
+            {
+                if (testTokenCount == 1)
+                {
+                    // test is no-vnode, but running with vnode, so skip
+                    Assume.assumeTrue("vnode is not supported", false);
+                }
+                else
+                {
+                    // if the test controls initial_token or GOSSIP is enabled, then the test is safe to run
+                    if (defaultTokens.equals(config.getString("initial_token")))
+                    {
+                        // test didn't define initial_token
+                        Assume.assumeTrue("vnode is enabled and num_tokens is defined in test without GOSSIP or setting initial_token", config.has(Feature.GOSSIP));
+                        config.remove("initial_token");
+                    }
+                    else
+                    {
+                        // test defined initial_token; trust it
+                    }
+                }
+            }
         }
         return config;
     }
