@@ -1,4 +1,5 @@
 4.0.4
+ * Fix timestamp tz parsing (CASSANDRA-17467)
  * Suppress CVE-2021-44521 from driver (CASSANDRA-17459)
  * Upgrade jackson to 2.13.2 (CASSANDRA-17460)
  * Make sstableloader honour native port option (CASSANDRA-17210)
