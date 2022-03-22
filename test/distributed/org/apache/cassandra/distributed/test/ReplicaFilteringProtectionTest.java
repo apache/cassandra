@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 
 import org.junit.AfterClass;
+import org.junit.Assume;
+import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -50,19 +52,29 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     private static final int ROWS = 3;
 
     private static Cluster cluster;
+    private static String skipMessage;
 
     @BeforeClass
     public static void setup() throws IOException
     {
-        cluster = init(Cluster.build()
-                              .withNodes(REPLICAS)
-                              .withConfig(config -> config.set("hinted_handoff_enabled", false)
-                                                          .set("commitlog_sync", "batch")
-                                                          .set("num_tokens", 1)).start());
+        try
+        {
+            cluster = init(Cluster.build()
+                                  .withNodes(REPLICAS)
+                                  .withConfig(config -> config.set("hinted_handoff_enabled", false)
+                                                              .set("commitlog_sync", "batch")
+                                                              .set("num_tokens", 1)).start());
 
-        // Make sure we start w/ the correct defaults:
-        cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_WARN_THRESHOLD, StorageService.instance.getCachedReplicaRowsWarnThreshold()));
-        cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_FAIL_THRESHOLD, StorageService.instance.getCachedReplicaRowsFailThreshold()));
+            // Make sure we start w/ the correct defaults:
+            cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_WARN_THRESHOLD, StorageService.instance.getCachedReplicaRowsWarnThreshold()));
+            cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_FAIL_THRESHOLD, StorageService.instance.getCachedReplicaRowsFailThreshold()));
+        }
+        catch (AssumptionViolatedException e)
+        {
+            // test isn't allowed to run, but junit freaks out and shows the AssumptionViolatedException in the junit report
+            // so it looks like the tests failed rather than were skipped... need the tests to actually skip instead...
+            skipMessage = e.getMessage();
+        }
     }
 
     @AfterClass
@@ -75,6 +87,8 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @Test
     public void testMissedUpdatesBelowCachingWarnThreshold()
     {
+        checkSkip();
+
         String tableName = "missed_updates_no_warning";
         cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
@@ -86,6 +100,8 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @Test
     public void testMissedUpdatesAboveCachingWarnThreshold()
     {
+        checkSkip();
+
         String tableName = "missed_updates_cache_warn";
         cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
@@ -97,6 +113,8 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @Test
     public void testMissedUpdatesAroundCachingFailThreshold()
     {
+        checkSkip();
+
         String tableName = "missed_updates_cache_fail";
         cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
@@ -114,6 +132,11 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         {
             assertEquals(e.getClass().getName(), OverloadedException.class.getName());
         }
+    }
+
+    private static void checkSkip()
+    {
+        Assume.assumeFalse(skipMessage, cluster == null);
     }
 
     private void testMissedUpdates(String tableName, int warnThreshold, int failThreshold, boolean shouldWarn)
