@@ -1,4 +1,5 @@
 4.1
+ * Provide JMX endpoint to allow transient logging of blocking read repairs (CASSANDRA-17471)
  * Add guardrail for GROUP BY queries (CASSANDRA-17509)
  * make pylib PEP and pylint compliant (CASSANDRA-17546)
  * Add support for vnodes in jvm-dtest (CASSANDRA-17332)
