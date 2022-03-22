@@ -258,7 +258,7 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
             rowCount++;
             assertEquals("ks", row.getString("keyspace_name"));
             assertEquals("tab", row.getString("table_name"));
-            assertEquals(new SequenceBasedSSTableId(5).asBytes(), row.getBytes("generation"));
+            assertEquals(new SequenceBasedSSTableId(5).asBytes(), row.getBytes("id"));
             assertEquals(123.234d, row.getDouble("rate_120m"), 0.001d);
             assertEquals(345.456d, row.getDouble("rate_15m"), 0.001d);
         }

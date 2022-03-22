@@ -150,7 +150,7 @@ public class SystemKeyspaceMigrator41
         migrateTable(CassandraVersion.CASSANDRA_4_1.compareTo(prevVersion) > 0,
                      SystemKeyspace.LEGACY_SSTABLE_ACTIVITY,
                      SystemKeyspace.SSTABLE_ACTIVITY_V2,
-                     new String[]{ "keyspace_name", "table_name", "generation", "rate_120m", "rate_15m" },
+                     new String[]{ "keyspace_name", "table_name", "id", "rate_120m", "rate_15m" },
                      row ->
                      Collections.singletonList(new Object[]{ row.getString("keyspace_name"),
                                                              row.getString("columnfamily_name"),

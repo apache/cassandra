@@ -321,10 +321,10 @@ public final class SystemKeyspace
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "table_name text,"
-                + "generation blob,"
+                + "id blob,"
                 + "rate_120m double,"
                 + "rate_15m double,"
-                + "PRIMARY KEY ((keyspace_name, table_name, generation)))")
+                + "PRIMARY KEY ((keyspace_name, table_name, id)))")
                 .build();
 
     @Deprecated
@@ -1442,7 +1442,7 @@ public final class SystemKeyspace
      */
     public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId generation)
     {
-        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and generation=?";
+        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
         UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, generation.asBytes());
 
         if (results.isEmpty())
@@ -1460,7 +1460,7 @@ public final class SystemKeyspace
     public static void persistSSTableReadMeter(String keyspace, String table, SSTableId generation, RestorableMeter meter)
     {
         // Store values with a one-day TTL to handle corner cases where cleanup might not occur
-        String cql = "INSERT INTO system.%s (keyspace_name, table_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
+        String cql = "INSERT INTO system.%s (keyspace_name, table_name, id, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2),
                         keyspace,
                         table,
@@ -1487,7 +1487,7 @@ public final class SystemKeyspace
      */
     public static void clearSSTableReadMeter(String keyspace, String table, SSTableId generation)
     {
-        String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND table_name=? and generation=?";
+        String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND table_name=? and id=?";
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, generation.asBytes());
         if (!DatabaseDescriptor.isUUIDGenerationIdentifiersEnabled() && generation instanceof SequenceBasedSSTableId)
         {
