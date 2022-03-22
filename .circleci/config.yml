@@ -39,7 +39,7 @@ jobs:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" "$HOME/cassandra/test/simulator/test/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
@@ -110,7 +110,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -285,7 +285,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -394,7 +394,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -517,7 +517,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -612,7 +612,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -707,7 +707,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -803,7 +803,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -899,7 +899,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -995,7 +995,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1139,7 +1139,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1262,7 +1262,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1360,7 +1360,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1437,7 +1437,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1513,7 +1513,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1576,7 +1576,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1685,7 +1685,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1723,7 +1723,7 @@ jobs:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" "$HOME/cassandra/test/simulator/test/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
@@ -1794,7 +1794,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1893,7 +1893,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -1948,7 +1948,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2124,7 +2124,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2201,7 +2201,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2296,7 +2296,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2335,7 +2335,7 @@ jobs:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" "$HOME/cassandra/test/simulator/test/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
@@ -2406,7 +2406,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2504,7 +2504,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2599,7 +2599,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2694,7 +2694,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2757,7 +2757,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2866,7 +2866,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2920,7 +2920,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -2983,7 +2983,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -3081,7 +3081,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -3191,7 +3191,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -3366,7 +3366,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
@@ -3461,7 +3461,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.lifecycle.LogTransactionTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
