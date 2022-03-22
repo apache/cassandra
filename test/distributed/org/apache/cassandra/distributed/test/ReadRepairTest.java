@@ -180,7 +180,7 @@ public class ReadRepairTest extends TestBaseImpl
     @Test
     public void movingTokenReadRepairTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(4), 3))
+        try (Cluster cluster = init(Cluster.build(2).disallowVNodes().start(), 3))
         {
             List<Token> tokens = cluster.tokens();
 
