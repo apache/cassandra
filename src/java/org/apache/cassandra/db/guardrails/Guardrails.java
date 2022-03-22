@@ -152,8 +152,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail setting the maximum datacenter replication factor.
      */
     public static final Threshold maxDCReplicationFactor =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactor(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactor(),
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactorWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactorFailThreshold(),
                   (isWarning, what, value, threshold) ->
                    isWarning ? format("", what, value, threshold)
                   :format("", what, value, threshold));
@@ -394,15 +394,21 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public int getMaxDCReplicationFactor()
+    public int getMaxDCReplicationFactorWarnThreshold()
     {
-        DEFAULT_CONFIG.getMaxDCReplicationFactor();
+        return DEFAULT_CONFIG.getMaxDCReplicationFactorWarnThreshold();
     }
 
     @Override
-    public void setMaxDCReplicationFactor(int max)
+    public int getMaxDCReplicationFactorFailThreshold()
     {
-        DEFAULT_CONFIG.setMaxDCReplicationFactor(max);
+        return DEFAULT_CONFIG.getMaxDCReplicationFactorFailThreshold();
+    }
+
+    @Override
+    public void setMaxDCReplicationFactor(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setMaxDCReplicationFactor(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

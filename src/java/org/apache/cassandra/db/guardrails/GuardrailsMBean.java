@@ -243,12 +243,20 @@ public interface GuardrailsMBean
     int getPartitionKeysInSelectFailThreshold();
 
     /**
-     * @return the maximum replication factor for a data center.
+     * @return the threshold to warn when maximum replication factor for a data center.
      */
-    int getMaxDCReplicationFactor();
+    int getMaxDCReplicationFactorWarnThreshold();
 
     /**
-     * @param max The maximum replcation factor for a data center. 
+     * @return the threshold to fail when maximum replication factor for a data center.
      */
-    void setMaxDCReplicationFactor(int max);
+    int getMaxDCReplicationFactorFailThreshold();
+
+    /**
+     * @param warn the threshold to warn when the maximum replcation factor for a data center is greater than
+     *             threshold -1 means disabled.
+     * @param fail the threshold to fail when the maximum replication factor for a data center is greater than
+     *             threshold -1 means disabled.
+     */
+    void setMaxDCReplicationFactor(int warn, int fail);
 }
