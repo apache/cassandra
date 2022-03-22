@@ -1065,12 +1065,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public List<Token> tokens()
     {
         return stream()
-               .map(i ->
+               .flatMap(i ->
                     {
                         try
                         {
                             IPartitioner partitioner = ((IPartitioner)Class.forName(i.config().getString("partitioner")).newInstance());
-                            return partitioner.getTokenFactory().fromString(i.config().getString("initial_token"));
+                            return Stream.of(i.config().getString("initial_token").split(",")).map(partitioner.getTokenFactory()::fromString);
                         }
                         catch (Throwable t)
                         {
