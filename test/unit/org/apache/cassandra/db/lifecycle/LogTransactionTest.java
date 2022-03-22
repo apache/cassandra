@@ -19,7 +19,9 @@ package org.apache.cassandra.db.lifecycle;
 
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +32,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -54,6 +57,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -1356,6 +1360,28 @@ public class LogTransactionTest extends AbstractTransactionalTest
         return listFiles(folder, Directories.FileType.FINAL);
     }
 
+    // Used by listFiles - this test is deliberately racing with files being
+    // removed and cleaned up, so it is possible that files are removed between listing and getting their
+    // canonical names, in which case they can be dropped from the stream.
+    private static Stream<File> toCanonicalIgnoringNotFound(File file)
+    {
+        try
+        {
+            return Stream.of(file.toCanonical());
+        }
+        catch (UncheckedIOException io)
+        {
+            if (Throwables.isCausedBy(io, t -> t instanceof NoSuchFileException))
+            {
+                return Stream.empty();
+            }
+            else
+            {
+                throw io;
+            }
+        }
+    }
+
     static Set<File> listFiles(File folder, Directories.FileType... types)
     {
         Collection<Directories.FileType> match = Arrays.asList(types);
@@ -1363,7 +1389,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                       (file, type) -> match.contains(type),
                                       Directories.OnTxnErr.IGNORE).list()
                        .stream()
-                       .map(File::toCanonical)
+                       .flatMap(LogTransactionTest::toCanonicalIgnoringNotFound)
                        .collect(Collectors.toSet());
     }
 }
