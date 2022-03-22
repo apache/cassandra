@@ -42,8 +42,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 
-import org.apache.commons.lang3.SystemUtils;
-
 import org.apache.cassandra.io.util.File;
 
 import org.slf4j.Logger;
@@ -468,9 +466,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         boolean deprecated = r.deprecated();
 
-        Class<?> oldType = r.converter().getInputType();
+        Class<?> oldType = r.converter().getOldType();
         if (oldType == null)
             oldType = newType;
+        Class<?> expectedNewType = r.converter().getNewType();
+        if (expectedNewType != null)
+            assert expectedNewType.equals(newType) : String.format("Converter is expected to return %s but %s#%s expects %s", expectedNewType, klass, newName, newType);
 
         replacements.add(new Replacement(klass, oldName, oldType, newName, r.converter(), deprecated));
     }

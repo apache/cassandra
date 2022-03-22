@@ -18,7 +18,6 @@
 package org.apache.cassandra.config;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -64,13 +63,6 @@ public class DurationSpec
 
     public DurationSpec(String value)
     {
-        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan") || value.equals("0"))
-        {
-            quantity = 0;
-            unit = MILLISECONDS;
-            return;
-        }
-
         //parse the string field value
         Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
 
@@ -89,26 +81,19 @@ public class DurationSpec
     DurationSpec(long quantity, TimeUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("Invalid duration: value must be positive");
+            throw new ConfigurationException("Invalid duration " + quantity + ": value must be positive");
 
         this.quantity = quantity;
         this.unit = unit;
     }
 
-    private DurationSpec(double quantity, TimeUnit unit)
+    DurationSpec(double quantity, TimeUnit unit)
     {
         this(Math.round(quantity), unit);
     }
 
     public DurationSpec(String value, TimeUnit minUnit)
     {
-        if (value == null || value.equals("null") || value.toLowerCase(Locale.ROOT).equals("nan"))
-        {
-            quantity = 0;
-            unit = minUnit;
-            return;
-        }
-
         if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
             throw new ConfigurationException("Invalid smallest unit set for " + value);
 

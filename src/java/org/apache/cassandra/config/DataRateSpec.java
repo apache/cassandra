@@ -58,7 +58,7 @@ public final class DataRateSpec
     DataRateSpec(double quantity, DataRateUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("Invalid bit rare: value must be non-negative");
+            throw new ConfigurationException("Invalid bit rate: value must be non-negative");
 
         if (quantity > Long.MAX_VALUE)
             throw new NumberFormatException("Invalid bit rate: value must be between 0 and Long.MAX_VALUE = 9223372036854775807");

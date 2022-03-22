@@ -55,3 +55,4 @@ file_cache_enabled: true
 internode_send_buff_size_in_bytes: 5
 internode_recv_buff_size_in_bytes: 5
 max_hint_window_in_ms: 10800000
+cache_load_timeout_seconds: 35

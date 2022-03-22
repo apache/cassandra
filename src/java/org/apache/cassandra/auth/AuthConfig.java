@@ -56,7 +56,7 @@ public final class AuthConfig
         // work with PasswordAuthenticator, so log a message if some other authenticator
         // is in use and non-default values are detected
         if (!(authenticator instanceof PasswordAuthenticator)
-            && (conf.credentials_update_interval.toMillisecondsAsInt() != 0
+            && (conf.credentials_update_interval != null
                 || conf.credentials_validity.toMillisecondsAsInt() != 2000
                 || conf.credentials_cache_max_entries != 1000))
         {

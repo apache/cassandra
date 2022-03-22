@@ -551,14 +551,14 @@ public class DatabaseDescriptor
             conf.hints_directory = storagedirFor("hints");
         }
 
-        if (conf.native_transport_max_concurrent_requests_in_bytes <= 0)
+        if (conf.native_transport_max_request_data_in_flight == null)
         {
-            conf.native_transport_max_concurrent_requests_in_bytes = Runtime.getRuntime().maxMemory() / 10;
+            conf.native_transport_max_request_data_in_flight = DataStorageSpec.inBytes(Runtime.getRuntime().maxMemory() / 10);
         }
 
-        if (conf.native_transport_max_concurrent_requests_in_bytes_per_ip <= 0)
+        if (conf.native_transport_max_request_data_in_flight_per_ip == null)
         {
-            conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
+            conf.native_transport_max_request_data_in_flight_per_ip = DataStorageSpec.inBytes(Runtime.getRuntime().maxMemory() / 40);
         }
         
         if (conf.native_transport_rate_limiting_enabled)
@@ -774,13 +774,8 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity option was set incorrectly to '"
                                              + conf.index_summary_capacity.toString() + "', it should be a non-negative integer.", false);
 
-        if (conf.user_defined_function_fail_timeout < 0)
-            throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
-        if (conf.user_defined_function_warn_timeout < 0)
-            throw new ConfigurationException("user_defined_function_warn_timeout must not be negative", false);
-
-        if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
-            throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
+        if (conf.user_defined_functions_fail_timeout.toMilliseconds() < conf.user_defined_functions_warn_timeout.toMilliseconds())
+            throw new ConfigurationException("user_defined_functions_warn_timeout must less than user_defined_function_fail_timeout", false);
 
         if (!conf.allow_insecure_udfs && !conf.user_defined_functions_threads_enabled)
             throw new ConfigurationException("To be able to set enable_user_defined_functions_threads: false you need to set allow_insecure_udfs: true - this is an unsafe configuration and is not recommended.");
@@ -1355,14 +1350,26 @@ public class DatabaseDescriptor
 
     public static int getPermissionsUpdateInterval()
     {
-        return conf.permissions_update_interval.toMilliseconds() == 0
+        return conf.permissions_update_interval == null
              ? conf.permissions_validity.toMillisecondsAsInt()
              : conf.permissions_update_interval.toMillisecondsAsInt();
     }
 
     public static void setPermissionsUpdateInterval(int updateInterval)
     {
-        conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+        if (updateInterval == -1)
+            conf.permissions_update_interval = null;
+        else
+        {
+            try
+            {
+                conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+            }
+            catch (ConfigurationException e)
+            {
+                throw new IllegalArgumentException("permissions_update_interval should be >= -1");
+            }
+        }
     }
 
     public static int getPermissionsCacheMaxEntries()
@@ -1397,7 +1404,7 @@ public class DatabaseDescriptor
 
     public static int getRolesUpdateInterval()
     {
-        return conf.roles_update_interval.toMillisecondsAsInt() == 0
+        return conf.roles_update_interval == null
              ? conf.roles_validity.toMillisecondsAsInt()
              : conf.roles_update_interval.toMillisecondsAsInt();
     }
@@ -1414,7 +1421,19 @@ public class DatabaseDescriptor
 
     public static void setRolesUpdateInterval(int interval)
     {
-        conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
+        if (interval == -1)
+            conf.roles_update_interval = null;
+        else
+        {
+            try
+            {
+                conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
+            }
+            catch(ConfigurationException e)
+            {
+                throw new IllegalArgumentException("roles_update_interval should be >= -1");
+            }
+        }
     }
 
     public static int getRolesCacheMaxEntries()
@@ -1439,14 +1458,26 @@ public class DatabaseDescriptor
 
     public static int getCredentialsUpdateInterval()
     {
-        return conf.credentials_update_interval.toMillisecondsAsInt() == 0
+        return conf.credentials_update_interval == null
                ? conf.credentials_validity.toMillisecondsAsInt()
                : conf.credentials_update_interval.toMillisecondsAsInt();
     }
 
     public static void setCredentialsUpdateInterval(int updateInterval)
     {
-        conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+        if (updateInterval == -1)
+            conf.credentials_update_interval = null;
+        else
+        {
+            try
+            {
+                conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+            }
+            catch (ConfigurationException e)
+            {
+                throw new IllegalArgumentException("credentials_update_interval should be >= -1.");
+            }
+        }
     }
 
     public static int getCredentialsCacheMaxEntries()
@@ -2481,17 +2512,17 @@ public class DatabaseDescriptor
 
     public static int getNativeTransportReceiveQueueCapacityInBytes()
     {
-        return conf.native_transport_receive_queue_capacity_in_bytes;
+        return conf.native_transport_receive_queue_capacity.toBytesAsInt();
     }
 
     public static void setNativeTransportReceiveQueueCapacityInBytes(int queueSize)
     {
-        conf.native_transport_receive_queue_capacity_in_bytes = queueSize;
+        conf.native_transport_receive_queue_capacity = DataStorageSpec.inBytes(queueSize);
     }
 
-    public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
+    public static long getNativeTransportMaxRequestDataInFlightPerIpInBytes()
     {
-        return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;
+        return conf.native_transport_max_request_data_in_flight_per_ip.toBytes();
     }
 
     public static Config.PaxosVariant getPaxosVariant()
@@ -2624,19 +2655,40 @@ public class DatabaseDescriptor
         conf.paxos_auto_repair_threshold_mb = threshold;
     }
 
-    public static void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long maxConcurrentRequestsInBytes)
+    public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
     {
-        conf.native_transport_max_concurrent_requests_in_bytes_per_ip = maxConcurrentRequestsInBytes;
+        if (maxRequestDataInFlightInBytes == -1)
+            maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
+
+        try
+        {
+            conf.native_transport_max_request_data_in_flight_per_ip = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException("native_transport_max_request_data_in_flight_per_ip can be only -1 which gets default value or >= 0");
+        }
+
     }
 
-    public static long getNativeTransportMaxConcurrentRequestsInBytes()
+    public static long getNativeTransportMaxRequestDataInFlightInBytes()
     {
-        return conf.native_transport_max_concurrent_requests_in_bytes;
+        return conf.native_transport_max_request_data_in_flight.toBytes();
     }
 
-    public static void setNativeTransportMaxConcurrentRequestsInBytes(long maxConcurrentRequestsInBytes)
+    public static void setNativeTransportConcurrentRequestDataInFlightInBytes(long maxRequestDataInFlightInBytes)
     {
-        conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
+        if (maxRequestDataInFlightInBytes == -1)
+            maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 10;
+
+        try
+        {
+            conf.native_transport_max_request_data_in_flight = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException("native_transport_max_request_data_in_flight can be only -1 which gets default value or >= 0");
+        }
     }
 
     public static int getNativeTransportMaxRequestsPerSecond()
@@ -3322,12 +3374,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionWarnTimeout()
     {
-        return conf.user_defined_function_warn_timeout;
+        return conf.user_defined_functions_warn_timeout.toMilliseconds();
     }
 
     public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
     {
-        conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
+        conf.user_defined_functions_warn_timeout = SmallestDurationMilliseconds.inMilliseconds(userDefinedFunctionWarnTimeout);
     }
 
     public static boolean allowInsecureUDFs()
@@ -3383,12 +3435,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionFailTimeout()
     {
-        return conf.user_defined_function_fail_timeout;
+        return conf.user_defined_functions_fail_timeout.toMilliseconds();
     }
 
     public static void setUserDefinedFunctionFailTimeout(long userDefinedFunctionFailTimeout)
     {
-        conf.user_defined_function_fail_timeout = userDefinedFunctionFailTimeout;
+        conf.user_defined_functions_fail_timeout = SmallestDurationMilliseconds.inMilliseconds(userDefinedFunctionFailTimeout);
     }
 
     public static Config.UserFunctionTimeoutPolicy getUserFunctionTimeoutPolicy()
@@ -3656,10 +3708,9 @@ public class DatabaseDescriptor
         long valueInBytes = value.toBytes();
         if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE)
         {
-            throw new ConfigurationException(String.format("%s must be positive value < %dB, but was %dB",
+            throw new ConfigurationException(String.format("%s must be positive value <= %dB, but was %dB",
                                                            name,
-                                                           value.getUnit()
-                                                                .convert(Integer.MAX_VALUE, DataStorageSpec.DataStorageUnit.BYTES),
+                                                           Integer.MAX_VALUE,
                                                            valueInBytes),
                                              false);
         }
@@ -3667,8 +3718,7 @@ public class DatabaseDescriptor
 
     public static int getValidationPreviewPurgeHeadStartInSec()
     {
-        int seconds = conf.validation_preview_purge_head_start_in_sec;
-        return Math.max(seconds, 0);
+        return conf.validation_preview_purge_head_start.toSecondsAsInt();
     }
 
     public static boolean checkForDuplicateRowsDuringReads()

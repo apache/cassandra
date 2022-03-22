@@ -69,8 +69,8 @@ public class ClientResourceLimitsTest extends CQLTester
     public static void setUp()
     {
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(LOW_LIMIT);
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(LOW_LIMIT);
+        DatabaseDescriptor.setNativeTransportMaxRequestDataInFlightPerIpInBytes(LOW_LIMIT);
+        DatabaseDescriptor.setNativeTransportConcurrentRequestDataInFlightInBytes(LOW_LIMIT);
 
         requireNetwork();
     }
@@ -78,8 +78,8 @@ public class ClientResourceLimitsTest extends CQLTester
     @AfterClass
     public static void tearDown()
     {
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(3000000000L);
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(HIGH_LIMIT);
+        DatabaseDescriptor.setNativeTransportMaxRequestDataInFlightPerIpInBytes(3000000000L);
+        DatabaseDescriptor.setNativeTransportConcurrentRequestDataInFlightInBytes(HIGH_LIMIT);
     }
 
     @Before
@@ -382,7 +382,7 @@ public class ClientResourceLimitsTest extends CQLTester
             // change global limit, query will still fail because endpoint limit
             ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
             Assert.assertEquals("new global limit not returned by EndpointPayloadTrackers", HIGH_LIMIT, ClientResourceLimits.getGlobalLimit());
-            Assert.assertEquals("new global limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
+            Assert.assertEquals("new global limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightInBytes());
 
             try
             {
@@ -397,7 +397,7 @@ public class ClientResourceLimitsTest extends CQLTester
             // change endpoint limit, query will now succeed
             ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
             Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", HIGH_LIMIT, ClientResourceLimits.getEndpointLimit());
-            Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
+            Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightPerIpInBytes());
             client.execute(queryMessage());
 
             // ensure new clients also see the new raised limits
@@ -408,7 +408,7 @@ public class ClientResourceLimitsTest extends CQLTester
             // lower the global limit and ensure the query fails again
             ClientResourceLimits.setGlobalLimit(LOW_LIMIT);
             Assert.assertEquals("new global limit not returned by EndpointPayloadTrackers", LOW_LIMIT, ClientResourceLimits.getGlobalLimit());
-            Assert.assertEquals("new global limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
+            Assert.assertEquals("new global limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightInBytes());
             try
             {
                 client.execute(queryMessage());
@@ -422,7 +422,7 @@ public class ClientResourceLimitsTest extends CQLTester
             // lower the endpoint limit and ensure existing clients also have requests that fail
             ClientResourceLimits.setEndpointLimit(60);
             Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", 60, ClientResourceLimits.getEndpointLimit());
-            Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", 60, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
+            Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", 60, DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightPerIpInBytes());
             try
             {
                 client.execute(smallMessage);
@@ -449,7 +449,7 @@ public class ClientResourceLimitsTest extends CQLTester
             // put the test state back
             ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
             Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", LOW_LIMIT, ClientResourceLimits.getEndpointLimit());
-            Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
+            Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxRequestDataInFlightPerIpInBytes());
         }
         finally
         {
