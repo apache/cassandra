@@ -57,6 +57,11 @@ public final class ReplicationParams
         return new ReplicationParams(SimpleStrategy.class, ImmutableMap.of("replication_factor", replicationFactor));
     }
 
+    static ReplicationParams everywhere()
+    {
+        return new ReplicationParams(EverywhereStrategy.class, ImmutableMap.of());
+    }
+
     static ReplicationParams nts(Object... args)
     {
         assert args.length % 2 == 0;
