@@ -99,6 +99,11 @@ public final class KeyspaceParams
         return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor));
     }
 
+    public static KeyspaceParams everywhere()
+    {
+        return new KeyspaceParams(true, ReplicationParams.everywhere());
+    }
+
     public static KeyspaceParams nts(Object... args)
     {
         return new KeyspaceParams(true, ReplicationParams.nts(args));

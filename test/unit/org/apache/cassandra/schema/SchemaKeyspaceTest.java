@@ -262,4 +262,11 @@ public class SchemaKeyspaceTest
         assertTrue(Schema.isKeyspaceWithLocalStrategy(Schema.instance.getKeyspaceMetadata("local_ks")));
         assertFalse(Schema.isKeyspaceWithLocalStrategy("simple_ks"));
     }
+
+    @Test
+    public void testEverywhere()
+    {
+        SchemaLoader.createKeyspace("everywhereKeyspace", KeyspaceParams.everywhere());
+        assertFalse(Schema.isKeyspaceWithLocalStrategy("everywhereKeyspace"));
+    }
 }
