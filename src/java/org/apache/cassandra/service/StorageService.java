@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;

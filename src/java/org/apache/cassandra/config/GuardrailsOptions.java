@@ -386,6 +386,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getAlterTableEnabled()
+    {
+        return config.alter_table_enabled;
+    }
+
+    public void setAlterTableEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("alter_table_enabled",
+                                  enabled,
+                                  () -> config.alter_table_enabled,
+                                  x -> config.alter_table_enabled = x);
+    }
+
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return config.read_before_write_list_operations_enabled;

@@ -251,6 +251,20 @@ public interface GuardrailsMBean
     void setCompactTablesEnabled(boolean enabled);
 
     /**
+     * Gets whether users can use the ALTER TABLE statement to change columns
+     *
+     * @return {@code true} if ALTER TABLE is allowed, {@code false} otherwise.
+     */
+    boolean getAlterTableEnabled();
+
+    /**
+     * Sets whether users can use the ALTER TABLE statement to change columns
+     *
+     * @param enabled {@code true} if changing columns is allowed, {@code false} otherwise.
+     */
+    void setAlterTableEnabled(boolean enabled);
+
+    /**
      * Returns whether GROUP BY queries are allowed.
      *
      * @return {@code true} if allowed, {@code false} otherwise.
