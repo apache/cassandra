@@ -133,6 +133,13 @@ public interface GuardrailsConfig
     boolean getUserTimestampsEnabled();
 
     /**
+     * Returns whether users are allowed access to the ALTER TABLE statement to mutate columns or not
+     *
+     * @return {@code true} if ALTER TABLE ADD/REMOVE/RENAME is allowed, {@code false} otherwise.
+     */
+    boolean getAlterTableEnabled();
+
+    /**
      * Returns whether tables can be uncompressed
      *
      * @return {@code true} if user's can disable compression, {@code false} otherwise.

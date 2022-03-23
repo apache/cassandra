@@ -57,6 +57,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - New Guardrails added:
+      - Whether ALTER TABLE commands are allowed to mutate columns
 
 Upgrading
 ---------

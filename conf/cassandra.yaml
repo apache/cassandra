@@ -1601,58 +1601,75 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # keyspaces_warn_threshold: -1
 # keyspaces_fail_threshold: -1
+#
 # Guardrail to warn or fail when creating more user tables than threshold.
 # The two thresholds default to -1 to disable.
 # tables_warn_threshold: -1
 # tables_fail_threshold: -1
+#
 # Guardrail to enable or disable the ability to create uncompressed tables
 # uncompressed_tables_enabled: true
+#
 # Guardrail to warn or fail when creating/altering a table with more columns per table than threshold.
 # The two thresholds default to -1 to disable.
 # columns_per_table_warn_threshold: -1
 # columns_per_table_fail_threshold: -1
+#
 # Guardrail to warn or fail when creating more secondary indexes per table than threshold.
 # The two thresholds default to -1 to disable.
 # secondary_indexes_per_table_warn_threshold: -1
 # secondary_indexes_per_table_fail_threshold: -1
+#
 # Guardrail to enable or disable the creation of secondary indexes
 # secondary_indexes_enabled: true
+#
 # Guardrail to warn or fail when creating more materialized views per table than threshold.
 # The two thresholds default to -1 to disable.
 # materialized_views_per_table_warn_threshold: -1
 # materialized_views_per_table_fail_threshold: -1
+#
 # Guardrail to warn about, ignore or reject properties when creating tables. By default all properties are allowed.
 # table_properties_warned: []
 # table_properties_ignored: []
 # table_properties_disallowed: []
+#
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
+#
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
+#
 # Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
 # drop_truncate_table_enabled: true
+#
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
 # page_size_fail_threshold: -1
+#
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.
 # read_before_write_list_operations_enabled: true
+#
 # Guardrail to warn or fail when querying with an IN restriction selecting more partition keys than threshold.
 # The two thresholds default to -1 to disable.
 # partition_keys_in_select_warn_threshold: -1
 # partition_keys_in_select_fail_threshold: -1
+#
 # Guardrail to warn or fail when an IN query creates a cartesian product with a size exceeding threshold,
 # eg. "a in (1,2,...10) and b in (1,2...10)" results in cartesian product of 100.
 # The two thresholds default to -1 to disable.
 # in_select_cartesian_product_warn_threshold: -1
 # in_select_cartesian_product_fail_threshold: -1
+#
 # Guardrail to warn about or reject read consistency levels. By default, all consistency levels are allowed.
 # read_consistency_levels_warned: []
 # read_consistency_levels_disallowed: []
+#
 # Guardrail to warn about or reject write consistency levels. By default, all consistency levels are allowed.
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
+#
 # Guardrail to warn or fail when encountering larger size of collection data than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -1661,6 +1678,7 @@ drop_compact_storage_enabled: false
 # The two thresholds default to null to disable.
 # collection_size_warn_threshold:
 # collection_size_fail_threshold:
+#
 # Guardrail to warn or fail when encountering more elements in collection than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -1669,12 +1687,18 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # items_per_collection_warn_threshold: -1
 # items_per_collection_fail_threshold: -1
+#
 # Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
 # allow_filtering_enabled: true
+#
 # Guardrail to warn or fail when creating a user-defined-type with more fields in than threshold.
 # Default -1 to disable.
 # fields_per_udt_warn_threshold: -1
 # fields_per_udt_fail_threshold: -1
+#
+# Guardrail to indicate whether or not users are allowed to use ALTER TABLE commands to make column changes to tables
+# alter_table_enabled: true
+#
 # Guardrail to warn or fail when local data disk usage percentage exceeds threshold. Valid values are in [1, 100].
 # This is only used for the disks storing data directories, so it won't count any separate disks used for storing
 # the commitlog, hints nor saved caches. The disk usage is the ratio between the amount of space used by the data
@@ -1686,13 +1710,15 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # data_disk_usage_percentage_warn_threshold: -1
 # data_disk_usage_percentage_fail_threshold: -1
-# Allows defining the max disk size of the data directories when calculating thresholds for
+#
+# Guardrail that allows users to define the max disk size of the data directories when calculating thresholds for
 # disk_usage_percentage_warn_threshold and disk_usage_percentage_fail_threshold, so if this is greater than zero they
 # become percentages of a fixed size on disk instead of percentages of the physically available disk size. This should
 # be useful when we have a large disk and we only want to use a part of it for Cassandra's data directories.
 # Valid values are in [1, max available disk size of all data directories].
 # Defaults to null to disable and use the physically available disk size of data directories during calculations.
 # data_disk_usage_max_disk_size:
+#
 # Guardrail to warn or fail when the minimum replication factor is lesser than threshold.
 # This would also apply to system keyspaces.
 # Suggested value for use in production: 2 or higher
