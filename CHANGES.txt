@@ -6,6 +6,7 @@ Merged from 3.0:
 
 
 4.1
+ * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Add auto_snapshot_ttl configuration (CASSANDRA-16790)
  * List snapshots of dropped tables (CASSANDRA-16843)
  * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
