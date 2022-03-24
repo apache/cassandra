@@ -63,9 +63,11 @@ import org.slf4j.LoggerFactory;
 
 import java.text.SimpleDateFormat;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -271,29 +273,36 @@ public class AutoRepair
                     }
 
                     repairKeyspaceCount++;
-                    while (iter.hasNext())
+                    List<String> tablesToBeRepaired = new ArrayList<>();
+                    while (iter.hasNext()) {
+                        totalTablesConsideredForRepair++;
+                        String tableName = iter.next().name;
+
+                        ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
+                        // this is done to make autorepair safe as running repair on table with more sstables
+                        // may have its own challenges
+                        if (columnFamilyStore.getLiveSSTables().size() > AutoRepairService.instance.getRepairSSTableCountHigherThreshold())
+                        {
+                            logger.info("Too many SSTables for repair, not doing repair on table {}.{} " +
+                                        "totalSSTables {}", keyspaceName, tableName, columnFamilyStore.getLiveSSTables().size());
+                            repairTableSkipCount++;
+                            continue;
+                        }
+                        tablesToBeRepaired.add(tableName);
+                    }
+                    for (String tableName : tablesToBeRepaired)
                     {
                         try
                         {
-                            totalTablesConsideredForRepair++;
-                            String tableName = iter.next().name;
-
-                            ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-                            // this is done to make autorepair safe as running repair on table with more sstables
-                            // may have its own challenges
-                            if (columnFamilyStore.getLiveSSTables().size() > AutoRepairService.instance.getRepairSSTableCountHigherThreshold())
-                            {
-                                logger.info("Too many SSTables for repair, not doing repair on table {}.{} " +
-                                        "totalSSTables {}", keyspaceName, tableName, columnFamilyStore.getLiveSSTables().size());
-                                repairTableSkipCount++;
-                                continue;
+                            if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
+                                logger.info("Repair keyspace {} for tables: {}", keyspaceName, tablesToBeRepaired);
+                            } else {
+                                logger.info("Repair table {}.{}", keyspaceName, tableName);
                             }
-
-                            logger.info("Repair table {}.{}", keyspaceName, tableName);
-                            long tableStartTime = System.currentTimeMillis();
+                            long startTime = System.currentTimeMillis();
                             //now run full repair on this table
                             Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
-                            boolean tableRepairSuccess = true;
+                            boolean repairSuccess = true;
                             Set<Range<Token>> ranges = new HashSet<>();
                             int numberOfSubranges = AutoRepairService.instance.getRepairSubRangeNum();
                             int totalSubRanges = tokens.size() * numberOfSubranges;
@@ -307,13 +316,23 @@ public class AutoRepair
                                     return;
                                 }
 
-                                if (AutoRepairUtils.tableMaxRepairTimeExceeded(tableStartTime))
-                                {
-                                    repairTableSkipCount++;
-                                    logger.info("Table took too much time to repair hence skipping it {}.{}",
-                                            keyspaceName, tableName);
-                                    break;
+                                if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
+                                    if (AutoRepairUtils.keyspaceMaxRepairTimeExceeded(startTime, tablesToBeRepaired.size())) {
+                                        repairTableSkipCount += tablesToBeRepaired.size();
+                                        logger.info("Keyspace took too much time to repair hence skipping it {}",
+                                                    keyspaceName);
+                                        break;
+                                    }
+                                } else {
+                                    if (AutoRepairUtils.tableMaxRepairTimeExceeded(startTime))
+                                    {
+                                        repairTableSkipCount++;
+                                        logger.info("Table took too much time to repair hence skipping it {}.{}",
+                                                    keyspaceName, tableName);
+                                        break;
+                                    }
                                 }
+
                                 Murmur3Partitioner.LongToken l = (Murmur3Partitioner.LongToken) (token.left);
                                 Murmur3Partitioner.LongToken r = (Murmur3Partitioner.LongToken) (token.right);
                                 Token parentStartToken = StorageService.instance.getTokenMetadata()
@@ -359,7 +378,12 @@ public class AutoRepair
                                                                                 false, AutoRepairService.instance.getRepairThreads(), ranges, !ranges.isEmpty(), false,
                                                                                 false, PreviewKind.NONE, false, true,
                                                                                 false, false);
-                                        options.getColumnFamilies().add(tableName);
+                                        if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
+                                            // repair all tables in one go
+                                            options.getColumnFamilies().addAll(tablesToBeRepaired);
+                                        } else {
+                                            options.getColumnFamilies().add(tableName);
+                                        }
                                         int repairCmdId = StorageService.instance.nextRepairCommand.incrementAndGet();
                                         RepairRunnable task = new RepairRunnable(StorageService.instance, repairCmdId, options, keyspaceName);
                                         RepairStatus rs = new RepairStatus();
@@ -378,29 +402,43 @@ public class AutoRepair
                                         {
                                             logger.info("Repair completed for range {}-{} for {}.{}, total subranges: {}," +
                                                         "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
-                                                        keyspaceName, tableName, totalSubRanges, totalProcessedSubRanges);
+                                                        keyspaceName, DatabaseDescriptor.getAutoRepairByKeyspace() ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges);
                                         }
                                         else
                                         {
-                                            tableRepairSuccess = false;
+                                            repairSuccess = false;
                                             //in future we can add retry, etc.
                                             logger.info("Repair failed for range {}-{} for {}.{} total subranges: {}," +
                                                         "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
-                                                        keyspaceName, tableName, totalSubRanges, totalProcessedSubRanges);
+                                                        keyspaceName, DatabaseDescriptor.getAutoRepairByKeyspace() ? tablesToBeRepaired : tableName, totalSubRanges, totalProcessedSubRanges);
                                         }
                                         ranges.clear();
                                     }
                                 }
                             }
-                            if (tableRepairSuccess)
+                            if (repairSuccess)
                             {
-                                repairTableSuccessCount++;
+                                if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
+                                    repairTableSuccessCount += tablesToBeRepaired.size();
+                                } else {
+                                    repairTableSuccessCount++;
+                                }
+
                             }
                             else
                             {
-                                repairTableFailureCount++;
+                                if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
+                                    repairTableFailureCount += tablesToBeRepaired.size();
+                                } else {
+                                    repairTableFailureCount++;
+                                }
                             }
-                            logger.info("Repair completed for {}.{}", keyspaceName, tableName);
+                            if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
+                                logger.info("Repair completed for keyspace {}, tables: {}", keyspaceName, tablesToBeRepaired);
+                                break;
+                            } else {
+                                logger.info("Repair completed for {}.{}", keyspaceName, tableName);
+                            }
                         }
                         catch (Exception e)
                         {

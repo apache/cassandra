@@ -481,4 +481,9 @@ public class AutoRepairUtils
                 (System.currentTimeMillis() - startTime);
         return AutoRepairService.instance.getAutoRepairTableMaxRepairTimeInSec() < tableRepairTimeSoFar;
     }
+
+    public static boolean keyspaceMaxRepairTimeExceeded(long startTime, int numOfTablesToBeRepaired) {
+        long keyspaceRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds( (System.currentTimeMillis() - startTime));
+        return AutoRepairService.instance.getAutoRepairTableMaxRepairTimeInSec() * numOfTablesToBeRepaired < keyspaceRepairTimeSoFar;
+    }
 }

@@ -670,6 +670,9 @@ public class Config
     // by the auto repair executor scheduleWithFixedDelay function
     public Boolean auto_repair_auto_schedule = true;
 
+    // auto repair is default repair table by table, if this is enabled, we will repair keyspace by keyspace
+    public Boolean auto_repair_by_keyspace = false;
+
     public Integer auto_repair_no_of_subranges = 1;
 
     public Integer auto_repair_number_of_repair_threads = 1;
