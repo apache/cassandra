@@ -1922,7 +1922,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                Tracing.trace("Digest mismatch: {}", ex);
+                Tracing.trace("Digest mismatch: {}", ex.toString());
 
                 ReadRepairMetrics.repairedBlocking.mark();
 
