@@ -1,4 +1,5 @@
 3.11.13
+ * Upgrade slf4j to 1.7.25 (CASSANDRA-17474)
  * Upgrade jackson to 2.13.2 (CASSANDRA-17492)
  * emit warning on keyspace creation when replication factor is bigger than the number of nodes (CASSANDRA-16747)
  * Fix snapshot true size calculation (CASSANDRA-17267)
