@@ -34,6 +34,9 @@ import webbrowser
 from contextlib import contextmanager
 from glob import glob
 from uuid import UUID
+import configparser
+from io import StringIO
+
 
 if sys.version_info < (3, 6):
     sys.exit("\ncqlsh requires Python 3.6+\n")
@@ -107,11 +110,8 @@ def find_zip(libprefix):
 
 cql_zip = find_zip(CQL_LIB_PREFIX)
 if cql_zip:
-    ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
-    sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
-
-import configparser
-from io import StringIO
+    driver_ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
+    sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + driver_ver))
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -217,8 +217,8 @@ parser.add_option('-v', action="version", help='Print the current version of cql
 parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=optparse.SUPPRESS_HELP)
 
-optvalues = optparse.Values()
-(options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
+opt_values = optparse.Values()
+(options, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
 
 # BEGIN history/config definition
 HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
@@ -237,21 +237,6 @@ if not os.path.exists(HISTORY_DIR):
         os.mkdir(HISTORY_DIR)
     except OSError:
         print('\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR)
-
-OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
-if os.path.exists(OLD_CONFIG_FILE):
-    if os.path.exists(CONFIG_FILE):
-        print('\nWarning: cqlshrc config files were found at both the old location ({0})'
-              + ' and the new location ({1}), the old config file will not be migrated to the new'
-              + ' location, and the new location will be used for now.  You should manually'
-              + ' consolidate the config files at the new location and remove the old file.'
-              .format(OLD_CONFIG_FILE, CONFIG_FILE))
-    else:
-        os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
-OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
-if os.path.exists(OLD_HISTORY):
-    os.rename(OLD_HISTORY, HISTORY)
-# END history/config definition
 
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.CoordinationFailure,
@@ -520,11 +505,6 @@ class Shell(cmd.Cmd):
     def batch_mode(self):
         return not self.tty
 
-    @property
-    def is_using_utf8(self):
-        # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
-        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8']
-
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
         self.cql_version = ver
@@ -743,13 +723,6 @@ class Shell(cmd.Cmd):
 
         raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
 
-    def get_usertypes_meta(self):
-        data = self.session.execute("select * from system.schema_usertypes")
-        if not data:
-            return cql3handling.UserTypesMeta({})
-
-        return cql3handling.UserTypesMeta.from_layout(data)
-
     def get_trigger_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
@@ -847,7 +820,7 @@ class Shell(cmd.Cmd):
                 return
             yield newline
 
-    def cmdloop(self):
+    def cmdloop(self, intro=None):
         """
         Adapted from cmd.Cmd's version, because there is literally no way with
         cmd.Cmd.cmdloop() to tell the difference between "EOF" showing up in
@@ -1084,11 +1057,11 @@ class Shell(cmd.Cmd):
         def print_all(result, table_meta, tty):
             # Return the number of rows in total
             num_rows = 0
-            isFirst = True
+            is_first = True
             while True:
                 # Always print for the first page even it is empty
-                if result.current_rows or isFirst:
-                    with_header = isFirst or tty
+                if result.current_rows or is_first:
+                    with_header = is_first or tty
                     self.print_static_result(result, table_meta, with_header, tty, num_rows)
                     num_rows += len(result.current_rows)
                 if result.has_more_pages:
@@ -1100,7 +1073,7 @@ class Shell(cmd.Cmd):
                     if not tty:
                         self.writeresult("")
                     break
-                isFirst = False
+                is_first = False
             return num_rows
 
         num_rows = print_all(result, table_meta, self.tty)
@@ -2036,7 +2009,7 @@ class SwitchCommandWithValue(SwitchCommand):
             binary_switch_value = True
         except (ValueError, TypeError):
             value = None
-        return (binary_switch_value, value)
+        return binary_switch_value, value
 
 
 def option_with_default(cparser_getter, section, option, default=None):
