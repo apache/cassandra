@@ -357,9 +357,9 @@
           <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2">
             <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
           </dependency>
-          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.7"/>
-          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.7"/>
-          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.7" />
+          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
+          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
+          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
           <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.9"/>
           <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.9"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.12.5"/>

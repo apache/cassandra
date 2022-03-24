@@ -39,7 +39,7 @@ public class NoSpamLoggerTest
 {
     Map<Level, Queue<Pair<String, Object[]>>> logged = new HashMap<>();
 
-   Logger mock = new SubstituteLogger(null)
+   Logger mock = new SubstituteLogger(null, null, true)
    {
 
        @Override
