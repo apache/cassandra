@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
@@ -280,7 +281,10 @@ public abstract class AbstractReplicationStrategy
 
     public void validateOptions() throws ConfigurationException
     {
-
+        for (Map.Entry<String, String> e : this.configOptions.entrySet())
+        {
+            Guardrails.maxDCReplicationFactor.guard(Integer.parseInt(e.getValue()), e.getKey(), null);
+        }
     }
 
     public abstract void maybeWarnOnOptions();

@@ -40,6 +40,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.ThresholdTester;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
@@ -483,4 +485,16 @@ public class NetworkTopologyStrategyTest
         strategy.maybeWarnOnOptions();
         assertTrue(ClientWarn.instance.getWarnings().stream().anyMatch(s -> s.contains("Your replication factor")));
     }
+
+//    @Test
+//    public void testMaxRF()
+//    {
+//        //warn when rf >= 3, fail when rf >= 4
+//        guardrails().setMaxDCReplicationFactor(2,3);
+//        HashMap<String, String> configOptions = new HashMap<>();
+//        configOptions.put("DC1", "2");
+//        configOptions.put("DC2", "3");
+//        configOptions.put("DC3", "4");
+//
+//    }
 }
