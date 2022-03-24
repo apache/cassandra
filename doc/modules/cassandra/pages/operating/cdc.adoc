@@ -52,10 +52,10 @@ The following cassandra.yaml options are available for CDC:
 `cdc_raw_directory` (default: `$CASSANDRA_HOME/data/cdc_raw`)::
   Destination for CommitLogSegments to be moved after all corresponding
   memtables are flushed.
-`cdc_free_space_in_mb`: (default: min of 4096 and 1/8th volume space)::
+`cdc_total_space`: (default: min of 4096MiB and 1/8th volume space)::
   Calculated as sum of all active CommitLogSegments that permit CDC +
   all flushed CDC segments in `cdc_raw_directory`.
-`cdc_free_space_check_interval_ms` (default: 250)::
+`cdc_free_space_check_interval` (default: 250ms)::
   When at capacity, we limit the frequency with which we re-calculate
   the space taken up by `cdc_raw_directory` to prevent burning CPU
   cycles unnecessarily. Default is to check 4 times per second.

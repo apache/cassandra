@@ -800,6 +800,16 @@ native_transport_allow_older_protocols: true
 # Idle connection timeouts are disabled by default.
 # native_transport_idle_timeout: 60000ms
 
+# When enabled, limits the number of native transport requests dispatched for processing per second.
+# Behavior once the limit has been breached depends on the value of THROW_ON_OVERLOAD specified in
+# the STARTUP message sent by the client during connection establishment. (See section "4.1.1. STARTUP"
+# in "CQL BINARY PROTOCOL v5".) With the THROW_ON_OVERLOAD flag enabled, messages that breach the limit
+# are dropped, and an OverloadedException is thrown for the client to handle. When the flag is not
+# enabled, the server will stop consuming messages from the channel/socket, putting backpressure on
+# the client while already dispatched messages are processed.
+# native_transport_rate_limiting_enabled: false
+# native_transport_max_requests_per_second: 1000000
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.
@@ -936,6 +946,13 @@ compaction_throughput: 64MiB/s
 # any range that has been written. This helps to smoothly transfer reads 
 # between the sstables, reducing page cache churn and keeping hot rows hot
 sstable_preemptive_open_interval: 50MiB
+
+# Starting from 4.1 sstables support UUID based generation identifiers. They are disabled by default
+# because once enabled, there is no easy way to downgrade. When the node is restarted with this option
+# set to true, each newly created sstable will have a UUID based generation identifier and such files are
+# not readable by previous Cassandra versions. At some point, this option will become true by default
+# and eventually get removed from the configuration.
+enable_uuid_sstable_identifiers: false
 
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
@@ -1583,7 +1600,7 @@ drop_compact_storage_enabled: false
 #         abort_threshold_kb: 0
 
 # Whether guardrails are enabled or not. Guardrails are disabled by default.
-# guardrails_enabled: true
+# guardrails_enabled: false
 # Guardrail to warn or fail when creating more user keyspaces than threshold.
 # The two thresholds default to -1 to disable.
 # keyspaces_warn_threshold: -1
@@ -1604,7 +1621,8 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # materialized_views_per_table_warn_threshold: -1
 # materialized_views_per_table_fail_threshold: -1
-# Guardrail to ignore or reject properties when creating tables. By default all properties are allowed.
+# Guardrail to warn about, ignore or reject properties when creating tables. By default all properties are allowed.
+# table_properties_warned: []
 # table_properties_ignored: []
 # table_properties_disallowed: []
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
@@ -1617,7 +1635,7 @@ drop_compact_storage_enabled: false
 # removing list elements by either index or value. Defaults to true.
 # read_before_write_list_operations_enabled: true
 # Guardrail to warn or fail when querying with an IN restriction selecting more partition keys than threshold.
-# The two thresholds default to -1 to disable. 
+# The two thresholds default to -1 to disable.
 # partition_keys_in_select_warn_threshold: -1
 # partition_keys_in_select_fail_threshold: -1
 # Guardrail to warn or fail when an IN query creates a cartesian product with a size exceeding threshold,
@@ -1625,6 +1643,28 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # in_select_cartesian_product_warn_threshold: -1
 # in_select_cartesian_product_fail_threshold: -1
+# Guardrail to warn about or reject read consistency levels. By default, all consistency levels are allowed.
+# read_consistency_levels_warned: []
+# read_consistency_levels_disallowed: []
+# Guardrail to warn about or reject write consistency levels. By default, all consistency levels are allowed.
+# write_consistency_levels_warned: []
+# write_consistency_levels_disallowed: []
+# Guardrail to warn or fail when encountering larger size of collection data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to 0KiB to disable.
+# collection_size_warn_threshold: 0KiB
+# collection_size_fail_threshold: 0KiB
+# Guardrail to warn or fail when encountering more elements in collection than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# The two thresholds default to -1 to disable.
+# items_per_collection_warn_threshold: -1
+# items_per_collection_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
@@ -1639,3 +1679,4 @@ drop_compact_storage_enabled: false
 #    enabled: true # (overriden by cassandra.ignore_dc system property)
 #  rack:
 #    enabled: true # (overriden by cassandra.ignore_rack system property)
+

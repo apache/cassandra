@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -53,7 +53,7 @@ public class PendingRangeCalculatorService
     private final AtLeastOnceTrigger update = executor.atLeastOnceTrigger(() -> {
         PendingRangeCalculatorServiceDiagnostics.taskStarted(1);
         long start = currentTimeMillis();
-        List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        Collection<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
         for (String keyspaceName : keyspaces)
             calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
         if (logger.isTraceEnabled())

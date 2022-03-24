@@ -18,13 +18,19 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Collections;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -47,7 +53,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the total number of user keyspaces.
      */
     public static final Threshold keyspaces =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
+    new Threshold("keyspaces",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating keyspace %s, current number of keyspaces %s exceeds warning threshold of %s.",
@@ -59,7 +66,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the total number of tables on user keyspaces.
      */
     public static final Threshold tables =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
+    new Threshold("tables",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getTablesFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating table %s, current number of tables %s exceeds warning threshold of %s.",
@@ -71,7 +79,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of columns per table.
      */
     public static final Threshold columnsPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
+    new Threshold("columns_per_table",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("The table %s has %s columns, this exceeds the warning threshold of %s.",
@@ -80,7 +89,8 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, value, what));
 
     public static final Threshold secondaryIndexesPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
+    new Threshold("secondary_indexes_per_table",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating secondary index %s, current number of indexes %s exceeds warning threshold of %s.",
@@ -92,7 +102,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of materialized views per table.
      */
     public static final Threshold materializedViewsPerTable =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
+    new Threshold("materialized_views_per_table",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
@@ -101,10 +112,12 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, what));
 
     /**
-     * Guardrail ignoring/disallowing the usage of certain table properties.
+     * Guardrail warning about, ignoring or rejecting the usage of certain table properties.
      */
     public static final Values<String> tableProperties =
-    new Values<>(state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesIgnored(),
+    new Values<>("table_properties",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesWarned(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesIgnored(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablePropertiesDisallowed(),
                  "Table Properties");
 
@@ -112,14 +125,16 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail disabling user-provided timestamps.
      */
     public static final DisableFlag userTimestampsEnabled =
-    new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
+    new DisableFlag("user_timestamps",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
                     "User provided timestamps (USING TIMESTAMP)");
 
     /**
      * Guardrail on the number of elements returned within page.
      */
     public static final Threshold pageSize =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
+    new Threshold("page_size",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
@@ -131,7 +146,8 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail on the number of partition keys in the IN clause.
      */
     public static final Threshold partitionKeysInSelect =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
+    new Threshold("partition_keys_in_select",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
@@ -145,14 +161,16 @@ public final class Guardrails implements GuardrailsMBean
      * Guardrail disabling operations on lists that require read before write.
      */
     public static final DisableFlag readBeforeWriteListOperationsEnabled =
-    new DisableFlag(state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
+    new DisableFlag("read_before_write_list_operations",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
                     "List operation requiring read before write");
 
     /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
      */
     public static final Threshold inSelectCartesianProduct =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
+    new Threshold("in_select_cartesian_product",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("The cartesian product of the IN restrictions on %s produces %d values, " +
@@ -160,6 +178,52 @@ public final class Guardrails implements GuardrailsMBean
                                      what, value, threshold)
                             : format("Aborting query because the cartesian product of the IN restrictions on %s " +
                                      "produces %d values, this exceeds fail threshold of %s.",
+                                     what, value, threshold));
+
+    /**
+     * Guardrail on read consistency levels.
+     */
+    public static final Values<ConsistencyLevel> readConsistencyLevels =
+    new Values<>("read_consistency_levels",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsWarned(),
+                 state -> Collections.emptySet(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getReadConsistencyLevelsDisallowed(),
+                 "read consistency levels");
+
+    /**
+     * Guardrail on write consistency levels.
+     */
+    public static final Values<ConsistencyLevel> writeConsistencyLevels =
+    new Values<>("write_consistency_levels",
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsWarned(),
+                 state -> Collections.emptySet(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsDisallowed(),
+                 "write consistency levels");
+
+    /**
+     * Guardrail on the size of a collection.
+     */
+    public static final Threshold collectionSize =
+    new Threshold("collection_size",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold().toBytes(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold().toBytes(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Detected collection %s of size %s, this exceeds the warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Detected collection %s of size %s, this exceeds the failure threshold of %s.",
+                                     what, value, threshold));
+
+    /**
+     * Guardrail on the number of items of a collection.
+     */
+    public static final Threshold itemsPerCollection =
+    new Threshold("items_per_collection",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
+                  (isWarning, what, value, threshold) ->
+                  isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
+                                     what, value, threshold)
+                            : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
                                      what, value, threshold));
 
     private Guardrails()
@@ -175,7 +239,7 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static boolean enabled(ClientState state)
     {
-        return CONFIG_PROVIDER.getOrCreate(state).getEnabled() && DatabaseDescriptor.isDaemonInitialized();
+        return DatabaseDescriptor.isDaemonInitialized() && CONFIG_PROVIDER.getOrCreate(state).getEnabled();
     }
 
     @Override
@@ -281,6 +345,35 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public Set<String> getTablePropertiesWarned()
+    {
+        return DEFAULT_CONFIG.getTablePropertiesWarned();
+    }
+
+    @Override
+    public String getTablePropertiesWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getTablePropertiesWarned());
+    }
+
+    public void setTablePropertiesWarned(String... properties)
+    {
+        setTablePropertiesWarned(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setTablePropertiesWarned(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setTablePropertiesWarned(properties);
+    }
+
+    @Override
+    public void setTablePropertiesWarnedCSV(String properties)
+    {
+        setTablePropertiesWarned(fromCSV(properties));
+    }
+
+    @Override
     public Set<String> getTablePropertiesDisallowed()
     {
         return DEFAULT_CONFIG.getTablePropertiesDisallowed();
@@ -368,6 +461,7 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setPageSizeThreshold(warn, fail);
     }
 
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return DEFAULT_CONFIG.getReadBeforeWriteListOperationsEnabled();
@@ -380,12 +474,6 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setPartitionKeysInSelectThreshold(int warn, int fail)
-    {
-        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
-    }
-
-    @Override
     public int getPartitionKeysInSelectWarnThreshold()
     {
         return DEFAULT_CONFIG.getPartitionKeysInSelectWarnThreshold();
@@ -395,6 +483,48 @@ public final class Guardrails implements GuardrailsMBean
     public int getPartitionKeysInSelectFailThreshold()
     {
         return DEFAULT_CONFIG.getPartitionKeysInSelectFailThreshold();
+    }
+
+    @Override
+    public void setPartitionKeysInSelectThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
+    }
+
+    public long getCollectionSizeWarnThresholdInKiB()
+    {
+        return DEFAULT_CONFIG.getCollectionSizeWarnThreshold().toKibibytes();
+    }
+
+    @Override
+    public long getCollectionSizeFailThresholdInKiB()
+    {
+        return DEFAULT_CONFIG.getCollectionSizeFailThreshold().toKibibytes();
+    }
+
+    @Override
+    public void setCollectionSizeThresholdInKiB(long warnInKiB, long failInKiB)
+    {
+        DEFAULT_CONFIG.setCollectionSizeThreshold(DataStorageSpec.inKibibytes(warnInKiB),
+                                                  DataStorageSpec.inKibibytes(failInKiB));
+    }
+
+    @Override
+    public int getItemsPerCollectionWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getItemsPerCollectionWarnThreshold();
+    }
+
+    @Override
+    public int getItemsPerCollectionFailThreshold()
+    {
+        return DEFAULT_CONFIG.getItemsPerCollectionFailThreshold();
+    }
+
+    @Override
+    public void setItemsPerCollectionThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setItemsPerCollectionThreshold(warn, fail);
     }
 
     @Override
@@ -415,13 +545,118 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setInSelectCartesianProductThreshold(warn, fail);
     }
 
+    public Set<ConsistencyLevel> getReadConsistencyLevelsWarned()
+    {
+        return DEFAULT_CONFIG.getReadConsistencyLevelsWarned();
+    }
+
+    @Override
+    public String getReadConsistencyLevelsWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getReadConsistencyLevelsWarned(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsWarned(consistencyLevels);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsWarnedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsWarned(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed()
+    {
+        return DEFAULT_CONFIG.getReadConsistencyLevelsDisallowed();
+    }
+
+    @Override
+    public String getReadConsistencyLevelsDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getReadConsistencyLevelsDisallowed(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsDisallowed(consistencyLevels);
+    }
+
+    @Override
+    public void setReadConsistencyLevelsDisallowedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setReadConsistencyLevelsDisallowed(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyLevelsWarned()
+    {
+        return DEFAULT_CONFIG.getWriteConsistencyLevelsWarned();
+    }
+
+    @Override
+    public String getWriteConsistencyLevelsWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyLevelsWarned(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsWarned(consistencyLevels);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsWarnedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsWarned(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed()
+    {
+        return DEFAULT_CONFIG.getWriteConsistencyLevelsDisallowed();
+    }
+
+    @Override
+    public String getWriteConsistencyLevelsDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getWriteConsistencyLevelsDisallowed(), ConsistencyLevel::toString);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(consistencyLevels);
+    }
+
+    @Override
+    public void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels)
+    {
+        DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
     private static String toCSV(Set<String> values)
     {
-        return values == null ? "" : String.join(",", values);
+        return values == null || values.isEmpty() ? "" : String.join(",", values);
+    }
+
+    private static <T> String toCSV(Set<T> values, Function<T, String> formatter)
+    {
+        return values == null || values.isEmpty() ? "" : values.stream().map(formatter).collect(Collectors.joining(","));
     }
 
     private static Set<String> fromCSV(String csv)
     {
-        return csv == null ? null : ImmutableSet.copyOf(csv.split(","));
+        return StringUtils.isEmpty(csv) ? Collections.emptySet() : ImmutableSet.copyOf(csv.split(","));
+    }
+
+    private static <T> Set<T> fromCSV(String csv, Function<String, T> parser)
+    {
+        return StringUtils.isEmpty(csv) ? Collections.emptySet() : fromCSV(csv).stream().map(parser).collect(Collectors.toSet());
     }
 }

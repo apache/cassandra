@@ -46,13 +46,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static junit.framework.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.hints.HintsTestUtil.assertHintsEqual;
@@ -87,7 +88,7 @@ public class HintTest
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
         for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
-            MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build(), true);
+            SchemaTestUtil.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build());
     }
 
     @Test
@@ -177,7 +178,7 @@ public class HintTest
                   .unbuild()
                   .gcGraceSeconds(0)
                   .build();
-        MigrationManager.announceTableUpdate(updated, true);
+        SchemaTestUtil.announceTableUpdate(updated);
 
         Mutation mutation = createMutation(key, now);
         Hint.create(mutation, now / 1000).apply();
@@ -206,7 +207,7 @@ public class HintTest
                   .unbuild()
                   .gcGraceSeconds(0)
                   .build();
-        MigrationManager.announceTableUpdate(updated, true);
+        SchemaTestUtil.announceTableUpdate(updated);
 
         Mutation mutation = createMutation(key, now);
         Hint hint = Hint.create(mutation, now / 1000);

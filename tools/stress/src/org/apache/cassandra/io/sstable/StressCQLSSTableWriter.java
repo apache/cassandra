@@ -35,6 +35,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlParser;
@@ -570,15 +571,14 @@ public class StressCQLSSTableWriter implements Closeable
             }
         }
 
-        private static void createTypes(String keyspace, List<CreateTypeStatement.Raw> typeStatements)
+        private static Types createTypes(String keyspace, List<CreateTypeStatement.Raw> typeStatements)
         {
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
             Types.RawBuilder builder = Types.rawBuilder(keyspace);
             for (CreateTypeStatement.Raw st : typeStatements)
                 st.addToRawBuilder(builder);
 
-            ksm = ksm.withSwapped(builder.build());
-            Schema.instance.load(ksm);
+            return builder.build();
         }
 
         public static ColumnFamilyStore createOfflineTable(String schema, List<File> directoryList)
@@ -594,10 +594,10 @@ public class StressCQLSSTableWriter implements Closeable
         {
             String keyspace = schemaStatement.keyspace();
 
-            if (Schema.instance.getKeyspaceMetadata(keyspace) == null)
-                Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
+            Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), true));
 
-            createTypes(keyspace, typeStatements);
+            Types types = createTypes(keyspace, typeStatements);
+            Schema.instance.transform(SchemaTransformations.addTypes(types, true));
 
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
 
@@ -621,7 +621,7 @@ public class StressCQLSSTableWriter implements Closeable
             ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, tableMetadata.name, TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);
 
             ks.initCfCustom(cfs);
-            Schema.instance.load(ksm.withSwapped(ksm.tables.with(cfs.metadata())));
+            Schema.instance.transform(SchemaTransformations.addTable(tableMetadata, true));
 
             return cfs;
         }

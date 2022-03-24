@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -30,9 +31,8 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.BiPredicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -1198,6 +1198,24 @@ public class Directories
         return result;
     }
 
+    /**
+     * Initializes the sstable unique identifier generator using a provided builder for this instance of directories.
+     * If the id builder needs that, sstables in these directories are listed to provide the existing identifiers to
+     * the builder. The listing is done lazily so if the builder does not require that, listing is skipped.
+     */
+    public <T extends SSTableId> Supplier<T> getUIDGenerator(SSTableId.Builder<T> builder)
+    {
+        // this stream is evaluated lazily - if the generator does not need the existing ids, we do not even call #sstableLister
+        Stream<SSTableId> curIds = StreamSupport.stream(() -> sstableLister(Directories.OnTxnErr.IGNORE)
+                                                              .includeBackups(true)
+                                                              .list()
+                                                              .keySet()
+                                                              .spliterator(), Spliterator.DISTINCT, false)
+                                                .map(d -> d.id);
+
+        return builder.generator(curIds);
+    }
+
     private static File getOrCreate(File base, String... subdirs)
     {
         File dir = subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
@@ -1220,11 +1238,11 @@ public class Directories
 
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
-        private final HashSet<File> toSkip;
+        private final Set<String> toSkip;
         SSTableSizeSummer(File path, List<File> files)
         {
             super(path);
-            toSkip = new HashSet<>(files);
+            toSkip = files.stream().map(f -> f.name()).collect(Collectors.toSet());
         }
 
         @Override
@@ -1235,7 +1253,7 @@ public class Directories
             return desc != null
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
-                && !toSkip.contains(file);
+                && !toSkip.contains(file.name());
         }
     }
 

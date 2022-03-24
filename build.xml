@@ -18,6 +18,15 @@
          xmlns:artifact="antlib:org.apache.maven.artifact.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
+
+    <fail message="You need to use Ant of version at least 1.10 to continue.">
+      <condition>
+        <not>
+          <antversion atleast="1.10"/>
+        </not>
+      </condition>
+    </fail>
+
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
@@ -523,10 +532,10 @@
           <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
           <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.9"/>
           <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.9"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.12.5"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.12.5"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.12.5"/>
-          <dependency groupId="com.fasterxml.jackson.datatype" artifactId="jackson-datatype-jsr310" version="2.12.5"/>
+          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.13.2"/>
+          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.13.2"/>
+          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.13.2"/>
+          <dependency groupId="com.fasterxml.jackson.datatype" artifactId="jackson-datatype-jsr310" version="2.13.2"/>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
@@ -1369,7 +1378,7 @@
       </jar>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib,simulator-jars" unless="no-build-test"
+  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test" unless="no-build-test"
           description="Compile test classes">
     <antcall target="_build-test"/>
   </target>
@@ -2253,6 +2262,21 @@
       </checkstyle>
   </target>
 
+  <target name="checkstyle-test" depends="init-checkstyle,maven-ant-tasks-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8">
+      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
+      <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
+      <mkdir  dir="${checkstyle.log.dir}" />
+
+      <property name="checkstyle_test.properties" value="${basedir}/checkstyle_test.xml" />
+      <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
+      <checkstyle config="${checkstyle_test.properties}"
+                  failureProperty="checkstyle.failure"
+                  failOnViolation="true">
+          <formatter type="plain"/>
+          <formatter type="xml" tofile="${checkstyle_test.report.file}"/>
+          <fileset dir="${test.dir}" includes="**/*.java"/>
+      </checkstyle>
+  </target>
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"

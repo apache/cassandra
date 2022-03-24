@@ -21,14 +21,14 @@ import java.math.BigInteger;
 
 import org.junit.Test;
 
-import static junit.framework.Assert.assertNull;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Any tests that do not fit in any other category,

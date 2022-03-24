@@ -240,6 +240,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         checkNotNull(cl, "Invalid empty consistency level");
 
         cl.validateForRead();
+        Guardrails.readConsistencyLevels.guard(EnumSet.of(cl), state.getClientState());
 
         int nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
@@ -393,7 +394,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        int userLimit,
                                        long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
-        Guardrails.pageSize.guard(pageSize, table(), state.getClientState());
+        Guardrails.pageSize.guard(pageSize, table(), false, state.getClientState());
 
         if (aggregationSpec != null)
         {
@@ -578,7 +579,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         if (restrictions.keyIsInRelation())
         {
-            Guardrails.partitionKeysInSelect.guard(keys.size(), table.name, state);
+            Guardrails.partitionKeysInSelect.guard(keys.size(), table.name, false, state);
         }
 
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, state, columnFilter);

@@ -479,7 +479,7 @@ public abstract class CQLTester
         };
 
         DatabaseDescriptor.setRoleManager(roleManager);
-        MigrationManager.announceNewKeyspace(AuthKeyspace.metadata(), true);
+        SchemaTestUtil.addOrUpdateKeyspace(AuthKeyspace.metadata(), true);
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
@@ -514,7 +514,6 @@ public abstract class CQLTester
 
     private static void startServices()
     {
-        SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
@@ -613,7 +612,12 @@ public abstract class CQLTester
         String currentTable = currentTable();
         return currentTable == null
              ? null
-             : Keyspace.open(keyspace).getColumnFamilyStore(currentTable);
+             : getColumnFamilyStore(keyspace, currentTable);
+    }
+
+    public ColumnFamilyStore getColumnFamilyStore(String keyspace, String table)
+    {
+        return Keyspace.open(keyspace).getColumnFamilyStore(table);
     }
 
     public void flush(boolean forceFlush)

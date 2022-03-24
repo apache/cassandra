@@ -31,7 +31,7 @@ public class GuardrailPartitionKeysInSelectTest extends ThresholdTester
     {
         super(PARTITION_KEYS_SELECT_WARN_THRESHOLD,
               PARTITION_KEYS_SELECT_FAIL_THRESHOLD,
-              "partition_keys_in_select",
+              Guardrails.partitionKeysInSelect,
               Guardrails::setPartitionKeysInSelectThreshold,
               Guardrails::getPartitionKeysInSelectWarnThreshold,
               Guardrails::getPartitionKeysInSelectFailThreshold);

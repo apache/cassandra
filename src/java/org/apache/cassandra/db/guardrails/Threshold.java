@@ -40,14 +40,17 @@ public class Threshold extends Guardrail
     /**
      * Creates a new threshold guardrail.
      *
+     * @param name            the identifying name of the guardrail
      * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
      * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
-    public Threshold(ToLongFunction<ClientState> warnThreshold,
+    public Threshold(String name,
+                     ToLongFunction<ClientState> warnThreshold,
                      ToLongFunction<ClientState> failThreshold,
                      ErrorMessageProvider messageProvider)
     {
+        super(name);
         this.warnThreshold = warnThreshold;
         this.failThreshold = failThreshold;
         this.messageProvider = messageProvider;
@@ -61,16 +64,21 @@ public class Threshold extends Guardrail
                                              thresholdValue);
     }
 
+    private String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
+    {
+        return errMsg(isWarning, REDACTED, value, thresholdValue);
+    }
+
     private long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
-        return failValue < 0 ? Long.MAX_VALUE : failValue;
+        return failValue <= 0 ? Long.MAX_VALUE : failValue;
     }
 
     private long warnValue(ClientState state)
     {
         long warnValue = warnThreshold.applyAsLong(state);
-        return warnValue < 0 ? Long.MAX_VALUE : warnValue;
+        return warnValue <= 0 ? Long.MAX_VALUE : warnValue;
     }
 
     @Override
@@ -79,20 +87,40 @@ public class Threshold extends Guardrail
         if (!super.enabled(state))
             return false;
 
-        return failThreshold.applyAsLong(state) >= 0 || warnThreshold.applyAsLong(state) >= 0;
+        return failThreshold.applyAsLong(state) > 0 || warnThreshold.applyAsLong(state) > 0;
+    }
+
+    /**
+     * Checks whether the provided value would trigger a warning or failure if passed to {@link #guard}.
+     *
+     * <p>This method is optional (does not have to be called) but can be used in the case where the "what"
+     * argument to {@link #guard} is expensive to build to save doing so in the common case (of the guardrail
+     * not being triggered).
+     *
+     * @param value the value to test.
+     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
+     *              A {@code null} value means that the check should be done regardless of the query.
+     * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail,
+     * {@code false otherwise}.
+     */
+    public boolean triggersOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
     }
 
     /**
      * Apply the guardrail to the provided value, warning or failing if appropriate.
      *
-     * @param value The value to check.
-     * @param what  A string describing what {@code value} is a value of. This is used in the error message if the
-     *              guardrail is triggered. For instance, say the guardrail guards the size of column values, then this
-     *              argument must describe which column of which row is triggering the guardrail for convenience.
-     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
-     *              A {@code null} value means that the check should be done regardless of the query.
+     * @param value            The value to check.
+     * @param what             A string describing what {@code value} is a value of. This is used in the error message
+     *                         if the guardrail is triggered. For instance, say the guardrail guards the size of column
+     *                         values, then this argument must describe which column of which row is triggering the
+     *                         guardrail for convenience.
+     * @param containsUserData whether the {@code what} contains user data that should be redacted on external systems.
+     * @param state            The client state, used to skip the check if the query is internal or is done by a superuser.
+     *                         A {@code null} value means that the check should be done regardless of the query.
      */
-    public void guard(long value, String what, @Nullable ClientState state)
+    public void guard(long value, String what, boolean containsUserData, @Nullable ClientState state)
     {
         if (!enabled(state))
             return;
@@ -100,23 +128,25 @@ public class Threshold extends Guardrail
         long failValue = failValue(state);
         if (value > failValue)
         {
-            triggerFail(value, failValue, what);
+            triggerFail(value, failValue, what, containsUserData, state);
             return;
         }
 
         long warnValue = warnValue(state);
         if (value > warnValue)
-            triggerWarn(value, warnValue, what);
+            triggerWarn(value, warnValue, what, containsUserData);
     }
 
-    private void triggerFail(long value, long failValue, String what)
+    private void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
     {
-        fail(errMsg(false, what, value, failValue));
+        String fullMessage = errMsg(false, what, value, failValue);
+        fail(fullMessage, containsUserData ? redactedErrMsg(false, value, failValue) : fullMessage, state);
     }
 
-    private void triggerWarn(long value, long warnValue, String what)
+    private void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
     {
-        warn(errMsg(true, what, value, warnValue));
+        String fullMessage = errMsg(true, what, value, warnValue);
+        warn(fullMessage, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMessage);
     }
 
     /**

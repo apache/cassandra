@@ -21,8 +21,11 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -30,10 +33,12 @@ import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.assertj.core.api.Assertions;
 import org.psjava.util.Triple;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -327,5 +332,55 @@ public class FileTest
     {
         Assert.assertTrue(new File("somewhere/../").isAncestorOf(new File("somewhere")));
         Assert.assertTrue(new File("../").isAncestorOf(new File("")));
+    }
+
+    @Test
+    public void testOverwrite() throws Exception
+    {
+        File f = new File(dir, UUID.randomUUID().toString());
+
+        // write
+        ByteBuffer buf = ByteBuffer.wrap(RandomUtils.nextBytes(100));
+        try (FileChannel fc = f.newWriteChannel(File.WriteMode.OVERWRITE))
+        {
+            fc.write(buf);
+        }
+        Assertions.assertThat(f.length()).isEqualTo(buf.array().length);
+        Assertions.assertThat(Files.readAllBytes(f.toPath())).isEqualTo(buf.array());
+
+        // overwrite
+        buf = ByteBuffer.wrap(RandomUtils.nextBytes(50));
+        try (FileChannel fc = f.newWriteChannel(File.WriteMode.OVERWRITE))
+        {
+            fc.write(buf);
+        }
+        Assertions.assertThat(f.length()).isEqualTo(buf.array().length);
+        Assertions.assertThat(Files.readAllBytes(f.toPath())).isEqualTo(buf.array());
+    }
+
+    @Test
+    public void testAppend() throws Exception
+    {
+        File f = new File(dir, UUID.randomUUID().toString());
+
+        // write
+        ByteBuffer buf1 = ByteBuffer.wrap(RandomUtils.nextBytes(100));
+        try (FileChannel fc = f.newWriteChannel(File.WriteMode.APPEND))
+        {
+            fc.write(buf1);
+        }
+        Assertions.assertThat(f.length()).isEqualTo(buf1.array().length);
+        Assertions.assertThat(Files.readAllBytes(f.toPath())).isEqualTo(buf1.array());
+
+        // overwrite
+        ByteBuffer buf2 = ByteBuffer.wrap(RandomUtils.nextBytes(50));
+        try (FileChannel fc = f.newWriteChannel(File.WriteMode.APPEND))
+        {
+            fc.write(buf2);
+        }
+        Assertions.assertThat(f.length()).isEqualTo(buf1.array().length + buf2.array().length);
+        ByteBuffer buf = ByteBuffer.allocate(buf1.array().length + buf2.array().length);
+        buf.put(buf1.array()).put(buf2.array());
+        Assertions.assertThat(Files.readAllBytes(f.toPath())).isEqualTo(buf.array());
     }
 }

@@ -748,6 +748,9 @@ public class Config
     public volatile boolean auto_optimise_full_repair_streams = false;
     public volatile boolean auto_optimise_preview_repair_streams = false;
 
+    // see CASSANDRA-17048 and the comment in cassandra.yaml
+    public boolean enable_uuid_sstable_identifiers = false;
+
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.
@@ -771,6 +774,7 @@ public class Config
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
     public static final int DISABLED_GUARDRAIL = -1;
+    public static final DataStorageSpec DISABLED_SIZE_GUARDRAIL = DataStorageSpec.inBytes(0);
     public volatile boolean guardrails_enabled = false;
     public volatile int keyspaces_warn_threshold = DISABLED_GUARDRAIL;
     public volatile int keyspaces_fail_threshold = DISABLED_GUARDRAIL;
@@ -788,10 +792,19 @@ public class Config
     public volatile int partition_keys_in_select_fail_threshold = DISABLED_GUARDRAIL;
     public volatile int in_select_cartesian_product_warn_threshold = DISABLED_GUARDRAIL;
     public volatile int in_select_cartesian_product_fail_threshold = DISABLED_GUARDRAIL;
+    public volatile Set<String> table_properties_warned = Collections.emptySet();
     public volatile Set<String> table_properties_ignored = Collections.emptySet();
     public volatile Set<String> table_properties_disallowed = Collections.emptySet();
+    public volatile Set<ConsistencyLevel> read_consistency_levels_warned = Collections.emptySet();
+    public volatile Set<ConsistencyLevel> read_consistency_levels_disallowed = Collections.emptySet();
+    public volatile Set<ConsistencyLevel> write_consistency_levels_warned = Collections.emptySet();
+    public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
+    public volatile DataStorageSpec collection_size_warn_threshold = DISABLED_SIZE_GUARDRAIL;
+    public volatile DataStorageSpec collection_size_fail_threshold = DISABLED_SIZE_GUARDRAIL;
+    public volatile int items_per_collection_warn_threshold = DISABLED_GUARDRAIL;
+    public volatile int items_per_collection_fail_threshold = DISABLED_GUARDRAIL;
 
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
     public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);

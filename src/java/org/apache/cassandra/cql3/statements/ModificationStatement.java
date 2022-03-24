@@ -460,6 +460,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
+        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                queryState.getClientState());
+
         return hasConditions()
              ? executeWithCondition(queryState, options, queryStartNanoTime)
              : executeWithoutCondition(queryState, options, queryStartNanoTime);
@@ -787,7 +790,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
-    Slices createSlices(QueryOptions options)
+    public Slices createSlices(QueryOptions options)
     {
         SortedSet<ClusteringBound<?>> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
         SortedSet<ClusteringBound<?>> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);

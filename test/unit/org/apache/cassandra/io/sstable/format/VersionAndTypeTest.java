@@ -20,7 +20,7 @@ package org.apache.cassandra.io.sstable.format;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 public class VersionAndTypeTest
 {

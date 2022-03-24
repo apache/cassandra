@@ -35,7 +35,6 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import javax.management.ListenerNotFoundException;
@@ -64,7 +63,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.SystemKeyspaceMigrator40;
+import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionLogger;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -105,7 +104,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -568,7 +566,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // We need to persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
                 SystemKeyspace.persistLocalMetadata();
-                SystemKeyspaceMigrator40.migrate();
+                SystemKeyspaceMigrator41.migrate();
 
                 // Same order to populate tokenMetadata for the first time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup
@@ -633,7 +631,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
-                    MigrationManager.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(nanoTime() - startedAt));
                     try
                     {
                         StorageService.instance.initServer();
@@ -652,6 +649,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 else
                 {
+                    Schema.instance.startSync();
                     Stream peers = cluster.stream().filter(instance -> ((IInstance) instance).isValid());
                     SystemKeyspace.setLocalHostId(config.hostId());
                     if (config.has(BLANK_GOSSIP))
@@ -669,8 +667,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // Populate tokenMetadata for the second time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup
                 StorageService.instance.populateTokenMetadata();
-
-                SystemKeyspace.finishStartup();
 
                 CassandraDaemon.getInstanceForTesting().completeSetup();
 

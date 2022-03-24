@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.config;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -27,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
 
@@ -53,7 +55,7 @@ import static java.util.stream.Collectors.toSet;
 public class GuardrailsOptions implements GuardrailsConfig
 {
     private static final Logger logger = LoggerFactory.getLogger(GuardrailsOptions.class);
-    
+
     private final Config config;
 
     public GuardrailsOptions(Config config)
@@ -64,12 +66,19 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateIntThreshold(config.columns_per_table_warn_threshold, config.columns_per_table_fail_threshold, "columns_per_table");
         validateIntThreshold(config.secondary_indexes_per_table_warn_threshold, config.secondary_indexes_per_table_fail_threshold, "secondary_indexes_per_table");
         validateIntThreshold(config.materialized_views_per_table_warn_threshold, config.materialized_views_per_table_fail_threshold, "materialized_views_per_table");
+        config.table_properties_warned = validateTableProperties(config.table_properties_warned, "table_properties_warned");
         config.table_properties_ignored = validateTableProperties(config.table_properties_ignored, "table_properties_ignored");
         config.table_properties_disallowed = validateTableProperties(config.table_properties_disallowed, "table_properties_disallowed");
         validateIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
         validateIntThreshold(config.partition_keys_in_select_warn_threshold,
                              config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
         validateIntThreshold(config.in_select_cartesian_product_warn_threshold, config.in_select_cartesian_product_fail_threshold, "in_select_cartesian_product");
+        config.read_consistency_levels_warned = validateConsistencyLevels(config.read_consistency_levels_warned, "read_consistency_levels_warned");
+        config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
+        config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
+        config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
+        validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, "collection_size");
+        validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
     }
 
     @Override
@@ -267,6 +276,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public Set<String> getTablePropertiesWarned()
+    {
+        return config.table_properties_warned;
+    }
+
+    public void setTablePropertiesWarned(Set<String> properties)
+    {
+        updatePropertyWithLogging("table_properties_warned",
+                                  validateTableProperties(properties, "table_properties_warned"),
+                                  () -> config.table_properties_warned,
+                                  x -> config.table_properties_warned = x);
+    }
+
+    @Override
     public Set<String> getTablePropertiesIgnored()
     {
         return config.table_properties_ignored;
@@ -347,6 +370,110 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.in_select_cartesian_product_fail_threshold = x);
     }
 
+    public Set<ConsistencyLevel> getReadConsistencyLevelsWarned()
+    {
+        return config.read_consistency_levels_warned;
+    }
+
+    public void setReadConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("read_consistency_levels_warned",
+                                  validateConsistencyLevels(consistencyLevels, "read_consistency_levels_warned"),
+                                  () -> config.read_consistency_levels_warned,
+                                  x -> config.read_consistency_levels_warned = x);
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed()
+    {
+        return config.read_consistency_levels_disallowed;
+    }
+
+    public void setReadConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("read_consistency_levels_disallowed",
+                                  validateConsistencyLevels(consistencyLevels, "read_consistency_levels_disallowed"),
+                                  () -> config.read_consistency_levels_disallowed,
+                                  x -> config.read_consistency_levels_disallowed = x);
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyLevelsWarned()
+    {
+        return config.write_consistency_levels_warned;
+    }
+
+    public void setWriteConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("write_consistency_levels_warned",
+                                  validateConsistencyLevels(consistencyLevels, "write_consistency_levels_warned"),
+                                  () -> config.write_consistency_levels_warned,
+                                  x -> config.write_consistency_levels_warned = x);
+    }
+
+    @Override
+    public Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed()
+    {
+        return config.write_consistency_levels_disallowed;
+    }
+
+    public void setWriteConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    {
+        updatePropertyWithLogging("write_consistency_levels_disallowed",
+                                  validateConsistencyLevels(consistencyLevels, "write_consistency_levels_disallowed"),
+                                  () -> config.write_consistency_levels_disallowed,
+                                  x -> config.write_consistency_levels_disallowed = x);
+    }
+
+    public DataStorageSpec getCollectionSizeWarnThreshold()
+    {
+        return config.collection_size_warn_threshold;
+    }
+
+    @Override
+    public DataStorageSpec getCollectionSizeFailThreshold()
+    {
+        return config.collection_size_fail_threshold;
+    }
+
+    public void setCollectionSizeThreshold(DataStorageSpec warn, DataStorageSpec fail)
+    {
+        validateSizeThreshold(warn, fail, "collection_size");
+        updatePropertyWithLogging("collection_size_warn_threshold",
+                                  warn,
+                                  () -> config.collection_size_warn_threshold,
+                                  x -> config.collection_size_warn_threshold = x);
+        updatePropertyWithLogging("collection_size_fail_threshold",
+                                  fail,
+                                  () -> config.collection_size_fail_threshold,
+                                  x -> config.collection_size_fail_threshold = x);
+    }
+
+    @Override
+    public int getItemsPerCollectionWarnThreshold()
+    {
+        return config.items_per_collection_warn_threshold;
+    }
+
+    @Override
+    public int getItemsPerCollectionFailThreshold()
+    {
+        return config.items_per_collection_fail_threshold;
+    }
+
+    public void setItemsPerCollectionThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "items_per_collection");
+        updatePropertyWithLogging("items_per_collection_warn_threshold",
+                                  warn,
+                                  () -> config.items_per_collection_warn_threshold,
+                                  x -> config.items_per_collection_warn_threshold = x);
+        updatePropertyWithLogging("items_per_collection_fail_threshold",
+                                  fail,
+                                  () -> config.items_per_collection_fail_threshold,
+                                  x -> config.items_per_collection_fail_threshold = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
@@ -357,36 +484,31 @@ public class GuardrailsOptions implements GuardrailsConfig
         }
     }
 
-    private static void validatePositiveNumeric(long value, long maxValue, boolean allowZero, String name)
+    private static void validatePositiveNumeric(long value, long maxValue, String name)
     {
+        if (value == Config.DISABLED_GUARDRAIL)
+            return;
+
         if (value > maxValue)
             throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
                                                       value, name, maxValue));
 
-        if (value == 0 && !allowZero)
+        if (value == 0)
             throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
                                                       "if attempting to disable use %d",
                                                       name, Config.DISABLED_GUARDRAIL));
 
         // We allow -1 as a general "disabling" flag. But reject anything lower to avoid mistakes.
-        if (value < Config.DISABLED_GUARDRAIL)
+        if (value <= 0)
             throw new IllegalArgumentException(format("Invalid value %d for %s: negative values are not allowed, " +
                                                       "outside of %d which disables the guardrail",
                                                       value, name, Config.DISABLED_GUARDRAIL));
     }
 
-    private static void validateStrictlyPositiveInteger(long value, String name)
-    {
-        // We use 'long' for generality, but most numeric guardrail cannot effectively be more than a 'int' for various
-        // internal reasons. Not that any should ever come close in practice ...
-        // Also, in most cases, zero does not make sense (allowing 0 tables or columns is not exactly useful).
-        validatePositiveNumeric(value, Integer.MAX_VALUE, false, name);
-    }
-
     private static void validateIntThreshold(int warn, int fail, String name)
     {
-        validateStrictlyPositiveInteger(warn, name + "_warn_threshold");
-        validateStrictlyPositiveInteger(fail, name + "_fail_threshold");
+        validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
+        validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
@@ -398,6 +520,16 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (fail < warn)
             throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be lower " +
                                                       "than the fail threshold %d", warn, name, fail));
+    }
+
+    private static void validateSizeThreshold(DataStorageSpec warn, DataStorageSpec fail, String name)
+    {
+        if (warn.equals(Config.DISABLED_SIZE_GUARDRAIL) || fail.equals(Config.DISABLED_SIZE_GUARDRAIL))
+            return;
+
+        if (fail.toBytes() < warn.toBytes())
+            throw new IllegalArgumentException(format("The warn threshold %s for %s_warn_threshold should be lower " +
+                                                      "than the fail threshold %s", warn, name, fail));
     }
 
     private static Set<String> validateTableProperties(Set<String> properties, String name)
@@ -414,5 +546,13 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       name, diff));
 
         return lowerCaseProperties;
+    }
+
+    private static Set<ConsistencyLevel> validateConsistencyLevels(Set<ConsistencyLevel> consistencyLevels, String name)
+    {
+        if (consistencyLevels == null)
+            throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
+
+        return consistencyLevels.isEmpty() ? Collections.emptySet() : Sets.immutableEnumSet(consistencyLevels);
     }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.db.guardrails;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -43,6 +44,15 @@ public abstract class Guardrail
 {
     protected static final NoSpamLogger logger = NoSpamLogger.getLogger(LoggerFactory.getLogger(Guardrail.class),
                                                                         10, TimeUnit.MINUTES);
+    protected static final String REDACTED = "<redacted>";
+
+    /** A name identifying the guardrail (mainly for shipping with diagnostic events). */
+    public final String name;
+
+    Guardrail(String name)
+    {
+        this.name = name;
+    }
 
     /**
      * Checks whether this guardrail is enabled or not. This will be enabled if guardrails are enabled
@@ -60,23 +70,47 @@ public abstract class Guardrail
 
     protected void warn(String message)
     {
+        warn(message, message);
+    }
+
+    protected void warn(String message, String redactedMessage)
+    {
+        message = decorateMessage(message);
+
         logger.warn(message);
         // Note that ClientWarn will simply ignore the message if we're not running this as part of a user query
         // (the internal "state" will be null)
         ClientWarn.instance.warn(message);
         // Similarly, tracing will also ignore the message if we're not running tracing on the current thread.
         Tracing.trace(message);
+        GuardrailsDiagnostics.warned(name, decorateMessage(redactedMessage));
     }
 
-    protected void fail(String message)
+    protected void fail(String message, @Nullable ClientState state)
     {
+        fail(message, message, state);
+    }
+
+    protected void fail(String message, String redactedMessage, @Nullable ClientState state)
+    {
+        message = decorateMessage(message);
+
         logger.error(message);
         // Note that ClientWarn will simply ignore the message if we're not running this as part of a user query
         // (the internal "state" will be null)
         ClientWarn.instance.warn(message);
         // Similarly, tracing will also ignore the message if we're not running tracing on the current thread.
         Tracing.trace(message);
+        GuardrailsDiagnostics.failed(name, decorateMessage(redactedMessage));
 
-        throw new InvalidRequestException(message);
+        if (state != null)
+            throw new GuardrailViolatedException(message);
+    }
+
+    @VisibleForTesting
+    String decorateMessage(String message)
+    {
+        // Add a prefix to error message so user knows what threw the warning or cause the failure
+        return String.format("Guardrail %s violated: %s", name, message);
     }
 }

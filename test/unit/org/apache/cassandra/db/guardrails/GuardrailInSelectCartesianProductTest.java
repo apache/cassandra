@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -46,7 +47,7 @@ public class GuardrailInSelectCartesianProductTest extends ThresholdTester
     {
         super(WARN_THRESHOLD,
               FAIL_THRESHOLD,
-              "in_select_cartesian_product",
+              Guardrails.inSelectCartesianProduct,
               Guardrails::setInSelectCartesianProductThreshold,
               Guardrails::getInSelectCartesianProductWarnThreshold,
               Guardrails::getInSelectCartesianProductFailThreshold);
@@ -167,9 +168,9 @@ public class GuardrailInSelectCartesianProductTest extends ThresholdTester
         else if (keys > WARN_THRESHOLD)
         {
             if (clusterings > FAIL_THRESHOLD)
-                assertFails(function, keysWarnMessage, clusteringsFailMessage);
+                assertFails(function, Arrays.asList(keysWarnMessage, clusteringsFailMessage));
             else if (clusterings > WARN_THRESHOLD)
-                assertWarns(function, keysWarnMessage, clusteringsWarnMessage);
+                assertWarns(function, Arrays.asList(keysWarnMessage, clusteringsWarnMessage));
             else
                 assertWarns(function, keysWarnMessage);
         }

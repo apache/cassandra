@@ -17,13 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Iterables.toArray;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -31,9 +24,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import static com.google.common.collect.Iterables.toArray;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "snapshot", description = "Take a snapshot of specified keyspaces or a snapshot of the specified table")
 public class Snapshot extends NodeToolCmd
@@ -73,6 +74,10 @@ public class Snapshot extends NodeToolCmd
                 options.put("ttl", d.toString());
             }
 
+            if (!snapshotName.isEmpty() && snapshotName.contains(File.pathSeparator()))
+            {
+                throw new IOException("Snapshot name cannot contain " + File.pathSeparator());
+            }
             // Create a separate path for kclist to avoid breaking of already existing scripts
             if (null != ktList && !ktList.isEmpty())
             {

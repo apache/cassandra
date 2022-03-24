@@ -41,7 +41,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -129,7 +128,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private volatile ScheduledFuture<?> scheduledGossipTask;
     private static final ReentrantLock taskLock = new ReentrantLock();
     public final static int intervalInMillis = 1000;
-    public final static int QUARANTINE_DELAY = GOSSIPER_QUARANTINE_DELAY.getInt(StorageService.RING_DELAY * 2);
+    public final static int QUARANTINE_DELAY = GOSSIPER_QUARANTINE_DELAY.getInt(StorageService.RING_DELAY_MILLIS * 2);
     private static final Logger logger = LoggerFactory.getLogger(Gossiper.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 15L, TimeUnit.MINUTES);
 
@@ -159,8 +158,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     @VisibleForTesting
     final Set<InetAddressAndPort> seeds = new ConcurrentSkipListSet<>();
 
-    /* map where key is the endpoint and value is the state associated with the endpoint */
-    final ConcurrentMap<InetAddressAndPort, EndpointState> endpointStateMap = new ConcurrentHashMap<>();
+    /* map where key is the endpoint and value is the state associated with the endpoint.
+     * This is made public to be consumed by the GossipInfoTable virtual table */
+    public final ConcurrentMap<InetAddressAndPort, EndpointState> endpointStateMap = new ConcurrentHashMap<>();
 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
      * gossip. We will ignore any gossip regarding these endpoints for QUARANTINE_DELAY time
@@ -780,8 +780,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // remember this node's generation
         int generation = epState.getHeartBeatState().getGeneration();
         logger.info("Removing host: {}", hostId);
-        logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
-        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+        logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY_MILLIS, endpoint);
+        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
         // make sure it did not change
         epState = endpointStateMap.get(endpoint);
         if (epState.getHeartBeatState().getGeneration() != generation)
@@ -849,8 +849,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 int generation = epState.getHeartBeatState().getGeneration();
                 int heartbeat = epState.getHeartBeatState().getHeartBeatVersion();
-                logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
-                Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+                logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY_MILLIS, endpoint);
+                Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
                 // make sure it did not change
                 EndpointState newState = endpointStateMap.get(endpoint);
                 if (newState == null)
@@ -1652,7 +1652,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     // notify that an application state has changed
-    private void doOnChangeNotifications(InetAddressAndPort addr, ApplicationState state, VersionedValue value)
+    public void doOnChangeNotifications(InetAddressAndPort addr, ApplicationState state, VersionedValue value)
     {
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
         {
@@ -1864,7 +1864,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         boolean isSeed = DatabaseDescriptor.getSeeds().contains(getBroadcastAddressAndPort());
         // We double RING_DELAY if we're not a seed to increase chance of successful startup during a full cluster bounce,
         // giving the seeds a chance to startup before we fail the shadow round
-        int shadowRoundDelay =  isSeed ? StorageService.RING_DELAY : StorageService.RING_DELAY * 2;
+        int shadowRoundDelay = isSeed ? StorageService.RING_DELAY_MILLIS : StorageService.RING_DELAY_MILLIS * 2;
         seedsInShadowRound.clear();
         endpointShadowStateMap.clear();
         // send a completely empty syn
@@ -2358,7 +2358,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public boolean isUpgradingFromVersionLowerThan(CassandraVersion referenceVersion)
     {
         CassandraVersion v = upgradeFromVersionMemoized.get();
-        if (SystemKeyspace.NULL_VERSION.equals(v) && scheduledGossipTask == null)
+        if (CassandraVersion.NULL_VERSION.equals(v) && scheduledGossipTask == null)
             return false;
 
         return v != null && v.compareTo(referenceVersion) < 0;

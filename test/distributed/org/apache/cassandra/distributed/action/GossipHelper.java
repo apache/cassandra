@@ -45,7 +45,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.MigrationCoordinator;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -227,8 +227,8 @@ public class GossipHelper
             pullTo.acceptsOnInstance((InetSocketAddress pullFrom) -> {
                 InetAddressAndPort endpoint = toCassandraInetAddressAndPort(pullFrom);
                 EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-                MigrationCoordinator.instance.reportEndpointVersion(endpoint, state);
-                MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(10));
+                Gossiper.instance.doOnChangeNotifications(endpoint, ApplicationState.SCHEMA, state.getApplicationState(ApplicationState.SCHEMA));
+                Schema.instance.waitUntilReady(Duration.ofSeconds(10));
             }).accept(pullFrom);
         }
     }
@@ -258,7 +258,7 @@ public class GossipHelper
                 List<Token> tokens = Collections.singletonList(partitioner.getTokenFactory().fromString(tokenString));
                 try
                 {
-                    Collection<InetAddressAndPort> collisions = StorageService.instance.prepareForBootstrap(waitForSchema.toMillis());
+                    Collection<InetAddressAndPort> collisions = StorageService.instance.prepareForBootstrap(waitForSchema.toMillis(), 0);
                     assert collisions.size() == 0 : String.format("Didn't expect any replacements but got %s", collisions);
                     boolean isBootstrapSuccessful = StorageService.instance.bootstrap(tokens, waitForBootstrap.toMillis());
                     assert isBootstrapSuccessful : "Bootstrap did not complete successfully";
