@@ -45,7 +45,8 @@ public abstract class NativeScalarFunction extends NativeFunction implements Sca
     /**
      * Checks if a partial application of the function is monotonic.
      *
-     *<p>A function is monotonic if it is either entirely nonincreasing or nondecreasing.</p>
+     * <p>A function is monotonic if it is either entirely nonincreasing or nondecreasing.</p>
+     *
      * @param partialParameters the input parameters used to create the partial application of the function
      * @return {@code true} if the partial application of the function is monotonic {@code false} otherwise.
      */

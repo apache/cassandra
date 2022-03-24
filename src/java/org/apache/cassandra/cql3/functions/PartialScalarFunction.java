@@ -23,8 +23,9 @@ import java.util.List;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- *  A partial application of a function.
- *  @see ScalarFunction#partialApplication(ProtocolVersion, List)
+ * A partial application of a function.
+ *
+ * @see ScalarFunction#partialApplication(ProtocolVersion, List)
  */
 public interface PartialScalarFunction extends ScalarFunction
 {

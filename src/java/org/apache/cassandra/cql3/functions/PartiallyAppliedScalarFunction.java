@@ -28,7 +28,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * An internal function used to hold the partial application of another function to only some of it's parameters.
+ * An internal function used to hold the partial application of another function to only some of its parameters.
  *
  * @see ScalarFunction#partialApplication(ProtocolVersion, List)
  */
@@ -70,9 +70,9 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
         return partialParameters;
     }
 
-    private static AbstractType[] computeArgTypes(ScalarFunction function, List<ByteBuffer> partialParameters, int unresolvedCount)
+    private static AbstractType<?>[] computeArgTypes(ScalarFunction function, List<ByteBuffer> partialParameters, int unresolvedCount)
     {
-        AbstractType[] argTypes = new AbstractType[unresolvedCount];
+        AbstractType<?>[] argTypes = new AbstractType<?>[unresolvedCount];
         int arg = 0;
         for (int i = 0; i < partialParameters.size(); i++)
         {

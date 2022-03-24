@@ -422,7 +422,7 @@ public final class Duration
         checkFalse(startingTimeInMillis > timeInMillis, "The floor function starting time is greater than the provided time");
         checkFalse(duration.isNegative(), "Negative durations are not supported by the floor function");
 
-        // If the duration does not contains any months we can ignore daylight saving,
+        // If the duration does not contain any months we can ignore daylight saving,
         // as time zones are not supported, and simply look at the milliseconds
         if (duration.months == 0)
         {

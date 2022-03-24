@@ -50,7 +50,7 @@ public interface Function extends AssignmentTestable
     public boolean isNative();
 
     /**
-     * Checks whether the function is a pure function (as in doesn't depend on, nor produce side effects) or not.
+     * Checks whether the function is a pure function (as in doesn't depend on, nor produces side effects) or not.
      *
      * @return <code>true</code> if the function is a pure function, <code>false</code> otherwise.
      */
