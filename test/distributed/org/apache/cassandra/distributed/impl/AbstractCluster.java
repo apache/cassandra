@@ -53,6 +53,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.junit.Assume;
@@ -542,7 +543,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return createInstanceConfig(size() + 1);
     }
 
-    private InstanceConfig createInstanceConfig(int nodeNum)
+    @VisibleForTesting
+    InstanceConfig createInstanceConfig(int nodeNum)
     {
         INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet);
         Collection<String> tokens = tokenSupplier.tokens(nodeNum);
@@ -566,6 +568,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 }
                 else
                 {
+                    Assume.assumeTrue("no-vnode is requested but not supported", defaultTokenCount > 1);
                     // if the test controls initial_token or GOSSIP is enabled, then the test is safe to run
                     if (defaultTokens.equals(config.getString("initial_token")))
                     {
