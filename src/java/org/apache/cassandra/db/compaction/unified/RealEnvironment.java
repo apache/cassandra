@@ -16,9 +16,15 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.cache.ChunkCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.CompactionAggregate;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.CompressionParams;
@@ -118,6 +124,40 @@ class RealEnvironment implements Environment
     public double flushSize()
     {
         return metrics().flushSizeOnDisk.get();
+    }
+
+    /**
+     * Maybe sort the provided pending compaction aggregates
+     */
+    @Override
+    public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)
+    {
+        return pending;
+    }
+
+    /**
+     * Maybe reshuffle the provided aggregate indexes
+     */
+    @Override
+    public IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random)
+    {
+        Collections.shuffle(aggregateIndexes, random);
+        return aggregateIndexes;
+    }
+
+    @Override
+    public int maxConcurrentCompactions()
+    {
+        return DatabaseDescriptor.getConcurrentCompactors();
+    }
+
+    @Override
+    public double maxThroughput()
+    {
+        final int compactionThroughputMbPerSec = DatabaseDescriptor.getCompactionThroughputMbPerSec();
+        if (compactionThroughputMbPerSec <= 0)
+            return Double.MAX_VALUE;
+        return compactionThroughputMbPerSec * 1024.0 * 1024.0;
     }
 
     @Override
