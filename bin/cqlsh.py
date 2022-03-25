@@ -249,10 +249,10 @@ try:
 except OSError:
     print('\nWarning: Cannot create directory at `%s`. Command history will not be saved. Please check what was the environment property CQL_HISTORY set to.\n' % HISTORY_DIR)
 
-DEFAULT_CQLSHRC = os.path.join('~', '.cassandra', 'cqlshrc')
+DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
 
 if hasattr(options, 'cqlshrc'):
-    CONFIG_FILE = options.cqlshrc
+    CONFIG_FILE = os.path.expanduser(options.cqlshrc)
     if not os.path.exists(CONFIG_FILE):
         print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, DEFAULT_CQLSHRC))
         CONFIG_FILE = DEFAULT_CQLSHRC
