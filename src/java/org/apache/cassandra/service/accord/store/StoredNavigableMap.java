@@ -91,7 +91,8 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
             additions = new TreeMap<>();
 
         additions.put(key, val);
-        deletions.remove(key);
+        if (deletions != null)
+            deletions.remove(key);
     }
 
     public void blindRemove(K key)
@@ -105,7 +106,8 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
             deletions = new TreeSet<>();
 
         deletions.add(key);
-        additions.remove(key);
+        if (additions != null)
+            additions.remove(key);
     }
 
     public void clear()

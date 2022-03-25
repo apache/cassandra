@@ -85,6 +85,8 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
             additions = new TreeSet<>();
 
         additions.add(item);
+        if (deletions != null)
+            deletions.remove(item);
     }
 
     public void blindRemove(T item)
@@ -97,6 +99,8 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
             deletions = new TreeSet<>();
 
         deletions.add(item);
+        if (additions != null)
+            additions.remove(item);
     }
 
     public void clear()
