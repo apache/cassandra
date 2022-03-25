@@ -16,6 +16,11 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.util.List;
+import java.util.Random;
+
+import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.db.compaction.CompactionAggregate;
 import org.apache.cassandra.utils.MovingAverage;
 
 /**
@@ -79,4 +84,24 @@ public interface Environment
      * @return the average size of sstables when they are flushed, averaged over the last 5 minutes.
      */
     double flushSize();
+
+    /**
+     * Maybe sort the provided pending compaction aggregates
+     */
+    List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending);
+
+    /**
+     * Maybe reshuffle the provided aggregate indexes
+     */
+    IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random);
+
+    /**
+     * @return the maximum number of concurrent compactions that can be running at any one time
+     */
+    int maxConcurrentCompactions();
+
+    /**
+     * @return the maximum compaction throughput
+     */
+    double maxThroughput();
 }

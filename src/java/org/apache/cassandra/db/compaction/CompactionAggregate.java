@@ -614,7 +614,7 @@ public abstract class CompactionAggregate
         return new TimeTiered(sstables, selected, pending, timestamp);
     }
 
-    public static final class UnifiedAggregate extends CompactionAggregate
+    public static class UnifiedAggregate extends CompactionAggregate
     {
         /** The shard to which this bucket belongs */
         private final UnifiedCompactionStrategy.Shard shard;
