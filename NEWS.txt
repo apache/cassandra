@@ -56,6 +56,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Support for native transport rate limiting via native_transport_rate_limiting_enabled and 
+      native_transport_max_requests_per_second in cassandra.yaml.
+    - Support for pre hashing passwords on CQL DCL commands
     - Expose all client options via system_views.clients and nodetool clientstats.
     - Support for String concatenation has been added through the + operator.
     - New configuration max_hints_size_per_host to limit the size of local hints files per host in mebibytes. Setting to
@@ -80,11 +83,11 @@ New features
       mechanism (see below) and with some minor modifications to applications using LWTs.
       The new implementation may be enabled at any time by setting paxos_variant: v2, and disabled by setting to v1,
       and this alone will reduce the number of WAN round-trips by between one and two for reads, and one for writes.
-    - A new Paxos Repair mechanism has been introduced as part of Repair, that permits further reducing the number of WAN 
-      round-trips for write LWTs. This process may be manually executed for v1 and is run automatically alongside normal 
-      repairs for v2. Once users are running regular repairs that include paxos repairs they are encouraged to set 
-      paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their 
-      applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN 
+    - A new Paxos Repair mechanism has been introduced as part of Repair, that permits further reducing the number of WAN
+      round-trips for write LWTs. This process may be manually executed for v1 and is run automatically alongside normal
+      repairs for v2. Once users are running regular repairs that include paxos repairs they are encouraged to set
+      paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their
+      applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN
       round-trip. See upgrade notes below.
     - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
       emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
@@ -113,9 +116,24 @@ New features
       table.
     - Added ability to invalidate auth caches through corresponding `nodetool` commands and virtual tables.
     - DCL statements in audit logs will now obscure only the password if they don't fail to parse.
+    - Starting from 4.1 sstables support UUID based generation identifiers. They are globally unique and thus they let
+      the node to create sstables without any prior knowledge about the existing sstables in the data directory.
+      The feature is disabled by default in cassandra.yaml because once enabled, there is no easy way to downgrade.
+      When the node is restarted with UUID based generation identifiers enabled, each newly created sstable will have
+      a UUID based generation identifier and such files are not readable by previous Cassandra versions. In the future
+      those new identifiers will become enabled by default.
 
 Upgrading
 ---------
+    - We added new JMX methods `setStreamThroughputMbitPerSec`, `getStreamThroughputMbitPerSec`, `setInterDCStreamThroughputMbitPerSec`,
+      `getInterDCStreamThroughputMbitPerSec` to the JMX MBean `org.apache.cassandra.db:type=StorageService`. They replace the now
+      deprecated methods `setStreamThroughputMbPerSec`, `getStreamThroughputMbPerSec`, `setInterDCStreamThroughputMbPerSec`, and
+      `getInterDCStreamThroughputMbPerSec`, which will be removed in a future major release.
+    - The config property `repair_session_space_in_mb` was wrongly advertised in previous versions that it should be set in
+      megabytes when it is interpreted internally in mebibytes. To reduce the confusion we added two new JMX methods
+      `setRepairSessionSpaceInMebibytes(int sizeInMebibytes)` and `getRepairSessionSpaceInMebibytes`. They replace the now
+      deprecated methods `setRepairSessionSpaceInMegabytes(int sizeInMegabytes)` and `getRepairSessionSpaceInMegabytes`, which
+      will be removed in a future major release.
     - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
       memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
       parameters. (CASSANDRA-15234)
@@ -146,6 +164,11 @@ Upgrading
           restore default commit consistency to ensure correctness.
         - Applications may now safely be updated to use ANY commit consistency level (or LOCAL_QUORUM, as preferred).
           Uncontended writes should now take 2 round-trips, and uncontended reads should typically take one round-trip.
+    - A required [f|force] flag has been added to both "nodetool verify" and the standalone "sstableverify" tools.
+      These tools have some subtleties and should not be used unless the operator is familiar with what they do
+      and do not do, as well as the edge cases associated with their use.
+      NOTE: ANY SCRIPTS THAT RELY ON sstableverify OR nodetool verify WILL STOP WORKING UNTIL MODIFIED.
+      Please see CASSANDRA-17017 for details: https://issues.apache.org/jira/browse/CASSANDRA-17017
 
 Deprecation
 -----------

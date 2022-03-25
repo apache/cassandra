@@ -441,7 +441,7 @@ public abstract class Maps
                 // Guardrails about collection size are only checked for the added elements without considering
                 // already existent elements. This is done so to avoid read-before-write, having additional checks
                 // during SSTable write.
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), params.clientState);
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
 
                 int dataSize = 0;
                 for (Map.Entry<ByteBuffer, ByteBuffer> entry : elements.entrySet())
@@ -449,13 +449,13 @@ public abstract class Maps
                     Cell<?> cell = params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
                     dataSize += cell.dataSize();
                 }
-                Guardrails.collectionSize.guard(dataSize, column.name.toString(), params.clientState);
+                Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.clientState);
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), params.clientState);
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
                 Cell<?> cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
-                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), params.clientState);
+                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
     }

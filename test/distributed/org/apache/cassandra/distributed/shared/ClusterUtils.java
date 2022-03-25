@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.shared;
 
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +53,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
 
@@ -857,5 +859,27 @@ public class ClusterUtils
         {
             return Arrays.asList(address, rack, status, state, token).toString();
         }
+    }
+
+    public static void preventSystemExit()
+    {
+        System.setSecurityManager(new SecurityManager()
+        {
+            @Override
+            public void checkExit(int status)
+            {
+                throw new SystemExitException(status);
+            }
+
+            @Override
+            public void checkPermission(Permission perm)
+            {
+            }
+
+            @Override
+            public void checkPermission(Permission perm, Object context)
+            {
+            }
+        });
     }
 }

@@ -64,6 +64,11 @@ public class Threshold extends Guardrail
                                              thresholdValue);
     }
 
+    private String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
+    {
+        return errMsg(isWarning, REDACTED, value, thresholdValue);
+    }
+
     private long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
@@ -106,17 +111,16 @@ public class Threshold extends Guardrail
     /**
      * Apply the guardrail to the provided value, warning or failing if appropriate.
      *
-     * @param value The value to check.
-     * @param what  A string describing what {@code value} is a value of. This is used in the error message if the
-     *              guardrail is triggered. For instance, say the guardrail guards the size of column values, then this
-     *              argument must describe which column of which row is triggering the guardrail for convenience.
-     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
-     *              A {@code null} value means that the check should be done regardless of the query, although it won't
-     *              throw any exception if the failure threshold is exceeded. This is so because checks without an
-     *              associated client come from asynchronous processes such as compaction, and we don't want to
-     *              interrupt such processes.
+     * @param value            The value to check.
+     * @param what             A string describing what {@code value} is a value of. This is used in the error message
+     *                         if the guardrail is triggered. For instance, say the guardrail guards the size of column
+     *                         values, then this argument must describe which column of which row is triggering the
+     *                         guardrail for convenience.
+     * @param containsUserData whether the {@code what} contains user data that should be redacted on external systems.
+     * @param state            The client state, used to skip the check if the query is internal or is done by a superuser.
+     *                         A {@code null} value means that the check should be done regardless of the query.
      */
-    public void guard(long value, String what, @Nullable ClientState state)
+    public void guard(long value, String what, boolean containsUserData, @Nullable ClientState state)
     {
         if (!enabled(state))
             return;
@@ -124,23 +128,25 @@ public class Threshold extends Guardrail
         long failValue = failValue(state);
         if (value > failValue)
         {
-            triggerFail(value, failValue, what, state);
+            triggerFail(value, failValue, what, containsUserData, state);
             return;
         }
 
         long warnValue = warnValue(state);
         if (value > warnValue)
-            triggerWarn(value, warnValue, what);
+            triggerWarn(value, warnValue, what, containsUserData);
     }
 
-    private void triggerFail(long value, long failValue, String what, ClientState state)
+    private void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
     {
-        fail(errMsg(false, what, value, failValue), state);
+        String fullMessage = errMsg(false, what, value, failValue);
+        fail(fullMessage, containsUserData ? redactedErrMsg(false, value, failValue) : fullMessage, state);
     }
 
-    private void triggerWarn(long value, long warnValue, String what)
+    private void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
     {
-        warn(errMsg(true, what, value, warnValue));
+        String fullMessage = errMsg(true, what, value, warnValue);
+        warn(fullMessage, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMessage);
     }
 
     /**

@@ -1169,6 +1169,10 @@ createUserStatement returns [CreateRoleStatement stmt]
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
       { opts.setOption(IRoleManager.Option.SUPERUSER, superuser);
+        if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+        {
+           throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+        }
         $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), ifNotExists); }
     ;
 
@@ -1184,7 +1188,13 @@ alterUserStatement returns [AlterRoleStatement stmt]
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, true); }
         | K_NOSUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, false); } ) ?
-      {  $stmt = new AlterRoleStatement(name, opts, null); }
+      {
+         if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+         {
+            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+         }
+         $stmt = new AlterRoleStatement(name, opts, null);
+      }
     ;
 
 /**
@@ -1232,6 +1242,10 @@ createRoleStatement returns [CreateRoleStatement stmt]
         {
             opts.setOption(IRoleManager.Option.SUPERUSER, false);
         }
+        if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+        {
+            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+        }
         $stmt = new CreateRoleStatement(name, opts, dcperms.build(), ifNotExists);
       }
     ;
@@ -1252,7 +1266,13 @@ alterRoleStatement returns [AlterRoleStatement stmt]
     }
     : K_ALTER K_ROLE name=userOrRoleName
       ( K_WITH roleOptions[opts, dcperms] )?
-      {  $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null); }
+      {
+         if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+         {
+            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+         }
+         $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null);
+      }
     ;
 
 /**
@@ -1286,6 +1306,7 @@ roleOptions[RoleOptions opts, DCPermissions.Builder dcperms]
 
 roleOption[RoleOptions opts, DCPermissions.Builder dcperms]
     :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_HASHED K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
     |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
     |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
@@ -1300,6 +1321,7 @@ dcPermission[DCPermissions.Builder builder]
 // for backwards compatibility in CREATE/ALTER USER, this has no '='
 userPassword[RoleOptions opts]
     :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_HASHED K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     ;
 
 /**
@@ -1869,6 +1891,7 @@ basic_unreserved_keyword returns [String str]
         | K_NOLOGIN
         | K_OPTIONS
         | K_PASSWORD
+        | K_HASHED
         | K_EXISTS
         | K_CUSTOM
         | K_TRIGGER
