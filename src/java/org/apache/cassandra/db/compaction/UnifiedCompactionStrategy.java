@@ -151,7 +151,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     {
         controller.onStrategyBackgroundTaskRequest();
 
-        Collection<CompactionAggregate> compactionAggregates = getNextCompactionAggregates(gcBefore);
+        Collection<CompactionAggregate> compactionAggregates = getNextCompactionAggregates(gcBefore, controller.maxConcurrentCompactions());
 
         Collection<AbstractCompactionTask> tasks = new ArrayList<>(compactionAggregates.size());
         for (CompactionAggregate aggregate : compactionAggregates)
@@ -361,15 +361,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return arenaSelector.shardBoundaries;
     }
 
-    private Collection<CompactionAggregate> getNextCompactionAggregates(int gcBefore)
+    private Collection<CompactionAggregate> getNextCompactionAggregates(int gcBefore, int maxConcurrentCompactions)
     {
         // Calculate the running compaction limits, i.e. the overall number of compactions permitted, which is either
         // the compaction thread count, or the compaction throughput divided by the compaction rate (to prevent slowing
         // down individual compaction progress).
         String rateLimitLog = "";
 
-        // identify parallel compactions limit
-        int maxConcurrentCompactions = controller.maxConcurrentCompactions();
+        // identify space limit
         long spaceOverheadLimit = controller.maxCompactionSpaceBytes();
 
         // identify throughput limit
@@ -526,7 +525,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                            int[] perLevel,
                                            long spaceAvailable)
     {
-        pending = controller.aggregatePrioritizer().maybeSort(pending);
+        pending = controller.maybeSort(pending);
 
         int perLevelCount = totalCount / levelCount;   // each level has this number of tasks reserved for it
         int remainder = totalCount % levelCount;       // and the remainder is distributed randomly, up to 1 per level
@@ -567,7 +566,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         if (!list.isEmpty())
         {
             // Randomize the list.
-            list = controller.aggregatePrioritizer().maybeRandomize(list, controller.random());
+            list = controller.maybeRandomize(list);
 
             // Calculate how many new ones we can add in each level, and how many we can assign randomly.
             int remaining = totalCount;

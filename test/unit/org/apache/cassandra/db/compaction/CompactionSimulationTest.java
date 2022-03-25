@@ -24,7 +24,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -60,13 +62,14 @@ import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.unified.AdaptiveController;
-import org.apache.cassandra.db.compaction.unified.CompactionAggregatePrioritizer;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.CostsCalculator;
 import org.apache.cassandra.db.compaction.unified.StaticController;
@@ -388,7 +391,6 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          expiredSSTableCheckFrequency,
                                                          ignoreOverlaps,
                                                          l0ShardsEnabled,
-                                                         CompactionAggregatePrioritizer.instance,
                                                          updateTimeSec,
                                                          minW,
                                                          maxW,
@@ -405,8 +407,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                        0,
                                                        expiredSSTableCheckFrequency,
                                                        ignoreOverlaps,
-                                                       l0ShardsEnabled,
-                                                       CompactionAggregatePrioritizer.instance);
+                                                       l0ShardsEnabled);
 
         return new UnifiedCompactionStrategy(strategyFactory, controller);
     }
@@ -614,6 +615,31 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
         public double flushSize()
         {
             return uniqueKeysPerSStable * valueSize; // a rough estimation should be fine
+        }
+
+        @Override
+        public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)
+        {
+            return pending;
+        }
+
+        @Override
+        public IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random)
+        {
+            Collections.shuffle(aggregateIndexes, random);
+            return aggregateIndexes;
+        }
+
+        @Override
+        public int maxConcurrentCompactions()
+        {
+            return DatabaseDescriptor.getConcurrentCompactors();
+        }
+
+        @Override
+        public double maxThroughput()
+        {
+            return Double.MAX_VALUE;
         }
 
         @Override
