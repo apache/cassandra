@@ -19,23 +19,17 @@
 package org.apache.cassandra.service.accord.store;
 
 import java.util.Collections;
-import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * Navigable Map, capable of blind add/remove
- */
-public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStoredField
+public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredField
 {
-    private NavigableMap<K, V> map = null;
-    private NavigableMap<K, V> view = null;
-    private NavigableMap<K, V> additions = null;
-    private NavigableSet<K> deletions = null;
+    private NavigableSet<T> set = null;
+    private NavigableSet<T> view = null;
+    private NavigableSet<T> additions = null;
+    private NavigableSet<T> deletions = null;
 
     @Override
     public boolean equals(Object o)
@@ -43,76 +37,73 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
         preGet();
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        StoredNavigableMap<?, ?> that = (StoredNavigableMap<?, ?>) o;
-        return Objects.equals(map, that.map);
+        StoredNavigableSet<?> that = (StoredNavigableSet<?>) o;
+        return Objects.equals(set, that.set);
     }
 
     @Override
     public int hashCode()
     {
         preGet();
-        return Objects.hash(map);
+        return Objects.hash(set);
     }
 
     public void unload()
     {
         preUnload();
-        map = null;
+        set = null;
         view = null;
         additions = null;
         deletions = null;
     }
 
-    void setInternal(NavigableMap<K, V> map)
+    void setInternal(NavigableSet<T> set)
     {
-        this.map = map;
-        this.view = Collections.unmodifiableNavigableMap(map);
+        this.set = set;
+        this.view = Collections.unmodifiableNavigableSet(set);
     }
 
-    public void load(NavigableMap<K, V> map)
+    public void load(NavigableSet<T> set)
     {
         preLoad();
-        setInternal(map);
+        setInternal(set);
     }
 
-    public NavigableMap<K, V> getView()
+    public NavigableSet<T> getView()
     {
         preGet();
         return view;
     }
 
-    public void blindPut(K key, V val)
+    public void blindAdd(T item)
     {
         preBlindChange();
         if (isLoaded())
-            map.put(key, val);
+            set.add(item);
 
         if (additions == null)
-            additions = new TreeMap<>();
+            additions = new TreeSet<>();
 
-        additions.put(key, val);
-        deletions.remove(key);
+        additions.add(item);
     }
 
-    public void blindRemove(K key)
+    public void blindRemove(T item)
     {
-        // TODO: for cleared maps, we can just remove from the in memory map & additions
         preBlindChange();
         if (isLoaded())
-            map.remove(key);
+            set.remove(item);
 
         if (deletions == null)
             deletions = new TreeSet<>();
 
-        deletions.add(key);
-        additions.remove(key);
+        deletions.add(item);
     }
 
     public void clear()
     {
         clearModifiedFlag();
         preClear();
-        setInternal(new TreeMap<>());
+        setInternal(new TreeSet<>());
     }
 
     @Override
@@ -124,19 +115,18 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
         deletions = null;
     }
 
-    // TODO: move some of this stuff into an AbstractStoredCollection
     public boolean hasAdditions()
     {
         return !additions.isEmpty();
     }
 
-    public void forEachAddition(BiConsumer<K, V> consumer)
+    public void forEachAddition(Consumer<T> consumer)
     {
         if (additions != null)
             additions.forEach(consumer);
     }
 
-    public void forEachDeletion(Consumer<K> consumer)
+    public void forEachDeletion(Consumer<T> consumer)
     {
         if (deletions != null)
             deletions.forEach(consumer);

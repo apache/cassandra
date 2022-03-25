@@ -18,9 +18,28 @@
 
 package org.apache.cassandra.service.accord.store;
 
+import java.util.Objects;
+
 public class StoredValue<T> extends AbstractStoredField
 {
     private T value;
+
+    @Override
+    public boolean equals(Object o)
+    {
+        preGet();
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StoredValue<?> that = (StoredValue<?>) o;
+        return Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        preGet();
+        return Objects.hash(value);
+    }
 
     public void unload()
     {

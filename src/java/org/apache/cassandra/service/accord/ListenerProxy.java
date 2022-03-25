@@ -33,7 +33,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
-public abstract class ListenerProxy implements Listener
+public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
 {
     public enum Kind {COMMAND, COMMANDs_FOR_KEY}
 
@@ -45,6 +45,12 @@ public abstract class ListenerProxy implements Listener
     private ListenerProxy(CommandStore commandStore)
     {
         this.commandStore = commandStore;
+    }
+
+    @Override
+    public int compareTo(ListenerProxy that)
+    {
+        return kind().compareTo(that.kind());
     }
 
     static class CommandListenerProxy extends ListenerProxy
@@ -71,6 +77,16 @@ public abstract class ListenerProxy implements Listener
         public int hashCode()
         {
             return Objects.hash(txnId);
+        }
+
+        @Override
+        public int compareTo(ListenerProxy that)
+        {
+            int cmp = super.compareTo(that);
+            if (cmp != 0)
+                return cmp;
+
+            return this.txnId.compareTo(((CommandListenerProxy) that).txnId);
         }
 
         @Override
@@ -127,6 +143,16 @@ public abstract class ListenerProxy implements Listener
         public int hashCode()
         {
             return Objects.hash(key);
+        }
+
+        @Override
+        public int compareTo(ListenerProxy that)
+        {
+            int cmp = super.compareTo(that);
+            if (cmp != 0)
+                return cmp;
+
+            return this.key.compareTo(((CommandsForKeyListenerProxy) that).key);
         }
 
         @Override

@@ -19,9 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
-import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.TreeMap;
 
 import accord.api.Result;
 import accord.local.Command;
@@ -35,9 +33,10 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
+import org.apache.cassandra.service.accord.store.StoredNavigableMap;
+import org.apache.cassandra.service.accord.store.StoredNavigableSet;
+import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ObjectSizes;
-
-import static accord.local.Status.NotWitnessed;
 
 public class AccordCommand extends Command implements AccordStateCache.AccordState<TxnId, AccordCommand>
 {
@@ -45,22 +44,24 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 
     private final CommandStore commandStore;
     private final TxnId txnId;
-    private Txn txn;
-    private Ballot promised = Ballot.ZERO, accepted = Ballot.ZERO;
-    private Timestamp executeAt;
+    public final StoredValue<Txn> txn = new StoredValue<>();
+    public final StoredValue<Ballot> promised = new StoredValue<>();
+    public final StoredValue<Ballot> accepted = new StoredValue<>();
+    public final StoredValue<Timestamp> executeAt = new StoredValue<>();
     // TODO: optionally load some fields, and throw exceptions if reads are attempted on un-loaded fields
-    private Dependencies deps = new Dependencies();
-    private Writes writes;
-    private Result result;
+    public final StoredValue<Dependencies> deps = new StoredValue<>();
+    public final StoredValue<Writes> writes = new StoredValue<>();
+    public final StoredValue<Result> result = new StoredValue<>();
 
-    private Status status = NotWitnessed;
+    public final StoredValue<Status> status = new StoredValue<>();
 
     // TODO: compact binary format for below collections, with a step to materialize when needed
-    private NavigableMap<TxnId, TxnId> waitingOnCommit;
-    private NavigableMap<Timestamp, TxnId> waitingOnApply;
-    private Listeners listeners;
+    public final StoredNavigableMap<TxnId, TxnId> waitingOnCommit = new StoredNavigableMap<>();
+    public final StoredNavigableMap<Timestamp, TxnId> waitingOnApply = new StoredNavigableMap<>();
 
-    boolean isDirty = false;
+    // FIXME: just use a set, or hide underlying collection entirely
+    public final StoredNavigableSet<ListenerProxy> storedListeners = new StoredNavigableSet<>();
+    private final Listeners transientListeners = new Listeners();
 
     public AccordCommand(CommandStore commandStore, TxnId txnId)
     {
@@ -68,13 +69,44 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         this.txnId = txnId;
     }
 
+    public boolean hasModifications()
+    {
+        // TODO: make this less verbose
+        return txn.hasModifications()
+               | promised.hasModifications()
+               | accepted.hasModifications()
+               | executeAt.hasModifications()
+               | deps.hasModifications()
+               | writes.hasModifications()
+               | result.hasModifications()
+               | status.hasModifications()
+               | waitingOnCommit.hasModifications()
+               | waitingOnApply.hasModifications()
+               | storedListeners.hasModifications();
+    }
+
+    private void resetModificationFlag()
+    {
+        txn.clearModifiedFlag();
+        promised.clearModifiedFlag();
+        accepted.clearModifiedFlag();
+        executeAt.clearModifiedFlag();
+        deps.clearModifiedFlag();
+        writes.clearModifiedFlag();
+        result.clearModifiedFlag();
+        status.clearModifiedFlag();
+        waitingOnCommit.clearModifiedFlag();
+        waitingOnApply.clearModifiedFlag();
+        storedListeners.clearModifiedFlag();;
+    }
+
     void save() throws IOException
     {
-        if (!isDirty)
+        if (!hasModifications())
             return;
         // TODO: accumulate changes and flush to partition update at end
         AccordKeyspace.saveCommand(this);
-        isDirty = false;
+        resetModificationFlag();
     }
 
     @Override
@@ -85,23 +117,37 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         AccordCommand command = (AccordCommand) o;
         return commandStore == command.commandStore
                && txnId.equals(command.txnId)
-               && Objects.equals(txn, command.txn)
+               && txn.equals(command.txn)
                && promised.equals(command.promised)
                && accepted.equals(command.accepted)
-               && Objects.equals(executeAt, command.executeAt)
+               && executeAt.equals(command.executeAt)
                && deps.equals(command.deps)
-               && Objects.equals(writes, command.writes)
-               && Objects.equals(result, command.result)
-               && status == command.status
-               && Objects.equals(waitingOnCommit, command.waitingOnCommit)
-               && Objects.equals(waitingOnApply, command.waitingOnApply)
-               && Objects.equals(listeners, command.listeners);
+               && writes.equals(command.writes)
+               && result.equals(command.result)
+               && status.equals(command.status)
+               && waitingOnCommit.equals(command.waitingOnCommit)
+               && waitingOnApply.equals(command.waitingOnApply)
+               && storedListeners.equals(command.storedListeners)
+               && transientListeners.equals(command.transientListeners);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(commandStore, txnId, txn, promised, accepted, executeAt, deps, writes, result, status, waitingOnCommit, waitingOnApply, listeners);
+        return Objects.hash(commandStore,
+                            txnId,
+                            txn,
+                            promised,
+                            accepted,
+                            executeAt,
+                            deps,
+                            writes,
+                            result,
+                            status,
+                            waitingOnCommit,
+                            waitingOnApply,
+                            storedListeners,
+                            transientListeners);
     }
 
     @Override
@@ -143,105 +189,97 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public Txn txn()
     {
-        return txn;
+        return txn.get();
     }
 
     @Override
     public void txn(Txn txn)
     {
-        isDirty = true;
-        this.txn = txn;
+        this.txn.set(txn);
     }
 
     @Override
     public Ballot promised()
     {
-        return promised;
+        return promised.get();
     }
 
     @Override
     public void promised(Ballot ballot)
     {
-        isDirty = true;
-        this.promised = ballot;
+        this.promised.set(ballot);
     }
 
     @Override
     public Ballot accepted()
     {
-        return accepted;
+        return accepted.get();
     }
 
     @Override
     public void accepted(Ballot ballot)
     {
-        isDirty = true;
-        this.accepted = ballot;
+        this.accepted.set(ballot);
     }
 
     @Override
     public Timestamp executeAt()
     {
-        return executeAt;
+        return executeAt.get();
     }
 
     @Override
     public void executeAt(Timestamp timestamp)
     {
-        isDirty = true;
-        this.executeAt = timestamp;
+        this.executeAt.set(timestamp);
     }
 
     @Override
     public Dependencies savedDeps()
     {
-        return deps;
+        return deps.get();
     }
 
     @Override
     public void savedDeps(Dependencies deps)
     {
-        isDirty = true;
-        this.deps = deps;
+        this.deps.set(deps);
     }
 
     @Override
     public Writes writes()
     {
-        return writes;
+        return writes.get();
     }
 
     @Override
     public void writes(Writes writes)
     {
-        isDirty = true;
-        this.writes = writes;
+        this.writes.set(writes);
     }
 
     @Override
     public Result result()
     {
-        return result;
+        return result.get();
     }
 
     @Override
     public void result(Result result)
     {
-        isDirty = true;
-        this.result = result;
+        this.result.set(result);
     }
 
     @Override
     public Status status()
     {
-        return status;
+        return status.get();
     }
 
     @Override
     public void status(Status status)
     {
-        isDirty = true;
-        this.status = status;
+        this.status.set(status);
     }
 
     private Listener maybeWrapListener(Listener listener)
@@ -261,130 +299,89 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public Command addListener(Listener listener)
     {
-        isDirty = true;
-        if (listeners == null)
-            listeners = new Listeners();
-        listeners.add(maybeWrapListener(listener));
+        listener = maybeWrapListener(listener);
+        if (listener instanceof ListenerProxy)
+            storedListeners.blindAdd((ListenerProxy) listener);
+        else
+            transientListeners.add(listener);
         return this;
     }
 
     @Override
     public void removeListener(Listener listener)
     {
-        isDirty = true;
-        if (listeners != null)
-            listeners.remove(maybeWrapListener(listener));
+        listener = maybeWrapListener(listener);
+        if (listener instanceof ListenerProxy)
+            storedListeners.blindRemove((ListenerProxy) listener);
+        else
+            transientListeners.remove(listener);
     }
 
     @Override
     public void notifyListeners()
     {
         // TODO: defer to executor
-        if (listeners != null)
-            listeners.forEach(this);
+        storedListeners.getView().forEach(this);
+        transientListeners.forEach(this);
     }
 
     @Override
     public void clearWaitingOnCommit()
     {
-        waitingOnCommit = null;
+        waitingOnCommit.clear();
     }
 
     @Override
     public void addWaitingOnCommit(TxnId txnId, Command command)
     {
-        isDirty = true;
-        if (waitingOnCommit == null)
-            waitingOnCommit = new TreeMap<>();
-
-        waitingOnCommit.put(txnId, command.txnId());
+        waitingOnCommit.blindPut(txnId, command.txnId());
     }
 
     @Override
     public boolean isWaitingOnCommit()
     {
-        return waitingOnCommit != null && !waitingOnCommit.isEmpty();
+        return !waitingOnCommit.getView().isEmpty();
     }
 
     @Override
-    public boolean removeWaitingOnCommit(TxnId txnId)
+    public void removeWaitingOnCommit(TxnId txnId)
     {
-        isDirty = true;
-        if (waitingOnCommit == null)
-            return false;
-        return waitingOnCommit.remove(txnId) != null;
+        waitingOnCommit.blindRemove(txnId);
     }
 
     @Override
     public Command firstWaitingOnCommit()
     {
-        return isWaitingOnCommit() ? commandStore.command(waitingOnCommit.firstEntry().getValue()) : null;
+        return isWaitingOnCommit() ? commandStore.command(waitingOnCommit.getView().firstEntry().getValue()) : null;
     }
 
     @Override
     public void clearWaitingOnApply()
     {
-        waitingOnApply = null;
+        waitingOnApply.clear();
     }
 
     @Override
     public void addWaitingOnApplyIfAbsent(Timestamp timestamp, Command command)
     {
-        isDirty = true;
-        if (waitingOnApply == null)
-            waitingOnApply = new TreeMap<>();
-
-        waitingOnApply.putIfAbsent(timestamp, command.txnId());
+        waitingOnApply.blindPut(timestamp, command.txnId());
     }
 
     @Override
     public boolean isWaitingOnApply()
     {
-        return waitingOnApply != null && !waitingOnApply.isEmpty();
+        return !waitingOnApply.getView().isEmpty();
     }
 
     @Override
-    public boolean removeWaitingOnApply(Timestamp timestamp)
+    public void removeWaitingOnApply(Timestamp timestamp)
     {
-        isDirty = true;
-        if (waitingOnApply == null)
-            return false;
-        return waitingOnApply.remove(timestamp) != null;
+        waitingOnApply.blindRemove(timestamp);
     }
 
     @Override
     public Command firstWaitingOnApply()
     {
-        return isWaitingOnApply() ? commandStore.command(waitingOnApply.firstEntry().getValue()) : null;
-    }
-
-    public void setWaitingOnCommit(NavigableMap<TxnId, TxnId> waitingOnCommit)
-    {
-        this.waitingOnCommit = waitingOnCommit;
-    }
-
-    public NavigableMap<TxnId, TxnId> getWaitingOnCommit()
-    {
-        return waitingOnCommit;
-    }
-
-    public void setWaitingOnApply(NavigableMap<Timestamp, TxnId> waitingOnApply)
-    {
-        this.waitingOnApply = waitingOnApply;
-    }
-
-    public NavigableMap<Timestamp, TxnId> getWaitingOnApply()
-    {
-        return waitingOnApply;
-    }
-
-    public Listeners getListeners()
-    {
-        return listeners;
-    }
-
-    public void setListeners(Listeners listeners)
-    {
-        this.listeners = listeners;
+        return isWaitingOnApply() ? commandStore.command(waitingOnApply.getView().firstEntry().getValue()) : null;
     }
 }

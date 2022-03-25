@@ -105,8 +105,11 @@ public class AccordCommandStoreTest
         command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
         command.savedDeps(dependencies);
         command.status(Status.Accepted);
+        command.clearWaitingOnCommit();
         command.addWaitingOnCommit(oldTxnId1, new AccordCommand(commandStore, oldTxnId1));
+        command.clearWaitingOnApply();
         command.addWaitingOnApplyIfAbsent(oldTimestamp, new AccordCommand(commandStore, oldTxnId2));
+        command.storedListeners.clear();
         command.addListener(new AccordCommand(commandStore, oldTxnId1));
         processCommandResult(command);
 
@@ -116,5 +119,11 @@ public class AccordCommandStoreTest
         logger.info("A: {}", actual);
 
         Assert.assertEquals(command, actual);
+    }
+
+    @Test
+    public void collections()
+    {
+        // TODO: clear, add, delete
     }
 }

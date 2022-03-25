@@ -22,6 +22,7 @@ public class AbstractStoredField
 {
     private static final int LOADED_FLAG = 0x01;
     private static final int CHANGED_FLAG = 0x02;
+    private static final int CLEARED_FLAG = 0x04;
 
     private byte flag;
 
@@ -75,6 +76,11 @@ public class AbstractStoredField
             throw new IllegalStateException("Cannot read unloaded fields");
     }
 
+    void preClear()
+    {
+        set(CLEARED_FLAG | CHANGED_FLAG);
+    }
+
     public boolean hasModifications()
     {
         return check(CHANGED_FLAG);
@@ -83,5 +89,10 @@ public class AbstractStoredField
     public void clearModifiedFlag()
     {
         clear(CHANGED_FLAG);
+    }
+
+    public boolean wasCleared()
+    {
+        return check(CLEARED_FLAG);
     }
 }
