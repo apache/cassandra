@@ -564,8 +564,7 @@ public class IndexQuerySupport
                 assertThat("Expected more calls to " + StorageAttachedIndexSearcher.class, tester.getCounter(), Matchers.greaterThanOrEqualTo((long) Math.max(1, pageCount)));
 
                 List<Object> expected = model.executeNonIndexed(tester, validator, fetchSize, values);
-
-                assertEquals(expected, actual);
+                assertEquals("Invalid query results for query " + query, expected, actual);
 
                 return expected;
             }
