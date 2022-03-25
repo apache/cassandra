@@ -30,6 +30,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /*
  * This test class was too large and used to timeout CASSANDRA-16777. We're splitting it into:
@@ -208,7 +209,7 @@ public class ViewTimesTest extends ViewAbstractTest
 
         Thread.sleep(TimeUnit.SECONDS.toMillis(5));
         List<Row> results = executeNet("SELECT d FROM mv WHERE c = 2 AND a = 1 AND b = 1").all();
-        Assert.assertEquals(1, results.size());
+        assertEquals(1, results.size());
         Assert.assertTrue("There should be a null result given back due to ttl expiry", results.get(0).isNull(0));
     }
 
@@ -229,7 +230,7 @@ public class ViewTimesTest extends ViewAbstractTest
         updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) USING TTL 3", 1, 1, 1, 1);
 
         Thread.sleep(TimeUnit.SECONDS.toMillis(4));
-        Assert.assertEquals(0, executeNet("SELECT * FROM mv WHERE c = 1 AND a = 1 AND b = 1").all().size());
+        assertEquals(0, executeNet("SELECT * FROM mv WHERE c = 1 AND a = 1 AND b = 1").all().size());
     }
 
     @Test
@@ -252,7 +253,7 @@ public class ViewTimesTest extends ViewAbstractTest
 
         ResultSet mvRows = executeNet("SELECT c FROM mv");
         List<Row> rows = executeNet("SELECT c FROM %s").all();
-        Assert.assertEquals("There should be exactly one row in base", 1, rows.size());
+        assertEquals("There should be exactly one row in base", 1, rows.size());
         int expected = rows.get(0).getInt("c");
         assertRowsNet(mvRows, row(expected));
     }
@@ -272,31 +273,31 @@ public class ViewTimesTest extends ViewAbstractTest
         try
         {
             createView("mv_ttl1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c) WITH default_time_to_live = 30");
-            Assert.fail("Should fail if TTL is provided for materialized view");
+            fail("Should fail if TTL is provided for materialized view");
         }
         catch (Exception e)
         {
+            assertEquals("Cannot set default_time_to_live for a materialized view. Data in a materialized " +
+                         "view always expire at the same time than the corresponding data in the parent table.",
+                         e.getMessage());
         }
     }
 
     @Test
-    public void testAlterMvWithTTL() throws Throwable
+    public void testAlterMvWithNoZeroTTL() throws Throwable
     {
         createTable("CREATE TABLE %s (" +
                     "k int PRIMARY KEY, " +
                     "c int, " +
                     "val int) WITH default_time_to_live = 60");
 
-        execute("USE " + keyspace());
-        executeNet("USE " + keyspace());
-
-        createView("mv_ttl2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
+        createView("mv_ttl2", "CREATE MATERIALIZED VIEW " + keyspace() + ".%s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
 
         // Must NOT include "default_time_to_live" on alter Materialized View
         try
         {
-            executeNet("ALTER MATERIALIZED VIEW " + keyspace()+ ".mv_ttl2 WITH default_time_to_live = 30");
-            Assert.fail("Should fail if TTL is provided while altering materialized view");
+            executeNet("ALTER MATERIALIZED VIEW " + keyspace() + ".mv_ttl2 WITH default_time_to_live = 30");
+            fail("Should fail if TTL is provided while altering materialized view");
         }
         catch (Exception e)
         {
@@ -304,6 +305,44 @@ public class ViewTimesTest extends ViewAbstractTest
             assertEquals("Forbidden default_time_to_live detected for a materialized view. Data in a materialized view always expire at the same time than the corresponding "
                          + "data in the parent table. default_time_to_live must be set to zero, see CASSANDRA-12868 for more information",
                          e.getMessage());
+        }
+    }
+
+    @Test
+    public void testMvWithZeroTTL() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int PRIMARY KEY, " +
+                    "c int, " +
+                    "val int) WITH default_time_to_live = 60");
+
+        try
+        {
+            createView("mv_ttl3", "CREATE MATERIALIZED VIEW " + keyspace() + ".%s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c) WITH default_time_to_live = 0");
+        }
+        catch (Exception e)
+        {
+            fail("Should not fail if TTL equal to 0 is provided while altering materialized view");
+        }
+    }
+
+    @Test
+    public void testAlterMvWithZeroTTL() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int PRIMARY KEY, " +
+                    "c int, " +
+                    "val int) WITH default_time_to_live = 60");
+
+        createView("mv_ttl4", "CREATE MATERIALIZED VIEW " + keyspace() + ".%s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
+
+        try
+        {
+            executeNet("ALTER MATERIALIZED VIEW " + keyspace() + ".mv_ttl4 WITH default_time_to_live = 0");
+        }
+        catch (Exception e)
+        {
+            fail("Should not fail if TTL equal to 0 is provided while altering materialized view");
         }
     }
 }
