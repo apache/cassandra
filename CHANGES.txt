@@ -1,5 +1,4 @@
 3.11.13
- * Upgrade slf4j to 1.7.25
  * emit warning on keyspace creation when replication factor is bigger than the number of nodes (CASSANDRA-16747)
  * Fix snapshot true size calculation (CASSANDRA-17267)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
