@@ -18,8 +18,9 @@ from cassandra.metadata import maybe_escape_name
 from cqlshlib import helptopics
 from cqlshlib.cqlhandling import CqlParsingRuleSet, Hint
 
-simple_cql_types = set(('ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'duration', 'float',
-                        'inet', 'int', 'smallint', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'uuid', 'varchar', 'varint'))
+simple_cql_types = {'ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'duration', 'float',
+                    'inet', 'int', 'smallint', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'uuid', 'varchar',
+                    'varint'}
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
 cqldocs = helptopics.CQL3HelpTopics()
@@ -450,7 +451,7 @@ def ks_prop_val_mapkey_completer(ctxt, cass):
     else:
         return ["'class'"]
     if repclass == 'SimpleStrategy':
-        opts = set(('replication_factor',))
+        opts = {'replication_factor'}
     elif repclass == 'NetworkTopologyStrategy':
         return [Hint('<dc_name>')]
     return list(map(escape_value, opts.difference(keysseen)))
