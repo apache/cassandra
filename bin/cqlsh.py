@@ -18,6 +18,7 @@
 
 import cmd
 import codecs
+import configparser
 import csv
 import errno
 import getpass
@@ -33,6 +34,7 @@ import warnings
 import webbrowser
 from contextlib import contextmanager
 from glob import glob
+from io import StringIO
 from uuid import UUID
 
 if sys.version_info < (3, 6):
@@ -117,9 +119,6 @@ for lib in third_parties:
     lib_zip = find_zip(lib)
     if lib_zip:
         sys.path.insert(0, lib_zip)
-
-import configparser
-from io import StringIO
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -225,8 +224,8 @@ parser.add_option('-v', action="version", help='Print the current version of cql
 parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=optparse.SUPPRESS_HELP)
 
-optvalues = optparse.Values()
-(options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
+opt_values = optparse.Values()
+(options, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
 
 # BEGIN history/config definition
 
@@ -878,7 +877,7 @@ class Shell(cmd.Cmd):
                 return
             yield newline
 
-    def cmdloop(self):
+    def cmdloop(self, intro=None):
         """
         Adapted from cmd.Cmd's version, because there is literally no way with
         cmd.Cmd.cmdloop() to tell the difference between "EOF" showing up in
@@ -1115,11 +1114,11 @@ class Shell(cmd.Cmd):
         def print_all(result, table_meta, tty):
             # Return the number of rows in total
             num_rows = 0
-            isFirst = True
+            is_first = True
             while True:
                 # Always print for the first page even it is empty
-                if result.current_rows or isFirst:
-                    with_header = isFirst or tty
+                if result.current_rows or is_first:
+                    with_header = is_first or tty
                     self.print_static_result(result, table_meta, with_header, tty, num_rows)
                     num_rows += len(result.current_rows)
                 if result.has_more_pages:
@@ -1131,7 +1130,7 @@ class Shell(cmd.Cmd):
                     if not tty:
                         self.writeresult("")
                     break
-                isFirst = False
+                is_first = False
             return num_rows
 
         num_rows = print_all(result, table_meta, self.tty)
@@ -2067,7 +2066,7 @@ class SwitchCommandWithValue(SwitchCommand):
             binary_switch_value = True
         except (ValueError, TypeError):
             value = None
-        return (binary_switch_value, value)
+        return binary_switch_value, value
 
 
 def option_with_default(cparser_getter, section, option, default=None):
