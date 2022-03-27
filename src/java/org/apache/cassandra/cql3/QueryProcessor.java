@@ -575,7 +575,7 @@ public class QueryProcessor implements QueryHandler
     {
         CQLStatement statement = parseStatement(query, queryState.getClientState());
         statement.validate(queryState.getClientState());
-        ResultMessage result = statement.executeLocally(queryState, makeInternalOptions(statement, values));
+        ResultMessage result = statement.executeLocally(queryState, makeInternalOptionsWithNowInSec(statement, queryState.getNowInSeconds(), values));
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
