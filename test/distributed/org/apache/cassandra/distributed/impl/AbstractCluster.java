@@ -206,18 +206,23 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         @Override
         public C createWithoutStarting() throws IOException
         {
-            // if running as vnode but test sets disallowVNodes(), then skip the test
+            // if running as vnode but test sets withoutVNodes(), then skip the test
             // AbstractCluster.createInstanceConfig has similar logic, but handles the cases where the test
             // attempts to control tokens via config
-            Assume.assumeFalse("vnode is not supported", !isAllowVnodes() && isVnode());
-
-            // when token supplier is defined, use this to see if vnodes is supported or not
-            // if token count > 1 and isVnode, then good
-            // if token count == 1 and isVnode == false, then good
+            // when token supplier is defined, use getTokenCount() to see if vnodes is supported or not
             if (isVnode())
+            {
+                Assume.assumeTrue("vnode is not supported", isVNodeAllowed());
+                // if token count > 1 and isVnode, then good
                 Assume.assumeTrue("no-vnode is requested but not supported", getTokenCount() > 1);
+            }
             else
+            {
+                Assume.assumeTrue("single-token is not supported", isSingleTokenAllowed());
+                // if token count == 1 and isVnode == false, then good
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
+            }
+
             return super.createWithoutStarting();
         }
 
