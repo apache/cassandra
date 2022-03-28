@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
 from cassandra.query import QueryTrace, TraceUnavailable
@@ -73,6 +73,8 @@ def make_trace_rows(trace):
     if trace.duration:
         finished_at = (datetime_from_utc_to_local(trace.started_at) + trace.duration)
         rows.append(['Request complete', str(finished_at), trace.coordinator, total_micro_seconds(trace.duration), trace.client])
+    else:
+        finished_at = trace.duration = "--"
 
     return rows
 
