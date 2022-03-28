@@ -37,6 +37,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -270,7 +271,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static JobState job()
     {
         SessionState session = session();
-        JobState state = new JobState(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges);
+        JobState state = new JobState(new RepairJobDesc(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges));
         session.register(state);
         return state;
     }

@@ -17,13 +17,9 @@
  */
 package org.apache.cassandra.repair.state;
 
-import java.util.Collection;
 import java.util.UUID;
 
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.utils.TimeUUID;
 
 public class JobState extends AbstractState<JobState.State, UUID>
 {
@@ -39,15 +35,10 @@ public class JobState extends AbstractState<JobState.State, UUID>
 
     public final Phase phase = new Phase();
 
-    public JobState(TimeUUID parentRepairSession, TimeUUID sessionId, String keyspace, String columnFamily, Collection<Range<Token>> ranges)
+    public JobState(RepairJobDesc desc)
     {
-        super(id(parentRepairSession, sessionId, keyspace, columnFamily, ranges), State.class);
-        this.desc = new RepairJobDesc(parentRepairSession, sessionId, keyspace, columnFamily, ranges);
-    }
-
-    private static UUID id(TimeUUID parentSessionId, TimeUUID sessionId, String keyspace, String columnFamily, Collection<Range<Token>> ranges)
-    {
-        return new RepairJobDesc(parentSessionId, sessionId, keyspace, columnFamily, ranges).determanisticId();
+        super(desc.determanisticId(), State.class);
+        this.desc = desc;
     }
 
     public final class Phase extends BasePhase
