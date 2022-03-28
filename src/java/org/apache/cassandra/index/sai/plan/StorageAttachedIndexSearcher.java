@@ -191,7 +191,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             // saying this iterator must not return the same partition twice.
             skipToNextPartition();
 
-            UnfilteredRowIterator iterator = nextRowIterator(this::nextKeyInRange);
+            UnfilteredRowIterator iterator = nextRowIterator(this::nextSelectedKeyInRange);
             return iterator != null
                    ? iteratePartition(iterator)
                    : endOfData();
@@ -219,7 +219,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
 
         /**
-         * Returns the next available key contained by one of the keyRanges and selected by the query controller.
+         * Returns the next available key contained by one of the keyRanges.
          * If the next key falls out of the current key range, it skips to the next key range, and so on.
          * If no more keys or no more ranges are available, returns null.
          */
@@ -227,8 +227,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         {
             PrimaryKey key = nextKey();
 
-            boolean inRange;
-            while (key != null && (!(inRange = currentKeyRange.contains(key.partitionKey())) || !controller.selects(key)))
+            while (key != null && !(currentKeyRange.contains(key.partitionKey())))
             {
                 if (!currentKeyRange.right.isMinimum() && currentKeyRange.right.compareTo(key.partitionKey()) <= 0)
                 {
@@ -239,14 +238,27 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 }
                 else
                 {
-                    // key either before the current range, or just not accepted by the controller,
-                    // so let's move the key forward
-                    if (!inRange)
-                        skipTo(currentKeyRange.left.getToken());
-
+                    // key either before the current range, so let's move the key forward
+                    skipTo(currentKeyRange.left.getToken());
                     key = nextKey();
                 }
             }
+            return key;
+        }
+
+        /**
+         * Returns the next available key contained by one of the keyRanges and selected by the queryController.
+         * If the next key falls out of the current key range, it skips to the next key range, and so on.
+         * If no more keys acceptd by the controller are available, returns null.
+         */
+         private @Nullable PrimaryKey nextSelectedKeyInRange()
+        {
+            PrimaryKey key;
+            do
+            {
+                key = nextKeyInRange();
+            }
+            while (key != null && !controller.selects(key));
             return key;
         }
 
@@ -262,7 +274,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
          * </ul>
          * </p>
          */
-        private @Nullable PrimaryKey nextKeyInPartition(DecoratedKey partitionKey)
+        private @Nullable PrimaryKey nextSelectedKeyInPartition(DecoratedKey partitionKey)
         {
             PrimaryKey key;
             do
@@ -359,7 +371,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                     while (!currentIter.hasNext())
                     {
                         currentIter.close();
-                        currentIter = nextRowIterator(() -> nextKeyInPartition(partitionKey));
+                        currentIter = nextRowIterator(() -> nextSelectedKeyInPartition(partitionKey));
                         if (currentIter == null)
                             return endOfData();
                     }
