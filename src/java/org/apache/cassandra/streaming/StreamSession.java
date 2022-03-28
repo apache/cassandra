@@ -20,7 +20,13 @@ package org.apache.cassandra.streaming;
 import java.io.EOFException;
 import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedChannelException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -28,7 +34,9 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
@@ -183,26 +191,26 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
-    /**
-     * State Transition:
-     *
-     * <pre>
-     *  +------------------+----------> FAILED <--------------------+
-     *  |                  |              ^                         |
-     *  |                  |              |       initiator         |
-     *  INITIALIZED --> PREPARING --> STREAMING ------------> WAIT_COMPLETE ----> COMPLETED
-     *  |                  |              |                         ^                 ^
-     *  |                  |              |       follower          |                 |
-     *  |                  |              +-------------------------)-----------------+
-     *  |                  |                                        |                 |
-     *  |                  |         if preview                     |                 |
-     *  |                  +----------------------------------------+                 |
-     *  |               nothing to request or to transfer                             |
-     *  +-----------------------------------------------------------------------------+
-     *                  nothing to request or to transfer
-     *
-     *  </pre>
-     */
+/**
+ * State Transition:
+ *
+ * <pre>
+ *  +------------------+-----> FAILED | ABORTED <---------------+
+ *  |                  |              ^                         |
+ *  |                  |              |       initiator         |
+ *  INITIALIZED --> PREPARING --> STREAMING ------------> WAIT_COMPLETE ----> COMPLETED
+ *  |                  |              |                         ^                 ^
+ *  |                  |              |       follower          |                 |
+ *  |                  |              +-------------------------)-----------------+
+ *  |                  |                                        |                 |
+ *  |                  |         if preview                     |                 |
+ *  |                  +----------------------------------------+                 |
+ *  |               nothing to request or to transfer                             |
+ *  +-----------------------------------------------------------------------------+
+ *                  nothing to request or to transfer
+ *
+ *  </pre>
+ */
     public enum State
     {
         INITIALIZED(false),
@@ -210,7 +218,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         STREAMING(false),
         WAIT_COMPLETE(false),
         COMPLETE(true),
-        FAILED(true);
+        FAILED(true),
+        ABORTED(true);
 
         private final boolean finalState;
 
@@ -220,7 +229,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
 
         /**
-         * @return true if current state is final, either COMPLETE OR FAILED.
+         * @return true if current state is final, either COMPLETE, FAILED, or ABORTED.
          */
         public boolean isFinalState()
         {
@@ -485,7 +494,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    private synchronized Future closeSession(State finalState)
+    private synchronized Future<?> closeSession(State finalState)
     {
         // it's session is already closed
         if (closeFuture != null)
@@ -497,7 +506,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
         // as we don't want any blocking disk IO to stop the network thread
-        if (finalState == State.FAILED)
+        if (finalState == State.FAILED || finalState == State.ABORTED)
             futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
 
         // Channels should only be closed by the initiator; but, if this session closed
@@ -635,7 +644,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * after completion or because the peer was down, otherwise sends a {@link SessionFailedMessage} and closes
      * the session as {@link State#FAILED}.
      */
-    public synchronized Future onError(Throwable e)
+    public synchronized Future<?> onError(Throwable e)
     {
         boolean isEofException = e instanceof EOFException || e instanceof ClosedChannelException;
         if (isEofException)
@@ -1103,5 +1112,22 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         sb.append(']');
         return sb.toString();
+    }
+
+    public synchronized void abort()
+    {
+        logger.info("[Stream #{}] Aborting stream session with peer {}...", planId(), peer);
+
+        if (channel.connected())
+            channel.sendControlMessage(new SessionFailedMessage());
+
+        try
+        {
+            closeSession(State.ABORTED);
+        }
+        catch (Exception e)
+        {
+            logger.error("[Stream #{}] Error aborting stream session with peer {}", planId(), peer);
+        }
     }
 }

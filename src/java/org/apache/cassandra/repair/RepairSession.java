@@ -25,9 +25,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -245,7 +245,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         CompletableRemoteSyncTask task = syncingTasks.remove(Pair.create(desc, nodes));
         if (task == null)
         {
-            assert terminated;
+            assert terminated : "The repair session should be terminated if the sync task we're completing no longer exists.";
             return;
         }
 
@@ -342,6 +342,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                 taskExecutor.shutdown();
                 // mark this session as terminated
                 terminate();
+                awaitTaskExecutorTermination();
             }
 
             public void onFailure(Throwable t)
@@ -354,7 +355,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }
-        });
+        }, executor);
     }
 
     public void terminate()
@@ -372,8 +373,24 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public void forceShutdown(Throwable reason)
     {
         tryFailure(reason);
-        taskExecutor.shutdownNow();
+        taskExecutor.shutdown();
         terminate();
+        awaitTaskExecutorTermination();
+    }
+
+    private void awaitTaskExecutorTermination()
+    {
+        try
+        {
+            if (taskExecutor.awaitTermination(30, TimeUnit.SECONDS))
+                logger.debug("{} session task executor shut down gracefully", previewKind.logPrefix(getId()));
+            else
+                logger.warn("{} session task executor unable to shut down gracefully", previewKind.logPrefix(getId()));
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void onRemove(InetAddressAndPort endpoint)
