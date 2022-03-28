@@ -243,7 +243,7 @@ public class GossipTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                       .withInstanceInitializer(FailureHelper::installMoveFailure)
-                                      .disallowVNodes()
+                                      .withoutVNodes()
                                       .start())
         {
             init(cluster, 2);

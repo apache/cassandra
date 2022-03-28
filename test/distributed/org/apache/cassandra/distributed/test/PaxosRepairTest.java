@@ -215,7 +215,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosRepairTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).disallowVNodes().start()))
+        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
@@ -264,7 +264,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void topologyChangePaxosTest() throws Throwable
     {
-        try (Cluster cluster = Cluster.build(4).withConfig(CONFIG_CONSUMER).disallowVNodes().createWithoutStarting())
+        try (Cluster cluster = Cluster.build(4).withConfig(CONFIG_CONSUMER).withoutVNodes().createWithoutStarting())
         {
             for (int i=1; i<=3; i++)
                 cluster.get(i).startup();
@@ -302,7 +302,7 @@ public class PaxosRepairTest extends TestBaseImpl
                                                               .set("paxos_purge_grace_period", 0)
                                                               .set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString())
                                                               .set("truncate_request_timeout_in_ms", 1000L))
-                                           .disallowVNodes()
+                                           .withoutVNodes()
                                            .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -372,7 +372,7 @@ public class PaxosRepairTest extends TestBaseImpl
                                                               .set("paxos_purge_grace_period", 0)
                                                               .set("paxos_cache_size", "0")
                                                               .set("truncate_request_timeout_in_ms", 1000L))
-                                           .disallowVNodes()
+                                           .withoutVNodes()
                                            .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -443,7 +443,7 @@ public class PaxosRepairTest extends TestBaseImpl
                                                               .set("paxos_purge_grace_period", 0)
                                                               .set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString())
                                                               .set("truncate_request_timeout_in_ms", 1000L))
-                                           .disallowVNodes()
+                                           .withoutVNodes()
                                            .start())
         )
         {
@@ -525,7 +525,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosRepairVersionGate() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).disallowVNodes().start()))
+        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);

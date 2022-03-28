@@ -49,7 +49,7 @@ public class MoveTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(4)
                                       .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").with(NETWORK).with(GOSSIP))
-                                      .disallowVNodes()
+                                      .withoutVNodes()
                                       .start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
