@@ -95,10 +95,12 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
         if (isLoaded())
             set.remove(item);
 
-        if (deletions == null)
-            deletions = new TreeSet<>();
-
-        deletions.add(item);
+        if (!wasCleared())
+        {
+            if (deletions == null)
+                deletions = new TreeSet<>();
+            deletions.add(item);
+        }
         if (additions != null)
             additions.remove(item);
     }
@@ -114,14 +116,18 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
     public void clearModifiedFlag()
     {
         super.clearModifiedFlag();
-        // TODO: clear instead?
-        additions = null;
-        deletions = null;
+        if (additions != null) additions.clear();
+        if (deletions != null) deletions.clear();
     }
 
     public boolean hasAdditions()
     {
-        return !additions.isEmpty();
+        return additions != null && !additions.isEmpty();
+    }
+
+    public boolean hasDeletions()
+    {
+        return deletions != null && !deletions.isEmpty();
     }
 
     public void forEachAddition(Consumer<T> consumer)

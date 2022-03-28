@@ -97,15 +97,16 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
 
     public void blindRemove(K key)
     {
-        // TODO: for cleared maps, we can just remove from the in memory map & additions
         preBlindChange();
         if (isLoaded())
             map.remove(key);
 
-        if (deletions == null)
-            deletions = new TreeSet<>();
-
-        deletions.add(key);
+        if (!wasCleared())
+        {
+            if (deletions == null)
+                deletions = new TreeSet<>();
+            deletions.add(key);
+        }
         if (additions != null)
             additions.remove(key);
     }
@@ -121,15 +122,18 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     public void clearModifiedFlag()
     {
         super.clearModifiedFlag();
-        // TODO: clear instead?
-        additions = null;
-        deletions = null;
+        if (additions != null) additions.clear();
+        if (deletions != null) deletions.clear();
     }
 
-    // TODO: move some of this stuff into an AbstractStoredCollection
     public boolean hasAdditions()
     {
-        return !additions.isEmpty();
+        return additions != null && !additions.isEmpty();
+    }
+
+    public boolean hasDeletions()
+    {
+        return deletions != null && !deletions.isEmpty();
     }
 
     public void forEachAddition(BiConsumer<K, V> consumer)
