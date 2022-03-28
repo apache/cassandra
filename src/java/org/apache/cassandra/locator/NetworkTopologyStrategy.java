@@ -298,9 +298,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                        .forEach(dc -> options.putIfAbsent(dc, defaultReplicas.toParseableString()));
         }
 
-        // We do not filter out "0" due to the AUTH_KEYSPACE validation in validateExpectedOptions.
-        // The previousOptions are unavailable to that check so it is not possible to verify that all valid
-        // datacenters have an explicit configuration (even if it is 0).
+        options.values().removeAll(Collections.singleton("0"));
     }
 
     @Override

@@ -129,7 +129,7 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2))
                                       .withNodeIdTopology(networkTopology(2,
                                                                           (nodeid) -> nodeid % 2 == 1 ? dcAndRack("dc1", "rack1")
-                                                                                                      : dcAndRack("dc2","rack2")
+                                                                                                      : dcAndRack("dc2", "rack2")
                                       ))
                                       .withNodes(1)
                                       .createWithoutStarting())
@@ -216,7 +216,7 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
     {
         String initialDatacenters = "'dc1': '1'";
         String expandedDatacenters = "'dc1': '1', 'dc2': '1'";
-        String beforeDecommissionedDatacenters = "'dc1': '1', 'dc2': '0'";
+        String beforeDecommissionedDatacenters = "'dc1': '1', 'dc2': '1'";
         String afterDecommissionedDatacenters = "'dc1': '1'";
         validateExpandAndContract(initialDatacenters, expandedDatacenters, beforeDecommissionedDatacenters, afterDecommissionedDatacenters);
     }
@@ -226,10 +226,7 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
     {
         String initialDatacenters = "'replication_factor': '1'";
         String expandedDatacenters = "'replication_factor': '1'";
-        String beforeDecommissionedDatacenters = "'replication_factor': '1', 'dc2': '0'";
-        // Must be explicit with dc2 RF after decommissioning all nodes in a datacenter as
-        // using replication_factor will preserve it from the previous "0" setting and it is
-        // no longer present in the list of valid datacenters.
+        String beforeDecommissionedDatacenters = "'replication_factor': '1', 'dc2': '1'";
         String afterDecommissionedDatacenters =  "'dc1': '1'";
         validateExpandAndContract(initialDatacenters, expandedDatacenters, beforeDecommissionedDatacenters, afterDecommissionedDatacenters);
     }
