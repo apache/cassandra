@@ -219,7 +219,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             else
             {
                 Assume.assumeTrue("single-token is not supported", isSingleTokenAllowed());
-                // if token count == 1 and isVnode == false, then good
+                // if token count == 1 and isVnode == false, then goodAbstractClusterTest
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
             }
 

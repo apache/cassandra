@@ -59,7 +59,7 @@ public class AbstractClusterTest
     {
         AbstractBuilder builder = builder();
 
-        builder.disallowVNodes();
+        builder.withoutVNodes();
         builder.withTokenCount(42);
 
         Assertions.assertThatThrownBy(() -> builder.createWithoutStarting())
@@ -73,18 +73,18 @@ public class AbstractClusterTest
     {
         AbstractBuilder builder = builder();
 
-        builder.disallowVNodes();
+        builder.withoutVNodes();
         builder.withTokenCount(1);
 
         unroll(() -> builder.createWithoutStarting());
     }
 
     @Test
-    public void disallowVnodes()
+    public void withoutVNodes()
     {
         AbstractBuilder builder = builder();
 
-        builder.disallowVNodes();
+        builder.withoutVNodes();
         //TODO casting is annoying... what can be done to be smarter?
         builder.withTokenSupplier((TokenSupplier) i -> Arrays.asList("a", "b", "c"));
 
