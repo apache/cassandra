@@ -23,17 +23,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.Util;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -48,12 +43,16 @@ import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -117,7 +116,7 @@ public class ReadRepairTest
 
         cfm = CreateTableStatement.parse("CREATE TABLE tbl (k int primary key, v text)", ksName).build();
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(3), Tables.of(cfm));
-        MigrationManager.announceNewKeyspace(ksm, false);
+        SchemaTestUtil.announceNewKeyspace(ksm);
 
         ks = Keyspace.open(ksName);
         cfs = ks.getColumnFamilyStore("tbl");

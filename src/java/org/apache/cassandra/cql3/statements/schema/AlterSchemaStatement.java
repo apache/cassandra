@@ -27,8 +27,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
@@ -105,11 +108,11 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
 
         validateKeyspaceName();
 
-        KeyspacesDiff diff = MigrationManager.announce(this, locally);
+        SchemaTransformationResult result = Schema.instance.transform(this, locally);
 
-        clientWarnings(diff).forEach(ClientWarn.instance::warn);
+        clientWarnings(result.diff).forEach(ClientWarn.instance::warn);
 
-        if (diff.isEmpty())
+        if (result.diff.isEmpty())
             return new ResultMessage.Void();
 
         /*
@@ -121,9 +124,9 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
          */
         AuthenticatedUser user = state.getClientState().getUser();
         if (null != user && !user.isAnonymous())
-            createdResources(diff).forEach(r -> grantPermissionsOnResource(r, user));
+            createdResources(result.diff).forEach(r -> grantPermissionsOnResource(r, user));
 
-        return new ResultMessage.SchemaChange(schemaChangeEvent(diff));
+        return new ResultMessage.SchemaChange(schemaChangeEvent(result.diff));
     }
 
     private void validateKeyspaceName()

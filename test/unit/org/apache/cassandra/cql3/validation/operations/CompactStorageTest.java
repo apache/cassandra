@@ -4636,7 +4636,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_compact.test_table_compact (\n" +
                           "    pk1 varint,\n" +
                           "    pk2 ascii,\n" +
@@ -4672,7 +4672,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_counter.test_table_counter (\n" +
                           "    pk1 varint,\n" +
                           "    pk2 ascii,\n" +
@@ -4697,7 +4697,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                         "    pk1 varint,\n" +
                         "    reg1 int,\n" +
@@ -4719,7 +4719,7 @@ public class CompactStorageTest extends CQLTester
                                        " WITH COMPACT STORAGE");
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
-        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true).contains(
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata()).contains(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "    pk1 varint,\n" +
         "    reg1 int,\n" +
@@ -4741,7 +4741,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                           "    pk1 varint,\n" +
                           "    reg1 counter,\n" +
@@ -4764,7 +4764,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 int,\n" +
@@ -4787,7 +4787,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 int,\n" +

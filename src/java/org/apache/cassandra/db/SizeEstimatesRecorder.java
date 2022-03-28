@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -32,6 +35,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -46,7 +50,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
  *
  * See CASSANDRA-7688.
  */
-public class SizeEstimatesRecorder extends SchemaChangeListener implements Runnable
+public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeEstimatesRecorder.class);
 
@@ -175,8 +179,8 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
     }
 
     @Override
-    public void onDropTable(String keyspace, String table)
+    public void onDropTable(TableMetadata table)
     {
-        SystemKeyspace.clearEstimates(keyspace, table);
+        SystemKeyspace.clearEstimates(table.keyspace, table.name);
     }
 }

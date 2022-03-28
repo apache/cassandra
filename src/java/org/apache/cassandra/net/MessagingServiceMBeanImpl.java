@@ -19,7 +19,6 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,11 +41,13 @@ public class MessagingServiceMBeanImpl implements MessagingServiceMBean
     public final ConcurrentMap<InetAddressAndPort, OutboundConnections> channelManagers = new ConcurrentHashMap<>();
     public final ConcurrentMap<InetAddressAndPort, InboundMessageHandlers> messageHandlers = new ConcurrentHashMap<>();
 
-    public final EndpointMessagingVersions versions = new EndpointMessagingVersions();
-    public final MessagingMetrics metrics = new MessagingMetrics();
+    public final EndpointMessagingVersions versions;
+    public final MessagingMetrics metrics;
 
-    MessagingServiceMBeanImpl(boolean testOnly)
+    public MessagingServiceMBeanImpl(boolean testOnly, EndpointMessagingVersions versions, MessagingMetrics metrics)
     {
+        this.versions = versions;
+        this.metrics = metrics;
         if (!testOnly)
         {
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);

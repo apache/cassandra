@@ -18,34 +18,48 @@
 
 package org.apache.cassandra.db;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Files;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import org.apache.cassandra.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.index.sasi.SASIIndex;
-import org.apache.cassandra.schema.*;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-
 import java.io.FileReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Files;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -167,7 +181,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    reg2 varint,\n" +
                           "    st1 varint static,\n" +
                           "    PRIMARY KEY (pk1, ck1)\n) WITH ID =";
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
 
         assertThat(actual,
                    allOf(startsWith(expected),
@@ -208,7 +222,7 @@ public class SchemaCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present as both column and as dropped column record.
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true);
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 varint,\n" +
@@ -247,7 +261,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true),
+        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata()),
                    startsWith(
                    "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
                    "    pk1 varint,\n" +
@@ -294,7 +308,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true),
+        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata()),
                    containsString("CLUSTERING ORDER BY (cl1 ASC)\n" +
                             "    AND additional_write_policy = 'ALWAYS'\n" +
                             "    AND bloom_filter_fp_chance = 1.0\n" +

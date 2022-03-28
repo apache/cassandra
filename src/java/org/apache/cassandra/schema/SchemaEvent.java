@@ -21,30 +21,30 @@ package org.apache.cassandra.schema;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MapDifference;
 
 import org.apache.cassandra.diag.DiagnosticEvent;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Collectors3;
 
 public final class SchemaEvent extends DiagnosticEvent
 {
     private final SchemaEventType type;
 
-    private final HashSet<String> keyspaces;
-    private final HashMap<String, String> indexTables;
-    private final HashMap<String, String> tables;
-    private final ArrayList<String> nonSystemKeyspaces;
-    private final ArrayList<String> userKeyspaces;
+    private final ImmutableCollection<String> keyspaces;
+    private final ImmutableMap<String, String> indexTables;
+    private final ImmutableCollection<String> tables;
+    private final ImmutableCollection<String> nonSystemKeyspaces;
+    private final ImmutableCollection<String> userKeyspaces;
     private final int numberOfTables;
     private final UUID version;
 
@@ -61,7 +61,7 @@ public final class SchemaEvent extends DiagnosticEvent
     @Nullable
     private final Views.ViewsDiff viewsDiff;
     @Nullable
-    private final MapDifference<String,TableMetadata> indexesDiff;
+    private final MapDifference<String, TableMetadata> indexesDiff;
 
     public enum SchemaEventType
     {
@@ -90,7 +90,7 @@ public final class SchemaEvent extends DiagnosticEvent
     SchemaEvent(SchemaEventType type, Schema schema, @Nullable KeyspaceMetadata ksUpdate,
                 @Nullable KeyspaceMetadata previous, @Nullable KeyspaceMetadata.KeyspaceDiff ksDiff,
                 @Nullable TableMetadata tableUpdate, @Nullable Tables.TablesDiff tablesDiff,
-                @Nullable Views.ViewsDiff viewsDiff, @Nullable MapDifference<String,TableMetadata> indexesDiff)
+                @Nullable Views.ViewsDiff viewsDiff, @Nullable MapDifference<String, TableMetadata> indexesDiff)
     {
         this.type = type;
         this.ksUpdate = ksUpdate;
@@ -101,27 +101,21 @@ public final class SchemaEvent extends DiagnosticEvent
         this.viewsDiff = viewsDiff;
         this.indexesDiff = indexesDiff;
 
-        this.keyspaces = new HashSet<>(schema.getKeyspaces());
-        this.nonSystemKeyspaces = new ArrayList<>(schema.getNonSystemKeyspaces());
-        this.userKeyspaces = new ArrayList<>(schema.getUserKeyspaces());
+        this.keyspaces = schema.distributedAndLocalKeyspaces().names();
+        this.nonSystemKeyspaces = schema.distributedKeyspaces().names();
+        this.userKeyspaces = schema.getUserKeyspaces().names();
         this.numberOfTables = schema.getNumberOfTables();
         this.version = schema.getVersion();
 
-        Map<Pair<String, String>, TableMetadataRef> indexTableMetadataRefs = schema.getIndexTableMetadataRefs();
-        Map<String, String> indexTables = indexTableMetadataRefs.entrySet().stream()
-                                                                .collect(Collectors.toMap(e -> e.getKey().left + ',' +
-                                                                                               e.getKey().right,
-                                                                                          e -> e.getValue().id.toHexString() + ',' +
-                                                                                               e.getValue().keyspace + ',' +
-                                                                                               e.getValue().name));
-        this.indexTables = new HashMap<>(indexTables);
-        Map<TableId, TableMetadataRef> tableMetadataRefs = schema.getTableMetadataRefs();
-        Map<String, String> tables = tableMetadataRefs.entrySet().stream()
-                                                      .collect(Collectors.toMap(e -> e.getKey().toHexString(),
-                                                                                e -> e.getValue().id.toHexString() + ',' +
-                                                                                     e.getValue().keyspace + ',' +
-                                                                                     e.getValue().name));
-        this.tables = new HashMap<>(tables);
+        this.indexTables = schema.distributedKeyspaces().stream()
+                                 .flatMap(ks -> ks.tables.indexTables().entrySet().stream())
+                                 .collect(Collectors3.toImmutableMap(e -> String.format("%s,%s", e.getValue().keyspace, e.getKey()),
+                                                                     e -> String.format("%s,%s,%s", e.getValue().id.toHexString(), e.getValue().keyspace, e.getValue().name)));
+
+        this.tables = schema.distributedKeyspaces().stream()
+                            .flatMap(ks -> StreamSupport.stream(ks.tablesAndViews().spliterator(), false))
+                            .map(e -> String.format("%s,%s,%s", e.id.toHexString(), e.keyspace, e.name))
+                            .collect(Collectors3.toImmutableList());
     }
 
     public SchemaEventType getType()

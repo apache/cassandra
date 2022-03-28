@@ -17,24 +17,31 @@
  */
 package org.apache.cassandra.metrics;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.codahale.metrics.Timer;
-
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.commons.lang3.ArrayUtils;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.RatioGauge;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
@@ -50,12 +57,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.RatioGauge;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -263,7 +265,7 @@ public class TableMetrics
     {
         long total = 0;
         long filtered = 0;
-        for (String keyspace : Schema.instance.getNonSystemKeyspaces())
+        for (String keyspace : Schema.instance.getNonSystemKeyspaces().names())
         {
 
             Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);

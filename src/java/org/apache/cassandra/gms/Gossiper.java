@@ -18,53 +18,62 @@
 package org.apache.cassandra.gms;
 
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.*;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.ExpiringMemoizingSupplier;
-import org.apache.cassandra.utils.MBeanWrapper;
-import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.ExpiringMemoizingSupplier;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -119,7 +128,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private volatile ScheduledFuture<?> scheduledGossipTask;
     private static final ReentrantLock taskLock = new ReentrantLock();
     public final static int intervalInMillis = 1000;
-    public final static int QUARANTINE_DELAY = GOSSIPER_QUARANTINE_DELAY.getInt(StorageService.RING_DELAY * 2);
+    public final static int QUARANTINE_DELAY = GOSSIPER_QUARANTINE_DELAY.getInt(StorageService.RING_DELAY_MILLIS * 2);
     private static final Logger logger = LoggerFactory.getLogger(Gossiper.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 15L, TimeUnit.MINUTES);
 
@@ -750,8 +759,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // remember this node's generation
         int generation = epState.getHeartBeatState().getGeneration();
         logger.info("Removing host: {}", hostId);
-        logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
-        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+        logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY_MILLIS, endpoint);
+        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
         // make sure it did not change
         epState = endpointStateMap.get(endpoint);
         if (epState.getHeartBeatState().getGeneration() != generation)
@@ -819,8 +828,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 int generation = epState.getHeartBeatState().getGeneration();
                 int heartbeat = epState.getHeartBeatState().getHeartBeatVersion();
-                logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
-                Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+                logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY_MILLIS, endpoint);
+                Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
                 // make sure it did not change
                 EndpointState newState = endpointStateMap.get(endpoint);
                 if (newState == null)
@@ -1586,7 +1595,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     // notify that an application state has changed
-    private void doOnChangeNotifications(InetAddressAndPort addr, ApplicationState state, VersionedValue value)
+    public void doOnChangeNotifications(InetAddressAndPort addr, ApplicationState state, VersionedValue value)
     {
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
         {
@@ -1798,7 +1807,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         boolean isSeed = DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort());
         // We double RING_DELAY if we're not a seed to increase chance of successful startup during a full cluster bounce,
         // giving the seeds a chance to startup before we fail the shadow round
-        int shadowRoundDelay =  isSeed ? StorageService.RING_DELAY : StorageService.RING_DELAY * 2;
+        int shadowRoundDelay = isSeed ? StorageService.RING_DELAY_MILLIS : StorageService.RING_DELAY_MILLIS * 2;
         seedsInShadowRound.clear();
         endpointShadowStateMap.clear();
         // send a completely empty syn

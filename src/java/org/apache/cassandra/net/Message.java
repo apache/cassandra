@@ -24,12 +24,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,8 +50,8 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
@@ -239,6 +237,18 @@ public class Message<T>
     {
         assert verb.isResponse();
         return outWithParam(0, verb, payload, null, null);
+    }
+
+    /**
+     * Used by the {@code MultiRangeReadCommand} to split multi-range responses from a replica
+     * into single-range responses.
+     */
+    public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
+    {
+        assert verb.isResponse();
+        long createdAtNanos = approxTime.now();
+        long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
+        return new Message<>(new Header(0, verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
     }
 
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */

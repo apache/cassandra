@@ -53,7 +53,7 @@ public class CompactionTaskTest
     public static void setUpClass() throws Exception
     {
         SchemaLoader.prepareServer();
-        cfm = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", "coordinatorsessiontest").build();
+        cfm = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", "ks").build();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1), cfm);
         cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.id);
     }

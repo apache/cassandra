@@ -28,7 +28,10 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.ViewMetadata;
 
 /**
  * Helper methods to represent TableMetadata and related objects in CQL format
@@ -41,31 +44,34 @@ public class SchemaCQLHelper
     /**
      * Generates the DDL statement for a {@code schema.cql} snapshot file.
      */
-    public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, Types types)
+    public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, KeyspaceMetadata keyspaceMetadata)
     {
         // Types come first, as table can't be created without them
-        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, types, true);
+        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, keyspaceMetadata.types, true);
 
         return Stream.concat(udts,
                              reCreateStatements(metadata,
                                                 true,
                                                 true,
                                                 true,
-                                                true));
+                                                true,
+                                                keyspaceMetadata));
     }
 
     public static Stream<String> reCreateStatements(TableMetadata metadata,
                                                     boolean includeDroppedColumns,
                                                     boolean internals,
                                                     boolean ifNotExists,
-                                                    boolean includeIndexes)
+                                                    boolean includeIndexes,
+                                                    KeyspaceMetadata keyspaceMetadata)
     {
         // Record re-create schema statements
         Stream<String> r = Stream.of(metadata)
                                          .map((tm) -> SchemaCQLHelper.getTableMetadataAsCQL(tm,
                                                                                             includeDroppedColumns,
                                                                                             internals,
-                                                                                            ifNotExists));
+                                                                                            ifNotExists,
+                                                                                            keyspaceMetadata));
 
         if (includeIndexes)
         {
@@ -86,11 +92,11 @@ public class SchemaCQLHelper
     public static String getTableMetadataAsCQL(TableMetadata metadata,
                                                boolean includeDroppedColumns,
                                                boolean internals,
-                                               boolean ifNotExists)
+                                               boolean ifNotExists,
+                                               KeyspaceMetadata keyspaceMetadata)
     {
         if (metadata.isView())
         {
-            KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
             ViewMetadata viewMetadata = keyspaceMetadata.views.get(metadata.name).orElse(null);
             assert viewMetadata != null;
             return viewMetadata.toCqlString(internals, ifNotExists);
@@ -162,7 +168,7 @@ public class SchemaCQLHelper
     private static UserType getType(TableMetadata metadata, Types types, ByteBuffer name)
     {
         return types.get(name)
-                    .orElseThrow(() -> new IllegalStateException(String.format("user type %s is part of table %s definition but its definition was missing", 
+                    .orElseThrow(() -> new IllegalStateException(String.format("user type %s is part of table %s definition but its definition was missing",
                                                                               UTF8Type.instance.getString(name),
                                                                               metadata)));
     }

@@ -17,23 +17,50 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
@@ -42,8 +69,8 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.audit.IAuditLogger;
+import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
@@ -485,11 +512,33 @@ public class FBUtilities
         }
         catch (ExecutionException ee)
         {
-            throw new RuntimeException(ee);
+            throw Throwables.cleaned(ee);
         }
         catch (InterruptedException ie)
         {
             throw new AssertionError(ie);
+        }
+    }
+
+    public static <T> T waitOnFuture(Future<T> future, Duration timeout)
+    {
+        Preconditions.checkArgument(!timeout.isNegative(), "Timeout must not be negative, provided %s", timeout);
+        try
+        {
+            return future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+        }
+        catch (ExecutionException ee)
+        {
+            logger.info("Exception occurred in async code", ee);
+            throw Throwables.cleaned(ee);
+        }
+        catch (InterruptedException ie)
+        {
+            throw new AssertionError(ie);
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException("Timeout - task did not finish in " + timeout);
         }
     }
 

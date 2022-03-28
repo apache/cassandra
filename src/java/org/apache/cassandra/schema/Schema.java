@@ -17,123 +17,137 @@
  */
 package org.apache.cassandra.schema;
 
-import java.net.UnknownHostException;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
-import com.google.common.collect.Sets;
+import org.apache.commons.lang3.ObjectUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.LoadingMap;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import static java.lang.String.format;
 import static com.google.common.collect.Iterables.size;
+import static java.lang.String.format;
+import static org.apache.cassandra.config.DatabaseDescriptor.isDaemonInitialized;
+import static org.apache.cassandra.config.DatabaseDescriptor.isToolInitialized;
 
+/**
+ * Manages shared schema, keyspace instances and table metadata refs. Provides methods to initialize, modify and query
+ * both the shared and local schema, as well as to register listeners.
+ * <p>
+ * This class should be the only entity used to query and manage schema. Internal details should not be access in
+ * production code (would be great if they were not accessed in the test code as well).
+ * <p>
+ * TL;DR: All modifications are made using the implementation of {@link SchemaUpdateHandler} obtained from the provided
+ * factory. After each modification, the internally managed table metadata refs and keyspaces instances are updated and
+ * notifications are sent to the registered listeners.
+ * When the schema change is applied by the update handler (regardless it is initiated locally or received from outside),
+ * the registered callback is executed which performs the remaining updates for tables metadata refs and keyspace
+ * instances (see {@link #mergeAndUpdateVersion(SchemaTransformationResult, boolean)}).
+ */
 public class Schema implements SchemaProvider
 {
+    private static final Logger logger = LoggerFactory.getLogger(Schema.class);
+
+    public static final String FORCE_LOAD_LOCAL_KEYSPACES_PROP = "cassandra.schema.force_load_local_keyspaces";
+    private static final boolean FORCE_LOAD_LOCAL_KEYSPACES = Boolean.getBoolean(FORCE_LOAD_LOCAL_KEYSPACES_PROP);
+
     public static final Schema instance = new Schema();
 
-    private volatile Keyspaces keyspaces = Keyspaces.none();
+    private volatile Keyspaces distributedKeyspaces = Keyspaces.none();
 
-    // UUID -> mutable metadata ref map. We have to update these in place every time a table changes.
-    private final Map<TableId, TableMetadataRef> metadataRefs = new NonBlockingHashMap<>();
+    private final Keyspaces localKeyspaces;
 
-    // (keyspace name, index name) -> mutable metadata ref map. We have to update these in place every time an index changes.
-    private final Map<Pair<String, String>, TableMetadataRef> indexMetadataRefs = new NonBlockingHashMap<>();
+    private volatile TableMetadataRefCache tableMetadataRefCache = TableMetadataRefCache.EMPTY;
 
     // Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace.
+    // We operate on loading map because we need to achieve atomic initialization with at-most-once semantics for
+    // loadFunction. Although it seems that this is a valid case for using ConcurrentHashMap.computeIfAbsent,
+    // we should not use it because we have no knowledge about the loadFunction and in fact that load function may
+    // do some nested calls to maybeAddKeyspaceInstance, also using different threads, and in a blocking manner.
+    // This may lead to a deadlock. The documentation of ConcurrentHashMap says that manipulating other keys inside
+    // the lambda passed to the computeIfAbsent method is prohibited.
     private final LoadingMap<String, Keyspace> keyspaceInstances = new LoadingMap<>();
 
-    private volatile UUID version;
+    private volatile UUID version = SchemaConstants.emptyVersion;
 
-    private final List<SchemaChangeListener> changeListeners = new CopyOnWriteArrayList<>();
+    private final SchemaChangeNotifier schemaChangeNotifier = new SchemaChangeNotifier();
+
+    public final SchemaUpdateHandler updateHandler;
+
+    private final boolean online;
 
     /**
      * Initialize empty schema object and load the hardcoded system tables
      */
     private Schema()
     {
-        if (DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized())
-        {
-            load(SchemaKeyspace.metadata());
-            load(SystemKeyspace.metadata());
-        }
+        this.online = isDaemonInitialized();
+        this.localKeyspaces = (FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized())
+                              ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
+                              : Keyspaces.none();
+
+        this.localKeyspaces.forEach(this::loadNew);
+        this.updateHandler = SchemaUpdateHandlerFactoryProvider.instance.get().getSchemaUpdateHandler(online, this::mergeAndUpdateVersion);
+    }
+
+    @VisibleForTesting
+    public Schema(boolean online, Keyspaces localKeyspaces, SchemaUpdateHandler updateHandler)
+    {
+        this.online = online;
+        this.localKeyspaces = localKeyspaces;
+        this.updateHandler = updateHandler;
+    }
+
+    public void startSync()
+    {
+        logger.debug("Starting update handler");
+        updateHandler.start();
+    }
+
+    public boolean waitUntilReady(Duration timeout)
+    {
+        logger.debug("Waiting for update handler to be ready...");
+        return updateHandler.waitUntilReady(timeout);
     }
 
     /**
-     * Add entries to system_schema.* for the hardcoded system keyspaces
-     * 
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized void saveSystemKeyspace()
-    {
-        SchemaKeyspace.saveSystemKeyspacesSchema();
-    }
-
-    /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized void truncateSchemaKeyspace()
-    {
-        SchemaKeyspace.truncate();
-    }
-
-    /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    public synchronized Collection<Mutation> schemaKeyspaceAsMutations()
-    {
-        return SchemaKeyspace.convertSchemaToMutations();
-    }
-
-    public static KeyspaceMetadata getSystemKeyspaceMetadata()
-    {
-        return SchemaKeyspace.metadata();
-    }
-
-    /**
-     * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
-     * Schema version may be updated as the result.
+     * Load keyspaces definitions from local storage, see {@link SchemaUpdateHandler#reset(boolean)}.
      */
     public void loadFromDisk()
     {
-        loadFromDisk(true);
-    }
-
-    /**
-     * Load schema definitions from disk.
-     *
-     * @param updateVersion true if schema version needs to be updated
-     */
-    public void loadFromDisk(boolean updateVersion)
-    {
-        SchemaDiagnostics.schemataLoading(this);
-        SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
-        if (updateVersion)
-            updateVersion();
-        SchemaDiagnostics.schemataLoaded(this);
+        SchemaDiagnostics.schemaLoading(this);
+        updateHandler.reset(true);
+        SchemaDiagnostics.schemaLoaded(this);
     }
 
     /**
@@ -141,31 +155,27 @@ public class Schema implements SchemaProvider
      *
      * @param ksm The metadata about keyspace
      */
-    synchronized public void load(KeyspaceMetadata ksm)
+    private synchronized void load(KeyspaceMetadata ksm)
     {
-        KeyspaceMetadata previous = keyspaces.getNullable(ksm.name);
+        Preconditions.checkArgument(!SchemaConstants.isLocalSystemKeyspace(ksm.name));
+        KeyspaceMetadata previous = distributedKeyspaces.getNullable(ksm.name);
 
         if (previous == null)
             loadNew(ksm);
         else
             reload(previous, ksm);
 
-        keyspaces = keyspaces.withAddedOrUpdated(ksm);
+        distributedKeyspaces = distributedKeyspaces.withAddedOrUpdated(ksm);
     }
 
-    private void loadNew(KeyspaceMetadata ksm)
+    private synchronized void loadNew(KeyspaceMetadata ksm)
     {
-        ksm.tablesAndViews()
-           .forEach(metadata -> metadataRefs.put(metadata.id, new TableMetadataRef(metadata)));
-
-        ksm.tables
-           .indexTables()
-           .forEach((name, metadata) -> indexMetadataRefs.put(Pair.create(ksm.name, name), new TableMetadataRef(metadata)));
+        this.tableMetadataRefCache = tableMetadataRefCache.withNewRefs(ksm);
 
         SchemaDiagnostics.metadataInitialized(this, ksm);
     }
 
-    private void reload(KeyspaceMetadata previous, KeyspaceMetadata updated)
+    private synchronized void reload(KeyspaceMetadata previous, KeyspaceMetadata updated)
     {
         Keyspace keyspace = getKeyspaceInstance(updated.name);
         if (null != keyspace)
@@ -176,44 +186,20 @@ public class Schema implements SchemaProvider
 
         MapDifference<String, TableMetadata> indexesDiff = previous.tables.indexesDiff(updated.tables);
 
-        // clean up after removed entries
-        tablesDiff.dropped.forEach(table -> metadataRefs.remove(table.id));
-        viewsDiff.dropped.forEach(view -> metadataRefs.remove(view.metadata.id));
-
-        indexesDiff.entriesOnlyOnLeft()
-                   .values()
-                   .forEach(indexTable -> indexMetadataRefs.remove(Pair.create(indexTable.keyspace, indexTable.indexName().get())));
-
-        // load up new entries
-        tablesDiff.created.forEach(table -> metadataRefs.put(table.id, new TableMetadataRef(table)));
-        viewsDiff.created.forEach(view -> metadataRefs.put(view.metadata.id, new TableMetadataRef(view.metadata)));
-
-        indexesDiff.entriesOnlyOnRight()
-                   .values()
-                   .forEach(indexTable -> indexMetadataRefs.put(Pair.create(indexTable.keyspace, indexTable.indexName().get()), new TableMetadataRef(indexTable)));
-
-        // refresh refs to updated ones
-        tablesDiff.altered.forEach(diff -> metadataRefs.get(diff.after.id).set(diff.after));
-        viewsDiff.altered.forEach(diff -> metadataRefs.get(diff.after.metadata.id).set(diff.after.metadata));
-
-        indexesDiff.entriesDiffering()
-                   .values()
-                   .stream()
-                   .map(MapDifference.ValueDifference::rightValue)
-                   .forEach(indexTable -> indexMetadataRefs.get(Pair.create(indexTable.keyspace, indexTable.indexName().get())).set(indexTable));
+        this.tableMetadataRefCache = tableMetadataRefCache.withUpdatedRefs(previous, updated);
 
         SchemaDiagnostics.metadataReloaded(this, previous, updated, tablesDiff, viewsDiff, indexesDiff);
     }
 
     public void registerListener(SchemaChangeListener listener)
     {
-        changeListeners.add(listener);
+        schemaChangeNotifier.registerListener(listener);
     }
 
     @SuppressWarnings("unused")
     public void unregisterListener(SchemaChangeListener listener)
     {
-        changeListeners.remove(listener);
+        schemaChangeNotifier.unregisterListener(listener);
     }
 
     /**
@@ -240,8 +226,8 @@ public class Schema implements SchemaProvider
             return null;
 
         return instance.hasColumnFamilyStore(metadata.id)
-             ? instance.getColumnFamilyStore(metadata.id)
-             : null;
+               ? instance.getColumnFamilyStore(metadata.id)
+               : null;
     }
 
     @Override
@@ -250,11 +236,11 @@ public class Schema implements SchemaProvider
         return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
 
-    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName)
+    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, boolean dropData)
     {
         try
         {
-            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, Keyspace::unload);
+            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, keyspace -> keyspace.unload(dropData));
         }
         catch (LoadingMap.UnloadExecutionException e)
         {
@@ -262,9 +248,36 @@ public class Schema implements SchemaProvider
         }
     }
 
+    /**
+     * @deprecated use {@link #distributedAndLocalKeyspaces()}
+     */
+    @Deprecated
     public Keyspaces snapshot()
     {
-        return keyspaces;
+        return distributedAndLocalKeyspaces();
+    }
+
+    public Keyspaces distributedAndLocalKeyspaces()
+    {
+        return Keyspaces.builder().add(localKeyspaces).add(distributedKeyspaces).build();
+    }
+
+    public Keyspaces distributedKeyspaces()
+    {
+        return distributedKeyspaces;
+    }
+
+    /**
+     * Compute the largest gc grace seconds amongst all the tables
+     * @return the largest gcgs.
+     */
+    public int largestGcgs()
+    {
+        return distributedAndLocalKeyspaces().stream()
+                                             .flatMap(ksm -> ksm.tables.stream())
+                                             .mapToInt(tm -> tm.params.gcGraceSeconds)
+                                             .max()
+                                             .orElse(Integer.MIN_VALUE);
     }
 
     /**
@@ -272,30 +285,24 @@ public class Schema implements SchemaProvider
      *
      * @param ksm The keyspace definition to remove
      */
-    synchronized void unload(KeyspaceMetadata ksm)
+    private synchronized void unload(KeyspaceMetadata ksm)
     {
-        keyspaces = keyspaces.without(ksm.name);
+        distributedKeyspaces = distributedKeyspaces.without(ksm.name);
 
-        ksm.tablesAndViews()
-           .forEach(t -> metadataRefs.remove(t.id));
-
-        ksm.tables
-           .indexTables()
-           .keySet()
-           .forEach(name -> indexMetadataRefs.remove(Pair.create(ksm.name, name)));
+        this.tableMetadataRefCache = tableMetadataRefCache.withRemovedRefs(ksm);
 
         SchemaDiagnostics.metadataRemoved(this, ksm);
     }
 
     public int getNumberOfTables()
     {
-        return keyspaces.stream().mapToInt(k -> size(k.tablesAndViews())).sum();
+        return distributedAndLocalKeyspaces().stream().mapToInt(k -> size(k.tablesAndViews())).sum();
     }
 
     public ViewMetadata getView(String keyspaceName, String viewName)
     {
         assert keyspaceName != null;
-        KeyspaceMetadata ksm = keyspaces.getNullable(keyspaceName);
+        KeyspaceMetadata ksm = distributedAndLocalKeyspaces().getNullable(keyspaceName);
         return (ksm == null) ? null : ksm.views.getNullable(viewName);
     }
 
@@ -310,65 +317,64 @@ public class Schema implements SchemaProvider
     public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
     {
         assert keyspaceName != null;
-        KeyspaceMetadata keyspace = keyspaces.getNullable(keyspaceName);
+        KeyspaceMetadata keyspace = distributedAndLocalKeyspaces().getNullable(keyspaceName);
         return null != keyspace ? keyspace : VirtualKeyspaceRegistry.instance.getKeyspaceMetadataNullable(keyspaceName);
     }
 
-    private Set<String> getNonSystemKeyspacesSet()
+    /**
+     * Returns all non-local keyspaces, that is, all but {@link SchemaConstants#LOCAL_SYSTEM_KEYSPACE_NAMES}
+     * or virtual keyspaces.
+     * @deprecated use {@link #distributedKeyspaces()}
+     */
+    @Deprecated
+    public Keyspaces getNonSystemKeyspaces()
     {
-        return Sets.difference(keyspaces.names(), SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
+        return distributedKeyspaces;
     }
 
     /**
-     * @return collection of the non-system keyspaces (note that this count as system only the
-     * non replicated keyspaces, so keyspace like system_traces which are replicated are actually
-     * returned. See getUserKeyspace() below if you don't want those)
+     * Returns all non-local keyspaces whose replication strategy is not {@link LocalStrategy}.
      */
-    public ImmutableList<String> getNonSystemKeyspaces()
+    public Keyspaces getNonLocalStrategyKeyspaces()
     {
-        return ImmutableList.copyOf(getNonSystemKeyspacesSet());
+        return distributedKeyspaces.filter(keyspace -> keyspace.params.replication.klass != LocalStrategy.class);
     }
 
     /**
-     * @return a collection of keyspaces that do not use LocalStrategy for replication
+     * Returns user keyspaces, that is all but {@link SchemaConstants#LOCAL_SYSTEM_KEYSPACE_NAMES},
+     * {@link SchemaConstants#REPLICATED_SYSTEM_KEYSPACE_NAMES} or virtual keyspaces.
      */
-    public List<String> getNonLocalStrategyKeyspaces()
+    public Keyspaces getUserKeyspaces()
     {
-        return keyspaces.stream()
-                        .filter(keyspace -> keyspace.params.replication.klass != LocalStrategy.class)
-                        .map(keyspace -> keyspace.name)
-                        .collect(Collectors.toList());
-    }
-
-    /**
-     * @return collection of the user defined keyspaces
-     */
-    public List<String> getUserKeyspaces()
-    {
-        return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES));
+        return distributedKeyspaces.without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES);
     }
 
     /**
      * Get metadata about keyspace inner ColumnFamilies
      *
      * @param keyspaceName The name of the keyspace
-     *
      * @return metadata about ColumnFamilies the belong to the given keyspace
      */
     public Iterable<TableMetadata> getTablesAndViews(String keyspaceName)
     {
-        assert keyspaceName != null;
-        KeyspaceMetadata ksm = keyspaces.getNullable(keyspaceName);
-        assert ksm != null;
+        Preconditions.checkNotNull(keyspaceName);
+        KeyspaceMetadata ksm = ObjectUtils.getFirstNonNull(() -> distributedKeyspaces.getNullable(keyspaceName),
+                                                           () -> localKeyspaces.getNullable(keyspaceName));
+        Preconditions.checkNotNull(ksm, "Keyspace %s not found", keyspaceName);
         return ksm.tablesAndViews();
     }
 
     /**
      * @return collection of the all keyspace names registered in the system (system and non-system)
      */
-    public Set<String> getKeyspaces()
+    public ImmutableSet<String> getKeyspaces()
     {
-        return keyspaces.names();
+        return distributedAndLocalKeyspaces().names();
+    }
+
+    public Keyspaces getLocalKeyspaces()
+    {
+        return localKeyspaces;
     }
 
     /* TableMetadata/Ref query/control methods */
@@ -383,33 +389,24 @@ public class Schema implements SchemaProvider
     @Override
     public TableMetadataRef getTableMetadataRef(String keyspace, String table)
     {
-        TableMetadata tm = getTableMetadata(keyspace, table);
-        return tm == null
-             ? null
-             : metadataRefs.get(tm.id);
+        return tableMetadataRefCache.getTableMetadataRef(keyspace, table);
     }
 
     public TableMetadataRef getIndexTableMetadataRef(String keyspace, String index)
     {
-        return indexMetadataRefs.get(Pair.create(keyspace, index));
-    }
-
-    Map<Pair<String, String>, TableMetadataRef> getIndexTableMetadataRefs()
-    {
-        return indexMetadataRefs;
+        return tableMetadataRefCache.getIndexTableMetadataRef(keyspace, index);
     }
 
     /**
      * Get Table metadata by its identifier
      *
      * @param id table or view identifier
-     *
      * @return metadata about Table or View
      */
     @Override
     public TableMetadataRef getTableMetadataRef(TableId id)
     {
-        return metadataRefs.get(id);
+        return tableMetadataRefCache.getTableMetadataRef(id);
     }
 
     @Override
@@ -418,19 +415,13 @@ public class Schema implements SchemaProvider
         return getTableMetadataRef(descriptor.ksname, descriptor.cfname);
     }
 
-    Map<TableId, TableMetadataRef> getTableMetadataRefs()
-    {
-        return metadataRefs;
-    }
-
     /**
      * Given a keyspace name and table name, get the table
      * meta data. If the keyspace name or table name is not valid
      * this function returns null.
      *
      * @param keyspace The keyspace name
-     * @param table The table name
-     *
+     * @param table    The table name
      * @return TableMetadata object or null if it wasn't found
      */
     public TableMetadata getTableMetadata(String keyspace, String table)
@@ -440,15 +431,16 @@ public class Schema implements SchemaProvider
 
         KeyspaceMetadata ksm = getKeyspaceMetadata(keyspace);
         return ksm == null
-             ? null
-             : ksm.getTableOrViewNullable(table);
+               ? null
+               : ksm.getTableOrViewNullable(table);
     }
 
     @Override
     public TableMetadata getTableMetadata(TableId id)
     {
-        TableMetadata table = keyspaces.getTableOrViewNullable(id);
-        return null != table ? table : VirtualKeyspaceRegistry.instance.getTableMetadataNullable(id);
+        return ObjectUtils.getFirstNonNull(() -> distributedKeyspaces.getTableOrViewNullable(id),
+                                           () -> localKeyspaces.getTableOrViewNullable(id),
+                                           () -> VirtualKeyspaceRegistry.instance.getTableMetadataNullable(id));
     }
 
     public TableMetadata validateTable(String keyspaceName, String tableName)
@@ -488,14 +480,14 @@ public class Schema implements SchemaProvider
 
         KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
         return ksm == null
-             ? Collections.emptyList()
-             : ksm.functions.get(name);
+               ? Collections.emptyList()
+               : ksm.functions.get(name);
     }
 
     /**
      * Find the function with the specified name
      *
-     * @param name fully qualified function name
+     * @param name     fully qualified function name
      * @param argTypes function argument types
      * @return an empty {@link Optional} if the keyspace or the function name are not found;
      *         a non-empty optional of {@link Function} otherwise
@@ -507,8 +499,8 @@ public class Schema implements SchemaProvider
 
         KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
         return ksm == null
-             ? Optional.empty()
-             : ksm.functions.find(name, argTypes);
+               ? Optional.empty()
+               : ksm.functions.find(name, argTypes);
     }
 
     /* Version control */
@@ -540,33 +532,13 @@ public class Schema implements SchemaProvider
     /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
-     * 
+     *
      * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
      */
-    public synchronized void updateVersion()
+    private synchronized void updateVersion(UUID version)
     {
-        version = SchemaKeyspace.calculateSchemaDigest();
-        SystemKeyspace.updateSchemaVersion(version);
+        this.version = version;
         SchemaDiagnostics.versionUpdated(this);
-    }
-
-    /*
-     * Like updateVersion, but also announces via gossip
-     */
-    public void updateVersionAndAnnounce()
-    {
-        updateVersion();
-        passiveAnnounceVersion();
-    }
-
-    /**
-     * Announce my version passively over gossip.
-     * Used to notify nodes as they arrive in the cluster.
-     */
-    private void passiveAnnounceVersion()
-    {
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
-        SchemaDiagnostics.versionAnnounced(this);
     }
 
     /**
@@ -574,164 +546,142 @@ public class Schema implements SchemaProvider
      */
     public synchronized void clear()
     {
-        getNonSystemKeyspaces().forEach(k -> unload(getKeyspaceMetadata(k)));
-        updateVersionAndAnnounce();
-        SchemaDiagnostics.schemataCleared(this);
+        distributedKeyspaces.forEach(this::unload);
+        updateVersion(SchemaConstants.emptyVersion);
+        SchemaDiagnostics.schemaCleared(this);
+    }
+
+    /**
+     * When we receive {@link SchemaTransformationResult} in a callback invocation, the transformation result includes
+     * pre-transformation and post-transformation schema metadata and versions, and a diff between them. Basically
+     * we expect that the local image of the schema metadata ({@link #distributedKeyspaces}) and version ({@link #version})
+     * are the same as pre-transformation. However, it might not always be true because some changes might not be
+     * applied completely due to some errors. This methods is to emit warning in such case and recalculate diff so that
+     * it contains the changes between the local schema image ({@link #distributedKeyspaces} and the post-transformation
+     * schema. That recalculation allows the following updates in the callback to recover the schema.
+     *
+     * @param result the incoming transformation result
+     * @return recalculated transformation result if needed, otherwise the provided incoming result
+     */
+    private synchronized SchemaTransformationResult localDiff(SchemaTransformationResult result)
+    {
+        Keyspaces localBefore = distributedKeyspaces;
+        UUID localVersion = version;
+        boolean needNewDiff = false;
+
+        if (!Objects.equals(localBefore, result.before.getKeyspaces()))
+        {
+            logger.info("Schema was different to what we expected: {}", Keyspaces.diff(result.before.getKeyspaces(), localBefore));
+            needNewDiff = true;
+        }
+
+        if (!Objects.equals(localVersion, result.before.getVersion()))
+        {
+            logger.info("Schema version was different to what we expected: {} != {}", result.before.getVersion(), localVersion);
+            needNewDiff = true;
+        }
+
+        if (needNewDiff)
+            return new SchemaTransformationResult(new DistributedSchema(localBefore, localVersion),
+                                                  result.after,
+                                                  Keyspaces.diff(localBefore, result.after.getKeyspaces()));
+
+        return result;
     }
 
     /*
      * Reload schema from local disk. Useful if a user made changes to schema tables by hand, or has suspicion that
      * in-memory representation got out of sync somehow with what's on disk.
      */
-    public synchronized void reloadSchemaAndAnnounceVersion()
+    public void reloadSchemaAndAnnounceVersion()
     {
-        Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name));
-        Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
-        merge(Keyspaces.diff(before, after));
-        updateVersionAndAnnounce();
+        updateHandler.reset(true);
     }
 
     /**
      * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
      *
-     * @param mutations the schema changes to apply
-     *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
-    public synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
+    @VisibleForTesting
+    public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result, boolean dropData)
     {
-        merge(mutations);
-        updateVersionAndAnnounce();
+        if (online)
+            SystemKeyspace.updateSchemaVersion(result.after.getVersion());
+        result = localDiff(result);
+        schemaChangeNotifier.notifyPreChanges(result);
+        merge(result.diff, dropData);
+        updateVersion(result.after.getVersion());
+    }
+
+    public SchemaTransformationResult transform(SchemaTransformation transformation)
+    {
+        return transform(transformation, false);
+    }
+
+    public SchemaTransformationResult transform(SchemaTransformation transformation, boolean local)
+    {
+        return updateHandler.apply(transformation, local);
     }
 
     /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
+     * Clear all locally stored schema information and reset schema to initial state.
+     * Called by user (via JMX) who wants to get rid of schema disagreement.
      */
-    public synchronized TransformationResult transform(SchemaTransformation transformation, boolean locally, long now) throws UnknownHostException
+    public void resetLocalSchema()
     {
-        KeyspacesDiff diff;
-        try
-        {
-            Keyspaces before = keyspaces;
-            Keyspaces after = transformation.apply(before);
-            diff = Keyspaces.diff(before, after);
-        }
-        catch (RuntimeException e)
-        {
-            return new TransformationResult(e);
-        }
+        logger.debug("Clearing local schema...");
+        updateHandler.clear();
 
-        if (diff.isEmpty())
-            return new TransformationResult(diff, Collections.emptyList());
+        logger.debug("Clearing local schema keyspace instances...");
+        clear();
 
-        Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, now);
-        SchemaKeyspace.applyChanges(mutations);
-
-        merge(diff);
-        updateVersion();
-        if (!locally)
-            passiveAnnounceVersion();
-
-        return new TransformationResult(diff, mutations);
+        updateHandler.reset(false);
+        logger.info("Local schema reset is complete.");
     }
 
-    public static final class TransformationResult
+    private void merge(KeyspacesDiff diff, boolean removeData)
     {
-        public final boolean success;
-        public final RuntimeException exception;
-        public final KeyspacesDiff diff;
-        public final Collection<Mutation> mutations;
-
-        private TransformationResult(boolean success, RuntimeException exception, KeyspacesDiff diff, Collection<Mutation> mutations)
-        {
-            this.success = success;
-            this.exception = exception;
-            this.diff = diff;
-            this.mutations = mutations;
-        }
-
-        TransformationResult(RuntimeException exception)
-        {
-            this(false, exception, null, null);
-        }
-
-        TransformationResult(KeyspacesDiff diff, Collection<Mutation> mutations)
-        {
-            this(true, null, diff, mutations);
-        }
-    }
-
-    /**
-     * See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes
-     */
-    synchronized void merge(Collection<Mutation> mutations)
-    {
-        // only compare the keyspaces affected by this set of schema mutations
-        Set<String> affectedKeyspaces = SchemaKeyspace.affectedKeyspaces(mutations);
-
-        // fetch the current state of schema for the affected keyspaces only
-        Keyspaces before = keyspaces.filter(k -> affectedKeyspaces.contains(k.name));
-
-        // apply the schema mutations
-        SchemaKeyspace.applyChanges(mutations);
-
-        // apply the schema mutations and fetch the new versions of the altered keyspaces
-        Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
-
-        merge(Keyspaces.diff(before, after));
-    }
-
-    private void merge(KeyspacesDiff diff)
-    {
-        diff.dropped.forEach(this::dropKeyspace);
+        diff.dropped.forEach(keyspace -> dropKeyspace(keyspace, removeData));
         diff.created.forEach(this::createKeyspace);
-        diff.altered.forEach(this::alterKeyspace);
+        diff.altered.forEach(delta -> alterKeyspace(delta, removeData));
     }
 
-    private void alterKeyspace(KeyspaceDiff delta)
+    private void alterKeyspace(KeyspaceDiff delta, boolean dropData)
     {
         SchemaDiagnostics.keyspaceAltering(this, delta);
 
-        // drop tables and views
-        delta.views.dropped.forEach(this::dropView);
-        delta.tables.dropped.forEach(this::dropTable);
+        boolean initialized = Keyspace.isInitialized();
+
+        Keyspace keyspace = initialized ? getKeyspaceInstance(delta.before.name) : null;
+        if (initialized)
+        {
+            assert keyspace != null;
+            assert delta.before.name.equals(delta.after.name);
+
+            // drop tables and views
+            delta.views.dropped.forEach(v -> dropView(keyspace, v, dropData));
+            delta.tables.dropped.forEach(t -> dropTable(keyspace, t, dropData));
+        }
 
         load(delta.after);
 
-        // add tables and views
-        delta.tables.created.forEach(this::createTable);
-        delta.views.created.forEach(this::createView);
+        if (initialized)
+        {
+            // add tables and views
+            delta.tables.created.forEach(t -> createTable(keyspace, t));
+            delta.views.created.forEach(v -> createView(keyspace, v));
 
-        // update tables and views
-        delta.tables.altered.forEach(diff -> alterTable(diff.after));
-        delta.views.altered.forEach(diff -> alterView(diff.after));
+            // update tables and views
+            delta.tables.altered.forEach(diff -> alterTable(keyspace, diff.after));
+            delta.views.altered.forEach(diff -> alterView(keyspace, diff.after));
 
-        // deal with all added, and altered views
-        Keyspace.open(delta.after.name).viewManager.reload(true);
+            // deal with all added, and altered views
+            Keyspace.open(delta.after.name, this, true).viewManager.reload(true);
+        }
 
-        // notify on everything dropped
-        delta.udas.dropped.forEach(uda -> notifyDropAggregate((UDAggregate) uda));
-        delta.udfs.dropped.forEach(udf -> notifyDropFunction((UDFunction) udf));
-        delta.views.dropped.forEach(this::notifyDropView);
-        delta.tables.dropped.forEach(this::notifyDropTable);
-        delta.types.dropped.forEach(this::notifyDropType);
-
-        // notify on everything created
-        delta.types.created.forEach(this::notifyCreateType);
-        delta.tables.created.forEach(this::notifyCreateTable);
-        delta.views.created.forEach(this::notifyCreateView);
-        delta.udfs.created.forEach(udf -> notifyCreateFunction((UDFunction) udf));
-        delta.udas.created.forEach(uda -> notifyCreateAggregate((UDAggregate) uda));
-
-        // notify on everything altered
-        if (!delta.before.params.equals(delta.after.params))
-            notifyAlterKeyspace(delta.before, delta.after);
-        delta.types.altered.forEach(diff -> notifyAlterType(diff.before, diff.after));
-        delta.tables.altered.forEach(diff -> notifyAlterTable(diff.before, diff.after));
-        delta.views.altered.forEach(diff -> notifyAlterView(diff.before, diff.after));
-        delta.udfs.altered.forEach(diff -> notifyAlterFunction(diff.before, diff.after));
-        delta.udas.altered.forEach(diff -> notifyAlterAggregate(diff.before, diff.after));
+        schemaChangeNotifier.notifyKeyspaceAltered(delta);
         SchemaDiagnostics.keyspaceAltered(this, delta);
     }
 
@@ -739,184 +689,97 @@ public class Schema implements SchemaProvider
     {
         SchemaDiagnostics.keyspaceCreating(this, keyspace);
         load(keyspace);
-        Keyspace.open(keyspace.name);
+        if (Keyspace.isInitialized())
+        {
+            Keyspace.open(keyspace.name, this, true);
+        }
 
-        notifyCreateKeyspace(keyspace);
-        keyspace.types.forEach(this::notifyCreateType);
-        keyspace.tables.forEach(this::notifyCreateTable);
-        keyspace.views.forEach(this::notifyCreateView);
-        keyspace.functions.udfs().forEach(this::notifyCreateFunction);
-        keyspace.functions.udas().forEach(this::notifyCreateAggregate);
+        schemaChangeNotifier.notifyKeyspaceCreated(keyspace);
         SchemaDiagnostics.keyspaceCreated(this, keyspace);
 
         // If keyspace has been added, we need to recalculate pending ranges to make sure
         // we send mutations to the correct set of bootstrapping nodes. Refer CASSANDRA-15433.
-        if (keyspace.params.replication.klass != LocalStrategy.class)
+        if (keyspace.params.replication.klass != LocalStrategy.class && Keyspace.isInitialized())
         {
             PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name).getReplicationStrategy(), keyspace.name);
         }
     }
 
-    private void dropKeyspace(KeyspaceMetadata keyspace)
+    private void dropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
     {
-        SchemaDiagnostics.keyspaceDroping(this, keyspace);
-        keyspace.views.forEach(this::dropView);
-        keyspace.tables.forEach(this::dropTable);
+        SchemaDiagnostics.keyspaceDropping(this, keyspace);
 
-        // remove the keyspace from the static instances.
-        maybeRemoveKeyspaceInstance(keyspace.name);
+        boolean initialized = Keyspace.isInitialized();
+        Keyspace ks = initialized ? getKeyspaceInstance(keyspace.name) : null;
+        if (initialized)
+        {
+            if (ks == null)
+                return;
+
+            keyspace.views.forEach(v -> dropView(ks, v, dropData));
+            keyspace.tables.forEach(t -> dropTable(ks, t, dropData));
+
+            // remove the keyspace from the static instances
+            maybeRemoveKeyspaceInstance(keyspace.name, dropData);
+        }
+
         unload(keyspace);
-        Keyspace.writeOrder.awaitNewBarrier();
 
-        keyspace.functions.udas().forEach(this::notifyDropAggregate);
-        keyspace.functions.udfs().forEach(this::notifyDropFunction);
-        keyspace.views.forEach(this::notifyDropView);
-        keyspace.tables.forEach(this::notifyDropTable);
-        keyspace.types.forEach(this::notifyDropType);
-        notifyDropKeyspace(keyspace);
-        SchemaDiagnostics.keyspaceDroped(this, keyspace);
+        if (initialized)
+        {
+            Keyspace.writeOrder.awaitNewBarrier();
+        }
+
+        schemaChangeNotifier.notifyKeyspaceDropped(keyspace);
+        SchemaDiagnostics.keyspaceDropped(this, keyspace);
     }
 
-    private void dropView(ViewMetadata metadata)
+    private void dropView(Keyspace keyspace, ViewMetadata metadata, boolean dropData)
     {
-        Keyspace.open(metadata.keyspace()).viewManager.dropView(metadata.name());
-        dropTable(metadata.metadata);
+        keyspace.viewManager.dropView(metadata.name());
+        dropTable(keyspace, metadata.metadata, dropData);
     }
 
-    private void dropTable(TableMetadata metadata)
+    private void dropTable(Keyspace keyspace, TableMetadata metadata, boolean dropData)
     {
         SchemaDiagnostics.tableDropping(this, metadata);
-        Keyspace.open(metadata.keyspace).dropCf(metadata.id);
+        keyspace.dropCf(metadata.id, dropData);
         SchemaDiagnostics.tableDropped(this, metadata);
     }
 
-    private void createTable(TableMetadata table)
+    private void createTable(Keyspace keyspace, TableMetadata table)
     {
         SchemaDiagnostics.tableCreating(this, table);
-        Keyspace.open(table.keyspace).initCf(metadataRefs.get(table.id), true);
+        keyspace.initCf(tableMetadataRefCache.getTableMetadataRef(table.id), true);
         SchemaDiagnostics.tableCreated(this, table);
     }
 
-    private void createView(ViewMetadata view)
+    private void createView(Keyspace keyspace, ViewMetadata view)
     {
-        Keyspace.open(view.keyspace()).initCf(metadataRefs.get(view.metadata.id), true);
+        SchemaDiagnostics.tableCreating(this, view.metadata);
+        keyspace.initCf(tableMetadataRefCache.getTableMetadataRef(view.metadata.id), true);
+        SchemaDiagnostics.tableCreated(this, view.metadata);
     }
 
-    private void alterTable(TableMetadata updated)
+    private void alterTable(Keyspace keyspace, TableMetadata updated)
     {
         SchemaDiagnostics.tableAltering(this, updated);
-        Keyspace.open(updated.keyspace).getColumnFamilyStore(updated.name).reload();
+        keyspace.getColumnFamilyStore(updated.name).reload();
         SchemaDiagnostics.tableAltered(this, updated);
     }
 
-    private void alterView(ViewMetadata updated)
+    private void alterView(Keyspace keyspace, ViewMetadata updated)
     {
-        Keyspace.open(updated.keyspace()).getColumnFamilyStore(updated.name()).reload();
+        SchemaDiagnostics.tableAltering(this, updated.metadata);
+        keyspace.getColumnFamilyStore(updated.name()).reload();
+        SchemaDiagnostics.tableAltered(this, updated.metadata);
     }
 
-    private void notifyCreateKeyspace(KeyspaceMetadata ksm)
+    public Map<UUID, Set<InetAddressAndPort>> getOutstandingSchemaVersions()
     {
-        changeListeners.forEach(l -> l.onCreateKeyspace(ksm.name));
+        return updateHandler instanceof DefaultSchemaUpdateHandler
+               ? ((DefaultSchemaUpdateHandler) updateHandler).getOutstandingSchemaVersions()
+               : Collections.emptyMap();
     }
 
-    private void notifyCreateTable(TableMetadata metadata)
-    {
-        changeListeners.forEach(l -> l.onCreateTable(metadata.keyspace, metadata.name));
-    }
-
-    private void notifyCreateView(ViewMetadata view)
-    {
-        changeListeners.forEach(l -> l.onCreateView(view.keyspace(), view.name()));
-    }
-
-    private void notifyCreateType(UserType ut)
-    {
-        changeListeners.forEach(l -> l.onCreateType(ut.keyspace, ut.getNameAsString()));
-    }
-
-    private void notifyCreateFunction(UDFunction udf)
-    {
-        changeListeners.forEach(l -> l.onCreateFunction(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-    private void notifyCreateAggregate(UDAggregate udf)
-    {
-        changeListeners.forEach(l -> l.onCreateAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-    private void notifyAlterKeyspace(KeyspaceMetadata before, KeyspaceMetadata after)
-    {
-        changeListeners.forEach(l -> l.onAlterKeyspace(after.name));
-    }
-
-    private void notifyAlterTable(TableMetadata before, TableMetadata after)
-    {
-        boolean changeAffectedPreparedStatements = before.changeAffectsPreparedStatements(after);
-        changeListeners.forEach(l -> l.onAlterTable(after.keyspace, after.name, changeAffectedPreparedStatements));
-    }
-
-    private void notifyAlterView(ViewMetadata before, ViewMetadata after)
-    {
-        boolean changeAffectedPreparedStatements = before.metadata.changeAffectsPreparedStatements(after.metadata);
-        changeListeners.forEach(l ->l.onAlterView(after.keyspace(), after.name(), changeAffectedPreparedStatements));
-    }
-
-    private void notifyAlterType(UserType before, UserType after)
-    {
-        changeListeners.forEach(l -> l.onAlterType(after.keyspace, after.getNameAsString()));
-    }
-
-    private void notifyAlterFunction(UDFunction before, UDFunction after)
-    {
-        changeListeners.forEach(l -> l.onAlterFunction(after.name().keyspace, after.name().name, after.argTypes()));
-    }
-
-    private void notifyAlterAggregate(UDAggregate before, UDAggregate after)
-    {
-        changeListeners.forEach(l -> l.onAlterAggregate(after.name().keyspace, after.name().name, after.argTypes()));
-    }
-
-    private void notifyDropKeyspace(KeyspaceMetadata ksm)
-    {
-        changeListeners.forEach(l -> l.onDropKeyspace(ksm.name));
-    }
-
-    private void notifyDropTable(TableMetadata metadata)
-    {
-        changeListeners.forEach(l -> l.onDropTable(metadata.keyspace, metadata.name));
-    }
-
-    private void notifyDropView(ViewMetadata view)
-    {
-        changeListeners.forEach(l -> l.onDropView(view.keyspace(), view.name()));
-    }
-
-    private void notifyDropType(UserType ut)
-    {
-        changeListeners.forEach(l -> l.onDropType(ut.keyspace, ut.getNameAsString()));
-    }
-
-    private void notifyDropFunction(UDFunction udf)
-    {
-        changeListeners.forEach(l -> l.onDropFunction(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-    private void notifyDropAggregate(UDAggregate udf)
-    {
-        changeListeners.forEach(l -> l.onDropAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
-    }
-
-
-    /**
-     * Converts the given schema version to a string. Returns {@code unknown}, if {@code version} is {@code null}
-     * or {@code "(empty)"}, if {@code version} refers to an {@link SchemaConstants#emptyVersion empty) schema.
-     */
-    public static String schemaVersionToString(UUID version)
-    {
-        return version == null
-               ? "unknown"
-               : SchemaConstants.emptyVersion.equals(version)
-                 ? "(empty)"
-                 : version.toString();
-    }
 }

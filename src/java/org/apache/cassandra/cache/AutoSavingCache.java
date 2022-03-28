@@ -17,37 +17,51 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayDeque;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
-
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.ChecksummedRandomAccessReader;
+import org.apache.cassandra.io.util.ChecksummedSequentialWriter;
 import org.apache.cassandra.io.util.CorruptFileException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.LengthAvailableInputStream;
+import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
@@ -357,11 +371,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
                 //Need to be able to check schema version because CF names are ambiguous
                 UUID schemaVersion = Schema.instance.getVersion();
-                if (schemaVersion == null)
-                {
-                    Schema.instance.updateVersion();
-                    schemaVersion = Schema.instance.getVersion();
-                }
                 writer.writeLong(schemaVersion.getMostSignificantBits());
                 writer.writeLong(schemaVersion.getLeastSignificantBits());
 

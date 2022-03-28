@@ -20,7 +20,6 @@ package org.apache.cassandra.schema;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -41,9 +40,8 @@ import org.apache.cassandra.schema.Types.TypesDiff;
 import org.apache.cassandra.schema.Views.ViewsDiff;
 import org.apache.cassandra.service.StorageService;
 
-import static java.lang.String.format;
-
 import static com.google.common.collect.Iterables.any;
+import static java.lang.String.format;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
@@ -117,6 +115,11 @@ public final class KeyspaceMetadata implements SchemaElement
     public KeyspaceMetadata withSwapped(Functions functions)
     {
         return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
+    }
+
+    public KeyspaceMetadata empty()
+    {
+        return new KeyspaceMetadata(this.name, this.kind, this.params, Tables.none(), Views.none(), Types.none(), Functions.none());
     }
 
     public boolean isVirtual()
@@ -390,6 +393,20 @@ public final class KeyspaceMetadata implements SchemaElement
                 return Optional.empty();
 
             return Optional.of(new KeyspaceDiff(before, after, tables, views, types, udfs, udas));
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeyspaceDiff{" +
+                   "before=" + before +
+                   ", after=" + after +
+                   ", tables=" + tables +
+                   ", views=" + views +
+                   ", types=" + types +
+                   ", udfs=" + udfs +
+                   ", udas=" + udas +
+                   '}';
         }
     }
 }

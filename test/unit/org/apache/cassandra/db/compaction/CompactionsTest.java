@@ -68,7 +68,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -131,7 +131,7 @@ public class CompactionsTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
         store.clearUnsafe();
-        MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).build(), true);
+        SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).build());
 
         // disable compaction while flushing
         store.disableAutoCompaction();
@@ -173,7 +173,7 @@ public class CompactionsTest
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
         store.clearUnsafe();
 
-        MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build(), true);
+        SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build());
 
         // disable compaction while flushing
         store.disableAutoCompaction();
@@ -216,7 +216,7 @@ public class CompactionsTest
 
         // now let's enable the magic property
         compactionOptions.put("unchecked_tombstone_compaction", "true");
-        MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build(), true);
+        SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build());
 
         //submit background task again and wait for it to complete
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));

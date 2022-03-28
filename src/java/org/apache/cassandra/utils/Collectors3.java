@@ -18,22 +18,24 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collector;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 /**
  * Some extra Collector implementations.
- *
+ * <p>
  * Named Collectors3 just in case Guava ever makes a Collectors2
  */
 public class Collectors3
 {
-    private static final Collector.Characteristics[] LIST_CHARACTERISTICS = new Collector.Characteristics[] { };
-    public static <T>  Collector<T, ?, List<T>> toImmutableList()
+    private static final Collector.Characteristics[] LIST_CHARACTERISTICS = new Collector.Characteristics[]{};
+
+    public static <T> Collector<T, ?, ImmutableList<T>> toImmutableList()
     {
         return Collector.of(ImmutableList.Builder<T>::new,
                             ImmutableList.Builder<T>::add,
@@ -42,8 +44,9 @@ public class Collectors3
                             LIST_CHARACTERISTICS);
     }
 
-    private static final Collector.Characteristics[] SET_CHARACTERISTICS = new Collector.Characteristics[] { Collector.Characteristics.UNORDERED };
-    public static <T>  Collector<T, ?, Set<T>> toImmutableSet()
+    private static final Collector.Characteristics[] SET_CHARACTERISTICS = new Collector.Characteristics[]{ Collector.Characteristics.UNORDERED };
+
+    public static <T> Collector<T, ?, ImmutableSet<T>> toImmutableSet()
     {
         return Collector.of(ImmutableSet.Builder<T>::new,
                             ImmutableSet.Builder<T>::add,
@@ -51,4 +54,25 @@ public class Collectors3
                             ImmutableSet.Builder<T>::build,
                             SET_CHARACTERISTICS);
     }
+
+    private static final Collector.Characteristics[] MAP_CHARACTERISTICS = new Collector.Characteristics[]{ Collector.Characteristics.UNORDERED };
+
+    public static <K, V> Collector<Map.Entry<K, V>, ?, ImmutableMap<K, V>> toImmutableMap()
+    {
+        return Collector.of(ImmutableMap.Builder<K, V>::new,
+                            ImmutableMap.Builder<K, V>::put,
+                            (l, r) -> l.putAll(r.build()),
+                            ImmutableMap.Builder<K, V>::build,
+                            MAP_CHARACTERISTICS);
+    }
+
+    public static <T, K, V> Collector<T, ?, ImmutableMap<K, V>> toImmutableMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends V> valueMapper)
+    {
+        return Collector.of(ImmutableMap.Builder<K, V>::new,
+                            (b, t) -> b.put(keyMapper.apply(t), valueMapper.apply(t)),
+                            (l, r) -> l.putAll(r.build()),
+                            ImmutableMap.Builder::build,
+                            MAP_CHARACTERISTICS);
+    }
+
 }

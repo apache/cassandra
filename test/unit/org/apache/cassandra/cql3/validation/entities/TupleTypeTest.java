@@ -33,7 +33,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.quicktheories.core.Gen;
@@ -300,7 +299,6 @@ public class TupleTypeTest extends CQLTester
             TupleType tupleType = testcase.type;
             createTable("CREATE TABLE %s (pk int, ck " + toCqlType(tupleType) + ", value int, PRIMARY KEY(pk, ck))" +
                         " WITH CLUSTERING ORDER BY (ck "+order.name()+")");
-            String cql = SchemaCQLHelper.getTableMetadataAsCQL(currentTableMetadata(), false, false, false);
             SortedMap<ByteBuffer, Integer> map = new TreeMap<>(order.apply(tupleType));
             int count = 0;
             for (ByteBuffer value : testcase.uniqueRows)
