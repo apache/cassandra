@@ -1308,7 +1308,7 @@ public class TableMetadata implements SchemaElement
         }
         else
         {
-            params.appendCqlTo(builder);
+            params.appendCqlTo(builder, isView());
         }
         builder.append(";");
     }
