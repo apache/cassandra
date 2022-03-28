@@ -33,7 +33,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -109,11 +108,10 @@ jobs:
     - run:
         command: "export PATH=$JAVA_HOME/bin:$PATH\ncd ~/cassandra\n# Loop to prevent
           failure due to maven-ant-tasks not downloading a jar..\nfor x in $(seq 1
-          3); do\n    ${ANT_HOME}/bin/ant clean realclean jar -Ddtest-api.version=$JVM_DTEST_VERSION\n
-          \   RETURN=\"$?\"\n    if [ \"${RETURN}\" -eq \"0\" ]; then\n        break\n
-          \   fi\ndone\n# Exit, if we didn't build successfully\nif [ \"${RETURN}\"
-          -ne \"0\" ]; then\n    echo \"Build failed with exit code: ${RETURN}\"\n
-          \   exit ${RETURN}\nfi\n"
+          3); do\n    ${ANT_HOME}/bin/ant clean realclean jar\n    RETURN=\"$?\"\n
+          \   if [ \"${RETURN}\" -eq \"0\" ]; then\n        break\n    fi\ndone\n#
+          Exit, if we didn't build successfully\nif [ \"${RETURN}\" -ne \"0\" ]; then\n
+          \   echo \"Build failed with exit code: ${RETURN}\"\n    exit ${RETURN}\nfi\n"
         name: Build Cassandra
         no_output_timeout: 15m
     - run:
@@ -121,7 +119,7 @@ jobs:
 
           cd ~/cassandra
 
-          ant eclipse-warnings -Ddtest-api.version=$JVM_DTEST_VERSION
+          ant eclipse-warnings
 
           '
         name: Run eclipse-warnings
@@ -148,7 +146,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -266,7 +263,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -384,7 +380,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -502,7 +497,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -620,7 +614,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -680,7 +673,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -838,7 +830,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -996,7 +987,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1108,9 +1098,8 @@ jobs:
           /tmp/cassandra\nif [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\ntest_timeout=$(grep
           'name=\"test.distributed.timeout\"' build.xml | awk -F'\"' '{print $4}'
           || true)\nif [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
-          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Ddtest-api.version=$JVM_DTEST_VERSION
-          -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-          \ -Dtest.classlistprefix=distributed\n"
+          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Dtest.timeout=\"$test_timeout\"
+          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed\n"
         name: Run Unit Tests (testclasslist)
         no_output_timeout: 15m
     - store_test_results:
@@ -1139,7 +1128,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1251,8 +1239,7 @@ jobs:
           /tmp/cassandra\nif [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\ntest_timeout=$(grep
           'name=\"test.distributed.timeout\"' build.xml | awk -F'\"' '{print $4}'
           || true)\nif [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
-          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist -Ddtest-api.version=0.0.13-SNAPSHOT
-          -Dtest.jvm.args='-Dcassandra.dtest.num_tokens=4' -Ddtest-api.version=$JVM_DTEST_VERSION
+          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist -Dtest.jvm.args='-Dcassandra.dtest.num_tokens=4'
           -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
           \ -Dtest.classlistprefix=distributed\n"
         name: Run Unit Tests (testclasslist)
@@ -1283,7 +1270,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1438,7 +1424,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1537,8 +1522,8 @@ jobs:
           code,\n    # stopping the iteration only if stop_on_failure is set.\n    exit_code=\"$?\"\n
           \   for i in $(seq -w 1 $count); do\n\n      echo \"Running test iteration
           $i of $count\"\n\n      # run the test\n      status=\"passes\"\n      if
-          !( set -o pipefail && ant $target $name $methods -Dno-build-test=true -Ddtest-api.version=$JVM_DTEST_VERSION
-          | tee stdout.txt ); then\n        status=\"fails\"\n        exit_code=1\n
+          !( set -o pipefail && ant $target $name $methods -Dno-build-test=true |
+          tee stdout.txt ); then\n        status=\"fails\"\n        exit_code=1\n
           \     fi\n\n      # move the stdout output file\n      dest=/tmp/results/repeated_utest/stdout/${status}/${i}\n
           \     mkdir -p $dest\n      mv stdout.txt $dest/${REPEATED_UTEST_TARGET}-${REPEATED_UTEST_CLASS}.txt\n\n
           \     # move the XML output files\n      source=build/test/output\n      dest=/tmp/results/repeated_utest/output/${status}/${i}\n
@@ -1581,7 +1566,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1693,9 +1677,8 @@ jobs:
           /tmp/cassandra\nif [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\ntest_timeout=$(grep
           'name=\"test.unit.timeout\"' build.xml | awk -F'\"' '{print $4}' || true)\nif
           [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
-          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Ddtest-api.version=$JVM_DTEST_VERSION
-          -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-          \ -Dtest.classlistprefix=unit\n"
+          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Dtest.timeout=\"$test_timeout\"
+          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit\n"
         name: Run Unit Tests (testclasslist)
         no_output_timeout: 15m
     - store_test_results:
@@ -1724,7 +1707,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1799,11 +1781,10 @@ jobs:
     - run:
         command: "export PATH=$JAVA_HOME/bin:$PATH\ncd ~/cassandra\n# Loop to prevent
           failure due to maven-ant-tasks not downloading a jar..\nfor x in $(seq 1
-          3); do\n    ${ANT_HOME}/bin/ant clean realclean jar -Ddtest-api.version=$JVM_DTEST_VERSION\n
-          \   RETURN=\"$?\"\n    if [ \"${RETURN}\" -eq \"0\" ]; then\n        break\n
-          \   fi\ndone\n# Exit, if we didn't build successfully\nif [ \"${RETURN}\"
-          -ne \"0\" ]; then\n    echo \"Build failed with exit code: ${RETURN}\"\n
-          \   exit ${RETURN}\nfi\n"
+          3); do\n    ${ANT_HOME}/bin/ant clean realclean jar\n    RETURN=\"$?\"\n
+          \   if [ \"${RETURN}\" -eq \"0\" ]; then\n        break\n    fi\ndone\n#
+          Exit, if we didn't build successfully\nif [ \"${RETURN}\" -ne \"0\" ]; then\n
+          \   echo \"Build failed with exit code: ${RETURN}\"\n    exit ${RETURN}\nfi\n"
         name: Build Cassandra
         no_output_timeout: 15m
     - run:
@@ -1811,7 +1792,7 @@ jobs:
 
           cd ~/cassandra
 
-          ant eclipse-warnings -Ddtest-api.version=$JVM_DTEST_VERSION
+          ant eclipse-warnings
 
           '
         name: Run eclipse-warnings
@@ -1838,7 +1819,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -1955,7 +1935,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2072,7 +2051,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2189,7 +2167,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2306,7 +2283,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2365,7 +2341,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2400,19 +2375,18 @@ jobs:
           apache '$branch'\n  git fetch --depth 1 apache $branch\n  git checkout $branch\n
           \ git clean -fd\n  # Loop to prevent failure due to maven-ant-tasks not
           downloading a jar..\n  for x in $(seq 1 3); do\n      ${ANT_HOME}/bin/ant
-          realclean; ${ANT_HOME}/bin/ant jar dtest-jar -Ddtest-api.version=$JVM_DTEST_VERSION\n
-          \     RETURN=\"$?\"\n      if [ \"${RETURN}\" -eq \"0\" ]; then\n          cp
-          build/dtest*.jar ~/dtest_jars\n          break\n      fi\n  done\n  # Exit,
-          if we didn't build successfully\n  if [ \"${RETURN}\" -ne \"0\" ]; then\n
-          \     echo \"Build failed with exit code: ${RETURN}\"\n      exit ${RETURN}\n
-          \ fi\ndone\n# and build the dtest-jar for the branch under test\n${ANT_HOME}/bin/ant
-          realclean\ngit checkout origin/$CIRCLE_BRANCH\ngit clean -fd\nfor x in $(seq
-          1 3); do\n    ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
-          -Ddtest-api.version=$JVM_DTEST_VERSION\n    RETURN=\"$?\"\n    if [ \"${RETURN}\"
-          -eq \"0\" ]; then\n        cp build/dtest*.jar ~/dtest_jars\n        break\n
-          \   fi\ndone\n# Exit, if we didn't build successfully\nif [ \"${RETURN}\"
-          -ne \"0\" ]; then\n    echo \"Build failed with exit code: ${RETURN}\"\n
-          \   exit ${RETURN}\nfi\nls -l ~/dtest_jars\n"
+          realclean; ${ANT_HOME}/bin/ant jar dtest-jar\n      RETURN=\"$?\"\n      if
+          [ \"${RETURN}\" -eq \"0\" ]; then\n          cp build/dtest*.jar ~/dtest_jars\n
+          \         break\n      fi\n  done\n  # Exit, if we didn't build successfully\n
+          \ if [ \"${RETURN}\" -ne \"0\" ]; then\n      echo \"Build failed with exit
+          code: ${RETURN}\"\n      exit ${RETURN}\n  fi\ndone\n# and build the dtest-jar
+          for the branch under test\n${ANT_HOME}/bin/ant realclean\ngit checkout origin/$CIRCLE_BRANCH\ngit
+          clean -fd\nfor x in $(seq 1 3); do\n    ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant
+          jar dtest-jar\n    RETURN=\"$?\"\n    if [ \"${RETURN}\" -eq \"0\" ]; then\n
+          \       cp build/dtest*.jar ~/dtest_jars\n        break\n    fi\ndone\n#
+          Exit, if we didn't build successfully\nif [ \"${RETURN}\" -ne \"0\" ]; then\n
+          \   echo \"Build failed with exit code: ${RETURN}\"\n    exit ${RETURN}\nfi\nls
+          -l ~/dtest_jars\n"
         name: Build Cassandra DTest jars
         no_output_timeout: 15m
     - persist_to_workspace:
@@ -2437,7 +2411,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2553,7 +2526,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2669,7 +2641,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2780,9 +2751,8 @@ jobs:
           /tmp/cassandra\nif [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\ntest_timeout=$(grep
           'name=\"test.distributed.timeout\"' build.xml | awk -F'\"' '{print $4}'
           || true)\nif [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
-          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Ddtest-api.version=$JVM_DTEST_VERSION
-          -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-          \ -Dtest.classlistprefix=distributed\n"
+          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Dtest.timeout=\"$test_timeout\"
+          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed\n"
         name: Run Unit Tests (testclasslist)
         no_output_timeout: 15m
     - store_test_results:
@@ -2811,7 +2781,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -2923,8 +2892,8 @@ jobs:
           'name=\"test.distributed.timeout\"' build.xml | awk -F'\"' '{print $4}'
           || true)\nif [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
           build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist -Dtest.jvm.args='-Dcassandra.dtest.num_tokens=4'
-          -Ddtest-api.version=$JVM_DTEST_VERSION -Dtest.timeout=\"$test_timeout\"
-          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed\n"
+          -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          \ -Dtest.classlistprefix=distributed\n"
         name: Run Unit Tests (testclasslist)
         no_output_timeout: 15m
     - store_test_results:
@@ -2953,7 +2922,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3064,9 +3032,8 @@ jobs:
           /tmp/cassandra\nif [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\ntest_timeout=$(grep
           'name=\"test.distributed.timeout\"' build.xml | awk -F'\"' '{print $4}'
           || true)\nif [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
-          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Ddtest-api.version=$JVM_DTEST_VERSION
-          -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-          \ -Dtest.classlistprefix=distributed\n"
+          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Dtest.timeout=\"$test_timeout\"
+          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed\n"
         name: Run Unit Tests (testclasslist)
         no_output_timeout: 15m
     - store_test_results:
@@ -3095,7 +3062,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3208,7 +3174,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3306,8 +3271,8 @@ jobs:
           code,\n    # stopping the iteration only if stop_on_failure is set.\n    exit_code=\"$?\"\n
           \   for i in $(seq -w 1 $count); do\n\n      echo \"Running test iteration
           $i of $count\"\n\n      # run the test\n      status=\"passes\"\n      if
-          !( set -o pipefail && ant $target $name $methods -Dno-build-test=true -Ddtest-api.version=$JVM_DTEST_VERSION
-          | tee stdout.txt ); then\n        status=\"fails\"\n        exit_code=1\n
+          !( set -o pipefail && ant $target $name $methods -Dno-build-test=true |
+          tee stdout.txt ); then\n        status=\"fails\"\n        exit_code=1\n
           \     fi\n\n      # move the stdout output file\n      dest=/tmp/results/repeated_utest/stdout/${status}/${i}\n
           \     mkdir -p $dest\n      mv stdout.txt $dest/${REPEATED_UTEST_TARGET}-${REPEATED_UTEST_CLASS}.txt\n\n
           \     # move the XML output files\n      source=build/test/output\n      dest=/tmp/results/repeated_utest/output/${status}/${i}\n
@@ -3350,7 +3315,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3461,9 +3425,8 @@ jobs:
           /tmp/cassandra\nif [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\ntest_timeout=$(grep
           'name=\"test.unit.timeout\"' build.xml | awk -F'\"' '{print $4}' || true)\nif
           [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
-          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Ddtest-api.version=$JVM_DTEST_VERSION
-          -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-          \ -Dtest.classlistprefix=unit\n"
+          build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist   -Dtest.timeout=\"$test_timeout\"
+          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit\n"
         name: Run Unit Tests (testclasslist)
         no_output_timeout: 15m
     - store_test_results:
@@ -3492,7 +3455,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3611,7 +3573,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3711,8 +3672,8 @@ jobs:
           set.\n    exit_code=\"$?\"\n    for i in $(seq -w 1 $count); do\n\n      echo
           \"Running test iteration $i of $count\"\n\n      # run the test\n      status=\"passes\"\n
           \     if !( set -o pipefail && ant $target $name $methods -Dno-build-test=true
-          -Ddtest-api.version=$JVM_DTEST_VERSION | tee stdout.txt ); then\n        status=\"fails\"\n
-          \       exit_code=1\n      fi\n\n      # move the stdout output file\n      dest=/tmp/results/repeated_utest/stdout/${status}/${i}\n
+          | tee stdout.txt ); then\n        status=\"fails\"\n        exit_code=1\n
+          \     fi\n\n      # move the stdout output file\n      dest=/tmp/results/repeated_utest/stdout/${status}/${i}\n
           \     mkdir -p $dest\n      mv stdout.txt $dest/test-jvm-dtest-some-${REPEATED_JVM_UPGRADE_DTEST_CLASS}.txt\n\n
           \     # move the XML output files\n      source=build/test/output\n      dest=/tmp/results/repeated_utest/output/${status}/${i}\n
           \     mkdir -p $dest\n      if [[ -d $source && -n \"$(ls $source)\" ]];
@@ -3754,7 +3715,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3866,7 +3826,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -3978,8 +3937,8 @@ jobs:
           'name=\"test.unit.timeout\"' build.xml | awk -F'\"' '{print $4}' || true)\nif
           [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
           build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist-compression
-          \  -Ddtest-api.version=$JVM_DTEST_VERSION -Dtest.timeout=\"$test_timeout\"
-          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit\n"
+          \  -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          \ -Dtest.classlistprefix=unit\n"
         name: Run Unit Tests (testclasslist-compression)
         no_output_timeout: 15m
     - store_test_results:
@@ -4008,7 +3967,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -4038,7 +3996,7 @@ jobs:
     - run:
         command: "export PATH=$JAVA_HOME/bin:$PATH\ntime mv ~/cassandra /tmp\ncd /tmp/cassandra\nif
           [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\nant
-          fqltool-test -Ddtest-api.version=$JVM_DTEST_VERSION\n"
+          fqltool-test\n"
         name: Run Unit Tests (fqltool-test)
         no_output_timeout: 15m
     - store_test_results:
@@ -4067,7 +4025,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -4097,7 +4054,7 @@ jobs:
     - run:
         command: "export PATH=$JAVA_HOME/bin:$PATH\ntime mv ~/cassandra /tmp\ncd /tmp/cassandra\nif
           [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\nant
-          long-test -Ddtest-api.version=$JVM_DTEST_VERSION\n"
+          long-test\n"
         name: Run Unit Tests (long-test)
         no_output_timeout: 15m
     - store_test_results:
@@ -4126,7 +4083,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -4156,7 +4112,7 @@ jobs:
     - run:
         command: "export PATH=$JAVA_HOME/bin:$PATH\ntime mv ~/cassandra /tmp\ncd /tmp/cassandra\nif
           [ -d ~/dtest_jars ]; then\n  cp ~/dtest_jars/dtest* /tmp/cassandra/build/\nfi\nant
-          stress-test -Ddtest-api.version=$JVM_DTEST_VERSION\n"
+          stress-test\n"
         name: Run Unit Tests (stress-test)
         no_output_timeout: 15m
     - store_test_results:
@@ -4185,7 +4141,6 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - JVM_DTEST_VERSION: 0.0.13-SNAPSHOT
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
@@ -4297,8 +4252,8 @@ jobs:
           'name=\"test.unit.timeout\"' build.xml | awk -F'\"' '{print $4}' || true)\nif
           [ -z \"$test_timeout\" ]; then\n  test_timeout=$(grep 'name=\"test.timeout\"'
           build.xml | awk -F'\"' '{print $4}')\nfi\nant testclasslist-system-keyspace-directory
-          \  -Ddtest-api.version=$JVM_DTEST_VERSION -Dtest.timeout=\"$test_timeout\"
-          -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit\n"
+          \  -Dtest.timeout=\"$test_timeout\" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          \ -Dtest.classlistprefix=unit\n"
         name: Run Unit Tests (testclasslist-system-keyspace-directory)
         no_output_timeout: 15m
     - store_test_results:
