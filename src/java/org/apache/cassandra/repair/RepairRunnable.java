@@ -112,6 +112,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         this.storageService = storageService;
 
         this.tag = "repair:" + cmd;
+        ActiveRepairService.instance.register(state);
     }
 
     @Override
