@@ -50,8 +50,6 @@ public interface State<T extends Enum<T>, I>
         return TimeUnit.NANOSECONDS.toMillis(endNanos - getInitializedAtNanos());
     }
 
-    float getProgress();
-
     EnumMap<T, Long> getStateTimesMillis();
 
     Result getResult();

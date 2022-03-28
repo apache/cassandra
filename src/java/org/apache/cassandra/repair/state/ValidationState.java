@@ -42,7 +42,6 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
         this.initiator = initiator;
     }
 
-    @Override
     public float getProgress()
     {
         int currentState = this.currentState;

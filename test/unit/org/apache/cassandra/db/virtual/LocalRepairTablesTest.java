@@ -189,8 +189,8 @@ public class LocalRepairTablesTest extends CQLTester
 
     private void assertInit(String table, State<?, ?> state) throws Throwable
     {
-        assertRowsIgnoringOrder(execute(t("SELECT id, status, progress_percentage, state_init_timestamp, failure_cause, success_message FROM %s." + table)),
-                                row(state.getId(), "init", 0.0F, new Date(state.getInitializedAtMillis()), null, null));
+        assertRowsIgnoringOrder(execute(t("SELECT id, status, state_init_timestamp, failure_cause, success_message FROM %s." + table)),
+                                row(state.getId(), "init", new Date(state.getInitializedAtMillis()), null, null));
     }
 
     private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState) throws Throwable
@@ -204,8 +204,8 @@ public class LocalRepairTablesTest extends CQLTester
         {
             float totalStates = expectedState.getClass().getEnumConstants().length + 1;
             int currentState = expectedState.ordinal() + 1;
-            assertRowsIgnoringOrder(execute(t("SELECT id, status, progress_percentage, failure_cause, success_message FROM %s." + table)),
-                                    row(state.getId(), expectedState.name().toLowerCase(), LocalRepairTables.round(currentState / totalStates * 100), null, null));
+            assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table)),
+                                    row(state.getId(), expectedState.name().toLowerCase(), null, null));
         }
         else
         {
@@ -216,8 +216,8 @@ public class LocalRepairTablesTest extends CQLTester
 
     private void assertSuccess(String table, State<?, ?> state) throws Throwable
     {
-        assertRowsIgnoringOrder(execute(t("SELECT id, status, progress_percentage, failure_cause, success_message FROM %s." + table)),
-                                row(state.getId(), "success", 100.0F, null, "testing"));
+        assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table)),
+                                row(state.getId(), "success", null, "testing"));
     }
 
     private static ColumnFamilyStore table()

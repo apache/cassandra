@@ -269,6 +269,7 @@ public class LocalRepairTables
                         "  estimated_partitions  bigint,\n" +
                         "  estimated_total_bytes  bigint,\n" +
                         "  partitions_processed  bigint,\n" +
+                        "  progress_percentage float,\n" +
                         "\n" +
                         stateColumns(ValidationState.State.class) +
                         "\n" +
@@ -305,6 +306,7 @@ public class LocalRepairTables
             result.column("estimated_partitions", state.estimatedPartitions == 0 ? null : state.estimatedPartitions);
             result.column("estimated_total_bytes", state.estimatedTotalBytes == 0 ? null : state.estimatedTotalBytes);
             result.column("partitions_processed", state.partitionsProcessed == 0 ? null : state.partitionsProcessed);
+            result.column("progress_percentage", round(state.getProgress() * 100));
         }
     }
 
@@ -337,7 +339,6 @@ public class LocalRepairTables
         T currentState = state.getStatus();
         State.Result result = state.getResult();
         ds.column("status", result != null ? result.kind.name().toLowerCase() : currentState == null ? "init" : currentState.name().toLowerCase());
-        ds.column("progress_percentage", round(state.getProgress() * 100));
         ds.column("failure_cause", state.getFailureCause());
         ds.column("success_message", state.getSuccessMessage());
         ds.column(timestampColumnName("init"), new Date(state.getInitializedAtMillis()));
@@ -392,7 +393,6 @@ public class LocalRepairTables
     {
         String str = "  id timeuuid,\n" +
                      "  status text,\n" +
-                     "  progress_percentage float,\n" +
                      "  last_updated_at timestamp,\n" +
                      "  duration_millis bigint,\n" +
                      "  failure_cause text,\n" +

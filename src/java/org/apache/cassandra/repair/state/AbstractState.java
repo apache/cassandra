@@ -91,19 +91,6 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
     }
 
     @Override
-    public float getProgress()
-    {
-        int currentState = this.currentState;
-        if (currentState == INIT)
-            return 0;
-        if (currentState == COMPLETE)
-            return 1;
-        // current state starts at 0, so inc by one to make sure progress is seen
-        // numStates does not include the completed state, so +1 to add it
-        return Math.min(0.99F, (currentState + 1) / (float) (klass.getEnumConstants().length + 1));
-    }
-
-    @Override
     public EnumMap<T, Long> getStateTimesMillis()
     {
         long[] millis = getStateTimesMillisArray();
