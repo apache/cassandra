@@ -18,21 +18,17 @@
 package org.apache.cassandra.repair.state;
 
 import java.util.EnumMap;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressEventType;
 
 public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
 {
-    protected static final int INIT = -1;
-    protected static final int COMPLETE = -2;
+    public static final int INIT = -1;
+    public static final int COMPLETE = -2;
 
     private final long creationTimeMillis = Clock.Global.currentTimeMillis(); // used to convert from nanos to millis
     private final long creationTimeNanos = Clock.Global.nanoTime();
@@ -64,6 +60,11 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
         if (current < 0) // init or complete
             return null;
         return klass.getEnumConstants()[current];
+    }
+
+    public int getCurrentState()
+    {
+        return currentState;
     }
 
     @Override
@@ -120,13 +121,6 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
     public Result getResult()
     {
         return result.get();
-    }
-
-    public ProgressEvent jmxEvent(ProgressEventType type, String msg)
-    {
-        int length = klass.getEnumConstants().length + 1; // +1 to include completed state
-        int currentState = this.currentState;
-        return new ProgressEvent(type, currentState == INIT ? 0 : currentState == COMPLETE ? length : currentState, length, msg);
     }
 
     protected void updateState(T state)

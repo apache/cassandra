@@ -83,6 +83,8 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.repair.state.AbstractState.COMPLETE;
+import static org.apache.cassandra.repair.state.AbstractState.INIT;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -137,7 +139,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     public void notification(String msg)
     {
         logger.info(msg);
-        fireProgressEvent(state.jmxEvent(ProgressEventType.NOTIFICATION, msg));
+        fireProgressEvent(jmxEvent(ProgressEventType.NOTIFICATION, msg));
     }
 
     @Override
@@ -160,7 +162,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
         StorageMetrics.repairExceptions.inc();
         String errorMessage = String.format("Repair command #%d failed with error %s", state.cmd, error.getMessage());
-        fireProgressEvent(state.jmxEvent(ProgressEventType.ERROR, errorMessage));
+        fireProgressEvent(jmxEvent(ProgressEventType.ERROR, errorMessage));
         firstError.compareAndSet(null, error);
 
         // since this can fail, update table only after updating in-memory and notification state
@@ -171,7 +173,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     public void notifyProgress(String message)
     {
         logger.info(message);
-        fireProgressEvent(state.jmxEvent(ProgressEventType.PROGRESS, message));
+        fireProgressEvent(jmxEvent(ProgressEventType.PROGRESS, message));
     }
 
     private void skip(String msg)
@@ -184,7 +186,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     private void success(String msg)
     {
         state.phase.success(msg);
-        fireProgressEvent(state.jmxEvent(ProgressEventType.SUCCESS, msg));
+        fireProgressEvent(jmxEvent(ProgressEventType.SUCCESS, msg));
         ActiveRepairService.instance.recordRepairStatus(state.cmd, ActiveRepairService.ParentRepairStatus.COMPLETED,
                                                         ImmutableList.of(msg));
         complete(null);
@@ -217,7 +219,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
             msg = String.format("Repair command #%d finished in %s", state.cmd, duration);
         }
 
-        fireProgressEvent(state.jmxEvent(ProgressEventType.COMPLETE, msg));
+        fireProgressEvent(jmxEvent(ProgressEventType.COMPLETE, msg));
         logger.info(state.options.getPreviewKind().logPrefix(state.id) + msg);
 
         ActiveRepairService.instance.removeParentRepairSession(state.id);
@@ -315,7 +317,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                                        state.options);
         logger.info(message);
         Tracing.traceRepair(message);
-        fireProgressEvent(state.jmxEvent(ProgressEventType.START, message));
+        fireProgressEvent(jmxEvent(ProgressEventType.START, message));
     }
 
     private NeighborsAndRanges getNeighborsAndRanges() throws RepairException
@@ -549,6 +551,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                 }
             }
         });
+    }
+
+    private ProgressEvent jmxEvent(ProgressEventType type, String msg)
+    {
+        int length = CoordinatorState.State.values().length + 1; // +1 to include completed state
+        int currentState = state.getCurrentState();
+        return new ProgressEvent(type, currentState == INIT ? 0 : currentState == COMPLETE ? length : currentState, length, msg);
     }
 
     private static final class SkipRepairException extends RuntimeException
