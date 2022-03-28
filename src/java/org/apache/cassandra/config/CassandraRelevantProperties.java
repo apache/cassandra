@@ -255,6 +255,8 @@ public enum CassandraRelevantProperties
     FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME("cassandra.fs_ownership_filename", FileSystemOwnershipCheck.DEFAULT_FS_OWNERSHIP_FILENAME),
     @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
     FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
+    // default heartbeating period is 1 minute
+    CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD("check_data_resurrection_heartbeat_period_milli", "60000"),
 
     // defaults to false for 4.1 but plan to switch to true in a later release
     // the thinking is that environments may not work right off the bat so safer to add this feature disabled by default
