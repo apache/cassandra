@@ -74,9 +74,12 @@ public class LocalRepairTables
                         stdColumns(true) +
                         "  command_id int,\n" +
                         "  keyspace_name text,\n" +
+                        // human readable definition of what the repair is doing
                         "  type text,\n" +
+                        // list of all sessions; this is lazy so only once the session is created will it be present, so this dynamically changes within the life of a repair
                         "  sessions frozen<set<uuid>>,\n" +
 
+                        // options_ maps to RepairOption
                         "  options_parallelism text,\n" +
                         "  options_primary_range boolean,\n" +
                         "  options_incremental boolean,\n" +
@@ -97,7 +100,6 @@ public class LocalRepairTables
                         "  ranges frozen<list<list<text>>>,\n" +
                         "  unfiltered_ranges frozen<list<list<text>>>,\n" +
                         "  participants frozen<list<text>>,\n" +
-                        "\n" +
                         stateColumns(CoordinatorState.State.class) +
                         "\n" +
                         "  PRIMARY KEY ( (id) )\n" +
@@ -166,8 +168,8 @@ public class LocalRepairTables
                 switch (state.options.getPreviewKind())
                 {
                     case ALL: return "preview full";
-                    case REPAIRED: return "preview validate";
-                    case UNREPAIRED: return "preview";
+                    case REPAIRED: return "preview repaired";
+                    case UNREPAIRED: return "preview unrepaired";
                     case NONE: throw new AssertionError("NONE preview kind not expected when preview repair is set");
                     default: throw new AssertionError("Unknown preview kind: " + state.options.getPreviewKind());
                 }
@@ -306,12 +308,12 @@ public class LocalRepairTables
         }
     }
 
-    private static String columnName(Enum<?> e)
+    private static String timestampColumnName(Enum<?> e)
     {
-        return columnName(e.name().toLowerCase());
+        return timestampColumnName(e.name().toLowerCase());
     }
 
-    private static String columnName(String e)
+    private static String timestampColumnName(String e)
     {
         return "state_" + e + "_timestamp";
     }
@@ -319,11 +321,11 @@ public class LocalRepairTables
     private static String stateColumns(Class<? extends Enum<?>> klass)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("  ").append(columnName("init")).append(" timestamp, \n");
+        sb.append("  ").append(timestampColumnName("init")).append(" timestamp, \n");
         for (Enum<?> e : klass.getEnumConstants())
-            sb.append("  ").append(columnName(e)).append(" timestamp, \n");
+            sb.append("  ").append(timestampColumnName(e)).append(" timestamp, \n");
         for (State.Result.Kind kind : State.Result.Kind.values())
-            sb.append("  ").append(columnName(kind)).append(" timestamp, \n");
+            sb.append("  ").append(timestampColumnName(kind)).append(" timestamp, \n");
         return sb.toString();
     }
 
@@ -338,20 +340,20 @@ public class LocalRepairTables
         ds.column("progress_percentage", round(state.getProgress() * 100));
         ds.column("failure_cause", state.getFailureCause());
         ds.column("success_message", state.getSuccessMessage());
-        ds.column(columnName("init"), new Date(state.getInitializedAtMillis()));
+        ds.column(timestampColumnName("init"), new Date(state.getInitializedAtMillis()));
         for (Map.Entry<T, Long> e : state.getStateTimesMillis().entrySet())
         {
             if (e.getValue().longValue() != 0)
-                ds.column(columnName(e.getKey()), new Date(e.getValue()));
+                ds.column(timestampColumnName(e.getKey()), new Date(e.getValue()));
         }
         if (result != null)
-            ds.column(columnName(result.kind), new Date(state.getLastUpdatedAtMillis()));
+            ds.column(timestampColumnName(result.kind), new Date(state.getLastUpdatedAtMillis()));
     }
 
     @VisibleForTesting
     static float round(float value)
     {
-        return Math.round(value * 100) / 100;
+        return Math.round(value * 100.0F) / 100.0F;
     }
 
     private static void addState(SimpleDataSet result, RepairJobDesc desc)
