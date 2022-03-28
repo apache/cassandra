@@ -46,7 +46,11 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -83,21 +87,23 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
+import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 
 public class FBUtilities
 {
+    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
+
     static
     {
         preventIllegalAccessWarnings();
+        jsonMapper.registerModule(new JavaTimeModule());
+        jsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
-
-    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
-
     public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
 
     public static final BigInteger TWO = new BigInteger("2");
@@ -834,6 +840,22 @@ public class FBUtilities
         catch (IOException e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void serializeToJsonFile(Object object, File outputFile) throws IOException
+    {
+        try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
+        {
+            jsonMapper.writeValue((OutputStream) out, object);
+        }
+    }
+
+    public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
+    {
+        try (FileInputStreamPlus in = file.newInputStream())
+        {
+            return jsonMapper.readValue((InputStream) in, tClass);
         }
     }
 

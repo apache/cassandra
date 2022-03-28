@@ -830,8 +830,7 @@ public final class SchemaKeyspace
     /*
      * Fetching schema
      */
-
-    static Keyspaces fetchNonSystemKeyspaces()
+    public static Keyspaces fetchNonSystemKeyspaces()
     {
         return fetchKeyspacesWithout(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }

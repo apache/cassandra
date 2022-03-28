@@ -53,7 +53,7 @@ import static org.apache.cassandra.service.FileSystemOwnershipCheck.TOKEN;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.UNSUPPORTED_VERSION;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.VERSION;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.VOLUME_COUNT;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.filesystem_ownership;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -195,7 +195,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void skipCheckDisabledIfSystemPropertyIsEmpty() throws Exception
     {
         // no exceptions thrown from the supplier because the check is skipped
-        options.disable(filesystem_ownership);
+        options.disable(check_filesystem_ownership);
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey());
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
@@ -204,7 +204,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void skipCheckDisabledIfSystemPropertyIsFalseButOptionsEnabled() throws Exception
     {
         // no exceptions thrown from the supplier because the check is skipped
-        options.enable(filesystem_ownership);
+        options.enable(check_filesystem_ownership);
         System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey(), "false");
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
@@ -219,7 +219,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     @Test
     public void checkEnabledButClusterPropertyIsUnset()
     {
-        Assume.assumeFalse(options.getConfig(filesystem_ownership).containsKey("ownership_token"));
+        Assume.assumeFalse(options.getConfig(check_filesystem_ownership).containsKey("ownership_token"));
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(tempDir), options, MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }
