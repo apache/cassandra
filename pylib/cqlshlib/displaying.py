@@ -41,7 +41,7 @@ def get_str(val):
     return val
 
 
-class FormattedValue:
+class FormattedValue(object):
 
     def __init__(self, strval, coloredval=None, displaywidth=None):
         self.strval = strval

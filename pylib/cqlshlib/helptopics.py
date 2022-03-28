@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-class CQL3HelpTopics:
+class CQL3HelpTopics(object):
     def get_help_topics(self):
         return [t[5:] for t in dir(self) if t.startswith('help_')]
 

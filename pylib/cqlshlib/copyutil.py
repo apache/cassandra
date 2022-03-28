@@ -26,6 +26,7 @@ import platform
 import random
 import re
 import signal
+import six
 import struct
 import sys
 import threading
@@ -38,12 +39,15 @@ from calendar import timegm
 from collections import defaultdict, namedtuple
 from decimal import Decimal
 from random import randint
-from io import StringIO
+from io import BytesIO, StringIO
 from select import select
 from uuid import UUID
+from .util import profile_on, profile_off
 
-import configparser
-from queue import Queue
+from six import ensure_str, ensure_text
+from six.moves import configparser
+from six.moves import range
+from six.moves.queue import Queue
 
 from cassandra import OperationTimedOut
 from cassandra.cluster import Cluster, DefaultConnection
@@ -330,9 +334,9 @@ class CopyTask(object):
         opts = self.clean_options(self.maybe_read_config_file(opts, direction))
 
         dialect_options = dict()
-        dialect_options['quotechar'] = opts.pop('quote', '"')
-        dialect_options['escapechar'] = opts.pop('escape', '\\')
-        dialect_options['delimiter'] = opts.pop('delimiter', ',')
+        dialect_options['quotechar'] = ensure_str(opts.pop('quote', '"'))
+        dialect_options['escapechar'] = ensure_str(opts.pop('escape', '\\'))
+        dialect_options['delimiter'] = ensure_str(opts.pop('delimiter', ','))
         if dialect_options['quotechar'] == dialect_options['escapechar']:
             dialect_options['doublequote'] = True
             del dialect_options['escapechar']
@@ -340,7 +344,7 @@ class CopyTask(object):
             dialect_options['doublequote'] = False
 
         copy_options = dict()
-        copy_options['nullval'] = opts.pop('null', '')
+        copy_options['nullval'] = ensure_str(opts.pop('null', ''))
         copy_options['header'] = bool(opts.pop('header', '').lower() == 'true')
         copy_options['encoding'] = opts.pop('encoding', 'utf8')
         copy_options['maxrequests'] = int(opts.pop('maxrequests', 6))
@@ -362,7 +366,7 @@ class CopyTask(object):
         copy_options['consistencylevel'] = shell.consistency_level
         copy_options['decimalsep'] = opts.pop('decimalsep', '.')
         copy_options['thousandssep'] = opts.pop('thousandssep', '')
-        copy_options['boolstyle'] = [s.strip() for s in opts.pop('boolstyle', 'True, False').split(',')]
+        copy_options['boolstyle'] = [ensure_str(s.strip()) for s in opts.pop('boolstyle', 'True, False').split(',')]
         copy_options['numprocesses'] = int(opts.pop('numprocesses', self.get_num_processes(16)))
         copy_options['begintoken'] = opts.pop('begintoken', '')
         copy_options['endtoken'] = opts.pop('endtoken', '')
@@ -565,7 +569,7 @@ class ExportWriter(object):
 
         if self.header:
             writer = csv.writer(self.current_dest.output, **self.options.dialect)
-            writer.writerow([str(c) for c in self.columns])
+            writer.writerow([ensure_str(c) for c in self.columns])
 
         return True
 
@@ -1724,7 +1728,7 @@ class ExportProcess(ChildProcess):
             return  # no rows in this range
 
         try:
-            output = StringIO()
+            output = StringIO() if six.PY3 else BytesIO()
             writer = csv.writer(output, **self.options.dialect)
 
             for row in rows:
@@ -1754,7 +1758,7 @@ class ExportProcess(ChildProcess):
                               float_precision=cqltype.precision, nullval=self.nullval, quote=False,
                               decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                               boolean_styles=self.boolean_styles)
-        return formatted
+        return formatted if six.PY3 else formatted.encode('utf8')
 
     def close(self):
         ChildProcess.close(self)
@@ -1894,7 +1898,7 @@ class ImportConversion(object):
         select_query = 'SELECT * FROM %s.%s WHERE %s' % (protect_name(parent.ks),
                                                          protect_name(parent.table),
                                                          where_clause)
-        return parent.session.prepare(select_query)
+        return parent.session.prepare(ensure_str(select_query))
 
     @staticmethod
     def unprotect(v):
@@ -1930,20 +1934,20 @@ class ImportConversion(object):
                 return BlobType(v[2:].decode("hex"))
 
         def convert_text(v, **_):
-            return str(v)
+            return ensure_str(v)
 
         def convert_uuid(v, **_):
             return UUID(v)
 
         def convert_bool(v, **_):
-            return True if v.lower() == self.boolean_styles[0].lower() else False
+            return True if v.lower() == ensure_str(self.boolean_styles[0]).lower() else False
 
         def get_convert_integer_fcn(adapter=int):
             """
             Return a slow and a fast integer conversion function depending on self.thousands_sep
             """
             if self.thousands_sep:
-                return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, ''))
+                return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, ensure_str('')))
             else:
                 return lambda v, ct=cql_type: adapter(v)
 
@@ -1951,8 +1955,8 @@ class ImportConversion(object):
             """
             Return a slow and a fast decimal conversion function depending on self.thousands_sep and self.decimal_sep
             """
-            empty_str = ''
-            dot_str = '.'
+            empty_str = ensure_str('')
+            dot_str = ensure_str('.')
             if self.thousands_sep and self.decimal_sep:
                 return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, empty_str).replace(self.decimal_sep, dot_str))
             elif self.thousands_sep:
@@ -2016,8 +2020,14 @@ class ImportConversion(object):
 
         def convert_datetime(val, **_):
             try:
-                dtval = datetime.datetime.strptime(val, self.date_time_format)
-                return dtval.timestamp() * 1000
+                if six.PY2:
+                    # Python 2 implementation
+                    tval = time.strptime(val, self.date_time_format)
+                    return timegm(tval) * 1e3  # scale seconds to millis for the raw value
+                else:
+                    # Python 3 implementation
+                    dtval = datetime.datetime.strptime(val, self.date_time_format)
+                    return dtval.timestamp() * 1000
             except ValueError:
                 pass  # if it's not in the default format we try CQL formats
 
@@ -2068,8 +2078,8 @@ class ImportConversion(object):
             """
             See ImmutableDict above for a discussion of why a special object is needed here.
             """
-            split_format_str = '{%s}'
-            sep = ':'
+            split_format_str = ensure_str('{%s}')
+            sep = ensure_str(':')
             return ImmutableDict(frozenset((convert_mandatory(ct.subtypes[0], v[0]), convert(ct.subtypes[1], v[1]))
                                  for v in [split(split_format_str % vv, sep=sep) for vv in split(val)]))
 
@@ -2082,8 +2092,8 @@ class ImportConversion(object):
             Also note that it is possible that the subfield names in the csv are in the
             wrong order, so we must sort them according to ct.fieldnames, see CASSANDRA-12959.
             """
-            split_format_str = '{%s}'
-            sep = ':'
+            split_format_str = ensure_str('{%s}')
+            sep = ensure_str(':')
             vals = [v for v in [split(split_format_str % vv, sep=sep) for vv in split(val)]]
             dict_vals = dict((unprotect(v[0]), v[1]) for v in vals)
             sorted_converted_vals = [(n, convert(t, dict_vals[n]) if n in dict_vals else self.get_null_val())
@@ -2141,7 +2151,7 @@ class ImportConversion(object):
         or "NULL" otherwise. Note that for counters we never use prepared statements, so we
         only check is_counter when use_prepared_statements is false.
         """
-        return None if self.use_prepared_statements else ("0" if self.is_counter else "NULL")
+        return None if self.use_prepared_statements else (ensure_str("0") if self.is_counter else ensure_str("NULL"))
 
     def convert_row(self, row):
         """
@@ -2426,6 +2436,7 @@ class ImportProcess(ChildProcess):
             if self.ttl >= 0:
                 query += 'USING TTL %s' % (self.ttl,)
             make_statement = self.wrap_make_statement(self.make_non_prepared_batch_statement)
+            query = ensure_str(query)
 
         conv = ImportConversion(self, table_meta, prepared_statement)
         tm = TokenMap(self.ks, self.hostname, self.local_dc, self.session)
@@ -2493,12 +2504,12 @@ class ImportProcess(ChildProcess):
             set_clause = []
             for i, value in enumerate(row):
                 if i in conv.primary_key_indexes:
-                    where_clause.append("{}={}".format(self.valid_columns[i], str(value)))
+                    where_clause.append(ensure_text("{}={}").format(self.valid_columns[i], ensure_text(value)))
                 else:
-                    set_clause.append("{}={}+{}".format(self.valid_columns[i], self.valid_columns[i], str(value)))
+                    set_clause.append(ensure_text("{}={}+{}").format(self.valid_columns[i], self.valid_columns[i], ensure_text(value)))
 
-            full_query_text = query % (','.join(set_clause), ' AND '.join(where_clause))
-            statement.add(full_query_text)
+            full_query_text = query % (ensure_text(',').join(set_clause), ensure_text(' AND ').join(where_clause))
+            statement.add(ensure_str(full_query_text))
         return statement
 
     def make_prepared_batch_statement(self, query, _, batch, replicas):
@@ -2522,7 +2533,7 @@ class ImportProcess(ChildProcess):
         statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
         statement.replicas = replicas
         statement.keyspace = self.ks
-        field_sep = ','
+        field_sep = b',' if six.PY2 else ','
         statement._statements_and_parameters = [(False, query % (field_sep.join(r),), ()) for r in batch['rows']]
         return statement
 
