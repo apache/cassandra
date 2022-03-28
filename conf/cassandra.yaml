@@ -1696,12 +1696,23 @@ drop_compact_storage_enabled: false
 # Uncomment the startup checks and configure them appropriately to cover your needs.
 #
 #startup_checks:
-#  filesystem_ownership:
+# Verifies correct ownership of attached locations on disk at startup. See CASSANDRA-16879 for more details.
+#  check_filesystem_ownership:
 #    enabled: false
 #    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
 #    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
-#  dc:
+# Prevents a node from starting if snitch's data center differs from previous data center.
+#  check_dc:
 #    enabled: true # (overriden by cassandra.ignore_dc system property)
-#  rack:
+# Prevents a node from starting if snitch's rack differs from previous rack.
+#  check_rack:
 #    enabled: true # (overriden by cassandra.ignore_rack system property)
-
+# Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
+# prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
+# except the ones specified on excluded_keyspaces and excluded_tables.
+#  check_data_resurrection:
+#    enabled: false
+# file where Cassandra periodically writes the last time it was known to run
+#    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
+#    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
+#    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check

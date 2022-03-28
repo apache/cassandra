@@ -55,4 +55,13 @@ public interface StartupCheck
     {
         return StartupCheckType.non_configurable_check;
     }
+
+    /**
+     * Post-hook after all startup checks succeeded.
+     *
+     * @param options startup check options from descriptor
+     */
+    default void postAction(StartupChecksOptions options)
+    {
+    }
 }

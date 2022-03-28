@@ -39,7 +39,7 @@ import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.filesystem_ownership;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 
 /**
  * Ownership markers on disk are compatible with the java property file format.
@@ -115,7 +115,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
     @Override
     public StartupChecks.StartupCheckType getStartupCheckType()
     {
-        return filesystem_ownership;
+        return check_filesystem_ownership;
     }
 
     @Override

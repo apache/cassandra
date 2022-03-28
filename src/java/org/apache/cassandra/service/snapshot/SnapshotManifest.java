@@ -24,29 +24,19 @@ import java.util.List;
 import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
-
-import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
+import org.apache.cassandra.utils.FBUtilities;
 
 // Only serialize fields
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY,
                 getterVisibility = JsonAutoDetect.Visibility.NONE,
                 setterVisibility = JsonAutoDetect.Visibility.NONE)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SnapshotManifest
 {
-    private static final ObjectMapper mapper = new ObjectMapper();
-    static {
-        mapper.registerModule(new JavaTimeModule());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    }
-
     @JsonProperty("files")
     public final List<String> files;
 
@@ -88,18 +78,12 @@ public class SnapshotManifest
 
     public void serializeToJsonFile(File outputFile) throws IOException
     {
-        try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
-        {
-            mapper.writeValue((OutputStream) out, this);
-        }
+        FBUtilities.serializeToJsonFile(this, outputFile);
     }
 
     public static SnapshotManifest deserializeFromJsonFile(File file) throws IOException
     {
-        try (FileInputStreamPlus in = file.newInputStream())
-        {
-            return mapper.readValue((InputStream) in, SnapshotManifest.class);
-        }
+        return FBUtilities.deserializeFromJsonFile(SnapshotManifest.class, file);
     }
 
     @Override

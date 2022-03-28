@@ -21,7 +21,7 @@ package org.apache.cassandra.service;
 import org.junit.Before;
 
 import static org.apache.cassandra.config.StartupChecksOptions.ENABLED_PROPERTY;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.filesystem_ownership;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 
 public class YamlBasedFileSystemOwnershipCheckTest extends AbstractFilesystemOwnershipCheckTest
 {
@@ -29,7 +29,7 @@ public class YamlBasedFileSystemOwnershipCheckTest extends AbstractFilesystemOwn
     public void setup()
     {
         super.setup();
-        options.getConfig(filesystem_ownership).put(ENABLED_PROPERTY, "true");
-        options.getConfig(filesystem_ownership).put("ownership_token", token);
+        options.getConfig(check_filesystem_ownership).put(ENABLED_PROPERTY, "true");
+        options.getConfig(check_filesystem_ownership).put("ownership_token", token);
     }
 }

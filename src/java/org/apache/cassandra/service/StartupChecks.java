@@ -104,9 +104,10 @@ public class StartupChecks
     {
         // non-configurable check is always enabled for execution
         non_configurable_check,
-        filesystem_ownership(true),
-        dc,
-        rack;
+        check_filesystem_ownership(true),
+        check_dc,
+        check_rack,
+        check_data_resurrection(true);
 
         public final boolean disabledByDefault;
 
@@ -143,7 +144,8 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
                                                                       checkRack,
-                                                                      checkLegacyAuthTables);
+                                                                      checkLegacyAuthTables,
+                                                                      new DataResurrectionCheck());
 
     public StartupChecks withDefaultTests()
     {
@@ -171,6 +173,18 @@ public class StartupChecks
     {
         for (StartupCheck test : preFlightChecks)
             test.execute(options);
+
+        for (StartupCheck test : preFlightChecks)
+        {
+            try
+            {
+                test.postAction(options);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to run startup check post-action on " + test.getStartupCheckType());
+            }
+        }
     }
 
     public static final StartupCheck checkJemalloc = new StartupCheck()
@@ -656,7 +670,7 @@ public class StartupChecks
         @Override
         public StartupCheckType getStartupCheckType()
         {
-            return StartupCheckType.dc;
+            return StartupCheckType.check_dc;
         }
     };
 
@@ -693,7 +707,7 @@ public class StartupChecks
         @Override
         public StartupCheckType getStartupCheckType()
         {
-            return StartupCheckType.rack;
+            return StartupCheckType.check_rack;
         }
     };
 
