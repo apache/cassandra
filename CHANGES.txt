@@ -117,6 +117,7 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
  * Generate valid KEYSPACE / MATERIALIZED VIEW for CQL for views (CASSANDRA-17266)
  * Fix timestamp tz parsing (CASSANDRA-17467)
  * Suppress CVE-2021-44521 from driver (CASSANDRA-17459)

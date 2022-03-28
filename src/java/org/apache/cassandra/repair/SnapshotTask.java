@@ -53,7 +53,7 @@ public class SnapshotTask extends AsyncFuture<InetAddressAndPort> implements Run
     /**
      * Callback for snapshot request. Run on INTERNAL_RESPONSE stage.
      */
-    static class SnapshotCallback implements RequestCallback
+    static class SnapshotCallback implements RequestCallback<InetAddressAndPort>
     {
         final SnapshotTask task;
 
@@ -82,7 +82,6 @@ public class SnapshotTask extends AsyncFuture<InetAddressAndPort> implements Run
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
-            //listener.failedSnapshot();
             task.tryFailure(new RuntimeException("Could not create snapshot at " + from));
         }
     }

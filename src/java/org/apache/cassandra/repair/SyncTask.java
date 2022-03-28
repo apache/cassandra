@@ -39,7 +39,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
 {
-    private static Logger logger = LoggerFactory.getLogger(SyncTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(SyncTask.class);
 
     protected final RepairJobDesc desc;
     @VisibleForTesting
@@ -101,4 +101,6 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
         if (startTime != Long.MIN_VALUE)
             Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.repairSyncTime.update(currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
+
+    public void abort() {}
 }

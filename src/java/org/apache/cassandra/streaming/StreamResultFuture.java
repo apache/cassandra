@@ -145,6 +145,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
         session.init(this);
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     public void addEventListener(StreamEventHandler listener)
     {
         addCallback(listener);
@@ -229,6 +230,11 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
             {
                 logger.warn("[Stream #{}] Stream failed", planId);
                 tryFailure(new StreamException(finalState, "Stream failed"));
+            }
+            else if (finalState.hasAbortedSession())
+            {
+                logger.info("[Stream #{}] Stream aborted", planId);
+                trySuccess(finalState);
             }
             else
             {
